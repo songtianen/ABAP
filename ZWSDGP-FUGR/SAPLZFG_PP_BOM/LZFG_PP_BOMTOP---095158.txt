@@ -1,0 +1,18 @@
+FUNCTION-POOL zfg_pp_bom.                   "MESSAGE-ID ..
+
+* INCLUDE LZFG_PP_BOMD...                    " Local class definition
+
+DATA: gt_ausp TYPE zttpp_231_output.
+
+**计算公式中使用的预制变量
+DATA gv_c_zbk_p TYPE bapi1003_alloc_values_char-value_char.
+DATA gv_c_zbh_p TYPE bapi1003_alloc_values_char-value_char.
+DATA gv_zbh_p TYPE bapi1003_alloc_values_char-value_char.
+DATA gv_c_zrh_p TYPE bapi1003_alloc_values_char-value_char.
+DATA gv_zhd_p TYPE bapi1003_alloc_values_char-value_char.
+DATA gv_zkd_p TYPE bapi1003_alloc_values_char-value_char. "芯材宽度
+*DATA gv_zkd_pd1 TYPE p DECIMALS 1. "芯材宽度
+DATA gv_zlength_p TYPE bapi1003_alloc_values_char-value_char. "芯材长度
+DATA gv_zqgsyllz_p TYPE bapi1003_alloc_values_char-value_char.
+
+DATA gv_index TYPE i.

@@ -1,0 +1,34 @@
+FUNCTION ZFM_ENH_SAVECJ20N.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(I_RESBD_NEW) LIKE  RESBD STRUCTURE  RESBD
+*"     REFERENCE(I_RESBD_OLD) LIKE  RESBD STRUCTURE  RESBD
+*"     REFERENCE(I_AFVGD) LIKE  AFVGD STRUCTURE  AFVGD
+*"     REFERENCE(I_CAUFVD) LIKE  CAUFVD STRUCTURE  CAUFVD
+*"  EXCEPTIONS
+*"      REJECTED
+*"----------------------------------------------------------------------
+
+
+  BREAK DONGPZ.
+*检查采购申请是否存在PO
+  SELECT SINGLE EBAN~BANFN,
+                EBAN~BNFPO,
+                EBAN~EBELN,
+                EBAN~EBELP
+    INTO @DATA(WA_EBAN)
+    FROM EBAN INNER JOIN EKPO ON EBAN~EBELN = EKPO~EBELN
+                             AND EBAN~EBELP = EKPO~EBELP
+              INNER JOIN EKKO ON EKPO~EBELN = EKKO~EBELN
+    WHERE EBAN~BANFN = @I_RESBD_NEW-BANFNR
+    AND   EBAN~BNFPO = @I_RESBD_NEW-BANFPO
+    AND   EKPO~LOEKZ NE 'L'
+    AND   EKKO~LOEKZ NE 'L'.
+  IF SY-SUBRC EQ 0.
+*    MESSAGE E000(ZMSG_GP) WITH WA_EBAN-EBELN.
+  ENDIF.
+
+
+
+ENDFUNCTION.

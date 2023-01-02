@@ -1,0 +1,21 @@
+*&---------------------------------------------------------------------*
+*& Report ZRMMHH
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZRMMHH.
+DATA:IT_ZTMMHH TYPE TABLE OF ZTMMHH WITH HEADER LINE.
+
+
+
+DO 999 TIMES.
+  CLEAR:IT_ZTMMHH.
+  IT_ZTMMHH-EBELP = 10 * SY-INDEX.
+  IT_ZTMMHH-POSNR = 10 * SY-INDEX.
+  IT_ZTMMHH-BUZEI = SY-INDEX.
+  APPEND IT_ZTMMHH.
+ENDDO.
+CHECK IT_ZTMMHH[] IS NOT INITIAL.
+MODIFY ZTMMHH FROM TABLE IT_ZTMMHH.
+COMMIT WORK.
+MESSAGE '≤Â»Î≥…π¶' TYPE 'S'.

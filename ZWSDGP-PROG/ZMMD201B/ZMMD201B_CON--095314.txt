@@ -1,0 +1,11 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201B_CON
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZXMKC_CON' ITSELF
+CONTROLS: ZXMKC_CON TYPE TABLEVIEW USING SCREEN 0900.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZXMKC_CON'
+DATA:     G_ZXMKC_CON_LINES  LIKE SY-LOOPC.
+
+DATA:     OK_CODE LIKE SY-UCOMM.

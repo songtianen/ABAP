@@ -1,0 +1,3572 @@
+*&---------------------------------------------------------------------*
+*& Include ZRSD202_FRM
+*&---------------------------------------------------------------------*
+
+FORM BUT01.
+*跳转项目明细界面
+  CLEAR:ITAB2[],IT_FIELDCAT1.
+*取数
+  READ TABLE ITAB1 WITH KEY SEL = 'X'.
+  PERFORM GETDATAPUB TABLES ITAB2 USING '2' ITAB1.
+  IF ITAB2[] IS INITIAL.
+    MESSAGE S005 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+*构建ALV
+  PERFORM FILLFIELDCAT1.
+  CLEAR:SCREENNO.
+  SCREENNO = 9001.
+*创建
+  CALL SCREEN 9001.
+ENDFORM.
+FORM BUT01A.
+  DATA:BEGIN OF IT_CHECK1 OCCURS 0,
+         VKORG TYPE VKORG,
+         VTWEG TYPE VTWEG,
+         AUART TYPE AUART,
+         KUNNR TYPE KUNNR,
+         N     TYPE I,
+       END OF IT_CHECK1.
+  CLEAR:TEXTTABLE[],IT_TEXT[],IT_ITEM[],WA_HEAD,IT_CHECK1[],
+  IT_CHECK1,TDID.
+  READ TABLE ITAB2 WITH KEY CHBOX1 = 'X'.
+  IF SY-SUBRC NE 0.
+    MESSAGE E003.
+  ENDIF.
+  LOOP AT ITAB2 WHERE CHBOX1 = 'X'.
+    CLEAR:IT_CHECK1,IT_ITEM.
+*检查销售组织、订单类型等一致
+    MOVE-CORRESPONDING ITAB2 TO IT_CHECK1.
+    MOVE-CORRESPONDING ITAB2 TO IT_ITEM.
+    IT_CHECK1-N = 1.
+    COLLECT IT_CHECK1.
+    IT_ITEM-VGBEL = ITAB2-VBELN.
+    IT_ITEM-VGPOS = ITAB2-POSNR.
+    IT_ITEM-POSID = ITAB2-POSID.
+    CLEAR:IT_ITEM-POSNR,IT_ITEM-VBELN,IT_ITEM-CHBOX.
+    READ TABLE IT_T001W WITH KEY WERKS = IT_ITEM-WERKS BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-NAMEW = IT_T001W-NAME1.
+    ENDIF.
+    READ TABLE IT_T001L WITH KEY WERKS = IT_ITEM-WERKS
+                                 LGORT = IT_ITEM-LGORT
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-LGOBE = IT_T001L-LGOBE.
+    ENDIF.
+    READ TABLE IT_TVM2T WITH KEY MVGR2 = IT_ITEM-MVGR2 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-TVM2T = IT_TVM2T-BEZEI.
+    ENDIF.
+    APPEND IT_ITEM.
+  ENDLOOP.
+  IF LINES( IT_CHECK1 ) NE 1.
+    MESSAGE E006.
+  ENDIF.
+  SORT IT_ITEM BY VGBEL VGPOS.
+  READ TABLE IT_CHECK1 INDEX 1.
+  MOVE-CORRESPONDING IT_CHECK1 TO WA_HEAD.
+  READ TABLE ITAB2 WITH KEY CHBOX1 = 'X'.
+  WA_HEAD-PSPNR = ITAB2-PSPNR.
+  WA_HEAD-AUGRU = ITAB2-AUGRU.
+  WA_HEAD-POST1 = ITAB2-POST1.
+  WA_HEAD-VKGRP = ITAB2-VKGRP.
+  WA_HEAD-ZYWY = ITAB2-ZYWY.
+*  WA_HEAD-ZQSD = ITAB2-ZQSD.
+  WA_HEAD-VKBUR = ITAB2-VKBUR.
+  WA_HEAD-AUART+3(1) = '1'.
+  WA_HEAD-ERDAT = SY-DATUM.
+  WA_HEAD-ERNAM = SY-UNAME.
+*替换制单人
+  PERFORM GETERNAM CHANGING WA_HEAD-ERNAM.
+  WA_HEAD-VDATU = SY-DATUM.
+  WA_HEAD-TDID104 = 'Z104'.
+  WA_HEAD-TDID105 = 'Z108'.
+  WA_HEAD-TDID107 = 'Z107'.
+  PERFORM FILLDATA CHANGING WA_HEAD.
+*任取一行作为交货方式
+  LOOP AT ITAB2 WHERE CHBOX1 = 'X'
+                  AND ZJHFS IS NOT INITIAL .
+    WA_HEAD-ZJHFS = ITAB2-ZJHFS.
+    EXIT.
+  ENDLOOP.
+  SELECT SINGLE NAME_ORG1
+    INTO WA_HEAD-ZYWYT
+    FROM BUT000
+    WHERE PARTNER = WA_HEAD-ZYWY.
+*默认详细地址,找最大合同
+  CLEAR VBAK.
+  SELECT *
+    INTO TABLE @DATA(IT_VBAKXXDZ)
+    FROM VBAK
+    WHERE PS_PSP_PNR = @WA_HEAD-PSPNR
+    AND   KUNNR = @WA_HEAD-KUNNR.
+  SORT IT_VBAKXXDZ BY VBELN DESCENDING.
+  READ TABLE IT_VBAKXXDZ INTO VBAK INDEX 1.
+  LOOP AT IT_VBAKXXDZ INTO VBAK.
+    IF VBAK-ZXXDZ IS NOT INITIAL.
+      WA_HEAD-ZXXDZ = VBAK-ZXXDZ.
+    ENDIF.
+    IF VBAK-ZSHR IS NOT INITIAL.
+      WA_HEAD-ZSHR = VBAK-ZSHR.
+    ENDIF.
+    IF VBAK-ZSHDQ IS NOT INITIAL.
+      WA_HEAD-ZSHDQ = VBAK-ZSHDQ.
+    ENDIF.
+    IF VBAK-ZSHRDH IS NOT INITIAL.
+      WA_HEAD-ZSHRDH = VBAK-ZSHRDH.
+    ENDIF.
+    IF VBAK-ZYFCDF IS NOT INITIAL.
+      WA_HEAD-ZYFCDF = VBAK-ZYFCDF.
+    ENDIF.
+  ENDLOOP.
+
+  CLEAR:IT_ZQSDT,WA_HEAD-ZQSD.
+  READ TABLE IT_ZQSDT INDEX 1.
+  IF SY-SUBRC EQ 0.
+    WA_HEAD-ZQSD = IT_ZQSDT-ZQSDT.
+  ENDIF.
+  CLEAR:IT_ZQSDT.
+
+*  WA_HEAD-TDID = 'Z104'.
+
+  CALL SCREEN 9000.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9000 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9000 OUTPUT.
+  PERFORM MODIFY9000."按钮与字段可编辑
+  PERFORM SETLIST."下拉框
+  PERFORM EDITCONTAINER."长文本
+  PERFORM SHOWITEM."明细ALV
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EXIT INPUT.
+  OK_CODE = SY-UCOMM.
+  PERFORM EXIT USING OK_CODE.
+  CLEAR SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_9000 INPUT.
+  OK_CODE = SY-UCOMM.
+  PERFORM SCREEN2TAB USING: GO_EDITOR WA_HEAD-TDID,
+                            GO_EDITOR104 WA_HEAD-TDID104,
+                            GO_EDITOR105 WA_HEAD-TDID105,
+                            GO_EDITOR107 WA_HEAD-TDID107.
+  PERFORM TAB2SCREEN USING: GO_EDITOR WA_HEAD-TDID,
+                            GO_EDITOR104 WA_HEAD-TDID104,
+                            GO_EDITOR105 WA_HEAD-TDID105,
+                            GO_EDITOR107 WA_HEAD-TDID107.
+  CASE OK_CODE+0(5).
+    WHEN 'BUT02'."保存
+      PERFORM BUT02 USING OK_CODE.
+    WHEN 'BUT03'."退出
+      PERFORM EXIT USING OK_CODE.
+    WHEN 'BUT04' OR 'BUT06' OR 'BUT07' OR 'BUT11'."提交
+      PERFORM BUT04 USING OK_CODE.
+    WHEN 'BUT05'."删除
+      PERFORM BUT05 USING OK_CODE.
+*    WHEN 'BUT06'."签收
+*    WHEN 'BUT07'."驳回
+    WHEN 'BUT08'."详细LOG
+      PERFORM BUT08 USING OK_CODE.
+    WHEN 'BUT09'.""文本输入确认
+      PERFORM BUT09.
+*    WHEN 'BUT11'."重置
+    WHEN 'PICK'.
+      PERFORM PICK USING OK_CODE.
+    WHEN 'BUT12'.
+      PERFORM BUT12.
+    WHEN 'BUT13'."计算距离
+      PERFORM BUT13.
+    WHEN 'BUT14'."推送WMS
+      PERFORM BUT14.
+    WHEN 'BUT15'."黄车费
+      PERFORM BUT15.
+  ENDCASE.
+  PERFORM REFRESHALV.
+  CLEAR OK_CODE.
+ENDMODULE.
+FORM BUT15.
+  CLEAR:WA_HCF.
+  PERFORM TRANSYSGS CHANGING WA_HEAD-ZYSGS.
+  WA_HCF-VBELN = WA_HEAD-VBELN.
+  WA_HCF-ZYSGS = WA_HEAD-ZYSGS.
+  WA_HCF-ZYSGST = WA_HEAD-ZYSGST.
+  WA_HCF-ZYFLX = '30'.
+  WA_HCF-ZSL = '0.09'.
+  IF WA_HEAD-ZYSGS IS INITIAL.
+    MESSAGE S000(OO) WITH '运输公司必填' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+  CALL SCREEN 9004 STARTING AT 40 5 ENDING AT 160 10.
+ENDFORM.
+FORM BUT14..
+  DATA:INTAB1 TYPE TABLE OF ZSSD207 WITH HEADER LINE,
+       INTAB2 TYPE TABLE OF ZSSD208 WITH HEADER LINE.
+  CALL FUNCTION 'ZFM_GP_SD_WMS_FHTZTB'
+    EXPORTING
+      VBELN  = WA_HEAD-VBELN
+    IMPORTING
+      RTYPE  = RTYPE
+      RTMSG  = RTMSG
+    TABLES
+      INTAB1 = INTAB1
+      INTAB2 = INTAB2
+    EXCEPTIONS
+      OTHERS = 1.
+  IF RTYPE = 'S'.
+    UPDATE VBAK
+    SET ZTSWMS = 'S'
+    WHERE VBELN = WA_HEAD-VBELN.
+    COMMIT WORK.
+    MESSAGE S007.
+  ELSE.
+    MESSAGE S000(OO) WITH RTMSG DISPLAY LIKE 'E'.
+  ENDIF.
+ENDFORM.
+FORM BUT13..
+  DATA:ZCKDZ TYPE STRING,
+       ZSHDZ TYPE STRING,
+       ZBDJL TYPE VBAK-ZBDJL.
+  CLEAR:ZCKDZ,ZSHDZ,FLAG,MESSAGE,ZBDJL.
+*发货地址根据工厂默认，收货地址拼接
+  CLEAR:IT_ITEM.
+  READ TABLE IT_ITEM INDEX 1.
+  SELECT SINGLE *
+    FROM T001W
+    WHERE WERKS = IT_ITEM-WERKS.
+*  ZCKDZ = T001W-STRAS.
+  ZCKDZ = WA_HEAD-ZQSD.
+  CONCATENATE WA_HEAD-ZSHDQ WA_HEAD-ZXXDZ INTO ZSHDZ.
+  IF ZCKDZ IS INITIAL.
+    MESSAGE S000(OO) WITH '起始地为空，无法计算' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  IF ZSHDZ IS INITIAL.
+    MESSAGE S000(OO) WITH '收货地址为空，无法计算' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  CALL FUNCTION 'ZFM_GP_SD_BAIDU_CXLDJL' " 'ZFM_GP_SD_BAIDU_JSLDJL'
+    EXPORTING
+      ZCKDZ   = ZCKDZ
+      ZSHDZ   = ZSHDZ
+    IMPORTING
+      ZBDJL   = ZBDJL
+      FLAG    = FLAG
+      MESSAGE = MESSAGE
+    EXCEPTIONS
+      OTHERS  = 1.
+  IF FLAG = 'Y'.
+    PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_HEAD-ZBDJL FLAG.
+    IF FLAG = 'E'.
+      MESSAGE S000(OO) WITH '计算百度距离失败，返回非数字' DISPLAY LIKE 'E'.
+    ELSE.
+      WA_HEAD-ZBDJL = ZBDJL.
+      MESSAGE S007.
+    ENDIF.
+  ELSE.
+    MESSAGE S000(OO) WITH MESSAGE DISPLAY LIKE 'E'.
+  ENDIF.
+ENDFORM.
+FORM BUT12.
+  CHECK WA_HEAD-VBELN IS NOT INITIAL.
+  CALL FUNCTION 'ZFM_FTP_CALLZFTP'
+    EXPORTING
+      SAPNO = WA_HEAD-VBELN
+      SAPMK = 'SD'
+      DJLX  = 'SDSO'.
+
+ENDFORM.
+FORM EXIT USING P_UCOMM.
+  CHECK P_UCOMM+0(5) = 'BUT03'.
+  CASE SY-TCODE.
+    WHEN TCODE2.
+      IF WA_HEAD-ZTTZT = 'A'
+        OR WA_HEAD-ZTTZT IS INITIAL.
+        PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+        IF ANSWER EQ '1'.
+          CLEAR:SCREENNO.
+          SCREENNO = 9001.
+          LEAVE TO SCREEN 0.
+        ENDIF.
+      ELSE.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+    WHEN TCODE6.
+      LEAVE TO SCREEN 0.
+    WHEN OTHERS.
+      PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+      IF ANSWER EQ '1'.
+        CLEAR:SCREENNO.
+        SCREENNO = 9001.
+        PERFORM GETDATA.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+  ENDCASE.
+
+ENDFORM.
+FORM PICK USING P_UCOMM.
+  DATA:L_ROW   TYPE I,
+       L_FIELD TYPE CHAR30.
+  CLEAR:L_ROW,L_FIELD.
+  GET CURSOR LINE L_ROW.
+  GET CURSOR FIELD L_FIELD.
+  CASE L_FIELD.
+    WHEN 'WA_HEAD-VBELN'.
+      PERFORM VA03(ZPUBFORM) USING WA_HEAD-VBELN.
+  ENDCASE.
+ENDFORM.
+FORM BUT04  USING    P_UCOMM.
+  DATA:FIELDS TYPE TABLE OF SVAL WITH HEADER LINE.
+  CLEAR:FIELDS[],ANSWER,WA_DXVBAK.
+*取出原值存储
+  SELECT SINGLE *
+    INTO WA_DXVBAK
+    FROM VBAK
+    WHERE VBELN = WA_HEAD-VBELN.
+  CASE SY-TCODE.
+    WHEN TCODE6.
+    WHEN OTHERS.
+*保管重置,驳回检查有没有出库单
+      CASE SY-TCODE.
+        WHEN TCODE5.
+          CASE P_UCOMM.
+            WHEN 'BUT07' OR 'BUT11'.
+              CLEAR LIPS.
+              SELECT SINGLE *
+                FROM LIPS
+                WHERE VGBEL = WA_HEAD-VBELN.
+              IF SY-SUBRC EQ 0.
+                MESSAGE S000(OO) WITH '发货通知单已创建出库单' LIPS-VBELN '不允许驳回重置' DISPLAY LIKE 'E'.
+                EXIT.
+              ENDIF.
+            WHEN 'STOP'.
+              CLEAR LIPS.
+              LOOP AT IT_ITEM WHERE CHBOX = 'X'.
+                CLEAR LIPS.
+                SELECT SINGLE *
+                  FROM LIPS
+                  WHERE VGBEL = WA_HEAD-VBELN
+                  AND   VGPOS = IT_ITEM-POSNR.
+                IF SY-SUBRC EQ 0.
+                  EXIT.
+                ENDIF.
+              ENDLOOP.
+              IF LIPS IS NOT INITIAL.
+                MESSAGE S000(OO) WITH '发货通知单已创建出库单' LIPS-VBELN '不允许终止' DISPLAY LIKE 'E'.
+                EXIT.
+              ENDIF.
+          ENDCASE.
+      ENDCASE.
+      CASE P_UCOMM.
+        WHEN 'STOP' OR 'BUT06A'.
+        WHEN OTHERS.
+          PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+          IF ANSWER NE '1'.
+            EXIT.
+          ENDIF.
+      ENDCASE.
+  ENDCASE.
+*提交之前先保存
+  CASE OK_CODE.
+    WHEN 'BUT04'.
+      PERFORM BUT02 USING OK_CODE.
+      IF RETURNLOG[] IS NOT INITIAL.
+        EXIT.
+      ENDIF.
+      IF RTYPE = 'E'.
+        EXIT.
+      ENDIF.
+  ENDCASE.
+*驳回需弹窗
+  CASE P_UCOMM+0(5).
+    WHEN 'BUT07'.
+    WHEN 'BUT06'."签收
+      CASE SY-TCODE.
+        WHEN TCODE3 OR TCODE5."签收
+*先执行保存动作-状态一致的不需要再保存
+          SELECT SINGLE COUNT(*)
+            FROM VBAK
+            WHERE VBELN = WA_HEAD-VBELN
+            AND   ZTTZT = WA_HEAD-ZTTZT.
+          IF SY-SUBRC EQ 0.
+            PERFORM BUT02 USING OK_CODE.
+            IF RTYPE NE 'S'.
+              MESSAGE S000(OO) WITH RTMSG DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+          ENDIF.
+*        WHEN TCODE5."保管签收-按行相同发货通知单+库存地
+*          CLEAR:IT_POSNR[].
+*          READ TABLE IT_ITEM INTO DATA(WA_ITEM1) WITH KEY CHBOX = 'X'.
+*          IF SY-SUBRC NE 0.
+*            MESSAGE S003 DISPLAY LIKE 'E'.
+*            EXIT.
+*          ENDIF.
+*          LOOP AT IT_ITEM WHERE LGORT = WA_ITEM1-LGORT.
+*            IT_ITEM-CHBOX = 'X'.
+*            MODIFY IT_ITEM TRANSPORTING CHBOX.
+*            CLEAR:IT_POSNR.
+*            IT_POSNR-POSNR = IT_ITEM-POSNR.
+*            APPEND IT_POSNR.
+*          ENDLOOP.
+      ENDCASE.
+    WHEN 'STOP'.
+      CASE SY-TCODE.
+        WHEN TCODE5.
+          CLEAR:IT_POSNR[].
+          READ TABLE IT_ITEM INTO DATA(WA_ITEM1) WITH KEY CHBOX = 'X'.
+          IF SY-SUBRC NE 0.
+            MESSAGE S003 DISPLAY LIKE 'E'.
+            EXIT.
+          ENDIF.
+          LOOP AT IT_ITEM WHERE CHBOX = 'X'.
+            CLEAR:IT_POSNR.
+            IT_POSNR-POSNR = IT_ITEM-POSNR.
+            APPEND IT_POSNR.
+          ENDLOOP.
+      ENDCASE.
+  ENDCASE.
+  CASE SY-TCODE.
+    WHEN TCODE6.
+    WHEN OTHERS.
+      CASE P_UCOMM.
+        WHEN 'STOP' OR 'BUT06A'.
+          PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+          IF ANSWER NE '1'.
+            EXIT.
+          ENDIF.
+      ENDCASE.
+  ENDCASE.
+
+  PERFORM GETBUTYS USING P_UCOMM CHANGING ACT.
+  PERFORM CHGSTATUS TABLES IT_POSNR
+                    USING WA_HEAD-VBELN ACT WA_DXVBAK
+        CHANGING RTMSG.
+  CLEAR VBELN.
+  VBELN = WA_HEAD-VBELN.
+  CASE SY-TCODE.
+    WHEN TCODE6.
+    WHEN OTHERS.
+      IF RTMSG+0(1) NE 'E'.
+        IF RTMSG IS INITIAL.
+          RTMSG = TEXT-000.
+        ENDIF.
+        IF RTMSG+0(1) = 'E'.
+          MESSAGE RTMSG TYPE 'I'.
+        ELSE.
+          MESSAGE I033 WITH WA_HEAD-VBELN .
+        ENDIF.
+        CASE OK_CODE+0(5).
+          WHEN 'BUT06'."签收后停留在原地
+*物流签收后更新物流员
+            CASE SY-TCODE.
+              WHEN TCODE3.
+                UPDATE VBAK
+                SET ZWLY = USREFUS-USERALIAS
+                WHERE VBELN = VBELN.
+                COMMIT WORK.
+              WHEN TCODE5.
+                UPDATE VBAP
+                SET ZBGY = USREFUS-USERALIAS
+                WHERE VBELN = VBELN.
+                COMMIT WORK.
+            ENDCASE.
+            PERFORM GETDATA.
+            PERFORM GETFH USING VBELN OK_CODE.
+          WHEN OTHERS.
+            PERFORM GETDATA.
+            LEAVE TO SCREEN 0.
+        ENDCASE.
+      ELSE.
+        MESSAGE S000(OO) WITH RTMSG DISPLAY LIKE 'E'.
+      ENDIF.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT05
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> OK_CODE
+*&---------------------------------------------------------------------*
+FORM BUT05  USING    P_UCOMM.
+  CLEAR:IT_POSNR[].
+  IF WA_HEAD-VBELN IS INITIAL.
+    MESSAGE S000(OO) WITH '无发货通知单号' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+  IF ANSWER NE '1'.
+    EXIT.
+  ENDIF.
+  PERFORM GETBUTYS USING P_UCOMM CHANGING ACT.
+  PERFORM CHGSTATUS TABLES IT_POSNR
+    USING WA_HEAD-VBELN  ACT VBAK
+        CHANGING RTMSG.
+  IF RTMSG+0(1) = 'S'.
+    MESSAGE RTMSG TYPE 'I'.
+    PERFORM GETDATA.
+    LEAVE TO SCREEN 0.
+  ELSE.
+    MESSAGE S000(OO) WITH RTMSG DISPLAY LIKE 'E'.
+  ENDIF.
+ENDFORM.
+FORM BUT02 USING P_UCOMM.
+  DATA:BEGIN OF IT_CHECKFIELD OCCURS 0,
+         TYPE  TYPE CHAR1,
+         FIELD TYPE CHAR30,
+         TEXT  TYPE CHAR30,
+       END OF IT_CHECKFIELD.
+  DATA:ITEM      TYPE ZSSD211D,
+       WA_ITEM   TYPE ZSSD211,
+       IT_COND   TYPE ZSSD211C,
+       WA_COND   TYPE ZSSD211B,
+       HEAD_ENH  TYPE ZSSD_ENH_VBAK,
+       TEXT      TYPE TABLE OF BAPISDTEXT WITH HEADER LINE,
+       CONDITION TYPE TABLE OF ZSSD211B WITH HEADER LINE.
+  CLEAR:ITEM,HEAD_ENH,RETURN[],TEXT[],CONDITION[],IT_CHECKFIELD[],
+  RETURNLOG[].
+  DEFINE FILLMSG.
+    CLEAR:IT_CHECKFIELD.
+    IT_CHECKFIELD-TYPE = &1.
+    IT_CHECKFIELD-FIELD = &2.
+    IT_CHECKFIELD-TEXT = &3.
+    APPEND IT_CHECKFIELD.
+  END-OF-DEFINITION.
+
+  PERFORM GETBUTYS USING P_UCOMM CHANGING ACT.
+  PERFORM TRANSYSGS CHANGING WA_HEAD-ZYSGS.
+*处理数值型但是数据类型是CHAR的
+
+*处理数值字段
+  PERFORM DEALNUM.
+  SELECT SINGLE *
+    FROM VBAK
+    WHERE VBELN = WA_HEAD-VBELN.
+  IF WA_HEAD-ZYSGS IS NOT INITIAL.
+    SELECT SINGLE COUNT(*)
+      FROM LFA1
+      WHERE LIFNR = WA_HEAD-ZYSGS.
+    IF SY-SUBRC NE 0.
+      PERFORM INMSG(ZPUBFORM) TABLES RETURNLOG
+        USING 'ZMSG_GP' 'E' '034' ''
+              '' '' ''.
+    ENDIF.
+  ENDIF.
+  IF WA_HEAD-ZYSFZR IS NOT INITIAL.
+    SELECT SINGLE COUNT(*)
+      FROM ZTMM212
+      WHERE ZYSZRR = WA_HEAD-ZYSFZR.
+    IF SY-SUBRC NE 0.
+      PERFORM INMSG(ZPUBFORM) TABLES RETURNLOG
+        USING 'ZMSG_GP' 'E' '014' ''
+              '' '' ''.
+    ENDIF.
+  ENDIF.
+*创建/修改SO
+  MOVE-CORRESPONDING WA_HEAD TO HEAD_ENH.
+  IF WA_HEAD-VBELN IS INITIAL.
+    HEAD_ENH-ZTTZT = 'A'.
+    FILLMSG 'H' 'VDATU' '交货日期'.
+    FILLMSG 'H' 'ZQSD' '起始地'.
+    FILLMSG 'H' 'ZSHR' '收货人'.
+    FILLMSG 'H' 'ZSHDQ' '收货地区'.
+    FILLMSG 'H' 'ZXXDZ' '详细地址'.
+    FILLMSG 'H' 'ZHUOC' '货长(米)'.
+    FILLMSG 'H' 'ZHUOK' '货宽(米)'.
+    FILLMSG 'H' 'ZHUOG' '货高(米)'.
+    FILLMSG 'H' 'ZHUOZ' '货重(吨)'.
+    FILLMSG 'H' 'ZSHRDH' '收货人电话'.
+    FILLMSG 'H' 'ZSFDX' '是否短信'.
+  ENDIF.
+  CASE P_UCOMM.
+    WHEN 'BUT04'."提交时校验保存
+      CASE SY-TCODE.
+        WHEN TCODE2.
+          FILLMSG 'I' 'LGORT' '地点'.
+      ENDCASE.
+
+  ENDCASE.
+*动态检查
+*数据的基础检查
+  LOOP AT IT_CHECKFIELD.
+    CASE IT_CHECKFIELD-TYPE.
+      WHEN 'H'.
+        ASSIGN COMPONENT IT_CHECKFIELD-FIELD OF STRUCTURE WA_HEAD TO <FS1>.
+        IF SY-SUBRC EQ 0.
+          IF <FS1> IS INITIAL.
+            PERFORM INMSG(ZPUBFORM) TABLES RETURNLOG
+              USING 'ZMSG_GP' 'E' '009' IT_CHECKFIELD-TEXT
+                    '' '' ''.
+          ENDIF.
+        ENDIF.
+      WHEN 'I'.
+        LOOP AT IT_ITEM.
+          ASSIGN COMPONENT IT_CHECKFIELD-FIELD OF STRUCTURE IT_ITEM TO <FS1>.
+          IF SY-SUBRC EQ 0.
+            IF <FS1> IS INITIAL.
+              PERFORM INMSG(ZPUBFORM) TABLES RETURNLOG
+                USING 'ZMSG_GP' 'E' '009' IT_CHECKFIELD-TEXT
+                      '' '' ''.
+            ENDIF.
+          ENDIF.
+        ENDLOOP.
+    ENDCASE.
+  ENDLOOP.
+  IF RETURNLOG[] IS NOT INITIAL.
+    PERFORM SHOWMSG(ZPUBFORM) TABLES RETURNLOG.
+    EXIT.
+  ENDIF.
+
+*长文本
+*将当前停留文本更新
+  PERFORM SCREEN2TAB USING: GO_EDITOR WA_HEAD-TDID,
+                            GO_EDITOR104 WA_HEAD-TDID104,
+                            GO_EDITOR105 WA_HEAD-TDID105,
+                            GO_EDITOR107 WA_HEAD-TDID107.
+  LOOP AT IT_TEXT.
+    CLEAR TEXT.
+    TEXT-TEXT_ID = IT_TEXT-TDID.
+    TEXT-LANGU = SY-LANGU.
+    TEXT-TEXT_LINE = IT_TEXT-TEXT.
+    APPEND TEXT.
+  ENDLOOP.
+  CASE SY-TCODE.
+    WHEN TCODE2.
+      IF WA_HEAD-ZTTZT = 'A'
+  OR WA_HEAD-ZTTZT IS INITIAL.
+      ELSE.
+        CLEAR:TEXT[].
+      ENDIF.
+      IF WA_HEAD-ZWF1 IS NOT INITIAL.
+        CLEAR:CONDITION.
+        CONDITION-KSCHL = 'ZWF1'.
+        CONDITION-KBETR = WA_HEAD-ZWF1.
+        APPEND CONDITION.
+      ENDIF.
+    WHEN OTHERS.
+      CLEAR:TEXT[].
+  ENDCASE.
+
+  LOOP AT IT_ITEM.
+    CLEAR:WA_ITEM,IT_COND,WA_COND.
+    MOVE-CORRESPONDING IT_ITEM TO WA_ITEM.
+    WA_ITEM-EINDT = WA_HEAD-VDATU.
+*价格
+    LOOP AT IT_YS1 WHERE TYPE = 'I'.
+      CLEAR:WA_COND.
+      ASSIGN COMPONENT IT_YS1-FIELD OF STRUCTURE IT_ITEM TO <FS>.
+      IF SY-SUBRC EQ 0.
+        IF <FS> IS NOT INITIAL.
+          WA_COND-KSCHL = IT_YS1-KSCHL.
+          WA_COND-KBETR = <FS>.
+          APPEND WA_COND TO IT_COND.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    WA_ITEM-CONDITION = IT_COND.
+    IF WA_ITEM-POSNR IS INITIAL.
+      WA_ITEM-UPDKZ = 'I'.
+    ENDIF.
+    CASE SY-TCODE.
+      WHEN TCODE2.
+      WHEN OTHERS.
+        WA_ITEM-UPDKZ = 'N'."行项目不修改
+    ENDCASE.
+*    CLEAR:WA_ITEM-POSID.
+    APPEND WA_ITEM TO ITEM.
+  ENDLOOP.
+  READ TABLE IT_ITEM INDEX 1.
+  CALL FUNCTION 'ZFM_SD_MODIFYSO'
+    EXPORTING
+*     UPDKZ     =
+      AUART     = WA_HEAD-AUART
+      VKORG     = WA_HEAD-VKORG
+      VTWEG     = WA_HEAD-VTWEG
+      SPART     = '00'
+      KUNAG     = WA_HEAD-KUNNR
+      VKBUR     = WA_HEAD-VKBUR
+      VKGRP     = WA_HEAD-VKGRP
+*     PRSDT     =
+*     BSTKD     =
+*     GUEBG     =
+*     GUEEN     =
+      WAERS     = 'CNY'
+*     KDGRP     =
+*     INCO1     =
+*     INCO2     =
+*     ZTERM     =
+      AUGRU     = WA_HEAD-AUGRU
+      VDATU     = WA_HEAD-VDATU
+      POSID     = IT_ITEM-POSID
+      KUNTV     = WA_HEAD-LIFNR
+*     KONDA     =
+      HEAD_ENH  = HEAD_ENH
+    IMPORTING
+      RTYPE     = RTYPE
+      RTMSG     = RTMSG
+    TABLES
+      RETURN    = RETURN
+      TEXT      = TEXT
+      CONDITION = CONDITION
+    CHANGING
+      VBELN     = WA_HEAD-VBELN
+      ITEM      = ITEM
+    EXCEPTIONS
+      OTHERS    = 1.
+  IF RTYPE = 'S'.
+    IF WA_HEAD-ZTTZT IS INITIAL.
+      WA_HEAD-ZTTZT = 'A'.
+      CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+        EXPORTING
+          P_TYPE    = 'I'
+          TABNAME   = 'VBAK'
+          FIELDNAME = 'ZTTZT'
+          VALUE_O   = ''
+          VALUE_N   = 'A'
+          SAPNO     = *VBAK-VBELN.
+    ENDIF.
+    SORT ITEM BY VGBEL VGPOS.
+    LOOP AT IT_ITEM.
+      READ TABLE ITEM INTO WA_ITEM WITH KEY VGBEL = IT_ITEM-VGBEL
+                                            VGPOS = IT_ITEM-VGPOS
+                                            BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        IT_ITEM-VBELN = WA_HEAD-VBELN.
+        IT_ITEM-POSNR = WA_ITEM-POSNR.
+      ENDIF.
+      MODIFY IT_ITEM.
+    ENDLOOP.
+*提交引起的保存不弹窗
+    CASE P_UCOMM+0(5).
+      WHEN 'BUT02'.
+        MESSAGE I033 WITH WA_HEAD-VBELN .
+      WHEN OTHERS.
+    ENDCASE.
+  ELSE.
+    RTYPE = 'E'.
+    PERFORM SHOWMSG(ZPUBFORM) TABLES RETURN.
+  ENDIF.
+ENDFORM.
+FORM EDITCONTAINER.
+  PERFORM INITLONGTEXT USING GO_EDITOR_CONTAINER GO_EDITOR 'CONT1'.
+  PERFORM INITLONGTEXT USING GO_EDITOR_CONTAINER104 GO_EDITOR104 'CONT104'.
+  PERFORM INITLONGTEXT USING GO_EDITOR_CONTAINER105 GO_EDITOR105 'CONT105'.
+  PERFORM INITLONGTEXT USING GO_EDITOR_CONTAINER107 GO_EDITOR107 'CONT107'.
+
+  IF WA_HEAD-TDID IS NOT INITIAL.
+*    PERFORM SCREEN2TAB USING GO_EDITOR  WA_HEAD-TDID.
+    PERFORM TAB2SCREEN USING GO_EDITOR WA_HEAD-TDID.
+  ELSE.
+*清空
+    CLEAR:TEXTTABLE[],TEXTTABLE.
+    CALL METHOD GO_EDITOR->DELETE_TEXT .
+    CALL METHOD CL_GUI_CFW=>FLUSH.
+  ENDIF.
+  IF WA_HEAD-TDID104 IS NOT INITIAL.
+    PERFORM TAB2SCREEN USING GO_EDITOR104 WA_HEAD-TDID104.
+  ENDIF.
+  IF WA_HEAD-TDID105 IS NOT INITIAL.
+    PERFORM TAB2SCREEN USING GO_EDITOR105 WA_HEAD-TDID105.
+  ENDIF.
+  IF WA_HEAD-TDID107 IS NOT INITIAL.
+    PERFORM TAB2SCREEN USING GO_EDITOR107 WA_HEAD-TDID107.
+  ENDIF.
+ENDFORM.
+FORM INITLONGTEXT USING P_EDITCONT TYPE REF TO CL_GUI_CUSTOM_CONTAINER
+                         P_GO_EDITOR TYPE REF TO CL_GUI_TEXTEDIT
+                         P_CONTAINER_NAME.
+  CLEAR:TEXTTABLE[],TEXTTABLE.
+  IF P_EDITCONT IS INITIAL.
+    CREATE OBJECT P_EDITCONT
+      EXPORTING
+        CONTAINER_NAME              = P_CONTAINER_NAME
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+
+    CREATE OBJECT P_GO_EDITOR
+      EXPORTING
+        PARENT                     = P_EDITCONT
+        WORDWRAP_MODE              = CL_GUI_TEXTEDIT=>WORDWRAP_AT_FIXED_POSITION
+        WORDWRAP_POSITION          = '100'
+        WORDWRAP_TO_LINEBREAK_MODE = CL_GUI_TEXTEDIT=>TRUE.
+  ENDIF.
+  CALL METHOD P_GO_EDITOR->SET_TOOLBAR_MODE
+    EXPORTING
+      TOOLBAR_MODE = 0.
+
+  IF WA_HEAD-ZTTZT = 'A'
+    OR WA_HEAD-ZTTZT IS INITIAL.
+  ELSE.
+    CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+      EXPORTING
+        READONLY_MODE = 1.
+  ENDIF.
+  IF P_VBELN IS NOT INITIAL
+    AND P_MODE = 'S'.
+    CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+      EXPORTING
+        READONLY_MODE = 1.
+  ENDIF.
+
+  CALL METHOD P_GO_EDITOR->SET_STATUSBAR_MODE
+    EXPORTING
+      STATUSBAR_MODE = 0.
+
+  PERFORM CLEAR_TEXT USING P_GO_EDITOR.
+  CL_GUI_CONTROL=>SET_FOCUS( P_GO_EDITOR ).
+ENDFORM.
+FORM CLEAR_TEXT USING P_GO_EDITOR1 TYPE REF TO CL_GUI_TEXTEDIT.
+*  REFRESH:TEXTTABLE.
+  CALL METHOD P_GO_EDITOR1->SET_TEXT_AS_STREAM
+    EXPORTING
+      TEXT            = TEXTTABLE[]
+    EXCEPTIONS
+      ERROR_DP        = 1
+      ERROR_DP_CREATE = 2
+      OTHERS          = 3.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+FORM BUT09.
+  IF WA_HEAD-TDID IS INITIAL.
+    MESSAGE S000(OO) WITH '文本标识必填' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+*将切换前的内容
+  REFRESH:TEXTTABLE.
+  "将容器中内容解析到内表
+  GO_EDITOR->GET_TEXT_AS_R3TABLE( IMPORTING TABLE = TEXTTABLE[] ).
+
+  "--填充信息
+  IF TEXTTABLE[] IS INITIAL.
+    DELETE IT_TEXT WHERE TDID = WA_HEAD-TDID.
+  ELSE.
+    LOOP AT TEXTTABLE.
+      CLEAR:IT_TEXT.
+      IT_TEXT-TDID = WA_HEAD-TDID.
+      IT_TEXT-TEXT = TEXTTABLE-TEXT.
+      APPEND IT_TEXT.
+    ENDLOOP.
+  ENDIF.
+*清除容器及内表内容
+*  PERFORM CLEAR_TEXT.
+ENDFORM.
+FORM BUT08 USING P_UCOMM.
+  DATA:INTAB  TYPE TABLE OF ZSSDZDLOG WITH HEADER LINE,
+       IT_LOG TYPE TABLE OF ZSSDZDLOG1 WITH HEADER LINE.
+  CLEAR:INTAB[],IT_LOG[].
+  CASE P_UCOMM.
+    WHEN 'BUT08'.
+      CLEAR:INTAB.
+      INTAB-SAPNO = WA_HEAD-VBELN.
+      APPEND INTAB.
+    WHEN 'BUT08A'.
+      LOOP AT IT_ITEM WHERE CHBOX = 'X'.
+        CLEAR INTAB.
+        CONCATENATE WA_HEAD-VBELN IT_ITEM-POSNR INTO INTAB-SAPNO.
+        APPEND INTAB.
+      ENDLOOP.
+      IF INTAB[] IS INITIAL.
+        MESSAGE S003 DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+  ENDCASE.
+  CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+    EXPORTING
+      P_TYPE = 'O'
+      SHOW   = 'X'
+    TABLES
+      INTAB  = INTAB
+      OUTTAB = IT_LOG.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EDITTEXT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EDITTEXT INPUT.
+*若TDID发生变化
+  IF TDID NE WA_HEAD-TDID
+    AND TDID IS NOT INITIAL.
+    PERFORM SCREEN2TAB USING GO_EDITOR TDID.
+  ENDIF.
+
+  PERFORM TAB2SCREEN USING GO_EDITOR WA_HEAD-TDID.
+  TDID = WA_HEAD-TDID.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form SETLIST
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SETLIST .
+  PERFORM ITABTOLIST(ZPUBFORM) TABLES IT_LIST1 USING 'WA_HEAD-TDID'.
+  PERFORM ITABTOLIST(ZPUBFORM) TABLES IT_ZQSDT USING 'WA_HEAD-ZQSD'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SHOWITEM
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SHOWITEM .
+  "创建容器
+  IF ALVGRID IS INITIAL.
+    CREATE OBJECT CONTAIN
+      EXPORTING
+        CONTAINER_NAME              = 'CONT2'
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+    IF SY-SUBRC NE 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                 WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+    CREATE OBJECT ALVGRID
+      EXPORTING
+        I_PARENT = CONTAIN.
+
+    CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+    CREATE OBJECT LCL_EVENT_RECEIVER1.
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_DOUBLE_CLICK FOR ALVGRID.
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_DATA_CHANGED FOR ALVGRID.
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_HOTSPOT_CLICK FOR ALVGRID."热点点击
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_TOOLBAR FOR ALVGRID."增加按钮
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_COMMAND FOR ALVGRID."按钮响应
+    ALVGRID->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_MODIFIED )."mc_evt_enter
+*    ALVGRID->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_ENTER )."mc_evt_enter
+    ALVGRID->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM CALLALVN.
+  ELSE.
+    PERFORM CALLALVN.
+  ENDIF.
+*刷新ALV
+  PERFORM REFRESHALV.
+ENDFORM.
+FORM CALLALVN.
+  CLEAR:IT_FIELDCAT,IT_DROP,WA_DROP.
+*FIELDCAT
+  PERFORM FILLFIELDCAT TABLES IT_FIELDCAT USING:
+'CHBOX' '选择' '' '',
+'POSNR' '发货通知行项目号' '' '',
+'VGBEL' 'SAP合同编码' '' '',
+'VGPOS' '合同行号' '' '',
+'UEPOS' '上层项目号' '' '',
+'VBELV' '出库单' '' '',
+'PSPNR' 'WBS号' 'VBAP' 'PS_PSP_PNR',
+'POST1' '项目描述' 'PRPS' '',
+'POSID' '项目定义' 'PRPS' '',
+'MVGR2' '来源' 'VBAP' '',
+'TVM2T' '来源描述' '' '',
+'ZZL1' '品名' 'VBAP' '',
+'GUIGE' '规格' '' '',
+'MATNR' '物料号' 'VBAP' '',
+*'MAKTX' '物料描述' 'MAKT' '',
+'VRKME' '单位' 'VBAP' '',
+'WERKS' '销售工厂' 'VBAP' '',
+'NAMEW' '工厂描述' '' '',
+'CKL' '出库量' '' '',
+'MVGR3' '内销工厂' 'VBAP' '',
+'LGORT' '库存地' 'VBAP' '',
+'LGOBE' '库存地描述' '' '',
+'KWMENG' '合同量' 'VBAP' '',
+*'ZPRR' '拆分单价' 'KONV' 'KBETR',
+*'KZWI5' '拆分金额' 'VBAP' '',
+'ZCKZT' '出库状态' '' '',
+'ZCKZTT' '出库状态' '' '',
+'ZBGY' '保管员' '' '',
+*'ZZHWZ' '' '' '',
+'PSTYV' '行项目类别' 'VBAP' '',
+'ZZHWZT1' '装货位置' '' ''.
+  LOOP AT IT_FIELDCAT INTO WA_FIELDCAT.
+    CASE WA_FIELDCAT-FIELDNAME.
+      WHEN 'VGBEL' OR 'VBELV'.
+        WA_FIELDCAT-HOTSPOT = 'X'.
+      WHEN 'ZZHWZT1'.
+        CASE SY-TCODE.
+          WHEN TCODE3.
+            CASE WA_HEAD-ZTTZT.
+              WHEN 'C'.
+                WA_FIELDCAT-EDIT = 'X'.
+              WHEN OTHERS.
+                CLEAR:WA_FIELDCAT-EDIT.
+            ENDCASE.
+        ENDCASE.
+        WA_FIELDCAT-DRDN_HNDL = 1.
+    ENDCASE.
+    IF P_VBELN IS NOT INITIAL
+      AND P_MODE = 'S' .
+      CASE WA_FIELDCAT-FIELDNAME.
+        WHEN 'CHBOX'.
+        WHEN OTHERS.
+          CLEAR WA_FIELDCAT-EDIT.
+      ENDCASE.
+    ENDIF.
+
+    MODIFY IT_FIELDCAT FROM WA_FIELDCAT.
+  ENDLOOP.
+*设置下拉框
+  LOOP AT IT_ZZHWZ.
+    CLEAR:WA_DROP.
+    WA_DROP-HANDLE  = 1.
+    CONCATENATE IT_ZZHWZ-DOMVALUE_L '-'
+    IT_ZZHWZ-DDTEXT INTO WA_DROP-VALUE.
+    APPEND WA_DROP TO IT_DROP .
+  ENDLOOP.
+  CALL METHOD ALVGRID->SET_DROP_DOWN_TABLE        "调用alv类的下拉框方法
+    EXPORTING
+      IT_DROP_DOWN = IT_DROP.
+  PERFORM CALLALV(ZPUBFORM) TABLES IT_ITEM
+    USING ALVGRID IT_FIELDCAT 'S202'.
+ENDFORM.
+FORM CALLALV1.
+*ALV展示
+  CALL METHOD ALVGRID1->SET_TABLE_FOR_FIRST_DISPLAY
+    EXPORTING
+      I_SAVE                        = 'A'
+      IS_LAYOUT                     = WA_LAYOUT1
+      IS_VARIANT                    = VARIANT1
+      IT_TOOLBAR_EXCLUDING          = IT_EF2[]
+    CHANGING
+      IT_OUTTAB                     = ITAB2[]
+      IT_FIELDCATALOG               = IT_FIELDCAT1
+    EXCEPTIONS
+      INVALID_PARAMETER_COMBINATION = 1
+      PROGRAM_ERROR                 = 2
+      TOO_MANY_LINES                = 3
+      OTHERS                        = 4.
+
+  IF SY-SUBRC NE 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+               WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDFORM.
+FORM CALLALV2.
+*ALV展示
+  CALL METHOD ALVGRID2->SET_TABLE_FOR_FIRST_DISPLAY
+    EXPORTING
+      I_SAVE                        = 'A'
+      IS_LAYOUT                     = WA_LAYOUT1
+      IS_VARIANT                    = VARIANT1
+      IT_TOOLBAR_EXCLUDING          = IT_EF2[]
+    CHANGING
+      IT_OUTTAB                     = ITAB3[]
+      IT_FIELDCATALOG               = IT_FIELDCAT1
+    EXCEPTIONS
+      INVALID_PARAMETER_COMBINATION = 1
+      PROGRAM_ERROR                 = 2
+      TOO_MANY_LINES                = 3
+      OTHERS                        = 4.
+
+  IF SY-SUBRC NE 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+               WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDFORM.
+FORM FILLFIELDCAT TABLES P_FIELDCAT STRUCTURE LVC_S_FCAT
+                   USING P_FIELDNAME P_TEXT P_TAB P_FIELD.
+  DATA:WA_FIELDCAT TYPE LVC_S_FCAT.
+  CLEAR:WA_FIELDCAT.
+  WA_FIELDCAT-FIELDNAME = P_FIELDNAME.
+  WA_FIELDCAT-SCRTEXT_M = P_TEXT.
+  WA_FIELDCAT-SCRTEXT_L = P_TEXT.
+  WA_FIELDCAT-SCRTEXT_S = P_TEXT.
+  WA_FIELDCAT-REF_TABLE = P_TAB.
+  WA_FIELDCAT-REF_FIELD = P_FIELD.
+  IF P_FIELD IS INITIAL.
+    WA_FIELDCAT-REF_FIELD = P_FIELDNAME.
+  ENDIF.
+  IF P_FIELD = 'N'.
+    CLEAR:WA_FIELDCAT-REF_FIELD.
+  ENDIF.
+  CASE P_FIELDNAME.
+    WHEN 'CHBOX'.
+      WA_FIELDCAT-HOTSPOT   = 'X'.
+      WA_FIELDCAT-EDIT   = 'X'.
+      WA_FIELDCAT-CHECKBOX   = 'X'.
+      WA_FIELDCAT-FIX_COLUMN   = 'X'.
+  ENDCASE.
+  CASE SY-TCODE.
+    WHEN TCODE2.
+      IF WA_HEAD-ZTTZT = 'A'
+        OR WA_HEAD-ZTTZT IS INITIAL.
+        CASE P_FIELDNAME.
+          WHEN 'CHBOX1'.
+            WA_FIELDCAT-HOTSPOT   = 'X'.
+            WA_FIELDCAT-EDIT   = 'X'.
+            WA_FIELDCAT-CHECKBOX   = 'X'.
+            WA_FIELDCAT-FIX_COLUMN   = 'X'.
+          WHEN 'KWMENG' OR 'LGORT'.
+            IF SY-DYNNR = 9000.
+              WA_FIELDCAT-EDIT = 'X'.
+            ENDIF.
+        ENDCASE.
+      ENDIF.
+    WHEN TCODE5.
+      CASE P_FIELDNAME.
+        WHEN 'CHBOX' OR 'CHBOX1'.
+          WA_FIELDCAT-HOTSPOT   = 'X'.
+          WA_FIELDCAT-EDIT   = 'X'.
+          WA_FIELDCAT-CHECKBOX   = 'X'.
+          WA_FIELDCAT-FIX_COLUMN   = 'X'.
+      ENDCASE.
+  ENDCASE.
+
+  APPEND WA_FIELDCAT TO P_FIELDCAT.
+ENDFORM.                    "FILLFIELDCAT
+FORM INIT_FIELDCAT TABLES OUTFIELDCAT
+USING FIELDNAME SELTEXT NOZERO NOOUT HOTSPOT EDIT P_TAB P_FIELD.
+  DATA:WA TYPE SLIS_FIELDCAT_ALV.
+  WA-FIELDNAME = FIELDNAME.
+  WA-SELTEXT_L = SELTEXT.
+  WA-SELTEXT_M = SELTEXT.
+  WA-SELTEXT_S = SELTEXT.
+  WA-REPTEXT_DDIC = SELTEXT.
+  WA-NO_OUT = NOOUT.
+  WA-HOTSPOT = HOTSPOT.
+  IF EDIT = 'X'.
+    WA-EDIT = 'X'.
+  ENDIF.
+*对于数值，若有小数位但却为000，则隐藏
+  CASE NOZERO.
+    WHEN 'X'.
+      WA-NO_ZERO = NOZERO.
+    WHEN 'Y'.
+      WA-NO_ZERO = 'X'.
+      WA-QFIELDNAME = 'MEINS'.
+  ENDCASE.
+  CASE WA-FIELDNAME.
+    WHEN 'CHBOX' OR 'XDBS'.
+      WA-CHECKBOX = 'X'.
+      WA-HOTSPOT = 'X'.
+      WA-FIX_COLUMN = 'X'.
+    WHEN 'ICON'.
+      WA-FIX_COLUMN = 'X'.
+    WHEN 'VBELN'.
+      WA-REF_FIELDNAME = 'VBELN'.
+      WA-REF_TABNAME = 'VBAK'.
+    WHEN 'VBELV'.
+      WA-REF_FIELDNAME = 'VBELN'.
+      WA-REF_TABNAME = 'LIKP'.
+    WHEN 'EBELN'.
+      WA-REF_FIELDNAME = 'EBELN'.
+      WA-REF_TABNAME = 'EKKO'.
+    WHEN 'VBELP'.
+      WA-REF_FIELDNAME = 'VBELN'.
+      WA-REF_TABNAME = 'VBRK'.
+    WHEN 'POST1'.
+      WA-REF_FIELDNAME = 'POST1'.
+      WA-REF_TABNAME = 'PRPS'.
+    WHEN 'AUFNR'.
+      WA-REF_FIELDNAME = 'AUFNR'.
+      WA-REF_TABNAME = 'AUFK'.
+    WHEN 'MATNR'.
+      WA-REF_FIELDNAME = 'MATNR'.
+      WA-REF_TABNAME = 'MARA'.
+    WHEN 'MAKTX'.
+      WA-REF_FIELDNAME = 'MAKTX'.
+      WA-REF_TABNAME = 'MAKT'.
+    WHEN 'MBLNR'.
+      WA-REF_FIELDNAME = 'MBLNR'.
+      WA-REF_TABNAME = 'MKPF'.
+    WHEN 'BELNR'.
+      WA-REF_FIELDNAME = 'BELNR'.
+      WA-REF_TABNAME = 'BKPF'.
+    WHEN 'KOSTL'.
+      WA-REF_FIELDNAME = 'KOSTL'.
+      WA-REF_TABNAME = 'CSKS'.
+    WHEN 'MEINS' OR 'VRKME' OR 'GEWEI' OR 'BSTME'.
+      WA-EDIT_MASK = '==CUNIT'.
+    WHEN 'MENGE' OR 'SHMNG'.
+      WA-DECIMALS_OUT = 3.
+  ENDCASE.
+  WA-REF_TABNAME = P_TAB.
+  WA-REF_FIELDNAME = P_FIELD.
+  IF P_FIELD IS INITIAL.
+    WA-REF_FIELDNAME = FIELDNAME.
+  ENDIF.
+  IF P_FIELD = 'N'.
+    CLEAR:WA-REF_FIELDNAME.
+  ENDIF.
+  APPEND WA TO OUTFIELDCAT .
+  CLEAR WA.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form REFRESHALV
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM REFRESHALV .
+  IS_STABLE-ROW = 'X'.
+  IS_STABLE-COL = 'X'.
+  IF ALVGRID IS NOT INITIAL.
+    CALL METHOD ALVGRID->REFRESH_TABLE_DISPLAY
+      EXPORTING
+        IS_STABLE = IS_STABLE.
+  ENDIF.
+ENDFORM.                    " REFRESHALV
+FORM REFRESHALV9001 .
+  IS_STABLE-ROW = 'X'.
+  IS_STABLE-COL = 'X'.
+  IF ALVGRID1 IS NOT INITIAL.
+    CALL METHOD ALVGRID1->REFRESH_TABLE_DISPLAY
+      EXPORTING
+        IS_STABLE = IS_STABLE.
+*    CALL METHOD CL_GUI_CFW=>DISPATCH.
+  ENDIF.
+ENDFORM.                    " REFRESHALV
+FORM REFRESHALV9003 .
+  IS_STABLE-ROW = 'X'.
+  IS_STABLE-COL = 'X'.
+  IF ALVGRID2 IS NOT INITIAL.
+    CALL METHOD ALVGRID2->REFRESH_TABLE_DISPLAY
+      EXPORTING
+        IS_STABLE = IS_STABLE.
+*    CALL METHOD CL_GUI_CFW=>DISPATCH.
+  ENDIF.
+ENDFORM.                    " REFRESHALV
+*&---------------------------------------------------------------------*
+*& Form USER_COMMAND
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM USER_COMMAND  USING    P_E_UCOMM.
+  CASE P_E_UCOMM.
+    WHEN 'FILL'.
+      CLEAR:FIELDS[],FIELDS,IT_ITEM.
+      READ TABLE IT_ITEM INDEX 1.
+      FIELDS-TABNAME = 'T001L'.
+      FIELDS-FIELDNAME = 'LGORT'.
+      APPEND FIELDS.
+      SET PARAMETER ID 'WRK' FIELD IT_ITEM-WERKS.
+      CALL FUNCTION 'POPUP_GET_VALUES'
+        EXPORTING
+          POPUP_TITLE     = '批量填充库存地'
+        TABLES
+          FIELDS          = FIELDS
+        EXCEPTIONS
+          ERROR_IN_FIELDS = 1
+          OTHERS          = 2.
+      READ TABLE FIELDS INDEX 1.
+      IF FIELDS-VALUE IS NOT INITIAL.
+        READ TABLE IT_T001L WITH KEY WERKS = IT_ITEM-WERKS
+                                     LGORT = FIELDS-VALUE
+                                     BINARY SEARCH.
+        IF SY-SUBRC NE 0.
+          MESSAGE S000(OO) WITH '库存地未在工厂下维护!' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+        LOOP AT IT_ITEM WHERE LGORT IS INITIAL.
+          IT_ITEM-LGORT = FIELDS-VALUE.
+          READ TABLE IT_T001L WITH KEY WERKS = IT_ITEM-WERKS
+                                       LGORT = IT_ITEM-LGORT
+                                       BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_ITEM-LGOBE = IT_T001L-LGOBE.
+          ENDIF.
+          MODIFY IT_ITEM TRANSPORTING LGORT LGOBE.
+        ENDLOOP.
+        MESSAGE S007.
+      ENDIF.
+    WHEN 'ADD'.
+      PERFORM ADD.
+    WHEN 'DEL'.
+      CLEAR:IT_POSNR[].
+      READ TABLE IT_ITEM WITH KEY CHBOX = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE S003 DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      PERFORM GETBUTYS USING P_E_UCOMM CHANGING ACT.
+      LOOP AT IT_ITEM WHERE CHBOX = 'X'.
+        IF IT_ITEM-POSNR IS INITIAL.
+          DELETE IT_ITEM.
+          CONTINUE.
+        ENDIF.
+        CLEAR:IT_POSNR.
+        IT_POSNR-POSNR = IT_ITEM-POSNR.
+        APPEND IT_POSNR.
+      ENDLOOP.
+      IF IT_POSNR[] IS NOT INITIAL.
+        PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+        CHECK ANSWER = '1'.
+        PERFORM CHGSTATUS TABLES IT_POSNR
+                    USING WA_HEAD-VBELN ACT VBAK
+                          CHANGING RTMSG.
+        IF RTMSG+0(1) = 'S'.
+          DELETE IT_ITEM WHERE CHBOX = 'X'.
+        ENDIF.
+        MSG RTMSG.
+      ENDIF.
+    WHEN 'ALL'.
+      LOOP AT IT_ITEM.
+        IT_ITEM-CHBOX = 'X'.
+        MODIFY IT_ITEM TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT IT_ITEM.
+        IT_ITEM-CHBOX = ''.
+        MODIFY IT_ITEM TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'STOP' OR 'BUT06A'."保管终止+签收
+      PERFORM BUT04 USING P_E_UCOMM.
+*    WHEN 'BUT06A'."保管按行签收
+    WHEN 'BUT08A'."详细LOG
+      PERFORM BUT08 USING P_E_UCOMM.
+  ENDCASE.
+ENDFORM.
+FORM USER_COMMAND9001  TABLES INTAB STRUCTURE ITAB1
+                         USING    P_E_UCOMM.
+  FIELD-SYMBOLS:<WA> TYPE ANY,
+                <FS> TYPE ANY.
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      LOOP AT INTAB.
+        INTAB-CHBOX1 = 'X'.
+        MODIFY INTAB TRANSPORTING CHBOX1.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT INTAB.
+        INTAB-CHBOX1 = ''.
+        MODIFY INTAB TRANSPORTING CHBOX1.
+      ENDLOOP.
+    WHEN 'ADD'.
+      PERFORM ADD1.
+  ENDCASE.
+ENDFORM.
+FORM ADD1.
+  DATA:AUART TYPE AUART,
+       NUM   TYPE I.
+  CLEAR:NUM.
+  AUART = WA_HEAD-AUART.
+  AUART+3(1) = 0.
+  LOOP AT ITAB3 WHERE CHBOX1 = 'X'.
+    IF ITAB3-KUNNR NE WA_HEAD-KUNNR
+      OR ITAB3-VKORG NE WA_HEAD-VKORG
+      OR ITAB3-VTWEG NE WA_HEAD-VTWEG
+      OR ITAB3-AUART NE AUART.
+      NUM = NUM + 1.
+    ENDIF.
+  ENDLOOP.
+  IF SY-SUBRC NE 0.
+    MESSAGE S003 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  IF NUM IS NOT INITIAL.
+    MESSAGE S006 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  LOOP AT ITAB3 WHERE CHBOX1 = 'X'.
+    CLEAR:IT_ITEM.
+    MOVE-CORRESPONDING ITAB3 TO IT_ITEM.
+    IT_ITEM-VGBEL = ITAB3-VBELN.
+    IT_ITEM-VGPOS = ITAB3-POSNR.
+    CLEAR:IT_ITEM-POSNR,IT_ITEM-VBELN,IT_ITEM-CHBOX.
+    APPEND IT_ITEM.
+  ENDLOOP.
+  MESSAGE S007.
+  LEAVE TO SCREEN 0.
+ENDFORM.
+FORM ADD.
+*跳转项目明细界面
+*取数
+  CLEAR:SCREENNO.
+  SCREENNO = 9000.
+  PERFORM GETDATAPUB TABLES ITAB3 USING '4' WA_HEAD.
+*排除掉已经添加到界面的合同行
+  SORT IT_ITEM BY VGBEL VGPOS.
+  LOOP AT ITAB3.
+    READ TABLE IT_ITEM WITH KEY VGBEL = ITAB3-VBELN
+                                VGPOS = ITAB3-POSNR
+                                BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      DELETE ITAB3.
+    ENDIF.
+  ENDLOOP.
+  IF ITAB3[] IS INITIAL.
+    MESSAGE S005 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  PERFORM FILLFIELDCAT1.
+*添加界面
+  CALL SCREEN 9003
+  STARTING AT 20 5 ENDING AT 200 20.
+ENDFORM.
+*更改状态
+FORM CHGSTATUS TABLES T_POSNR STRUCTURE POSNR_LINE
+               USING P_VBELN
+                     P_ACT TYPE ZE_ACT
+                     P_VBAK TYPE VBAK"未更新之前的数据
+               CHANGING P_OUTMSG.
+  DATA:BEGIN OF IT_ACT OCCURS 0,
+         ACT   TYPE ZE_ACT,
+         ZTN   TYPE VBAK-ZTTZT, "处理完之后的正确状态
+         ALLOW TYPE CHAR20, "允许此操作的状态
+       END OF IT_ACT,
+       IT_ZSSD255   TYPE TABLE OF ZSSD255 WITH HEADER LINE,
+       IT_ZTSD_HTDX TYPE TABLE OF ZTSD_HTDX WITH HEADER LINE,
+       IT_DD07V1    TYPE TABLE OF DD07V WITH HEADER LINE,
+       IT_POSNR1    TYPE TABLE OF POSNR_LINE WITH HEADER LINE,
+       IT_POSNR2    TYPE TABLE OF LIPS_KEY WITH HEADER LINE,
+       FIELDS       TYPE TABLE OF SVAL WITH HEADER LINE,
+       IT_POSNR3    TYPE TABLE OF LIPS_KEY WITH HEADER LINE.
+  DATA:N        TYPE I,
+       DXFLG    TYPE CHAR1,
+       TDID1    TYPE TDID,
+       FLAG1    TYPE ZEMM_FLAG,
+       MESSAGE1 TYPE ZEMM_MESSAGE.
+  CLEAR:P_OUTMSG,*VBAK,*VBAP,IT_ACT[],IT_POSNR1[],N,IT_POSNR2[],
+  *ZTSAP_PUBSAVELOG,IT_ZTSD_HTDX[].
+  DEFINE ACT.
+    CLEAR IT_ACT.
+    IT_ACT-ACT = &1.
+    IT_ACT-ZTN = &2.
+    IT_ACT-ALLOW = &3.
+    APPEND IT_ACT.
+  END-OF-DEFINITION.
+  IF P_ACT IS INITIAL.
+    P_OUTMSG = 'E:操作未定义'.
+    EXIT.
+  ENDIF.
+
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_DD07V1 USING 'ZD_ACT'.
+  CLEAR:IT_DD07V1.
+  READ TABLE IT_DD07V1 WITH KEY DOMVALUE_L = P_ACT BINARY SEARCH.
+
+  ACT 'A00' 'A' 'A'.
+  ACT 'A01' '' 'A'.
+  ACT 'A02' 'B' 'A'.
+  ACT 'A03' 'C' 'B'.
+  ACT 'A04' 'A' 'BC'.
+  ACT 'A05' 'D' 'C'.
+  ACT 'A06' 'A' 'DEF'.
+  ACT 'A07' 'C' 'DEF'.
+  ACT 'A08' 'E' 'D'.
+  ACT 'A09' 'G' 'F'.
+  ACT 'A10' 'Z' 'EF'.
+  ACT 'A11' '' 'A'.
+  ACT 'A12' '' 'A'.
+  ACT 'A13' 'Z' 'F'.
+  ACT 'A14' 'A' 'F'.
+  ACT 'A15' 'E' 'F'.
+  ACT 'A16' 'F' 'E'.
+  SORT IT_ACT BY ACT.
+  SELECT SINGLE *
+    INTO *VBAK
+    FROM VBAK
+    WHERE VBELN = P_VBELN.
+  IF SY-SUBRC NE 0.
+    P_OUTMSG = 'E:销售订单号不存在'.
+    EXIT.
+  ENDIF.
+  DELETE T_POSNR WHERE POSNR IS INITIAL.
+  IF T_POSNR[] IS NOT INITIAL.
+    SELECT *
+      INTO TABLE @DATA(IT_VBAP)
+      FROM VBAP
+      FOR ALL ENTRIES IN @T_POSNR
+      WHERE POSNR = @T_POSNR-POSNR
+      AND   VBELN = @P_VBELN.
+  ENDIF.
+*取销售订单数据
+  SELECT *
+    INTO TABLE @DATA(IT_VBAP_OLD)
+    FROM VBAP
+    WHERE VBELN = @P_VBELN.
+*审批意见填入
+  CLEAR:FIELDS,FIELDS[],TDID1.
+  FIELDS-FIELD_OBL = 'X'.
+  FIELDS-TABNAME = 'TLINE'.
+  FIELDS-FIELDTEXT = '审批意见'.
+  FIELDS-FIELDNAME = 'TDLINE'.
+  APPEND FIELDS.
+  CASE P_ACT.
+    WHEN 'A04' OR 'A06' OR 'A07'
+      OR 'A10' OR 'A13' OR 'A14'
+      OR 'A15'.
+      CALL FUNCTION 'POPUP_GET_VALUES'
+        EXPORTING
+          POPUP_TITLE     = '填入原因'
+        IMPORTING
+          RETURNCODE      = ANSWER
+        TABLES
+          FIELDS          = FIELDS
+        EXCEPTIONS
+          ERROR_IN_FIELDS = 1
+          OTHERS          = 2.
+      CLEAR FIELDS.
+      READ TABLE FIELDS INDEX 1.
+      IF FIELDS-VALUE IS INITIAL.
+        P_OUTMSG = 'E:审批意见必填'.
+        EXIT.
+      ENDIF.
+      CASE P_ACT.
+        WHEN 'A04'."物流
+          TDID1 = 'Z020'.
+        WHEN 'A07' OR 'A15'."保管驳回
+          TDID1 = 'Z021'.
+        WHEN 'A06' OR 'A14'."保管重置
+          TDID1 = 'Z022'.
+        WHEN 'A10' OR 'A13'."保管终止
+          TDID1 = 'Z023'.
+      ENDCASE.
+      PERFORM SAVETEXT(ZPUBFORM) USING TDID1 P_VBELN
+          'VBBK'  FIELDS-VALUE
+            CHANGING P_OUTMSG.
+  ENDCASE.
+  CLEAR P_OUTMSG.
+  READ TABLE IT_ACT WITH KEY ACT = P_ACT BINARY SEARCH.
+  IF SY-SUBRC EQ 0.
+    CASE P_ACT.
+      WHEN  'A10' OR 'A13'."保管
+        SEARCH IT_ACT-ALLOW FOR *VBAK-ZTTZT.
+        IF SY-SUBRC NE 0.
+          PERFORM MSGTOTEXT(ZPUBFORM) USING 'ZMSG_GP' '001' *VBAK-ZTTZT IT_DD07V1-DDTEXT
+                '' '' CHANGING P_OUTMSG.
+          EXIT.
+        ENDIF.
+        LOOP AT IT_VBAP INTO DATA(WA_VBAP).
+          IF WA_VBAP-ZCKZT NE IT_ACT-ZTN.
+            N = N + 1.
+            SEARCH IT_ACT-ALLOW FOR WA_VBAP-ZCKZT.
+            IF SY-SUBRC NE 0.
+              PERFORM MSGTOTEXT(ZPUBFORM) USING 'ZMSG_GP' '002'
+                    WA_VBAP-POSNR WA_VBAP-ZCKZT IT_DD07V1-DDTEXT
+                     '' CHANGING P_OUTMSG.
+            ENDIF.
+          ELSE.
+            DELETE TABLE IT_VBAP FROM WA_VBAP.
+          ENDIF.
+        ENDLOOP.
+        CHECK  P_OUTMSG IS INITIAL.
+        IF N IS INITIAL.
+          P_OUTMSG = TEXT-000.
+          EXIT.
+        ENDIF.
+        LOOP AT IT_VBAP INTO WA_VBAP.
+*检查行状态只能是初始才能终止
+          SEARCH IT_ACT-ALLOW FOR WA_VBAP-ZCKZT.
+          IF SY-SUBRC NE 0.
+            PERFORM MSGTOTEXT(ZPUBFORM) USING 'ZMSG_GP' '002'
+                  WA_VBAP-POSNR WA_VBAP-ZCKZT IT_DD07V1-DDTEXT
+                   '' CHANGING P_OUTMSG.
+          ENDIF.
+          IF WA_VBAP-ABGRU IS INITIAL.
+            CLEAR IT_POSNR1.
+            IT_POSNR1-POSNR = WA_VBAP-POSNR.
+            APPEND IT_POSNR1.
+          ENDIF.
+        ENDLOOP.
+        IF P_OUTMSG IS NOT INITIAL.
+          EXIT.
+        ENDIF.
+        IF IT_POSNR1[] IS INITIAL.
+          P_OUTMSG = TEXT-000.
+          EXIT.
+        ENDIF.
+
+        PERFORM SETABGRU TABLES IT_POSNR1
+          USING P_VBELN  'Z3'
+          CHANGING P_OUTMSG.
+        IF P_OUTMSG+0(1) NE 'E'.
+          LOOP AT IT_VBAP INTO WA_VBAP.
+            UPDATE VBAP
+            SET ZCKZT = 'Z'
+            WHERE VBELN = WA_VBAP-VBELN
+            AND   POSNR = WA_VBAP-POSNR.
+            CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+              EXPORTING
+                P_TYPE    = 'I'
+                TABNAME   = 'VBAP'
+                FIELDNAME = 'ZCKZT'
+                VALUE_O   = WA_VBAP-ZCKZT
+                VALUE_N   = 'Z'
+                SAPNO     = WA_VBAP-VBELN && WA_VBAP-POSNR.
+          ENDLOOP.
+          COMMIT WORK.
+        ENDIF.
+*      WHEN 'A11' OR 'A12'."删除及增加明细
+      WHEN OTHERS.
+        IF *VBAK-ZTTZT = IT_ACT-ZTN.
+          P_OUTMSG = TEXT-000.
+          EXIT.
+        ENDIF.
+        CASE P_ACT.
+          WHEN 'A00'.
+            IF *VBAK-ZTTZT <> ''.
+              PERFORM MSGTOTEXT(ZPUBFORM) USING 'ZMSG_GP' '001' *VBAK-ZTTZT IT_DD07V1-DDTEXT
+                    '' '' CHANGING P_OUTMSG.
+              EXIT.
+            ENDIF.
+          WHEN OTHERS.
+            SEARCH IT_ACT-ALLOW FOR *VBAK-ZTTZT.
+            IF SY-SUBRC NE 0.
+              PERFORM MSGTOTEXT(ZPUBFORM) USING 'ZMSG_GP' '001' *VBAK-ZTTZT IT_DD07V1-DDTEXT
+                    '' '' CHANGING P_OUTMSG.
+              EXIT.
+            ENDIF.
+*行项目非初始状态不允许重置驳回
+            CASE P_ACT.
+              WHEN 'A06' OR 'A07' OR 'A14' OR 'A15'.
+                SELECT *
+                  FROM VBAP
+                  WHERE VBELN = P_VBELN
+                  AND   ABGRU = ''.
+                  CASE VBAP-ZCKZT.
+                    WHEN 'E'.
+                    WHEN OTHERS.
+                      PERFORM MSGTOTEXT(ZPUBFORM) USING 'ZMSG_GP' '002'
+                            VBAP-POSNR VBAP-ZCKZT IT_DD07V1-DDTEXT
+                             '' CHANGING P_OUTMSG.
+                      EXIT.
+                  ENDCASE.
+                ENDSELECT.
+            ENDCASE.
+        ENDCASE.
+        CASE P_ACT.
+          WHEN 'A01'."删除.
+*推送ERP-删除之前先判断，若失败，则不允许删除
+            PERFORM PUSHERP_DEL TABLES IT_VBAP_OLD USING P_ACT
+                                CHANGING RTYPE RTMSG.
+            IF RTYPE = 'E'.
+              CONCATENATE RTYPE '推送ERP失败，不能删除' RTMSG INTO P_OUTMSG.
+              IF P_OUTMSG+0(1) = 'E'.
+                EXIT.
+              ENDIF.
+            ENDIF.
+
+            CALL FUNCTION 'ZFM_SD_MODIFYSO'
+              EXPORTING
+                UPDKZ  = 'D'
+              IMPORTING
+                RTYPE  = RTYPE
+                RTMSG  = RTMSG
+              TABLES
+                RETURN = RETURN
+              CHANGING
+                VBELN  = WA_HEAD-VBELN.
+            IF RTYPE = 'S'.
+              CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+                EXPORTING
+                  P_TYPE    = 'I'
+                  TABNAME   = 'VBAK'
+                  FIELDNAME = 'ZTTZT'
+                  DEL       = 'X'
+                  VALUE_O   = *VBAK-ZTTZT
+                  VALUE_N   = ''
+                  SAPNO     = *VBAK-VBELN.
+            ENDIF.
+            CONCATENATE RTYPE ':' RTMSG INTO P_OUTMSG.
+            EXIT.
+          WHEN 'A11'."删除行
+            CLEAR:IT_POSNR1[],IT_POSNR3[].
+            LOOP AT T_POSNR.
+              CLEAR:IT_POSNR2,IT_POSNR1.
+              IT_POSNR2-VBELN = P_VBELN.
+              IT_POSNR2-POSNR = T_POSNR-POSNR.
+              APPEND IT_POSNR2.
+              IT_POSNR1-POSNR = T_POSNR-POSNR.
+              COLLECT IT_POSNR1.
+            ENDLOOP.
+            CLEAR P_OUTMSG.
+*先清掉全部行WBS
+*            PERFORM CLEARWBS TABLES IT_POSNR3
+*              USING P_VBELN ''
+*              CHANGING P_OUTMSG.
+*            CHECK P_OUTMSG+0(1) NE 'E'.
+*删除
+            P_OUTMSG = 'X'.
+            PERFORM DELVBELNP(ZPUBFORM) TABLES IT_POSNR2 USING 'SO'
+                  CHANGING P_OUTMSG.
+            CHECK P_OUTMSG+0(1) NE 'E'.
+*再把剩余行WBS补回来
+*            CLEAR IT_POSNR[].
+*            PERFORM CLEARWBS TABLES IT_POSNR3
+*              USING P_VBELN *VBAK-PS_PSP_PNR
+*              CHANGING P_OUTMSG.
+            EXIT.
+        ENDCASE.
+        IF IT_ACT-ZTN <> ''.
+          UPDATE VBAK
+          SET ZTTZT = IT_ACT-ZTN
+          WHERE VBELN = P_VBELN.
+          IF SY-SUBRC EQ 0.
+            P_OUTMSG = 'S:操作成功'.
+            CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+              EXPORTING
+                P_TYPE    = 'I'
+                TABNAME   = 'VBAK'
+                FIELDNAME = 'ZTTZT'
+                VALUE_O   = *VBAK-ZTTZT
+                VALUE_N   = IT_ACT-ZTN
+                SAPNO     = *VBAK-VBELN.
+            CASE P_ACT."保管重置驳回后行项目状态改为初始，且有拒绝原因的取消
+              WHEN 'A06' OR 'A07' OR 'A14' OR 'A15'.
+                CASE P_ACT.
+                  WHEN 'A06'.
+*推送ERP
+                    PERFORM PUSHERP_DEL TABLES IT_VBAP_OLD USING P_ACT
+                          CHANGING RTYPE RTMSG.
+                    CONCATENATE RTYPE RTMSG INTO P_OUTMSG.
+                ENDCASE.
+*置空生效时间
+                UPDATE VBAK
+                SET ZSXSJ = ''
+                WHERE VBELN = P_VBELN.
+                CLEAR:IT_POSNR1[].
+                PERFORM SETABGRU TABLES IT_POSNR1
+                  USING P_VBELN  ''
+                  CHANGING P_OUTMSG.
+                IF P_OUTMSG+0(1) NE 'E'.
+                  SELECT *
+                    INTO TABLE @IT_VBAP
+                    FROM VBAP
+                    WHERE VBELN = @P_VBELN.
+                  LOOP AT IT_VBAP INTO WA_VBAP .
+                    CASE WA_VBAP-ZCKZT.
+                      WHEN  'E'.
+                        CONTINUE.
+                      WHEN OTHERS.
+                    ENDCASE.
+                    UPDATE VBAP
+                    SET ZCKZT = 'E'
+                    WHERE VBELN = WA_VBAP-VBELN
+                    AND   POSNR = WA_VBAP-POSNR.
+                    CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+                      EXPORTING
+                        P_TYPE    = 'I'
+                        TABNAME   = 'VBAP'
+                        FIELDNAME = 'ZCKZT'
+                        VALUE_O   = WA_VBAP-ZCKZT
+                        VALUE_N   = 'E'
+                        SAPNO     = WA_VBAP-VBELN && WA_VBAP-POSNR.
+                  ENDLOOP.
+                  COMMIT WORK.
+                ENDIF.
+              WHEN OTHERS.
+                CASE P_ACT.
+                  WHEN 'A02'."客服提交推送钉钉
+                    CALL FUNCTION 'ZFM_GP_SD_DD_FHTZTX'
+                      EXPORTING
+                        VBELN = P_VBELN
+                        ZTYPE = 'WL'.
+                  WHEN 'A05'."物流提交推送钉钉
+                    CALL FUNCTION 'ZFM_GP_SD_DD_FHTZTX'
+                      EXPORTING
+                        VBELN = P_VBELN
+                        ZTYPE = 'BG'.
+                  WHEN 'A16'.":保管提交后更新生效时间
+                    "短信发送-只发送一次
+                    UPDATE VBAK
+                    SET ZSXSJ = SY-DATUM
+                    WHERE VBELN = P_VBELN.
+*                    SELECT SINGLE COUNT(*)
+*                      FROM ZTSAP_PUBSAVELOG
+*                      WHERE FMNAM = 'ZFM_GP_SD_DD_DXFS'
+*                      AND   GUID = P_VBELN.
+                    SELECT SINGLE *
+                      INTO IT_ZTSD_HTDX
+                      FROM ZTSD_HTDX
+                      WHERE VBELN = WA_HEAD-VBELN.
+                    IF SY-SUBRC EQ 0.
+*发送的信息只要变化，就发送短信
+                      CLEAR :IT_ZSSD255,DXFLG.
+                      MOVE-CORRESPONDING IT_ZTSD_HTDX TO IT_ZSSD255."原值
+                      SELECT *
+                        FROM DD03L
+                        WHERE TABNAME = 'ZSSD255'
+                        AND   AS4LOCAL = 'A'.
+                        ASSIGN COMPONENT DD03L-FIELDNAME OF STRUCTURE *VBAK TO <FS>."新值
+                        IF SY-SUBRC EQ 0.
+                          ASSIGN COMPONENT DD03L-FIELDNAME OF STRUCTURE IT_ZSSD255 TO <FS1>."新值
+                          IF SY-SUBRC EQ 0.
+                            IF <FS> NE <FS1>.
+                              DXFLG = 'X'.
+                            ENDIF.
+                          ENDIF.
+                        ENDIF.
+                      ENDSELECT.
+                    ELSE.
+                      DXFLG = 'X'.
+                    ENDIF.
+
+                    IF *VBAK-ZSFDX = 'Y'
+                      AND DXFLG = 'X'.
+                      CLEAR:IT_ZSSD255[],FLAG1,MESSAGE1,*ZTSAP_PUBSAVELOG,
+                      IT_ZTSD_HTDX.
+                      MOVE-CORRESPONDING *VBAK TO IT_ZSSD255.
+                      APPEND IT_ZSSD255.
+                      MOVE-CORRESPONDING IT_ZSSD255 TO IT_ZTSD_HTDX.
+                      IT_ZTSD_HTDX-VBELN = P_VBELN.
+
+                      CALL FUNCTION 'ZFM_GP_SD_DD_DXFS'
+                        IMPORTING
+                          FLAG    = FLAG1
+                          MESSAGE = MESSAGE1
+                        TABLES
+                          INTAB   = IT_ZSSD255.
+                      IF FLAG1 = 'Y'.
+                        *ZTSAP_PUBSAVELOG-FMNAM = 'ZFM_GP_SD_DD_DXFS'.
+                        *ZTSAP_PUBSAVELOG-GUID = *VBAK-VBELN.
+                        MODIFY ZTSAP_PUBSAVELOG FROM *ZTSAP_PUBSAVELOG.
+                        MODIFY ZTSD_HTDX FROM IT_ZTSD_HTDX.
+                        COMMIT WORK.
+                      ENDIF.
+                    ENDIF.
+                ENDCASE.
+                CASE IT_ACT-ZTN.
+                  WHEN 'D' OR 'A'.
+                    SELECT *
+                      INTO TABLE @IT_VBAP
+                      FROM VBAP
+                      WHERE VBELN = @P_VBELN.
+                    LOOP AT IT_VBAP INTO WA_VBAP .
+                      UPDATE VBAP
+                      SET ZCKZT = 'E'"未出库
+                      WHERE VBELN = WA_VBAP-VBELN
+                      AND   POSNR = WA_VBAP-POSNR.
+                      CALL FUNCTION 'ZFM_FIELD_CHGLOG'
+                        EXPORTING
+                          P_TYPE    = 'I'
+                          TABNAME   = 'VBAP'
+                          FIELDNAME = 'ZCKZT'
+                          VALUE_O   = ''
+                          VALUE_N   = 'E'
+                          SAPNO     = WA_VBAP-VBELN && WA_VBAP-POSNR.
+                    ENDLOOP.
+                ENDCASE.
+            ENDCASE.
+          ELSE.
+            P_OUTMSG = 'E:操作失败'.
+            EXIT.
+          ENDIF.
+          COMMIT WORK.
+        ELSE.
+        ENDIF.
+    ENDCASE.
+  ELSE.
+    P_OUTMSG = 'E:操作未定义'.
+    EXIT.
+  ENDIF.
+ENDFORM.
+*设置拒绝原因
+FORM SETABGRU TABLES T_POSNR STRUCTURE POSNR_LINE
+              USING P_VBELN P_ABGRU
+              CHANGING P_OUTMSG.
+  DATA: ORDER_HEADER_IN  TYPE BAPISDH1,
+        ORDER_HEADER_INX TYPE BAPISDH1X,
+        RETURN1          TYPE TABLE OF BAPIRET2 WITH HEADER LINE,
+        SALESDOCUMENT_EX TYPE BAPIVBELN-VBELN,
+        SALES_ITEMS_IN   TYPE TABLE OF BAPISDITM WITH HEADER LINE,
+        SALES_ITEMS_INX  TYPE TABLE OF BAPISDITMX WITH HEADER LINE.
+  DATA:SUBRC TYPE SY-SUBRC.
+  CLEAR:ORDER_HEADER_IN,ORDER_HEADER_INX,SALESDOCUMENT_EX,
+       SALES_ITEMS_IN[],SALES_ITEMS_INX[],P_OUTMSG,RETURN1[].
+  SALESDOCUMENT_EX = P_VBELN.
+  PERFORM ADDZERO(ZPUBFORM) CHANGING SALESDOCUMENT_EX.
+  DELETE T_POSNR WHERE POSNR IS INITIAL.
+  IF T_POSNR[] IS INITIAL."整单设置拒绝原因
+    SELECT *
+      INTO TABLE @DATA(IT_VBAP1)
+      FROM VBAP
+      WHERE VBELN = @SALESDOCUMENT_EX.
+  ELSE.
+    SORT T_POSNR BY POSNR.
+    SELECT *
+      INTO TABLE @IT_VBAP1
+      FROM VBAP
+      FOR ALL ENTRIES IN @T_POSNR
+      WHERE POSNR = @T_POSNR-POSNR
+      AND   VBELN = @SALESDOCUMENT_EX.
+  ENDIF.
+  SORT IT_VBAP1 BY POSNR.
+  LOOP AT IT_VBAP1 INTO DATA(WA_VBAP1) WHERE ABGRU NE P_ABGRU.
+    CLEAR:SALES_ITEMS_IN,SALES_ITEMS_INX.
+    SALES_ITEMS_IN-ITM_NUMBER = WA_VBAP1-POSNR.
+    SALES_ITEMS_INX-ITM_NUMBER = WA_VBAP1-POSNR.
+    SALES_ITEMS_IN-MATERIAL = WA_VBAP1-MATNR.
+    PERFORM ADDZERO(ZPUBFORM) CHANGING SALES_ITEMS_IN-MATERIAL.
+    SALES_ITEMS_INX-MATERIAL = 'X'.
+    SALES_ITEMS_IN-REASON_REJ = P_ABGRU.
+    SALES_ITEMS_INX-REASON_REJ = 'X'.
+    SALES_ITEMS_INX-UPDATEFLAG = 'U'.
+    APPEND:SALES_ITEMS_IN,SALES_ITEMS_INX.
+  ENDLOOP.
+  CLEAR:P_OUTMSG.
+  IF SALES_ITEMS_IN[] IS NOT INITIAL.
+    ORDER_HEADER_INX-UPDATEFLAG = 'U'.
+    CALL FUNCTION 'BAPI_SALESORDER_CHANGE'
+      EXPORTING
+        SALESDOCUMENT    = SALESDOCUMENT_EX
+        ORDER_HEADER_INX = ORDER_HEADER_INX
+      TABLES
+        RETURN           = RETURN1
+        ORDER_ITEM_IN    = SALES_ITEMS_IN
+        ORDER_ITEM_INX   = SALES_ITEMS_INX
+      EXCEPTIONS
+        OTHERS           = 4.
+    IF SY-SUBRC NE 0.
+      PERFORM MSGTOTEXT(ZPUBFORM) USING '' '' '' '' '' '' CHANGING P_OUTMSG.
+      ADD SY-SUBRC TO SUBRC.
+    ENDIF.
+    LOOP AT RETURN1 WHERE TYPE CA 'AEX'.
+      CONCATENATE RETURN1-MESSAGE P_OUTMSG INTO P_OUTMSG SEPARATED BY '/'.
+    ENDLOOP.
+    IF SY-SUBRC EQ 0.
+      ADD 4 TO SUBRC.
+    ENDIF.
+    IF SUBRC = 0.
+      PERFORM BAPIRUN(ZPUBFORM)  USING 'S'.
+      P_OUTMSG = TEXT-000.
+    ELSE.
+      PERFORM BAPIRUN(ZPUBFORM) USING 'E'.
+      CONCATENATE 'E:' P_OUTMSG INTO P_OUTMSG.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+FORM CLEARWBS TABLES T_POSNR STRUCTURE POSNR_LINE
+               USING P_VBELN P_PSPNR
+               CHANGING P_OUTMSG.
+  CLEAR:P_OUTMSG.
+  DATA: ORDER_HEADER_IN  TYPE BAPISDH1,
+        ORDER_HEADER_INX TYPE BAPISDH1X,
+        RETURN1          TYPE TABLE OF BAPIRET2 WITH HEADER LINE,
+        SALESDOCUMENT_EX TYPE BAPIVBELN-VBELN,
+        SALES_ITEMS_IN   TYPE TABLE OF BAPISDITM WITH HEADER LINE,
+        SALES_ITEMS_INX  TYPE TABLE OF BAPISDITMX WITH HEADER LINE.
+  DATA:POSID TYPE PRPS-POSID.
+  DATA:SUBRC TYPE SY-SUBRC.
+  CLEAR:ORDER_HEADER_IN,ORDER_HEADER_INX,SALESDOCUMENT_EX,
+       SALES_ITEMS_IN[],SALES_ITEMS_INX[],P_OUTMSG,RETURN1[],
+       VBAK,POSID.
+  SALESDOCUMENT_EX = P_VBELN.
+  PERFORM ADDZERO(ZPUBFORM) CHANGING SALESDOCUMENT_EX.
+  DELETE T_POSNR WHERE POSNR IS INITIAL.
+  IF P_PSPNR IS NOT INITIAL.
+    CALL FUNCTION 'CONVERSION_EXIT_ABPSP_OUTPUT'
+      EXPORTING
+        INPUT  = P_PSPNR
+      IMPORTING
+        OUTPUT = POSID.
+  ENDIF.
+
+
+  IF T_POSNR[] IS INITIAL."整单设置
+    SELECT *
+      INTO TABLE @DATA(IT_VBAP1)
+      FROM VBAP
+      WHERE VBELN = @SALESDOCUMENT_EX.
+  ELSE.
+    SORT T_POSNR BY POSNR.
+    SELECT *
+      INTO TABLE @IT_VBAP1
+      FROM VBAP
+      FOR ALL ENTRIES IN @T_POSNR
+      WHERE POSNR = @T_POSNR-POSNR
+      AND   VBELN = @SALESDOCUMENT_EX.
+  ENDIF.
+  SORT IT_VBAP1 BY POSNR.
+  LOOP AT IT_VBAP1 INTO DATA(WA_VBAP1) WHERE PS_PSP_PNR NE P_PSPNR.
+    CLEAR:SALES_ITEMS_IN,SALES_ITEMS_INX.
+    SALES_ITEMS_IN-ITM_NUMBER = WA_VBAP1-POSNR.
+    SALES_ITEMS_INX-ITM_NUMBER = WA_VBAP1-POSNR.
+    SALES_ITEMS_IN-MATERIAL = WA_VBAP1-MATNR.
+    PERFORM ADDZERO(ZPUBFORM) CHANGING SALES_ITEMS_IN-MATERIAL.
+    SALES_ITEMS_INX-MATERIAL = 'X'.
+    IF POSID IS NOT INITIAL.
+      SALES_ITEMS_IN-WBS_ELEM = POSID.
+    ELSE.
+      SALES_ITEMS_IN-WBS_ELEM = ''.
+    ENDIF.
+    SALES_ITEMS_INX-WBS_ELEM = 'X'.
+    SALES_ITEMS_INX-UPDATEFLAG = 'U'.
+    APPEND:SALES_ITEMS_IN,SALES_ITEMS_INX.
+  ENDLOOP.
+  CLEAR:P_OUTMSG.
+  IF SALES_ITEMS_IN[] IS NOT INITIAL.
+    ORDER_HEADER_INX-UPDATEFLAG = 'U'.
+    SET UPDATE TASK LOCAL.
+    CALL FUNCTION 'BAPI_SALESORDER_CHANGE'
+      EXPORTING
+        SALESDOCUMENT    = SALESDOCUMENT_EX
+        ORDER_HEADER_INX = ORDER_HEADER_INX
+      TABLES
+        RETURN           = RETURN1
+        ORDER_ITEM_IN    = SALES_ITEMS_IN
+        ORDER_ITEM_INX   = SALES_ITEMS_INX
+      EXCEPTIONS
+        OTHERS           = 4.
+    IF SY-SUBRC NE 0.
+      PERFORM MSGTOTEXT(ZPUBFORM) USING '' '' '' '' '' '' CHANGING P_OUTMSG.
+      ADD SY-SUBRC TO SUBRC.
+    ENDIF.
+    LOOP AT RETURN1 WHERE TYPE CA 'AEX'.
+      CONCATENATE RETURN1-MESSAGE P_OUTMSG INTO P_OUTMSG SEPARATED BY '/'.
+    ENDLOOP.
+    IF SY-SUBRC EQ 0.
+      ADD 4 TO SUBRC.
+    ENDIF.
+    IF SUBRC = 0.
+      SET UPDATE TASK LOCAL.
+      PERFORM BAPIRUN(ZPUBFORM)  USING 'S'.
+      P_OUTMSG = TEXT-000.
+    ELSE.
+      SET UPDATE TASK LOCAL.
+      PERFORM BAPIRUN(ZPUBFORM) USING 'E'.
+      CONCATENATE 'E:' P_OUTMSG INTO P_OUTMSG.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form LOADINIT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM LOADINIT .
+  CLEAR:IT_ACTYS[].
+  CASE SY-TCODE.
+    WHEN TCODE1."合同执行报表
+      TA1 = '合同类型'.
+      TA2 = '合同号'.
+      TA3 = '销售合同执行报表'.
+      LX = 'HT'.
+    WHEN OTHERS."创建维护发货通知单
+      TA1 = '发货通知单类型'.
+      TA2 = '发货通知单号'.
+      TA3 = '发货通知单执行报表'.
+      LX = 'FH'.
+      CASE SY-TCODE.
+        WHEN TCODE3.
+          TA3 = '发货通知单-物流签收'.
+        WHEN TCODE4.
+          TA3 = '发货通知单-找车任务'.
+        WHEN TCODE5.
+          TA3 = '发货通知单-保管签收'.
+        WHEN TCODE6.
+          TA3 = '出库单-出库单创建'.
+      ENDCASE.
+  ENDCASE.
+*设置发货通知的下拉框
+  CLEAR:IT_LIST1[].
+  APPEND 'Z106外带设备' TO IT_LIST1.
+  APPEND 'Z105装货车间' TO IT_LIST1.
+  APPEND 'Z109特殊要求' TO IT_LIST1.
+  APPEND 'Z110资料要求' TO IT_LIST1.
+  APPEND 'Z111备注' TO IT_LIST1.
+  APPEND 'Z020物流意见' TO IT_LIST1.
+  APPEND 'Z021保管驳回意见' TO IT_LIST1.
+  APPEND 'Z022保管重置意见' TO IT_LIST1.
+  APPEND 'Z023保管终止意见' TO IT_LIST1.
+*单独的框
+  APPEND 'Z104物流须知' TO IT_LISTN.
+  APPEND 'Z108装运明细' TO IT_LISTN.
+  APPEND 'Z107承运方须知' TO IT_LISTN.
+  APPEND LINES OF IT_LIST1 TO IT_LISTN1.
+  APPEND LINES OF IT_LISTN TO IT_LISTN1.
+
+  SELECT * INTO TABLE IT_T001W FROM T001W.
+  SORT IT_T001W BY WERKS.
+  SELECT * INTO TABLE IT_T001L FROM T001L.
+  SORT IT_T001L BY WERKS LGORT.
+  SELECT * INTO TABLE IT_TVKOT FROM TVKOT WHERE SPRAS = SY-LANGU.
+  SORT IT_TVKOT BY VKORG.
+  SELECT * INTO TABLE IT_TVTWT FROM TVTWT WHERE SPRAS = SY-LANGU.
+  SORT IT_TVTWT BY VTWEG.
+  SELECT * INTO TABLE IT_TVGRT FROM TVGRT WHERE SPRAS = SY-LANGU.
+  SORT IT_TVGRT BY VKGRP.
+  SELECT * INTO TABLE IT_TVAKT  FROM TVAKT  WHERE SPRAS = SY-LANGU.
+  SORT IT_TVAKT BY AUART.
+  SELECT *  INTO TABLE IT_TVM2T FROM TVM2T WHERE SPRAS = SY-LANGU.
+  SORT IT_TVM2T BY MVGR2.
+  SELECT *  INTO TABLE IT_TVKBT FROM TVKBT WHERE SPRAS = SY-LANGU.
+  SORT IT_TVKBT BY VKBUR.
+  SELECT * INTO TABLE IT_TVAGT FROM TVAGT WHERE SPRAS = SY-LANGU.
+  SORT IT_TVAGT BY ABGRU.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZCKZT USING 'ZD_ZCKZT'.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZZHWZ USING 'ZD_ZZHWZ'.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZTTZT USING 'ZD_ZTTZT'.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZJHFS USING 'ZD_ZJHFS'.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZZT1 USING 'ZD_ZHUANGTAI'.
+
+  SELECT SINGLE *
+    FROM USREFUS
+    WHERE BNAME = SY-UNAME.
+
+  APPEND 'IEQZPR0' TO S_KSCHL.
+  APPEND 'IEQZPRR' TO S_KSCHL.
+  APPEND 'IEQZWF1' TO S_KSCHL.
+
+  CLEAR IT_YS1.
+  IT_YS1-KSCHL = 'ZPR0'.
+  IT_YS1-TYPE = 'I'.
+  IT_YS1-FIELD = 'ZPR0'.
+  APPEND IT_YS1.
+  CLEAR IT_YS1.
+  IT_YS1-KSCHL = 'ZPRR'.
+  IT_YS1-TYPE = 'I'.
+  IT_YS1-FIELD = 'ZPRR'.
+  APPEND IT_YS1.
+  CLEAR IT_YS1.
+  IT_YS1-KSCHL = 'ZWF1'.
+  IT_YS1-TYPE = 'H'.
+  IT_YS1-FIELD = 'ZWF1'.
+  APPEND IT_YS1.
+
+  APPEND '山东滨州博兴经济开发区兴博五路800号' TO IT_ZQSDT.
+  APPEND '江苏镇江市新区培山路77号' TO IT_ZQSDT.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GETBUTYS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_UCOMM
+*&      <-- ACT
+*&获取按钮对应的动作
+*&---------------------------------------------------------------------*
+FORM GETBUTYS  USING    P_P_UCOMM
+               CHANGING P_ACT TYPE ZE_ACT.
+  CLEAR P_ACT.
+  CASE SY-TCODE.
+    WHEN TCODE2."客服
+      CASE P_P_UCOMM.
+        WHEN 'BUT02'.
+          P_ACT = 'A00'.
+        WHEN 'BUT05'.
+          P_ACT = 'A01'.
+        WHEN 'BUT04'.
+          P_ACT = 'A02'.
+        WHEN 'DEL'."删除明细
+          P_ACT = 'A11'.
+        WHEN 'ADD'."增加明细
+          P_ACT = 'A12'.
+      ENDCASE.
+    WHEN TCODE3."物流
+      CASE P_P_UCOMM.
+        WHEN 'BUT04'.
+          P_ACT = 'A05'.
+        WHEN 'BUT06'.
+          P_ACT = 'A03'.
+        WHEN 'BUT07'.
+          P_ACT = 'A04'.
+      ENDCASE.
+    WHEN TCODE5."保管
+      CASE P_P_UCOMM.
+        WHEN 'BUT06' OR 'BUT06A'.
+          P_ACT = 'A08'.
+        WHEN 'BUT07'.
+          P_ACT = 'A07'.
+        WHEN 'BUT11'.
+          P_ACT = 'A06'.
+        WHEN 'STOP'.
+          P_ACT = 'A10'.
+        WHEN 'BUT04'.
+          P_ACT = 'A16'.
+      ENDCASE.
+    WHEN TCODE6.
+      CASE P_P_UCOMM.
+        WHEN 'BUT11'.
+          P_ACT = 'A14'.
+        WHEN 'STOP'.
+          P_ACT = 'A13'.
+        WHEN 'BUT07'."驳回
+          P_ACT = 'A15'.
+      ENDCASE.
+  ENDCASE.
+ENDFORM.
+*取数1-选择屏幕取数，2-只取项目下可发货数量大于0的，3-查询项目下所有,4-添加明细界面,5-发货通知单查询
+FORM GETDATAPUB TABLES OUTTAB STRUCTURE ITAB1 USING P_TYPE P_INWA.
+  DATA:SELSTR TYPE STRING,
+       AUART  TYPE AUART,
+       VBTYP  TYPE VBAK-VBTYP,
+       PSPNRP TYPE PRPS-PSPNR,
+       KUNNRP TYPE KUNNR.
+  FIELD-SYMBOLS:<FSP> TYPE ANY.
+  CLEAR:OUTTAB[],SELSTR,AUART,VBTYP,
+  PSPNRP,KUNNRP,IT_VBELN1[].
+  AUART = WA_HEAD-AUART.
+  AUART+3(1) = 0.
+  ASSIGN COMPONENT 'PSPNR' OF STRUCTURE P_INWA TO <FSP>.
+  IF SY-SUBRC EQ 0.
+    PSPNRP = <FSP>.
+  ENDIF.
+  ASSIGN COMPONENT 'KUNNR' OF STRUCTURE P_INWA TO <FSP>.
+  IF SY-SUBRC EQ 0.
+    KUNNRP = <FSP>.
+  ENDIF.
+  CASE P_TYPE.
+    WHEN '1'."初始ALV取数
+      SELSTR =  ` VBAK~VBELN IN S_VBELN `
+    && ` AND VBKD~BSTKD IN S_BSTKD `
+    && ` AND VBAK~KUNNR IN S_KUNNR `
+    && ` AND VBAP~GROES IN S_GROES `
+    && ` AND VBAK~ZHTLY IN S_ZHTLY `
+    && ` AND VBAK~ZYWY IN S_ZYWY `
+    && ` AND VBAK~ERDAT IN S_ERDAT `
+    && ` AND VBAK~ERNAM IN S_ERNAM `
+    && ` AND VBAK~GUEBG IN S_GUEBG `
+    && ` AND VBAK~PS_PSP_PNR IN S_PSPNR `
+    && ` AND PRPS~POST1 IN S_POST1 `
+    && ` AND PRPS~POSID IN S_POSID `
+    && ` AND VBAK~VBTYP = 'G' `
+    && ` AND VBAK~ZZT1 = 'D' `
+    && ` AND VBAK~ZTTZT IN S_ZZTK `.
+    WHEN '2' OR '3' ."按项目取值
+      SELSTR = ` VBAK~PS_PSP_PNR = PSPNRP `
+      && ` AND VBAK~KUNNR = KUNNRP `
+      && ` AND VBAK~VBTYP = 'G' `.
+    WHEN '4'.
+      SELSTR = ` VBAK~PS_PSP_PNR = PSPNRP `
+      && ` AND VBAK~VKORG = WA_HEAD-VKORG `
+      && ` AND VBAK~VTWEG = WA_HEAD-VTWEG `
+      && ` AND VBAK~KUNNR = WA_HEAD-KUNNR `
+      && ` AND VBAK~VBTYP = 'G' `
+      && ` AND VBAK~AUART = AUART `.
+    WHEN '5'.
+      SELSTR =  ` VBAK~VBELN IN S_VBELN `
+    && ` AND VBKD~BSTKD IN S_BSTKD `
+    && ` AND VBAK~KUNNR IN S_KUNNR `
+    && ` AND VBAP~GROES IN S_GROES `
+    && ` AND VBAK~ZHTLY IN S_ZHTLY `
+    && ` AND VBAK~ZYWY IN S_ZYWY `
+    && ` AND VBAK~ERDAT IN S_ERDAT `
+    && ` AND VBAK~ERNAM IN S_ERNAM `
+    && ` AND VBAK~GUEBG IN S_GUEBG `
+    && ` AND VBAK~PS_PSP_PNR IN S_PSPNR `
+    && ` AND PRPS~POST1 IN S_POST1 `
+    && ` AND PRPS~POSID IN S_POSID `
+    && ` AND VBAK~VBTYP = 'C' `
+    && ` AND VBAK~ZTTZT IN S_ZZTK `.
+  ENDCASE.
+  SELECT VBAK~VBELN
+         VBAK~VKORG
+         VBAK~VTWEG
+         VBAK~VKGRP
+         VBAK~VKBUR
+         VBAK~AUART
+         VBAK~KUNNR
+         VBAK~AUGRU
+         VBAK~ZYWY
+         VBAK~GUEBG
+         VBAK~ZHTBB
+         VBAK~ZHTLY
+         VBAK~ZZT1
+         VBAK~ZTTZT
+         VBAK~KNUMV
+         VBAK~ZJHFS
+         VBAK~AUDAT
+         VBAK~ZDJRQ
+         VBAK~GUEEN
+         VBAK~ZGPDJBL
+         VBAK~ZQSD
+         VBAK~ZJRTH
+         VBAK~ZJRTHWB
+         VBAK~ZDJSCDZ
+         VBAP~MVGR2
+         VBAP~GROES
+         VBAP~POSNR
+         VBAP~UEPOS
+         VBAP~MATNR
+         VBAP~KWMENG
+*         VBAP~KWMENG AS LYJHL "HANWQ
+         VBAP~VRKME
+         VBAP~WERKS
+         VBAP~LGORT
+         VBAP~MVGR3
+         VBAP~KZWI5
+         VBAP~KZWI6
+         VBAP~PSTYV
+         VBAK~PS_PSP_PNR AS PSPNR
+         VBAP~VSTEL
+         VBAP~ABGRU
+         VBKD~BSTKD
+         MAKT~MAKTX
+         PRPS~POST1
+         PRPS~POSID
+         MARA~ZZL1
+    INTO CORRESPONDING FIELDS OF TABLE OUTTAB "HANWQ  ADD  CORRESPONDING FIELDS OF
+    FROM VBAK INNER JOIN VBAP ON VBAK~VBELN = VBAP~VBELN
+               INNER JOIN VBKD ON VBAK~VBELN = VBKD~VBELN
+                              AND VBKD~POSNR = '000000'
+               INNER JOIN MAKT ON VBAP~MATNR = MAKT~MATNR
+                              AND MAKT~SPRAS = SY-LANGU
+               INNER JOIN MARA ON VBAP~MATNR = MARA~MATNR
+               INNER JOIN PRPS ON VBAK~PS_PSP_PNR = PRPS~PSPNR
+    WHERE VBAK~VKORG IN S_VKORG
+    AND   VBAK~VTWEG IN S_VTWEG
+    AND   VBAK~AUART IN S_AUART
+    AND   VBAP~ABGRU IN S_ABGRU
+    AND   VBAK~PS_PSP_PNR <> '00000000'
+    AND   (SELSTR).
+  CASE SY-TCODE.
+    WHEN TCODE2.
+    WHEN TCODE3.
+      DELETE OUTTAB WHERE ZTTZT NE 'B' AND ZTTZT NE 'C'.
+  ENDCASE.
+  CHECK OUTTAB[] IS NOT INITIAL.
+  REFRESH:IT_KUNNR,IT_KNUMV,IT_PSPNR.
+  LOOP AT OUTTAB.
+    CLEAR:IT_KUNNR,IT_KNUMV,IT_PSPNR,IT_VBELN1.
+    IT_KNUMV-KNUMV = OUTTAB-KNUMV.
+    IT_KUNNR-KUNNR = OUTTAB-KUNNR.
+    IT_PSPNR-PSPNR = OUTTAB-PSPNR.
+    IT_VBELN1-VBELN = OUTTAB-VBELN.
+    IT_VBELN1-POSNR = OUTTAB-POSNR.
+    COLLECT:IT_KNUMV,IT_KUNNR,IT_PSPNR,
+    IT_VBELN1.
+    IT_KUNNR-KUNNR = OUTTAB-ZYWY.
+    COLLECT IT_KUNNR.
+    IT_KUNNR-KUNNR = OUTTAB-ZHTLY.
+    COLLECT IT_KUNNR.
+  ENDLOOP.
+
+  PERFORM GETPUBDATA.
+
+*调用SD,PP函数
+  LOOP AT OUTTAB.
+    CLEAR:NUM.
+    PERFORM FILLDATA CHANGING OUTTAB.
+    READ TABLE IT_ZSSD263 WITH KEY VBELN = OUTTAB-VBELN
+                                   POSNR = OUTTAB-POSNR
+                                   BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      MOVE-CORRESPONDING IT_ZSSD263 TO ZSSD262.
+      MOVE-CORRESPONDING ZSSD262 TO OUTTAB.
+    ENDIF.
+*没有出库量，则将创建的发货通知单量回写
+    IF OUTTAB-YTZL IS INITIAL.
+      OUTTAB-YTZL = OUTTAB-FHTZL.
+    ENDIF.
+    CASE P_TYPE.
+      WHEN '2' OR '3' OR '4'.
+        IF ( OUTTAB-KWMENG GE OUTTAB-PCL
+          AND OUTTAB-FHL GE OUTTAB-KWMENG )
+          OR ( OUTTAB-KWMENG LT OUTTAB-PCL
+          AND OUTTAB-FHL GE OUTTAB-PCL  ).
+          DELETE OUTTAB.
+          CONTINUE.
+        ENDIF.
+    ENDCASE.
+    CLEAR:NUM.
+    TRY .
+        CALL FUNCTION 'HR_99S_INTERVAL_BETWEEN_DATES'
+          EXPORTING
+            BEGDA = OUTTAB-ZDJRQ
+            ENDDA = OUTTAB-DJSJDZ
+          IMPORTING
+            DAYS  = OUTTAB-DJWYTS.
+      CATCH  CX_ROOT INTO CXROOT.
+    ENDTRY.
+
+    IF OUTTAB-DJSJDZ GT OUTTAB-ZDJRQ.
+      OUTTAB-DJWY = '违约'.
+    ELSE.
+      OUTTAB-DJWY = '守约'.
+    ENDIF.
+    IF SY-DATUM GT OUTTAB-GUEEN.
+      OUTTAB-DJWY = '违约'.
+    ELSE.
+      OUTTAB-DJWY = '守约'.
+    ENDIF.
+    CLEAR:NUM.
+    TRY .
+        CALL FUNCTION 'HR_99S_INTERVAL_BETWEEN_DATES'
+          EXPORTING
+            BEGDA = OUTTAB-GUEEN
+            ENDDA = SY-DATUM
+          IMPORTING
+            DAYS  = OUTTAB-HTZXWYTS.
+      CATCH  CX_ROOT INTO CXROOT.
+    ENDTRY.
+    OUTTAB-GUEEN = OUTTAB-AUDAT
+                  + OUTTAB-ZJRTH
+                  + OUTTAB-ZJRTHWB.
+    OUTTAB-KFHSL = OUTTAB-KWMENG
+                - OUTTAB-FHL
+                - OUTTAB-YTZL.
+    CONCATENATE OUTTAB-VBELN OUTTAB-POSNR INTO TDNAME.
+    PERFORM GETLONGTEXT(ZPUBFORM) USING 'Z001' TDNAME 'VBBP'
+          CHANGING OUTTAB-GUIGE.
+    MODIFY OUTTAB.
+  ENDLOOP.
+
+ENDFORM.
+FORM GETPUBDATA.
+  IF IT_KNUMV[] IS NOT INITIAL.
+    SORT IT_KNUMV BY KNUMV.
+    SELECT *
+      INTO TABLE IT_KONV
+      FROM V_KONV_CDS
+      FOR ALL ENTRIES IN IT_KNUMV
+      WHERE KNUMV = IT_KNUMV-KNUMV
+      AND   KSCHL IN S_KSCHL
+      AND   KINAK = ''.
+    SORT IT_KONV BY KNUMV KPOSN KSCHL.
+  ENDIF.
+  DELETE IT_KUNNR WHERE KUNNR IS INITIAL.
+  IF IT_KUNNR[] IS NOT INITIAL.
+    SORT IT_KUNNR BY KUNNR.
+    SELECT *
+      INTO TABLE IT_KNA1
+      FROM KNA1
+      FOR ALL ENTRIES IN IT_KUNNR
+      WHERE KUNNR = IT_KUNNR-KUNNR.
+    SORT IT_KNA1 BY KUNNR.
+  ENDIF.
+  IF IT_VBELN[] IS NOT INITIAL.
+    SORT IT_VBELN BY VBELN.
+    SELECT *
+      INTO TABLE IT_VBPA
+      FROM VBPA
+      FOR ALL ENTRIES IN IT_VBELN
+      WHERE VBELN = IT_VBELN-VBELN
+      AND   POSNR = '000000'.
+    SORT IT_VBPA BY VBELN PARVW.
+  ENDIF.
+  IF IT_LIFNR[] IS NOT INITIAL.
+    SORT IT_LIFNR BY LIFNR.
+    SELECT *
+      INTO TABLE IT_LFA1
+      FROM LFA1
+      FOR ALL ENTRIES IN IT_LIFNR
+      WHERE LIFNR = IT_LIFNR-LIFNR.
+    SORT IT_LFA1 BY LIFNR.
+  ENDIF.
+  CALL FUNCTION 'ZFM_CALMNG_BYHT'
+    TABLES
+      INTAB  = IT_VBELN1
+      OUTTAB = IT_ZSSD263.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9001 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9001 OUTPUT.
+  DATA:IT_EXCODE LIKE TABLE OF SY-UCOMM WITH HEADER LINE.
+  CLEAR:IT_EXCODE[].
+  SET PF-STATUS '9001' EXCLUDING IT_EXCODE.
+  SET TITLEBAR '9001'.
+ENDMODULE.
+FORM SHOWALV.
+  CASE SCREENNO.
+    WHEN '9001'.
+      "创建容器
+      IF ALVGRID1 IS INITIAL.
+        CREATE OBJECT CONTAIN1
+          EXPORTING
+            CONTAINER_NAME              = 'CONT9001'
+          EXCEPTIONS
+            CNTL_ERROR                  = 1
+            CNTL_SYSTEM_ERROR           = 2
+            CREATE_ERROR                = 3
+            LIFETIME_ERROR              = 4
+            LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+        IF SY-SUBRC NE 0.
+          MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                     WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+        ENDIF.
+        CREATE OBJECT ALVGRID1
+          EXPORTING
+            I_PARENT = CONTAIN1.
+
+        CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+        CREATE OBJECT LCL_EVENT_RECEIVER2.
+        SET HANDLER LCL_EVENT_RECEIVER2->HANDLE_DOUBLE_CLICK1 FOR ALVGRID1.
+        SET HANDLER LCL_EVENT_RECEIVER2->HANDLE_DATA_CHANGED1 FOR ALVGRID1.
+        SET HANDLER LCL_EVENT_RECEIVER2->HANDLE_HOTSPOT_CLICK1 FOR ALVGRID1."热点点击
+        SET HANDLER LCL_EVENT_RECEIVER2->HANDLE_TOOLBAR1 FOR ALVGRID1."增加按钮
+        SET HANDLER LCL_EVENT_RECEIVER2->HANDLE_COMMAND1 FOR ALVGRID1."按钮响应
+        ALVGRID1->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_MODIFIED )."mc_evt_enter
+        ALVGRID1->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+        PERFORM CALLALV(ZPUBFORM) TABLES ITAB2
+        USING ALVGRID1 IT_FIELDCAT1 'G202'.
+      ELSE.
+        PERFORM CALLALV(ZPUBFORM) TABLES ITAB2
+        USING ALVGRID1 IT_FIELDCAT1 'G202'.
+      ENDIF.
+*刷新ALV
+      PERFORM REFRESHALV9001.
+    WHEN '9000'.
+      "创建容器
+      IF ALVGRID2 IS INITIAL.
+        CREATE OBJECT CONTAIN2
+          EXPORTING
+            CONTAINER_NAME              = 'CONT9001'
+          EXCEPTIONS
+            CNTL_ERROR                  = 1
+            CNTL_SYSTEM_ERROR           = 2
+            CREATE_ERROR                = 3
+            LIFETIME_ERROR              = 4
+            LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+        IF SY-SUBRC NE 0.
+          MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                     WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+        ENDIF.
+        CREATE OBJECT ALVGRID2
+          EXPORTING
+            I_PARENT = CONTAIN2.
+
+        CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+        CREATE OBJECT LCL_EVENT_RECEIVER3.
+        SET HANDLER LCL_EVENT_RECEIVER3->HANDLE_DOUBLE_CLICK2 FOR ALVGRID2.
+        SET HANDLER LCL_EVENT_RECEIVER3->HANDLE_DATA_CHANGED2 FOR ALVGRID2.
+        SET HANDLER LCL_EVENT_RECEIVER3->HANDLE_HOTSPOT_CLICK2 FOR ALVGRID2."热点点击
+        SET HANDLER LCL_EVENT_RECEIVER3->HANDLE_TOOLBAR2 FOR ALVGRID2."增加按钮
+        SET HANDLER LCL_EVENT_RECEIVER3->HANDLE_COMMAND2 FOR ALVGRID2."按钮响应
+        ALVGRID2->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_MODIFIED )."mc_evt_enter
+        ALVGRID2->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+        PERFORM CALLALV(ZPUBFORM) TABLES ITAB3
+        USING ALVGRID2 IT_FIELDCAT1 'H202'.
+      ELSE.
+        PERFORM CALLALV(ZPUBFORM) TABLES ITAB3
+        USING ALVGRID2 IT_FIELDCAT1 'H202'.
+      ENDIF.
+*刷新ALV
+      PERFORM REFRESHALV9003.
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT9001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EXIT9001 INPUT.
+  LEAVE TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_9001 INPUT.
+  OK_CODE1 = SY-UCOMM.
+  CASE OK_CODE1+0(5).
+    WHEN 'BUT01'."创建
+      PERFORM BUT01A.
+    WHEN 'BUT09'."查询所有
+      READ TABLE ITAB1 WITH KEY SEL = 'X'.
+      PERFORM GETDATAPUB TABLES ITAB2 USING '3' ITAB1.
+      IF ITAB2[] IS INITIAL.
+        MESSAGE E005.
+      ENDIF.
+    WHEN 'BUT03'."退出
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+  CLEAR OK_CODE1.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9002 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9002 OUTPUT.
+  PERFORM SHOWALV.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9003 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9003 OUTPUT.
+  SET PF-STATUS '9003'.
+* SET TITLEBAR 'xxx'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT9003  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EXIT9003 INPUT.
+  LEAVE TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9003  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_9003 INPUT.
+  OK_CODE2 = SY-UCOMM.
+  CASE OK_CODE2+0(5).
+    WHEN 'BUT03'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+  CLEAR SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form GETFH
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM GETFH USING P_VBELN P_OKCODE.
+  DATA:LINES TYPE TABLE OF TLINE WITH HEADER LINE.
+  DATA:NAME TYPE THEAD-TDNAME.
+  CLEAR:WA_HEAD,IT_ITEM[],IT_PSPNR[],IT_TEXT[],
+  NAME,LIPS,TEXTTABLE[].
+  CHECK P_VBELN IS NOT INITIAL.
+  SELECT SINGLE *
+    INTO @DATA(WA_VBAK)
+    FROM VBAK
+    WHERE VBELN = @P_VBELN.
+  CHECK SY-SUBRC = 0.
+*查找出库单
+  SELECT *
+    INTO TABLE @DATA(IT_LIPS1)
+    FROM LIPS
+    WHERE VGBEL = @P_VBELN.
+  SORT IT_LIPS1 BY VGBEL VGPOS.
+  SELECT *
+    INTO TABLE @DATA(IT_VBAP)
+    FROM VBAP
+    WHERE VBELN = @WA_VBAK-VBELN.
+  LOOP AT IT_VBAP INTO DATA(WA_VBAP).
+    CLEAR:IT_ITEM.
+    MOVE-CORRESPONDING WA_VBAP TO IT_ITEM.
+    READ TABLE IT_LIPS1 INTO DATA(WA_LIPS1) WITH KEY VGBEL = WA_VBAP-VBELN
+                                                     VGPOS = WA_VBAP-POSNR
+                                                     BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      TABIX = SY-TABIX.
+      IT_ITEM-VBELV = WA_LIPS1-VBELN.
+      LOOP AT IT_LIPS1 INTO LIPS FROM TABIX.
+        IF LIPS-VGBEL NE WA_VBAP-VBELN
+          OR LIPS-VGPOS NE WA_VBAP-POSNR.
+          EXIT.
+        ENDIF.
+        IT_ITEM-CKL = IT_ITEM-CKL + LIPS-LFIMG.
+      ENDLOOP.
+    ENDIF.
+    IT_ITEM-PSPNR = WA_VBAK-PS_PSP_PNR.
+    SELECT SINGLE POSID
+                  POST1
+      INTO ( IT_ITEM-POSID,
+             IT_ITEM-POST1 )
+      FROM PRPS
+      WHERE PSPNR = IT_ITEM-PSPNR.
+    SELECT SINGLE MAKTX
+      INTO IT_ITEM-MAKTX
+      FROM MAKT
+      WHERE MATNR = IT_ITEM-MATNR
+      AND   SPRAS = SY-LANGU.
+    SELECT SINGLE ZZL1
+      INTO IT_ITEM-ZZL1
+      FROM MARA
+      WHERE MATNR = IT_ITEM-MATNR.
+    READ TABLE IT_ZCKZT WITH KEY DOMVALUE_L = IT_ITEM-ZCKZT BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-ZCKZTT = IT_ZCKZT-DDTEXT.
+    ENDIF.
+    READ TABLE IT_ZZHWZ WITH KEY DOMVALUE_L = IT_ITEM-ZZHWZ BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-ZZHWZT = IT_ZCKZT-DDTEXT.
+      CONCATENATE IT_ZZHWZ-DOMVALUE_L '-' IT_ZZHWZ-DDTEXT
+      INTO IT_ITEM-ZZHWZT1.
+    ENDIF.
+    READ TABLE IT_T001W WITH KEY WERKS = IT_ITEM-WERKS BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-NAMEW = IT_T001W-NAME1.
+    ENDIF.
+    READ TABLE IT_T001L WITH KEY WERKS = IT_ITEM-WERKS
+                                 LGORT = IT_ITEM-LGORT
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-LGOBE = IT_T001L-LGOBE.
+    ENDIF.
+    READ TABLE IT_TVM2T WITH KEY MVGR2 = IT_ITEM-MVGR2 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_ITEM-TVM2T = IT_TVM2T-BEZEI.
+    ENDIF.
+    CONCATENATE WA_VBAP-VBELN WA_VBAP-POSNR INTO TDNAME.
+    PERFORM GETLONGTEXT(ZPUBFORM) USING 'Z001' TDNAME 'VBBP'
+          CHANGING IT_ITEM-GUIGE.
+    APPEND IT_ITEM.
+  ENDLOOP.
+  CLEAR IT_ITEM.
+  READ TABLE IT_ITEM INDEX 1.
+  SORT IT_ITEM BY POSNR.
+  MOVE-CORRESPONDING WA_VBAK TO WA_HEAD.
+  READ TABLE IT_KONV WITH KEY KNUMV = WA_VBAK-KNUMV
+                              KPOSN = '000000'
+                              KSCHL = 'ZWF1'
+                              BINARY SEARCH.
+  IF SY-SUBRC EQ 0.
+    WA_HEAD-ZWF1 = IT_KONV-KBETR.
+  ENDIF.
+  READ TABLE IT_VBPA WITH KEY VBELN = WA_VBAK-VBELN
+                              PARVW = 'TV'
+                              BINARY SEARCH.
+  IF SY-SUBRC EQ 0.
+    WA_HEAD-LIFNR = IT_VBPA-LIFNR.
+    SELECT SINGLE NAME1
+      INTO WA_HEAD-NAMEL
+      FROM LFA1
+      WHERE LIFNR = WA_HEAD-LIFNR.
+  ENDIF.
+  WA_HEAD-PSPNR = WA_HEAD-PS_PSP_PNR.
+  WA_HEAD-POST1 = IT_ITEM-POST1.
+*替换制单人
+  PERFORM GETERNAM CHANGING WA_HEAD-ERNAM.
+*取长文本
+  NAME = WA_HEAD-VBELN.
+*将单独显示的几个加入
+  CLEAR:IT_LIST1A[].
+  IT_LIST1A[] = IT_LIST1[].
+  WA_HEAD-TDID104 = 'Z104'.
+  WA_HEAD-TDID105 = 'Z108'.
+  WA_HEAD-TDID107 = 'Z107'.
+  PERFORM FILLDATA CHANGING WA_HEAD.
+  LOOP AT IT_LISTN.
+    CLEAR IT_LIST1A.
+    APPEND IT_LISTN TO IT_LIST1A.
+  ENDLOOP.
+  SELECT SINGLE NAME1
+    INTO WA_HEAD-ZYSGST
+    FROM LFA1
+    WHERE LIFNR = WA_HEAD-ZYSGS.
+  LOOP AT IT_LIST1A.
+    CLEAR:LINES[].
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+        ID                      = IT_LIST1A-TDID
+        LANGUAGE                = SY-LANGU
+        NAME                    = NAME
+        OBJECT                  = 'VBBK'
+      TABLES
+        LINES                   = LINES
+      EXCEPTIONS
+        ID                      = 1
+        LANGUAGE                = 2
+        NAME                    = 3
+        NOT_FOUND               = 4
+        OBJECT                  = 5
+        REFERENCE_CHECK         = 6
+        WRONG_ACCESS_TO_ARCHIVE = 7
+        OTHERS                  = 8.
+    LOOP AT LINES.
+      CLEAR:IT_TEXT.
+      IT_TEXT-TDID = IT_LIST1A-TDID.
+      IT_TEXT-TEXT = LINES-TDLINE.
+      APPEND IT_TEXT.
+    ENDLOOP.
+  ENDLOOP.
+  CASE P_OKCODE.
+    WHEN 'BUT06'.
+    WHEN OTHERS.
+      CALL SCREEN 9000.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  DEALDATA  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE DEALDATA INPUT.
+
+  PERFORM TRANSYSGS CHANGING WA_HEAD-ZYSGS.
+  SELECT SINGLE NAME1
+  INTO WA_HEAD-ZYSGST
+  FROM LFA1
+  WHERE LIFNR = WA_HEAD-ZYSGS.
+  SELECT SINGLE NAME_ORG1
+    INTO WA_HEAD-ZYWYT
+    FROM BUT000
+    WHERE PARTNER = WA_HEAD-ZYWY.
+*处理数值字段
+  PERFORM DEALNUM.
+  PERFORM FILLDATA CHANGING WA_HEAD.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form MODIFY9000
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM DEALNUM.
+  DATA:O_FLG TYPE CHAR1.
+  PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_HEAD-ZYSJE O_FLG.
+  IF O_FLG = 'E'.
+    CLEAR:WA_HEAD-ZYSJE.
+  ENDIF.
+  PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_HEAD-ZHUOC O_FLG.
+  IF O_FLG = 'E'.
+    CLEAR:WA_HEAD-ZHUOC.
+  ENDIF.
+  PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_HEAD-ZHUOZ O_FLG.
+  IF O_FLG = 'E'.
+    CLEAR:WA_HEAD-ZHUOZ.
+  ENDIF.
+  PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_HEAD-ZHUOG O_FLG.
+  IF O_FLG = 'E'.
+    CLEAR:WA_HEAD-ZHUOG.
+  ENDIF.
+  PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_HEAD-ZHUOK O_FLG.
+  IF O_FLG = 'E'.
+    CLEAR:WA_HEAD-ZHUOK.
+  ENDIF.
+ENDFORM.
+FORM MODIFY9000 .
+  DATA:LT_EXCODE LIKE TABLE OF SY-UCOMM WITH HEADER LINE.
+  CLEAR:LT_EXCODE[].
+  CALL FUNCTION 'ZFM_SD_AUTHCONTROL'
+    EXPORTING
+      AUTHACT   = 'B'
+      DJLX      = 'FH'
+      VBELN     = WA_HEAD-VBELN
+    TABLES
+      O_EXUCOMM = LT_EXCODE
+    CHANGING
+      O_VBELN   = P_VBELN
+      O_MODE    = P_MODE.
+*字段编辑与隐藏按钮
+  CASE SY-TCODE.
+    WHEN TCODE2.
+      APPEND 'BUT06' TO LT_EXCODE.
+      APPEND 'BUT07' TO LT_EXCODE.
+      APPEND 'BUT11' TO LT_EXCODE.
+      APPEND 'BUT13' TO LT_EXCODE.
+      APPEND 'BUT14' TO LT_EXCODE.
+      APPEND 'BUT15' TO LT_EXCODE.
+      IF WA_HEAD-VBELN IS INITIAL.
+        APPEND 'BUT05' TO LT_EXCODE.
+        APPEND 'BUT12' TO LT_EXCODE.
+      ELSE.
+        IF WA_HEAD-ZTTZT = 'A'
+          OR WA_HEAD-ZTTZT IS INITIAL.
+        ELSE.
+          APPEND 'BUT05' TO LT_EXCODE.
+        ENDIF.
+      ENDIF.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1.
+          WHEN 'A1' OR 'A4'.
+            IF WA_HEAD-ZTTZT IS INITIAL
+              OR WA_HEAD-ZTTZT = 'A'.
+              SCREEN-INPUT = 1.
+            ELSE.
+              SCREEN-INPUT = 0.
+            ENDIF.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+      CASE WA_HEAD-ZTTZT.
+        WHEN 'A' OR ''.
+        WHEN OTHERS.
+          APPEND 'BUT02' TO LT_EXCODE.
+          APPEND 'BUT04' TO LT_EXCODE.
+          APPEND 'BUT05' TO LT_EXCODE.
+          APPEND 'BUT06' TO LT_EXCODE.
+          APPEND 'BUT07' TO LT_EXCODE.
+      ENDCASE.
+    WHEN TCODE3.
+      APPEND 'BUT11' TO LT_EXCODE.
+      APPEND 'BUT14' TO LT_EXCODE.
+      CASE WA_HEAD-ZTTZT.
+        WHEN 'B'.
+          APPEND 'BUT02' TO LT_EXCODE.
+          APPEND 'BUT04' TO LT_EXCODE.
+          APPEND 'BUT13' TO LT_EXCODE.
+          APPEND 'BUT15' TO LT_EXCODE.
+        WHEN 'C'.
+          APPEND 'BUT06' TO LT_EXCODE.
+        WHEN 'D'.
+          APPEND 'BUT02' TO LT_EXCODE.
+          APPEND 'BUT04' TO LT_EXCODE.
+          APPEND 'BUT06' TO LT_EXCODE.
+          APPEND 'BUT13' TO LT_EXCODE.
+          APPEND 'BUT15' TO LT_EXCODE.
+      ENDCASE.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1.
+          WHEN 'A3' OR 'A4'.
+            IF WA_HEAD-ZTTZT = 'C'.
+              SCREEN-INPUT = 1.
+            ELSE.
+              SCREEN-INPUT = 0.
+            ENDIF.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN TCODE5.
+      APPEND 'BUT13' TO LT_EXCODE.
+      APPEND 'BUT15' TO LT_EXCODE.
+      CASE WA_HEAD-ZTTZT.
+        WHEN 'D'.
+          APPEND 'BUT04' TO LT_EXCODE.
+          APPEND 'BUT02' TO LT_EXCODE.
+          APPEND 'BUT14' TO LT_EXCODE.
+        WHEN 'E'.
+          APPEND 'BUT06' TO LT_EXCODE.
+        WHEN 'F'.
+          APPEND 'BUT04' TO LT_EXCODE.
+          APPEND 'BUT06' TO LT_EXCODE.
+          APPEND 'BUT02' TO LT_EXCODE.
+      ENDCASE.
+*针对保管隐藏字段
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP2.
+          WHEN 'B1'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+*      LOOP AT SCREEN.
+*        CASE SCREEN-GROUP1.
+*          WHEN 'A3'.
+*            IF WA_HEAD-ZTTZT = 'E'.
+*              SCREEN-INPUT = 1.
+*            ELSE.
+*              SCREEN-INPUT = 0.
+*            ENDIF.
+*        ENDCASE.
+*        MODIFY SCREEN.
+*      ENDLOOP.
+    WHEN TCODE6.
+      APPEND 'BUT02' TO LT_EXCODE.
+      APPEND 'BUT04' TO LT_EXCODE.
+      APPEND 'BUT06' TO LT_EXCODE.
+      APPEND 'BUT07' TO LT_EXCODE.
+      APPEND 'BUT11' TO LT_EXCODE.
+      APPEND 'BUT12' TO LT_EXCODE.
+      APPEND 'BUT13' TO LT_EXCODE.
+      APPEND 'BUT14' TO LT_EXCODE.
+      APPEND 'BUT15' TO LT_EXCODE.
+    WHEN TCODE7.
+      APPEND 'BUT02' TO LT_EXCODE.
+      APPEND 'BUT04' TO LT_EXCODE.
+      APPEND 'BUT05' TO LT_EXCODE.
+      APPEND 'BUT06' TO LT_EXCODE.
+      APPEND 'BUT07' TO LT_EXCODE.
+      APPEND 'BUT11' TO LT_EXCODE.
+      APPEND 'BUT12' TO LT_EXCODE.
+      APPEND 'BUT13' TO LT_EXCODE.
+      APPEND 'BUT14' TO LT_EXCODE.
+  ENDCASE.
+  IF P_VBELN IS NOT INITIAL
+    AND P_MODE = 'S'.
+    LOOP AT SCREEN.
+      IF SCREEN-GROUP1 IS NOT INITIAL
+        OR SCREEN-GROUP2 IS NOT INITIAL.
+        SCREEN-INPUT = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+    APPEND 'BUT02' TO LT_EXCODE.
+    APPEND 'BUT04' TO LT_EXCODE.
+    APPEND 'BUT05' TO LT_EXCODE.
+    APPEND 'BUT06' TO LT_EXCODE.
+    APPEND 'BUT07' TO LT_EXCODE.
+    APPEND 'BUT11' TO LT_EXCODE.
+    APPEND 'BUT13' TO LT_EXCODE.
+    APPEND 'BUT14' TO LT_EXCODE.
+    APPEND 'BUT15' TO LT_EXCODE.
+  ENDIF.
+*详细地址
+  CASE SY-TCODE.
+    WHEN TCODE2.
+    WHEN OTHERS.
+      APPEND 'BUT05' TO LT_EXCODE.
+      CASE WA_HEAD-ZTTZT.
+        WHEN 'B' OR 'C'.
+          LOOP AT SCREEN.
+            CASE SCREEN-GROUP1.
+              WHEN 'A2'.
+                SCREEN-INPUT = 1.
+            ENDCASE.
+            MODIFY SCREEN.
+          ENDLOOP.
+        WHEN OTHERS.
+          LOOP AT SCREEN.
+            CASE SCREEN-GROUP1.
+              WHEN 'A2'.
+                SCREEN-INPUT = 0.
+            ENDCASE.
+            MODIFY SCREEN.
+          ENDLOOP.
+
+      ENDCASE.
+  ENDCASE.
+  SET PF-STATUS '9000' EXCLUDING LT_EXCODE.
+  SET TITLEBAR '9000'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FILLFIELDCAT1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FILLFIELDCAT1 .
+  CLEAR:IT_FIELDCAT1.
+  PERFORM FILLFIELDCAT TABLES IT_FIELDCAT1
+    USING 'CHBOX1' '选择'
+          '' ''.
+  LOOP AT FIELDCAT INTO WA_FIELD.
+    CLEAR:WA_FIELDCAT.
+    PERFORM FILLFIELDCAT TABLES IT_FIELDCAT1
+      USING WA_FIELD-FIELDNAME WA_FIELD-SELTEXT_L
+            WA_FIELD-REF_TABNAME WA_FIELD-REF_FIELDNAME.
+  ENDLOOP.
+ENDFORM.
+FORM TAB2SCREEN USING P_GO_EDITOR TYPE REF TO CL_GUI_TEXTEDIT
+                       P_TDID.
+*清空
+  CLEAR:TEXTTABLE[],TEXTTABLE.
+  CALL METHOD P_GO_EDITOR->DELETE_TEXT .
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+
+*取出已有的
+  LOOP AT IT_TEXT WHERE TDID = P_TDID.
+    CLEAR:TEXTTABLE.
+    TEXTTABLE-TEXT = IT_TEXT-TEXT.
+    APPEND TEXTTABLE.
+  ENDLOOP.
+  CALL METHOD P_GO_EDITOR->SET_TEXT_AS_STREAM
+    EXPORTING
+      TEXT            = TEXTTABLE[]
+    EXCEPTIONS
+      ERROR_DP        = 1
+      ERROR_DP_CREATE = 2
+      OTHERS          = 3.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SCREEN2TAB
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> TDID
+*&---------------------------------------------------------------------*
+FORM SCREEN2TAB  USING  P_GO_EDITOR TYPE REF TO CL_GUI_TEXTEDIT
+                        P_TDID.
+  CLEAR:TEXTTABLE[],TEXTTABLE.
+  "将容器中内容解析到内表
+  P_GO_EDITOR->GET_TEXT_AS_R3TABLE( IMPORTING TABLE = TEXTTABLE[] ).
+*将切换前的记录
+  DELETE IT_TEXT WHERE TDID = P_TDID.
+  LOOP AT TEXTTABLE.
+    CLEAR:IT_TEXT.
+    IT_TEXT-TDID = P_TDID.
+    IT_TEXT-TEXT = TEXTTABLE-TEXT.
+    APPEND IT_TEXT.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FILLDATA
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- ITAB
+*&---------------------------------------------------------------------*
+FORM FILLDATA  CHANGING INWA.
+  DATA:BEGIN OF IT_YS OCCURS 0,
+         FIELD1 TYPE FIELDNAME, "编码字段
+         FIELD2 TYPE FIELDNAME, "文本
+         FIELD3 TYPE FIELDNAME, "对应内表
+       END OF IT_YS.
+  DATA:POSNR TYPE POSNR.
+  FIELD-SYMBOLS:<D_FS1>  TYPE ANY,
+                <D_FS2>  TYPE ANY,
+                <D_FS3>  TYPE ANY,
+                <C_WA1>  TYPE ANY,
+                <C_TAB1> TYPE STANDARD TABLE.
+  CLEAR:IT_YS[],VBAP,VBAK.
+
+  CLEAR IT_YS.
+  IT_YS-FIELD1 = 'ZTTZT'.
+  IT_YS-FIELD2 = 'ZTTZTT'.
+  IT_YS-FIELD3 = 'IT_ZTTZT[]'.
+  APPEND IT_YS.
+  CLEAR IT_YS.
+  IT_YS-FIELD1 = 'ZJHFS'.
+  IT_YS-FIELD2 = 'ZJHFST'.
+  IT_YS-FIELD3 = 'IT_ZJHFS[]'.
+  APPEND IT_YS.
+  CLEAR IT_YS.
+  IT_YS-FIELD1 = 'ZZT1'.
+  IT_YS-FIELD2 = 'ZZT1T'.
+  IT_YS-FIELD3 = 'IT_ZZT1[]'.
+  APPEND IT_YS.
+
+  ASSIGN COMPONENT 'LGORT'OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    VBAP-LGORT = <D_FS1>.
+  ENDIF.
+  ASSIGN COMPONENT 'WERKS'OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    VBAP-WERKS = <D_FS1>.
+  ENDIF.
+  ASSIGN COMPONENT 'LGOBE' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_T001L WITH KEY WERKS = VBAP-WERKS
+                                 LGORT = VBAP-LGORT
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_T001L-LGOBE.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'NAMEW' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_T001W WITH KEY WERKS = VBAP-WERKS BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_T001W-NAME1.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'NAMEL' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'LIFNR' OF STRUCTURE INWA TO <D_FS2>.
+    IF SY-SUBRC EQ 0.
+      IF IT_LFA1[] IS NOT INITIAL.
+        READ TABLE IT_LFA1 WITH KEY LIFNR = <D_FS2>  BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          <D_FS1> = IT_LFA1-NAME1.
+        ENDIF.
+      ELSE.
+        SELECT SINGLE NAME1
+          INTO <D_FS1>
+          FROM LFA1
+          WHERE LIFNR = <D_FS2>.
+      ENDIF.
+
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'ZYSGST' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'ZYSGS' OF STRUCTURE INWA TO <D_FS2>.
+    READ TABLE IT_LFA1 WITH KEY LIFNR = <D_FS2>
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_LFA1-NAME1.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'TVM2T' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'MVGR2' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVM2T WITH KEY MVGR2 = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVM2T-BEZEI.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  ASSIGN COMPONENT 'TVKOT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'VKORG' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVKOT WITH KEY VKORG = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVKOT-VTEXT.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'TVAGT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'ABGRU' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVAGT WITH KEY ABGRU = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVAGT-BEZEI.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'TVAKT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'AUART' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVAKT WITH KEY AUART = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVAKT-BEZEI.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'TVTWT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'VTWEG' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVTWT WITH KEY VTWEG = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVTWT-VTEXT.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'TVGRT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'VKGRP' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVGRT WITH KEY VKGRP = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVGRT-BEZEI.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'TVKBT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'VKBUR' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_TVKBT WITH KEY VKBUR = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_TVKBT-BEZEI.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'NAMAG' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'KUNNR' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_KNA1 WITH KEY KUNNR = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_KNA1-NAME1.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'NAME1' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'KUNNR' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_KNA1 WITH KEY KUNNR = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_KNA1-NAME1.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'ZYWYT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'ZYWY' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_KNA1 WITH KEY KUNNR = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_KNA1-NAME1.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'ZHTLYT' OF STRUCTURE INWA TO <D_FS2>.
+  IF SY-SUBRC EQ 0.
+    ASSIGN COMPONENT 'ZHTLY' OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_KNA1 WITH KEY KUNNR = <D_FS1> BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        <D_FS2> = IT_KNA1-NAME1.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  LOOP AT IT_YS.
+    ASSIGN COMPONENT IT_YS-FIELD1 OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      ASSIGN COMPONENT IT_YS-FIELD2 OF STRUCTURE INWA TO <D_FS2>.
+      IF SY-SUBRC EQ 0.
+        ASSIGN (IT_YS-FIELD3) TO <C_TAB1>.
+        IF SY-SUBRC EQ 0.
+          READ TABLE <C_TAB1> ASSIGNING <C_WA1> WITH KEY ('DOMVALUE_L') = <D_FS1>
+                                                         BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            ASSIGN COMPONENT 'DDTEXT' OF STRUCTURE <C_WA1> TO <D_FS3>.
+            IF SY-SUBRC EQ 0.
+              <D_FS2> = <D_FS3>.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+*取价格
+  ASSIGN COMPONENT 'POSNR' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    VBAP-POSNR = <D_FS1>.
+  ENDIF.
+  ASSIGN COMPONENT 'KNUMV' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    VBAK-KNUMV = <D_FS1>.
+  ENDIF.
+  IF VBAK-KNUMV IS NOT INITIAL.
+    LOOP AT IT_YS1.
+      CLEAR POSNR.
+      CASE IT_YS1-TYPE.
+        WHEN 'I'.
+          POSNR = VBAP-POSNR.
+        WHEN 'H'.
+      ENDCASE.
+      READ TABLE IT_KONV WITH KEY KNUMV = VBAK-KNUMV
+                                  KPOSN = POSNR
+                                  KSCHL = IT_YS1-KSCHL
+                                  BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        ASSIGN COMPONENT IT_YS1-FIELD OF STRUCTURE INWA TO <D_FS2>.
+        IF SY-SUBRC EQ 0.
+          <D_FS2> = IT_KONV-KBETR.
+          CASE IT_KONV-KSCHL.
+            WHEN 'ZPR0' OR 'ZPRR'.
+              IF IT_KONV-KPEIN GT 0.
+                <D_FS2> = IT_KONV-KBETR / IT_KONV-KPEIN.
+              ENDIF.
+          ENDCASE.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  ZYSFZRF4  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ZYSFZRF4 INPUT.
+  CALL FUNCTION 'ZFM_ZYSGSF4'
+    EXPORTING
+      FIELD    = 'ZYSZRR'
+      SCRFIELD = 'WA_HEAD-ZYSFZR'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form TRANSYSGS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- WA_HEAD_ZYSGS
+*&---------------------------------------------------------------------*
+FORM TRANSYSGS  CHANGING P_WA_HEAD_ZYSGS.
+  DATA:ZYSGS1 TYPE LIFNR.
+  CLEAR:ZYSGS1.
+  PERFORM DELZERO(ZPUBFORM) CHANGING P_WA_HEAD_ZYSGS.
+  ZYSGS1 = P_WA_HEAD_ZYSGS.
+  PERFORM ADDZERO(ZPUBFORM) CHANGING ZYSGS1.
+  P_WA_HEAD_ZYSGS = ZYSGS1.
+ENDFORM.
+**向物流对账平台中写值
+FORM WRITEYFMX  USING P_IN_VBELN
+                CHANGING P_OTYPE P_OMSG P_ZDH TYPE ZE_ZYFXH.
+  DATA:BEGIN OF IT_ZBUM OCCURS 0,
+         ZBUM TYPE VBAK-ZBUM,
+       END OF IT_ZBUM.
+  DATA:IT_ZTMM226 TYPE TABLE OF ZTMM226 WITH HEADER LINE.
+  DATA:NUMMX TYPE I.
+  CHECK P_IN_VBELN IS NOT INITIAL.
+  CLEAR:P_OTYPE,P_OMSG,IT_ZTMM226[],IT_ZBUM[],
+  VBAK,VBAP,ZDH.
+*找到发货通知单下挂的所有出库单
+  SELECT SINGLE *
+    FROM VBAK
+    WHERE VBELN = P_IN_VBELN.
+  IF SY-SUBRC EQ 0.
+    SELECT *
+      INTO TABLE @DATA(IT_VBAPMX)
+      FROM VBAP
+      WHERE VBELN = @VBAK-VBELN.
+  ENDIF.
+  READ TABLE IT_VBAPMX INTO VBAP INDEX 1.
+  IT_ZTMM226-ZYWDH = VBAK-VBELN.
+  IT_ZTMM226-ZFYLX = 'XSYF'.
+  IT_ZTMM226-LIFNR = WA_HCF-ZYSGS.
+  IT_ZTMM226-ZYSZRR = WA_HEAD-ZYSFZR.
+  IT_ZTMM226-ZYWKH = VBAK-KUNNR.
+  IT_ZTMM226-ZXMH = VBAK-PS_PSP_PNR.
+  IT_ZTMM226-ZJSFS = 'ZC'.
+  IT_ZTMM226-ZZL = VBAK-ZHUOZ.
+  IT_ZTMM226-ZSL = WA_HCF-ZSL.
+  IT_ZTMM226-MWSKZ = 'J4'.
+  IT_ZTMM226-ZYSJE = WA_HCF-ZYSJE.
+  IT_ZTMM226-ZBHSJE =  WA_HCF-ZBHSJE.
+  IF WA_HEAD-ZHUOZ GT 0.
+    IT_ZTMM226-ZWLDJ = IT_ZTMM226-ZYSJE / WA_HEAD-ZHUOZ.
+    IT_ZTMM226-ZBHSDJ = IT_ZTMM226-ZBHSJE / WA_HEAD-ZHUOZ.
+  ENDIF.
+  IT_ZTMM226-ZSE = IT_ZTMM226-ZYSJE - IT_ZTMM226-ZBHSJE.
+  IT_ZTMM226-WERKS = VBAP-WERKS.
+  IT_ZTMM226-BUKRS = VBAK-VKORG.
+  IT_ZTMM226-ZYWY = VBAK-ZYWY.
+  IT_ZTMM226-ZBDJL = VBAK-ZBDJL.
+  IT_ZTMM226-ZYSD = VBAK-ZSHDQ && '/' &&  VBAK-ZQSD.
+  IT_ZTMM226-ZSJ = VBAK-ZSJXM.
+  IT_ZTMM226-ZSJDD = VBAK-ZSJDH.
+  IT_ZTMM226-ZCH = VBAK-ZCHEHAO.
+  IT_ZTMM226-ZZDRQ = VBAK-ERDAT.
+  IT_ZTMM226-ZDJLX = 'TZ'.
+  IT_ZTMM226-ZYFLX = WA_HCF-ZYFLX.
+  IT_ZTMM226-ZZT = '10'.
+  IT_ZTMM226-ZBZ = WA_HCF-ZBZ.
+  READ TABLE IT_TVGRT WITH KEY VKGRP = VBAK-VKGRP BINARY SEARCH.
+  IF SY-SUBRC EQ 0.
+    IT_ZTMM226-ZXXBM = IT_TVGRT-BEZEI.
+  ENDIF.
+  CLEAR IT_ZBUM[].
+  IF IT_ZTMM226-ZXXBM IS NOT INITIAL.
+    SEARCH IT_ZTMM226-ZXXBM FOR '-'.
+    IF SY-SUBRC = 0.
+      SPLIT IT_ZTMM226-ZXXBM AT '-' INTO TABLE IT_ZBUM.
+      DELETE IT_ZBUM WHERE ZBUM IS INITIAL OR ZBUM = '-'.
+      READ TABLE IT_ZBUM INDEX LINES( IT_ZBUM ).
+      IT_ZTMM226-ZYWBM = IT_ZBUM-ZBUM.
+    ELSE.
+      IT_ZTMM226-ZYWBM = IT_ZTMM226-ZXXBM.
+    ENDIF.
+  ENDIF.
+
+
+  APPEND IT_ZTMM226.
+
+  CALL FUNCTION 'ZFM_YFMX001'
+    IMPORTING
+      RTYPE  = P_OTYPE
+      RTMSG  = P_OMSG
+      ZDH    = P_ZDH
+    TABLES
+      IN_TAB = IT_ZTMM226.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9004 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9004 OUTPUT.
+  SET PF-STATUS '9004'.
+  SET TITLEBAR '9004' WITH '黄车费'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9004  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_9004 INPUT.
+  CLEAR:OK_CODE9004.
+  OK_CODE9004 = SY-UCOMM.
+  CASE OK_CODE9004+0(5).
+    WHEN 'BUT16'.
+*检查含税金额必填
+      IF WA_HCF-ZYSJE IS INITIAL.
+        MESSAGE S000(OO) WITH '含税金额必填' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      PERFORM CALHCF.
+      PERFORM WRITEYFMX USING WA_HCF-VBELN
+            CHANGING RTYPE RTMSG ZDH.
+      IF RTYPE = 'S'.
+        MESSAGE I000(OO) WITH '黄车费单号' ZDH '维护成功'.
+        LEAVE TO SCREEN 0.
+      ELSE.
+        MESSAGE S000(OO) WITH RTMSG DISPLAY LIKE 'E'.
+      ENDIF.
+    WHEN 'BUT03'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+  CLEAR SY-UCOMM.
+ENDMODULE.
+FORM CALHCF.
+  WA_HCF-ZBHSJE = WA_HCF-ZYSJE / ( 1 + WA_HCF-ZSL ).
+  WA_HCF-ZSE = WA_HCF-ZYSJE - WA_HCF-ZBHSJE.
+  CONCATENATE WA_HCF-ZBZ1 WA_HCF-ZBZ2 INTO WA_HCF-ZBZ.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT9004  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EXIT9004 INPUT.
+  CHECK OK_CODE9004+0(5) = 'BUT03'.
+  LEAVE TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  DEALDATA9004  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE DEALDATA9004 INPUT.
+  PERFORM CALHCF.
+ENDMODULE.
+FORM PUSHERP_DEL TABLES T_VBAP STRUCTURE VBAP
+                 USING P_ACT TYPE ZE_ACT
+                 CHANGING P_TYPE P_MSG.
+  DATA:ZDESCRIPTION TYPE CHAR1.
+  CHECK T_VBAP[] IS NOT INITIAL.
+  CLEAR:T_VBAP,P_TYPE,P_MSG.
+  LOOP AT T_VBAP WHERE LGORT IS NOT INITIAL.
+    EXIT.
+  ENDLOOP.
+  CHECK T_VBAP IS NOT INITIAL.
+  CASE P_ACT.
+    WHEN 'A01'."删除
+      ZDESCRIPTION = 'D'.
+    WHEN 'A06'."重置
+      ZDESCRIPTION = 'R'.
+    WHEN OTHERS.
+      EXIT.
+  ENDCASE.
+  CALL FUNCTION 'ZFM_GP_SD_WMS_FHTHCZSC'
+    EXPORTING
+      VBELN        = T_VBAP-VBELN
+      LGORT        = T_VBAP-LGORT
+      WERKS        = T_VBAP-WERKS
+      ZDESCRIPTION = ZDESCRIPTION
+    IMPORTING
+      RTYPE        = P_TYPE
+      RTMSG        = P_MSG.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GETERNAM
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- WA_HEAD_ERNAM
+*&---------------------------------------------------------------------*
+FORM GETERNAM  CHANGING P_WA_HEAD_ERNAM.
+*取得SU01
+  SELECT SINGLE *
+    INTO @DATA(WA_USR21)
+    FROM USR21
+    WHERE BNAME = @P_WA_HEAD_ERNAM.
+  IF SY-SUBRC EQ 0.
+    SELECT SINGLE NAME_LAST
+      INTO P_WA_HEAD_ERNAM
+      FROM ADRP
+      WHERE PERSNUMBER = WA_USR21-PERSNUMBER.
+  ENDIF.
+ENDFORM.

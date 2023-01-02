@@ -1,0 +1,33 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_V3_ZBOM_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZBOM_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE ZBOM_CON_MARK INPUT.
+  DATA: g_ZBOM_CON_wa2 like line of IT_BOM.
+    if ZBOM_CON-line_sel_mode = 1
+    and IT_BOM-SEL = 'X'.
+     loop at IT_BOM into g_ZBOM_CON_wa2
+       where SEL = 'X'.
+       g_ZBOM_CON_wa2-SEL = ''.
+       modify IT_BOM
+         from g_ZBOM_CON_wa2
+         transporting SEL.
+     endloop.
+  endif.
+  MODIFY IT_BOM
+    INDEX ZBOM_CON-CURRENT_LINE
+    TRANSPORTING SEL.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZBOM_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE ZBOM_CON_USER_COMMAND INPUT.
+  OK_CODE = SY-UCOMM.
+  PERFORM USER_OK_TC USING    'ZBOM_CON'
+                              'IT_BOM'
+                              'SEL'
+                     CHANGING OK_CODE.
+  SY-UCOMM = OK_CODE.
+ENDMODULE.

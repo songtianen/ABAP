@@ -1,0 +1,4 @@
+字段	主键	数据元素	数据类型	长度	小数位	短文本	0
+ERDAT		ERDAT	DATS	000008	000000	记录创建日期	0
+ERNAM		ERNAM	CHAR	000012	000000	创建对象的人员名称	0
+ERTIM		ERZET	TIMS	000006	000000	输入时间	0

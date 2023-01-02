@@ -1,0 +1,409 @@
+FUNCTION ZFM_FI_ENHANCEMENT_GP.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(I_BKDF) TYPE  BKDF OPTIONAL
+*"  TABLES
+*"      T_BKPF STRUCTURE  BKPF
+*"      T_BSEG STRUCTURE  BSEG
+*"      T_BKPFSUB STRUCTURE  BKPF_SUBST
+*"      T_BSEGSUB STRUCTURE  BSEG_SUBST
+*"      T_BSEC STRUCTURE  BSEC OPTIONAL
+*"  CHANGING
+*"     REFERENCE(I_BKDFSUB) TYPE  BKDF_SUBST OPTIONAL
+*"----------------------------------------------------------------------
+  DATA:BEGIN OF IT_SEGMENT OCCURS 0,
+         SEGMENT TYPE BSEG-SEGMENT,
+         WRBTR   TYPE BSEG-WRBTR,
+       END OF IT_SEGMENT,
+       BEGIN OF IT_TAB1 OCCURS 0,
+         VBELN TYPE VBELN,
+         EBELN TYPE EBELN,
+       END OF IT_TAB1,
+       T_BSEG1  TYPE TABLE OF BSEG WITH HEADER LINE,
+       IT_EBELN TYPE TABLE OF EKKO_KEY WITH HEADER LINE,
+       IT_ANLH  TYPE TABLE OF ANLH WITH HEADER LINE,
+       T_VBRP   TYPE TABLE OF VBRPVB WITH HEADER LINE.
+  DATA:ERRORFLG   TYPE CHAR1,
+       OBJNR      TYPE COSC-OBJNR,
+       VBELN      TYPE VBELN,
+       TABIX      TYPE SY-TABIX,
+       WA_BSEGSUB TYPE BSEG_SUBST.
+  CLEAR:IT_SEGMENT[].
+  READ TABLE T_BKPF INTO BKPF INDEX 1.
+
+  CASE BKPF-AWTYP.
+    WHEN 'RMRP'.
+      LOOP AT T_BSEG WHERE KOART = 'K'.
+        TABIX = SY-TABIX.
+        T_BSEG-XKRES = 'X'.
+        T_BSEG-XOPVW = 'X'.
+
+        READ TABLE T_BSEGSUB  INTO WA_BSEGSUB INDEX TABIX.
+        IF SY-SUBRC EQ 0.
+          WA_BSEGSUB-XKRES = T_BSEG-XKRES.
+          WA_BSEGSUB-XOPVW = T_BSEG-XOPVW.
+          MODIFY T_BSEGSUB FROM WA_BSEGSUB INDEX TABIX TRANSPORTING XKRES XOPVW.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+
+
+*********************************************************
+*研发支出费用调整校验
+  LOOP AT T_BSEG.
+    CLEAR:AUFK,ERRORFLG,IT_SEGMENT.
+    TABIX = SY-TABIX.
+    READ TABLE T_BSEGSUB INTO WA_BSEGSUB INDEX TABIX.
+    IT_SEGMENT-SEGMENT = T_BSEG-SEGMENT.
+    IT_SEGMENT-WRBTR = T_BSEG-WRBTR.
+    IF T_BSEG-SHKZG = 'H'.
+      IT_SEGMENT-WRBTR = IT_SEGMENT-WRBTR * -1.
+    ENDIF.
+
+    COLLECT IT_SEGMENT.
+    CASE T_BSEG-HKONT+0(4).
+      WHEN '6600'.
+        IF T_BSEG-AUFNR IS NOT INITIAL.
+          SELECT SINGLE *
+            FROM AUFK
+            WHERE AUFNR = T_BSEG-AUFNR.
+          IF AUFK-AUART = 'Z002'
+            AND AUFK-ABKRS = '2'.
+            IF T_BSEG-XREF3+0(3) NE 'ZY/'
+              OR STRLEN( T_BSEG-XREF3 ) NE 9.
+              ERRORFLG = 'X'.
+            ENDIF.
+            CONCATENATE 'KSWISD' BKPF-BUKRS T_BSEG-XREF3+3(6)
+            INTO OBJNR.
+            SELECT SINGLE COUNT(*)
+              FROM COSC
+              WHERE OBJNR = OBJNR.
+            IF SY-SUBRC NE 0.
+              ERRORFLG = 'X'.
+            ENDIF.
+            IF ERRORFLG = 'X'.
+              MESSAGE E044(ZMSG_GP).
+            ENDIF.
+          ENDIF.
+        ENDIF.
+*厂景材料类项目WBS费用范围替代
+        IF T_BSEG-PROJK IS NOT INITIAL.
+*找到参数文件
+          CLEAR:PRPS,PROJ.
+          SELECT SINGLE *
+            FROM PRPS
+            WHERE PSPNR = T_BSEG-PROJK.
+          CASE PRPS-WERKS.
+            WHEN '3000'.
+              SELECT SINGLE *
+                 FROM PROJ
+                 WHERE PSPNR = PRPS-PSPHI.
+              CASE PROJ-PROFL.
+                WHEN 'ZPS0008'.
+                  T_BSEGSUB-FKBER = 'WS03'.
+                  MODIFY T_BSEGSUB FROM WA_BSEGSUB INDEX TABIX
+                  TRANSPORTING FKBER.
+              ENDCASE.
+          ENDCASE.
+        ENDIF.
+    ENDCASE.
+*段与公司代码分配检查
+    IF T_BSEG-SEGMENT IS NOT INITIAL.
+      SELECT SINGLE COUNT(*)
+        FROM ZFICO_CONF_009
+        WHERE TCODE = SY-TCODE
+        AND   JCLX = 'A'.
+      IF SY-SUBRC NE 0.
+        SELECT SINGLE COUNT(*)
+          FROM ZFICO_CONF_008
+          WHERE BUKRS = BKPF-BUKRS
+          AND   SEGMENT = T_BSEG-SEGMENT.
+        IF SY-SUBRC NE 0.
+          MESSAGE E045(ZMSG_GP).
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+*********************************************************
+
+*********************************************************
+*段平衡检查
+  CLEAR:ZFICO_CONF_010,ZFICO_CONF_009.
+  SELECT SINGLE *
+    FROM ZFICO_CONF_010
+    WHERE BLART = BKPF-BLART.
+  IF SY-SUBRC NE 0.
+    MESSAGE E046(ZMSG_GP) WITH BKPF-BLART.
+  ENDIF.
+  SELECT SINGLE *
+    FROM ZFICO_CONF_009
+    WHERE JCLX = 'B'
+    AND   TCODE = SY-TCODE.
+  IF SY-SUBRC EQ 0.
+    IF ZFICO_CONF_010-MANUALSIGN NE 'X'.
+      MESSAGE E047(ZMSG_GP) WITH BKPF-BLART.
+    ENDIF.
+    IF ZFICO_CONF_010-SEGMTBLNC = 'X'.
+      CLEAR IT_SEGMENT.
+      LOOP AT IT_SEGMENT WHERE WRBTR NE 0.
+        EXIT.
+      ENDLOOP.
+      IF SY-SUBRC EQ 0.
+        MESSAGE E048(ZMSG_GP) WITH IT_SEGMENT-SEGMENT.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+*********************************************************
+
+*********************************************************
+*固定资产收货更新规格型号
+  CLEAR:IT_ANLH[].
+  CASE BKPF-BLART.
+    WHEN 'WE'.
+      LOOP AT T_BSEG .
+        CLEAR:IT_ANLH.
+        CASE T_BSEG-KTOSL.
+          WHEN 'ANL'.
+            SELECT SINGLE *
+              FROM EKPO
+              WHERE EBELN = T_BSEG-EBELN
+              AND   EBELP = T_BSEG-EBELP.
+            IF SY-SUBRC EQ 0.
+              IT_ANLH-BUKRS = BKPF-BUKRS.
+              IT_ANLH-ANLN1 = T_BSEG-ANLN1.
+              IT_ANLH-ANLHTXT = EKPO-TXZ01.
+              COLLECT IT_ANLH.
+            ENDIF.
+        ENDCASE.
+      ENDLOOP.
+  ENDCASE.
+*更新固定资产
+  IF IT_ANLH[] IS NOT INITIAL.
+    CALL FUNCTION 'ZFM_UPDANLH' IN UPDATE TASK
+      TABLES
+        T_ANLH = IT_ANLH.
+  ENDIF.
+*********************************************************
+
+
+*********************************************************
+*分配&WBS字段替换
+  CASE BKPF-AWTYP.
+    WHEN 'VBRK'.
+      LOOP AT T_BSEG.
+        TABIX = SY-TABIX.
+        READ TABLE T_BSEGSUB INTO WA_BSEGSUB INDEX TABIX.
+        VBELN = T_BSEG-ZUONR."发货通知单号
+        PERFORM ADDZERO(ZPUBFORM) CHANGING VBELN.
+        SELECT SINGLE *
+          FROM VBAK
+          WHERE VBELN = VBELN.
+        IF SY-SUBRC EQ 0.
+          T_BSEG-PROJK = VBAK-PS_PSP_PNR.
+          SELECT SINGLE VGBEL
+            INTO T_BSEG-ZUONR
+            FROM VBAP
+            WHERE VBELN = VBELN.
+          WA_BSEGSUB-ZUONR = T_BSEG-ZUONR.
+          WA_BSEGSUB-PROJK = T_BSEG-PROJK.
+          MODIFY T_BSEGSUB FROM WA_BSEGSUB INDEX TABIX
+          TRANSPORTING ZUONR PROJK.
+          MODIFY T_BSEG.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+*********************************************************
+
+*********************************************************
+*厂景项目会计凭证替代
+  CASE SY-TCODE.
+    WHEN 'CJ8G' OR 'CJ88'.
+      LOOP AT T_BSEG.
+        TABIX = SY-TABIX.
+        CASE T_BSEG-HKONT.
+          WHEN '1406010100'.
+            SELECT SINGLE *
+              FROM PRPS
+              WHERE PSPNR = T_BSEG-PROJK.
+            IF SY-SUBRC EQ 0.
+              CASE PRPS-PRART.
+                WHEN 'C1'.
+*SELECT SINGLE *
+*  FROM LISP
+*  WHERE PS_PSP_PNR = PRPS-PSPNR
+              ENDCASE.
+            ENDIF.
+        ENDCASE.
+      ENDLOOP.
+  ENDCASE.
+*********************************************************
+*********************************************************
+*销售开票替代增强
+*内购内销业务会计凭证段增强
+  CLEAR:VBRK,T_VBRP[],IT_EBELN[],IT_TAB1[].
+  CASE BKPF-AWTYP.
+    WHEN 'VBRK'.
+      CASE BKPF-BLART.
+        WHEN 'RV'.
+**根据发票号找到发货通知单与内购合同号与PO
+*            SORT T_VBRP BY AUBEL.
+**找内销合同及发货通知单
+*            SELECT *
+*              INTO TABLE @DATA(IT_VBAPC)
+*              FROM VBAP
+*              FOR ALL ENTRIES IN @T_VBRP
+*              WHERE VBELN = @T_VBRP-AUBEL.
+*            IF SY-SUBRC EQ 0.
+*              SORT IT_VBAPC BY VGBEL.
+*              SELECT *
+*                INTO TABLE @DATA(IT_VBAPG)
+*                FROM VBAP
+*                FOR ALL ENTRIES IN @IT_VBAPC
+*                WHERE VBELN = @IT_VBAPC-VGBEL.
+*              IF SY-SUBRC EQ 0.
+**根据内销合同找到内购合同与PO-BSTKD内购合同-BSTKD_E-内销合同
+*                SORT IT_VBAPG BY VBELN.
+*                SELECT *
+*                  INTO TABLE @DATA(IT_VBKDG)
+*                  FROM VBKD
+*                  FOR ALL ENTRIES IN @IT_VBAPG
+*                  WHERE VBELN = @IT_VBAPG-VBELN
+*                  AND   POSNR = '000000'.
+*                LOOP AT IT_VBKDG INTO VBKD.
+*                  CLEAR IT_TAB1.
+*                  IT_TAB1-EBELN = VBKD-BSTKD_E.
+*                  IT_TAB1-VBELN = VBKD-VBELN.
+*                  COLLECT IT_TAB1.
+*                ENDLOOP.
+*              ENDIF.
+*            ENDIF.
+**根据PO找利润中心
+*            DELETE IT_TAB1 WHERE EBELN IS INITIAL.
+*            IF IT_TAB1[] IS NOT INITIAL.
+*              SORT IT_TAB1 BY EBELN.
+*              SELECT *
+*                INTO TABLE @DATA(IT_PO)
+*                FROM ZVMMPO
+*                FOR ALL ENTRIES IN @IT_TAB1
+*                WHERE EBELN = @IT_TAB1-EBELN.
+*              IF SY-SUBRC EQ 0.
+*                SORT IT_PO BY WERKS MATNR.
+*                SELECT *
+*                  INTO TABLE @DATA(IT_MARC)
+*                  FROM MARC
+*                  FOR ALL ENTRIES IN @IT_PO
+*                  WHERE WERKS = @IT_PO-WERKS
+*                  AND   MATNR = @IT_PO-MATNR.
+*                IF SY-SUBRC EQ 0.
+**再取利润中心对应的段
+*                  SORT IT_MARC BY PRCTR.
+*                  SELECT *
+*                    INTO TABLE @DATA(IT_CEPC)
+*                    FROM CEPC
+*                    FOR ALL ENTRIES IN @IT_MARC
+*                    WHERE PRCTR = @IT_MARC-PRCTR
+*                    AND   KOKRS = 'WISD'.
+*                  SORT IT_CEPC BY PRCTR.
+*                  SORT IT_MARC BY WERKS MATNR.
+*                ENDIF.
+*              ENDIF.
+*              SORT IT_PO BY EBELN EBELP.
+*            ENDIF.
+*匹配行号
+          CLEAR:T_BSEG1[],CEPC,MARC,VBKD.
+          T_BSEG1[] = T_BSEG[].
+          DELETE T_BSEG1 WHERE KOART NE 'D'
+                            OR VBUND IS INITIAL.
+          IF T_BSEG1[] IS NOT INITIAL.
+            READ TABLE T_BSEG1 INDEX 1.
+            SELECT SINGLE *
+              FROM VBKD
+              WHERE VBELN = T_BSEG1-ZUONR
+              AND   POSNR = '000000'.
+            IF SY-SUBRC EQ 0.
+              SELECT SINGLE *
+                FROM EKPO
+                WHERE EBELN = VBKD-BSTKD_E.
+              IF SY-SUBRC EQ 0.
+                SELECT SINGLE *
+                  FROM MARC
+                  WHERE WERKS = EKPO-WERKS
+                  AND   MATNR = EKPO-MATNR.
+                IF SY-SUBRC EQ 0.
+                  SELECT SINGLE *
+                    FROM CEPC
+                    WHERE PRCTR = MARC-PRCTR
+                    AND   KOKRS = 'WISD'.
+                  LOOP AT T_BSEG.
+                    CLEAR:WA_BSEGSUB.
+                    TABIX = SY-TABIX.
+                    READ TABLE T_BSEGSUB INTO WA_BSEGSUB INDEX TABIX.
+                    T_BSEG-PPRCT = MARC-PRCTR.
+                    T_BSEG-PSEGMENT = CEPC-SEGMENT.
+                    WA_BSEGSUB-PPRCT = MARC-PRCTR.
+                    WA_BSEGSUB-PSEGMENT = CEPC-SEGMENT.
+                    MODIFY T_BSEGSUB FROM WA_BSEGSUB INDEX TABIX
+                    TRANSPORTING PPRCT PSEGMENT.
+                    MODIFY T_BSEG.
+                  ENDLOOP.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+      ENDCASE.
+    WHEN 'RMRP'.
+      CASE BKPF-BLART.
+        WHEN 'RE'.
+          LOOP AT T_BSEG.
+            CLEAR:WA_BSEGSUB,VBAP,EKKO.
+            TABIX = SY-TABIX.
+            READ TABLE T_BSEGSUB INTO WA_BSEGSUB INDEX TABIX.
+            CASE T_BSEG-KOART.
+              WHEN 'K'.
+                IF T_BSEG-VBUND IS NOT INITIAL.
+                  SELECT SINGLE *
+                    FROM EKKO
+                    WHERE EBELN = T_BSEG-ZUONR.
+                  SELECT SINGLE *
+                    FROM VBAP
+                    WHERE VBELN = EKKO-ZHTH.
+                  IF SY-SUBRC EQ 0.
+                    SELECT SINGLE *
+                      FROM MARC
+                      WHERE WERKS = VBAP-WERKS
+                      AND   MATNR = VBAP-MATNR.
+                    IF SY-SUBRC EQ 0.
+                      SELECT SINGLE *
+                        FROM CEPC
+                        WHERE PRCTR = MARC-PRCTR
+                        AND   KOKRS = 'WISD'.
+                      T_BSEG-PPRCT = MARC-PRCTR.
+                      T_BSEG-PSEGMENT = CEPC-SEGMENT.
+                      WA_BSEGSUB-PPRCT = MARC-PRCTR.
+                      WA_BSEGSUB-PSEGMENT = CEPC-SEGMENT.
+                      MODIFY T_BSEGSUB FROM WA_BSEGSUB INDEX TABIX
+                      TRANSPORTING PPRCT PSEGMENT.
+                      MODIFY T_BSEG.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+            ENDCASE.
+          ENDLOOP.
+      ENDCASE.
+  ENDCASE.
+*********************************************************
+  IF SY-UNAME = 'DONGPZ'.
+    LOOP AT T_BSEG.
+*关联方检查
+      CASE T_BSEG-KOART.
+        WHEN 'K' OR 'D'.
+          IF T_BSEG-VBUND IS NOT INITIAL
+            AND T_BSEG-PSEGMENT IS INITIAL.
+            MESSAGE E056(ZMSG_GP).
+          ENDIF.
+      ENDCASE.
+    ENDLOOP.
+  ENDIF.
+
+ENDFUNCTION.

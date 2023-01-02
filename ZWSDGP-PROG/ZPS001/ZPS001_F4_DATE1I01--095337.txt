@@ -1,0 +1,173 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPS001_F4_DATE1I01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  F4_DATE1  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_date1 INPUT.
+  CALL FUNCTION 'F4_DATE'
+    EXPORTING
+      date_for_first_month = zxmjs
+      display              = ' '
+*     FACTORY_CALENDAR_ID  = ' '
+*     GREGORIAN_CALENDAR_FLAG = ' '
+*     HOLIDAY_CALENDAR_ID  = ' '
+*     PROGNAME_FOR_FIRST_MONTH = ' '
+*     DATE_POSITION        = ' '
+    IMPORTING
+      select_date          = zxmjs
+*     SELECT_WEEK          =
+*     SELECT_WEEK_BEGIN    =
+*     SELECT_WEEK_END      =
+    EXCEPTIONS
+*     CALENDAR_BUFFER_NOT_LOADABLE = 1
+*     DATE_AFTER_RANGE     = 2
+*     DATE_BEFORE_RANGE    = 3
+*     DATE_INVALID         = 4
+*     FACTORY_CALENDAR_NOT_FOUND = 5
+*     HOLIDAY_CALENDAR_NOT_FOUND = 6
+*     PARAMETER_CONFLICT   = 7
+      OTHERS               = 8.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_ZCUSTOMER  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_zcustomer INPUT.
+  SELECT
+    proj~usr02,
+    kna1~name1
+    INTO TABLE @DATA(gt_tab2)
+    FROM proj
+    INNER JOIN kna1 ON proj~usr02 = kna1~kunnr.
+
+  SORT gt_tab2 BY usr02.
+  DELETE ADJACENT DUPLICATES FROM gt_tab2 COMPARING ALL FIELDS.
+*将取到的值通过函数显示在搜索帮助显示框中
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     DDIC_STRUCTURE  = ' '
+      retfield        = 'USR02'            "这个参数为帮助表中返回到选择屏幕的字段的参数
+*     pvalkey         = 'PROFI_TXT'
+      dynpprog        = sy-repid           "当前程序，不写会有问题
+      dynpnr          = sy-dynnr           "当前屏幕，不写会有问题
+      dynprofield     = 'ZCUSTOMER'       "选择屏幕上需要加F4帮助的字段
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      value_org       = 'S'                "默认为C但是此处不用S不行
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     CALLBACK_PROGRAM       = ' '
+*     CALLBACK_FORM   = 'CB_FORM1'
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*  IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = gt_tab2           "F4帮助值的表
+*     FIELD_TAB       =
+*     RETURN_TAB      =
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_ZXMFZR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_zxmfzr INPUT.
+  SELECT
+    vernr,
+    verna
+    INTO TABLE @DATA(gt_tab3)
+    FROM tcj04.
+  SORT gt_tab3 BY vernr.
+
+  SORT gt_tab3 BY vernr.
+  DELETE ADJACENT DUPLICATES FROM gt_tab3 COMPARING ALL FIELDS.
+*将取到的值通过函数显示在搜索帮助显示框中
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     DDIC_STRUCTURE  = ' '
+      retfield        = 'VERNR'            "这个参数为帮助表中返回到选择屏幕的字段的参数
+*     pvalkey         = 'PROFI_TXT'
+      dynpprog        = sy-repid           "当前程序，不写会有问题
+      dynpnr          = sy-dynnr           "当前屏幕，不写会有问题
+      dynprofield     = 'ZXMFZR'       "选择屏幕上需要加F4帮助的字段
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      value_org       = 'S'                "默认为C但是此处不用S不行
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     CALLBACK_PROGRAM       = ' '
+*     CALLBACK_FORM   = 'CB_FORM1'
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*  IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = gt_tab3           "F4帮助值的表
+*     FIELD_TAB       =
+*     RETURN_TAB      =
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_ZZSBM  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_zzsbm INPUT.
+  SELECT
+    vkgrp,
+    bezei
+    INTO TABLE @DATA(gt_tab4)
+    FROM tvgrt
+    WHERE spras = '1'.
+  SORT gt_tab4 BY vkgrp.
+
+*将取到的值通过函数显示在搜索帮助显示框中
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     DDIC_STRUCTURE  = ' '
+      retfield        = 'VKGRP'            "这个参数为帮助表中返回到选择屏幕的字段的参数
+*     pvalkey         = 'PROFI_TXT'
+      dynpprog        = sy-repid           "当前程序，不写会有问题
+      dynpnr          = sy-dynnr           "当前屏幕，不写会有问题
+      dynprofield     = 'ZZSBM'       "选择屏幕上需要加F4帮助的字段
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      value_org       = 'S'                "默认为C但是此处不用S不行
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     CALLBACK_PROGRAM       = ' '
+*     CALLBACK_FORM   = 'CB_FORM1'
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*  IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = gt_tab4           "F4帮助值的表
+*     FIELD_TAB       =
+*     RETURN_TAB      =
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDMODULE.

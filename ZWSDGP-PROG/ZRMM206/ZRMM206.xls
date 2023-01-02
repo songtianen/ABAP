@@ -1,0 +1,22 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRMM206	ZD_DMBTR	金额	域	CURR	000030	000002	
+ZRMM206	ZE_DMBTR	金额	数据元素	CURR	000030	000002	ZD_DMBTR
+ZRMM206	ZSFILE_MANAGE_01	通用结构	结构				
+ZRMM206	ZSFMS_GETCGWQ	采购未清	结构				
+ZRMM206	ZSMM201	到货单	结构				
+ZRMM206	ZSMM202	长文本	结构				
+ZRMM206	ZSMM206	接口结构	结构				
+ZRMM206	ZSMMKNUMV	结构	结构				
+ZRMM206	ZSPP_006	接口结构	结构				
+ZRMM206	ZSPUBS_0001	日期时间通用结构	结构				
+ZRMM206	ZSPUBS_0002	创建日期结构	结构				
+ZRMM206	ZSPUBS_FIELD	公共字段结构	结构				
+ZRMM206	ZTFILE_MANAGE_01	FTP文件管理	透明表				
+ZRMM206	ZTFI_PYREHD	付款申请单	透明表				
+ZRMM206	ZTFI_PYREIT	付款申请单明细	结构				
+ZRMM206	ZTMM201	到货通知抬头	透明表				
+ZRMM206	ZTMM202	到货通知行项目	透明表				
+ZRMM206	ZTMM210	仓库库位对照表	透明表				
+ZRMM206	ZTMM212	运输公司及责任人对照表	透明表				
+ZRMM206	ZTMM215	供应商仓库编码及名称	透明表				
+ZRMM206	ZTMM216	供应商仓库与地址对照	透明表				

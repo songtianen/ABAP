@@ -1,0 +1,178 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZOLE_KKW
+*&---------------------------------------------------------------------*
+
+"保存excel到本地默认位置
+FORM download_xls_template USING objid filename lc_fullpath CHANGING p_out_path.
+  DATA: ls_wwwdata TYPE wwwdatatab,
+        lv_objid   TYPE wwwdatatab-objid , "上传的EXCEL时设置的对象名
+        lv_msg     TYPE char100,
+        lv_subrc   LIKE sy-subrc,
+        gv_file    TYPE localfile. "文件完整路径
+  CLEAR:p_out_path.
+
+*  检查模板是否存在
+  lv_objid = objid.
+  SELECT SINGLE *
+  INTO CORRESPONDING FIELDS OF ls_wwwdata
+  FROM wwwdata
+  WHERE srtf2 = 0
+  AND relid = 'MI'"MIME类型
+  AND objid = lv_objid.
+  IF sy-subrc NE 0.
+    CONCATENATE '模板' lv_objid '.xls不存在' INTO lv_msg.
+    MESSAGE lv_msg TYPE 'E'.
+  ELSE."模板文件存在则下载模板
+    CONCATENATE lc_fullpath filename '-' sy-datum sy-uzeit '.xls' INTO gv_file.
+    CALL FUNCTION 'DOWNLOAD_WEB_OBJECT'
+      EXPORTING
+        key         = ls_wwwdata "对象
+        destination = gv_file "完整下载路径
+      IMPORTING
+        rc          = lv_subrc.
+*       CHANGING
+*         TEMP        = TEMP
+    IF lv_subrc NE 0.
+      CONCATENATE '模板' lv_objid '.xls下载失败' INTO lv_msg.
+      MESSAGE lv_msg TYPE 'E'.
+    ELSE.
+      p_out_path = gv_file.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " DOWNLOAD_XLS_TEMPLATE
+"保存excel到指定位置
+FORM DOWNEXCEL USING OBJID FILENAME CHANGING P_OUT_PATH.
+  DATA: LS_WWWDATA  TYPE WWWDATATAB,
+        LS_MIME     TYPE W3MIME,
+        LV_FILENAME TYPE STRING , "默认文件名
+        LV_PATH     TYPE STRING VALUE 'C:\Documents\Desktop', "默认路径
+        LV_FULLPATH TYPE STRING , "默认完全路径
+        LV_OBJID    TYPE WWWDATATAB-OBJID , "上传的EXCEL时设置的对象名
+        LV_MSG      TYPE CHAR100,
+        LV_SUBRC    LIKE SY-SUBRC,
+        LV_ROW      TYPE CHAR4,
+        LV_ZS       TYPE CHAR5,
+        LV_YX       TYPE CHAR5,
+        GV_FILE     TYPE LOCALFILE. "文件完整路径
+  CLEAR:P_OUT_PATH.
+*& begin 获取模板文件路径并下载
+  "打开保存文件对话框
+  LV_OBJID = OBJID.
+  "lv_filename = filename.
+  CONCATENATE FILENAME '-' SY-DATUM SY-UZEIT INTO LV_FILENAME.
+  CONCATENATE 'C:\Documents\Desktop\' LV_FILENAME INTO LV_FULLPATH.
+  CALL METHOD CL_GUI_FRONTEND_SERVICES=>FILE_SAVE_DIALOG
+    EXPORTING
+      WINDOW_TITLE         = LV_FILENAME "标题
+      DEFAULT_EXTENSION    = 'xls' "文件类型
+      DEFAULT_FILE_NAME    = LV_FILENAME "默认文件名
+    CHANGING
+      FILENAME             = LV_FILENAME "传出文件名
+      PATH                 = LV_PATH "传出路径
+      FULLPATH             = LV_FULLPATH "传出完全路径           =
+    EXCEPTIONS
+      CNTL_ERROR           = 1
+      ERROR_NO_GUI         = 2
+      NOT_SUPPORTED_BY_GUI = 3
+*     INVALID_DEFAULT_FILE_NAME = 4
+      OTHERS               = 5.
+  IF SY-SUBRC NE 0.
+    MESSAGE '调用文件保存对话框出错' TYPE 'E'.
+  ELSE.
+    "赋值文件完整路径
+    GV_FILE = LV_FULLPATH.
+    "检查模板是否已存在SAP中
+    SELECT SINGLE *
+    INTO CORRESPONDING FIELDS OF LS_WWWDATA
+    FROM WWWDATA
+    WHERE SRTF2 = 0
+    AND RELID = 'MI'"MIME类型
+    AND OBJID = LV_OBJID.
+    IF SY-SUBRC NE 0.
+      CONCATENATE '模板' LV_OBJID '.xls不存在' INTO LV_MSG.
+      MESSAGE LV_MSG TYPE 'E'.
+    ELSE."模板文件存在则下载模板
+
+      CALL FUNCTION 'DOWNLOAD_WEB_OBJECT'
+        EXPORTING
+          KEY         = LS_WWWDATA "对象
+          DESTINATION = GV_FILE "完整下载路径
+        IMPORTING
+          RC          = LV_SUBRC.
+*       CHANGING
+*         TEMP        = TEMP
+      IF LV_SUBRC NE 0.
+        CONCATENATE '模板' LV_OBJID '.xls下载失败' INTO LV_MSG.
+        MESSAGE LV_MSG TYPE 'E'.
+      ELSE.
+        P_OUT_PATH = GV_FILE.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+*& end 获取模板文件路径并下载
+ENDFORM.
+"往excel从指定行复制行插入到指定行
+FORM EXCEL_ROW_INSERT  USING
+      LCOBJ_SHEET
+      LC_ROW
+      LC_COUNT
+      BORDER.
+  DATA LC_RANGE TYPE OLE2_OBJECT.
+  DATA H_BORDERS  TYPE OLE2_OBJECT.
+  "用于明细行复制边框
+  DATA:LC_BORDER TYPE I.
+  LC_BORDER = BORDER.
+  DO LC_COUNT TIMES.
+    CALL METHOD OF
+    LCOBJ_SHEET
+    'Rows'      = LC_RANGE
+    EXPORTING
+      #1          = LC_BORDER.
+    CALL METHOD OF LC_RANGE 'Copy'.  "COPY第行插入一个新行
+    CALL METHOD OF
+    LCOBJ_SHEET
+    'Rows'      = LC_RANGE
+    EXPORTING
+      #1          = LC_ROW.
+    CALL METHOD OF
+      LC_RANGE
+      'Insert'.
+    " CALL METHOD OF lc_range 'ClearContents'. "是否需要清空Cell
+    LC_BORDER = LC_BORDER + 1.
+  ENDDO.
+ENDFORM.
+" 设置行高为自动或是固定值
+FORM EXCEL_ROW_WIDTH  USING
+      LCOBJ_SHEET
+      LC_ROW
+      LC_WIDTH.
+  DATA LC_RANGE TYPE OLE2_OBJECT.
+
+  CALL METHOD OF
+  LCOBJ_SHEET
+  'Rows'      = LC_RANGE
+  EXPORTING
+    #1          = LC_ROW.
+  IF LC_WIDTH NE '0' AND LC_WIDTH NE ''.
+    SET PROPERTY OF LC_RANGE 'ROWHEIGHT' = LC_WIDTH. "设置行高
+  ELSE.
+    CALL METHOD OF LC_RANGE 'AutoFit'. "自动行高
+  ENDIF.
+
+ENDFORM.
+"删除excel指定行
+FORM EXCEL_ROW_DELETE  USING
+      LCOBJ_SHEET
+      LC_ROW.
+  DATA LC_RANGE TYPE OLE2_OBJECT.
+  "DATA h_borders  TYPE ole2_object.
+
+  CALL METHOD OF
+  LCOBJ_SHEET
+  'Rows'      = LC_RANGE
+  EXPORTING
+    #1          = LC_ROW.
+  CALL METHOD OF
+    LC_RANGE
+    'Delete'.
+ENDFORM.

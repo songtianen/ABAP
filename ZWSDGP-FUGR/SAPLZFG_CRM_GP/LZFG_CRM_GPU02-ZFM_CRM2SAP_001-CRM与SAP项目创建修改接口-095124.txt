@@ -1,0 +1,702 @@
+FUNCTION zfm_crm2sap_001.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(PROFL) TYPE  PROFIDPROJ OPTIONAL
+*"     VALUE(POST1) TYPE  PS_POST1 OPTIONAL
+*"     VALUE(WERKS) TYPE  WERKS_D OPTIONAL
+*"     VALUE(VERNR) TYPE  PS_VERNR OPTIONAL
+*"     VALUE(PLFAZ) TYPE  PS_PLFAZ_CHG OPTIONAL
+*"     VALUE(PLSEZ) TYPE  PS_PLSEZ_CHG OPTIONAL
+*"     VALUE(USR04) TYPE  USRQUAN13 OPTIONAL
+*"     VALUE(FLAG) TYPE  SYCHAR01 OPTIONAL
+*"     VALUE(IVPROJECT_DEFINITION) TYPE  BAPIPR-PROJECT_DEFINITION
+*"       OPTIONAL
+*"     VALUE(USR02) TYPE  USRCHAR10 OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(IOPROJECT_DEFINITION) TYPE  BAPIPR-PROJECT_DEFINITION
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZTPS010A
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_CRM2SAP_001' .
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:gs_proj_bus2001_new         TYPE bapi_bus2001_new,
+       lt_ztps010a                 TYPE TABLE OF ztps010a WITH HEADER LINE,
+       gs_projectdefinition        TYPE bapi2054_projdefinition,
+       gt_WBSELEMENT               TYPE TABLE OF bapi2054_masterdata_ale,
+       gs_WBSELEMENT               TYPE  bapi2054_masterdata_ale,
+       gt_WBSHIERARCHIE            TYPE TABLE OF bapi_wbs_hierarchie,
+       gs_WBSHIERARCHIE            TYPE  bapi_wbs_hierarchie,
+       gt_STATUSHEADER             TYPE TABLE OF bapi2054_statusheader_ale,
+       gs_STATUSHEADER             TYPE  bapi2054_statusheader_ale,
+       gt_OBJECTSTATUS             TYPE TABLE OF bapi2054_objectstatus_ale,
+       gs_OBJECTSTATUS             TYPE  bapi2054_objectstatus_ale,
+       lv_wbs_element              TYPE ps_posid,
+       lv_wbs_element1             TYPE ps_posid,
+       lv_wbs_element2             TYPE ps_posid,
+       lv_wbs_element3             TYPE ps_posid,
+       lv_wbs_element4             TYPE ps_posid,
+       gt_wbs_bus2054_new          TYPE TABLE OF bapi_bus2054_new,
+       gs_wbs_bus2054_new          TYPE bapi_bus2054_new,
+       gt_bapiret2                 TYPE TABLE OF bapiret2,
+       gt_return                   TYPE TABLE OF bapiret1,
+       gs_bapiret2                 TYPE bapiret2,
+       gs_return                   TYPE bapiret1,
+       lv_proj                     TYPE bapipr-project_definition,
+       lv_sys_sta                  TYPE bapi_system_status-system_status,
+       lt_result                   TYPE STANDARD TABLE OF bapi_status_result,
+       ls_result                   TYPE bapi_status_result,
+       lt_return                   TYPE STANDARD TABLE OF bapiret2,
+       gs_I_PROJECT_DEFINITION     TYPE bapi_bus2001_chg,
+       gs_I_PROJECT_DEFINITION_UPD TYPE bapi_bus2001_upd,
+       project_definition          TYPE ps_pspid, "项目编号
+       description                 TYPE ps_post1, "PS: 短描述 (第一行文本)
+       responsible_no              TYPE ps_vernr, "项目经理编号
+       start                       TYPE ps_plfaz, "开始日期
+       finish                      TYPE ps_plsez, "完成日期
+       company_code                TYPE ps_vbukr, "项目的公司代码
+       plant                       TYPE werks_d, ""工厂
+       profit_ctr                  TYPE prctr, "利润中心
+       project_profile             TYPE profidproj. "项目参数文件
+
+  IF flag = 'C'."创建
+    "检查数据重新
+    READ TABLE in_tab INTO DATA(wa_tab) INDEX 1.
+    IF wa_tab-zcrmbh IS NOT INITIAL AND werks IS NOT INITIAL.
+      SELECT SINGLE * INTO @DATA(ls_ztps010a) FROM ztps010a WHERE zcrmbh = @wa_tab-zcrmbh AND werks = @werks.
+      IF  sy-subrc = 0.
+        rtype = 'E'.
+        rtmsg = '重复数据'.
+        zfmdatasave2 'R'.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+
+    "项目编码获取
+    CALL FUNCTION 'ZFM_PS_GET_PRONUM'
+      EXPORTING
+        profl = profl
+      IMPORTING
+        pspnr = project_definition.
+    "ioproject_definition = project_definition.
+    "公司代码
+    SELECT SINGLE bukrs prctr INTO (company_code,profit_ctr) FROM ztps001a WHERE werks = werks.
+    "项目类型
+    SELECT SINGLE prart,pratx INTO ( @DATA(ls_prart),@DATA(ls_pratx) )  FROM ztps002a WHERE profl = @profl.
+
+    "创建项目
+    gs_proj_bus2001_new-project_definition = project_definition."is_proj-pspid.       "项目编号
+    gs_proj_bus2001_new-description        = post1."is_proj-post1.       "PS: 短描述 (第一行文本)
+    gs_proj_bus2001_new-responsible_no     = vernr."lv_vernr.            "项目经理编号
+    "gs_proj_bus2001_new-applicant_no     = '81000003'."lv_vernr.            "申请部门编号
+    gs_proj_bus2001_new-start              = plfaz."is_proj-plfaz.       "开始日期
+    gs_proj_bus2001_new-finish             = plsez."is_proj-plsez.       "完成日期
+    gs_proj_bus2001_new-company_code       = company_code."is_proj-vbukr.       "项目的公司代码
+    gs_proj_bus2001_new-profit_ctr         = profit_ctr."is_proj-prctr.       "利润中心
+    gs_proj_bus2001_new-project_profile    = profl."is_proj-profl.       "项目参数文件
+    gs_proj_bus2001_new-plant              = werks."is_proj-werks.       "工厂
+    gs_proj_bus2001_new-usr04              = usr04."is_proj-usr04.       "合同金额
+
+
+
+
+    CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+    CALL FUNCTION 'BAPI_BUS2001_CREATE'
+      EXPORTING
+        i_project_definition = gs_proj_bus2001_new
+      TABLES
+        et_return            = gt_bapiret2.
+
+    LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AEX'.
+      rtype = 'E'.
+      rtmsg = gs_bapiret2-message && '&' && rtmsg.
+    ENDLOOP.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+
+    ENDIF.
+    CHECK sy-subrc NE 0.
+    CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+      TABLES
+        et_return = gt_bapiret2.
+    LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AEX'.
+      rtype = 'E'.
+      rtmsg = gs_bapiret2-message && '&' && rtmsg.
+    ENDLOOP.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = gs_bapiret2.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+
+    ELSE.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          wait   = 'X'
+        IMPORTING
+          return = gs_bapiret2.
+      "更新用户编码
+      IF usr02 IS NOT INITIAL.
+        WAIT UP TO '0.1' SECONDS.
+        UPDATE proj SET usr02 = usr02 WHERE  pspid =  project_definition.
+      ENDIF.
+      rtype = 'S'.
+      rtmsg = '成功'.
+****项目定义创建成功****
+      "创建WBS
+      CLEAR:gs_wbs_bus2054_new.
+      lv_wbs_element = project_definition.
+      gs_wbs_bus2054_new-wbs_element                    = lv_wbs_element."gs_wbs-posid.     "工作分解结构元素 (WBS 元素)
+      gs_wbs_bus2054_new-description                    = post1."gs_wbs-post1.     "PS: 短描述 (第一行文本)
+      gs_wbs_bus2054_new-responsible_no                 = vernr."lv_vernr.         "项目经理编号
+      gs_wbs_bus2054_new-profit_ctr                     = profit_ctr."gs_wbs-prctr.     "利润中心
+      gs_wbs_bus2054_new-proj_type                      = ls_prart."gs_wbs-prart.     "项目类型
+      gs_wbs_bus2054_new-wbs_account_assignment_element = 'X'."gs_wbs-belkz.     "标志：科目分配元素
+*      gs_wbs_bus2054_new-wbs_billing_element            = 'X'."gs_wbs-fakkz.     "标识符： 开票元素
+      gs_wbs_bus2054_new-wbs_left                       = ''."gs_wbs-left_posid."左侧WBS
+      gs_wbs_bus2054_new-wbs_up                         = ''."gs_wbs-up_posid.  "上级WBS
+*gs_wbs_bus2054_new-user_field_char20_1            = ''."gs_wbs-usr00.     "业务类别
+*gs_wbs_bus2054_new-user_field_char20_2            = ''."gs_wbs-usr01.     "CRM 商机编码
+*gs_wbs_bus2054_new-user_field_char10_1            = ''."'X'.              "产品
+*gs_wbs_bus2054_new-statistical                    = ''."gs_wbs-xstat.     "统计
+*gs_wbs_bus2054_new-wbs_cctr_posted_actual         = ''."gs_wbs-kostl.     "CCtr 过账
+      APPEND gs_wbs_bus2054_new TO gt_wbs_bus2054_new.
+
+      CLEAR:gs_wbs_bus2054_new.
+      lv_wbs_element = |{ project_definition }-{ werks }|.
+      DATA(lv_wbs_element_post1) = |{ post1 }|.
+      lv_wbs_element1 = |{ project_definition }-{ werks }|.
+      gs_wbs_bus2054_new-wbs_element                    = lv_wbs_element."gs_wbs-posid.     "工作分解结构元素 (WBS 元素)
+      gs_wbs_bus2054_new-description                    = lv_wbs_element_post1."gs_wbs-post1.     "PS: 短描述 (第一行文本)
+      gs_wbs_bus2054_new-responsible_no                 = vernr."lv_vernr.         "项目经理编号
+      gs_wbs_bus2054_new-profit_ctr                     = profit_ctr."gs_wbs-prctr.     "利润中心
+      gs_wbs_bus2054_new-proj_type                      = ls_prart."gs_wbs-prart.     "项目类型
+      gs_wbs_bus2054_new-wbs_account_assignment_element = 'X'."gs_wbs-belkz.     "标志：科目分配元素
+*      gs_wbs_bus2054_new-wbs_billing_element            = 'X'."gs_wbs-fakkz.     "标识符： 开票元素
+      gs_wbs_bus2054_new-wbs_left                       = ''."gs_wbs-left_posid."左侧WBS
+      gs_wbs_bus2054_new-wbs_up                         = project_definition."gs_wbs-up_posid.  "上级WBS
+*gs_wbs_bus2054_new-user_field_char20_1            = ''."gs_wbs-usr00.     "业务类别
+*gs_wbs_bus2054_new-user_field_char20_2            = ''."gs_wbs-usr01.     "CRM 商机编码
+*gs_wbs_bus2054_new-user_field_char10_1            = ''."'X'.              "产品
+*gs_wbs_bus2054_new-statistical                    = ''."gs_wbs-xstat.     "统计
+*gs_wbs_bus2054_new-wbs_cctr_posted_actual         = ''."gs_wbs-kostl.     "CCtr 过账
+      IF profl = 'ZPS0001' OR profl = 'ZPS0004' OR profl = 'ZPS0007' OR profl = 'ZPS0009'.
+        gs_wbs_bus2054_new-func_area = 'WS05'.
+      ENDIF.
+      APPEND gs_wbs_bus2054_new TO gt_wbs_bus2054_new.
+
+      CLEAR:gs_wbs_bus2054_new.
+      lv_wbs_element = |{ project_definition }-{ werks }-1|.
+      lv_wbs_element2 = |{ project_definition }-{ werks }-1|.
+      lv_wbs_element_post1 = |{ post1 }-期间费用|.
+      gs_wbs_bus2054_new-wbs_element                    = lv_wbs_element."gs_wbs-posid.     "工作分解结构元素 (WBS 元素)
+      gs_wbs_bus2054_new-description                    = lv_wbs_element_post1."gs_wbs-post1.     "PS: 短描述 (第一行文本)
+      gs_wbs_bus2054_new-responsible_no                 = vernr."lv_vernr.         "项目经理编号
+      gs_wbs_bus2054_new-profit_ctr                     = profit_ctr."gs_wbs-prctr.     "利润中心
+      gs_wbs_bus2054_new-proj_type                      = ls_prart."gs_wbs-prart.     "项目类型
+      gs_wbs_bus2054_new-wbs_account_assignment_element = 'X'."gs_wbs-belkz.     "标志：科目分配元素
+*gs_wbs_bus2054_new-wbs_billing_element            = ''."gs_wbs-fakkz.     "标识符： 开票元素
+      gs_wbs_bus2054_new-wbs_left                       = ''."gs_wbs-left_posid."左侧WBS
+      gs_wbs_bus2054_new-wbs_up                         = lv_wbs_element1."gs_wbs-up_posid.  "上级WBS
+*gs_wbs_bus2054_new-user_field_char20_1            = ''."gs_wbs-usr00.     "业务类别
+*gs_wbs_bus2054_new-user_field_char20_2            = ''."gs_wbs-usr01.     "CRM 商机编码
+*gs_wbs_bus2054_new-user_field_char10_1            = ''."'X'.              "产品
+*gs_wbs_bus2054_new-statistical                    = ''."gs_wbs-xstat.     "统计
+*gs_wbs_bus2054_new-wbs_cctr_posted_actual         = ''."gs_wbs-kostl.     "CCtr 过账
+      APPEND gs_wbs_bus2054_new TO gt_wbs_bus2054_new.
+      CLEAR:gs_wbs_bus2054_new.
+      lv_wbs_element = |{ project_definition }-{ werks }-1-1|.
+      lv_wbs_element_post1 = |{ post1 }-销售费用|.
+      gs_wbs_bus2054_new-wbs_element                    = lv_wbs_element."gs_wbs-posid.     "工作分解结构元素 (WBS 元素)
+      gs_wbs_bus2054_new-description                    = lv_wbs_element_post1."gs_wbs-post1.     "PS: 短描述 (第一行文本)
+      gs_wbs_bus2054_new-responsible_no                 = vernr."lv_vernr.         "项目经理编号
+      gs_wbs_bus2054_new-profit_ctr                     = profit_ctr."gs_wbs-prctr.     "利润中心
+      gs_wbs_bus2054_new-proj_type                      = ls_prart."gs_wbs-prart.     "项目类型
+      gs_wbs_bus2054_new-wbs_account_assignment_element = 'X'."gs_wbs-belkz.     "标志：科目分配元素
+*gs_wbs_bus2054_new-wbs_billing_element            = ''."gs_wbs-fakkz.     "标识符： 开票元素
+      gs_wbs_bus2054_new-wbs_left                       = ''."gs_wbs-left_posid."左侧WBS
+      gs_wbs_bus2054_new-wbs_up                         = lv_wbs_element2."gs_wbs-up_posid.  "上级WBS
+*gs_wbs_bus2054_new-user_field_char20_1            = ''."gs_wbs-usr00.     "业务类别
+*gs_wbs_bus2054_new-user_field_char20_2            = ''."gs_wbs-usr01.     "CRM 商机编码
+*gs_wbs_bus2054_new-user_field_char10_1            = ''."'X'.              "产品
+*gs_wbs_bus2054_new-statistical                    = ''."gs_wbs-xstat.     "统计
+*gs_wbs_bus2054_new-wbs_cctr_posted_actual         = ''."gs_wbs-kostl.     "CCtr 过账
+      IF profl = 'ZPS0001' OR profl = 'ZPS0004' OR profl = 'ZPS0007' OR profl = 'ZPS0009'.
+        gs_wbs_bus2054_new-func_area = 'WS01'.
+      ENDIF.
+      APPEND gs_wbs_bus2054_new TO gt_wbs_bus2054_new.
+      CLEAR:gs_wbs_bus2054_new.
+      lv_wbs_element = |{ project_definition }-{ werks }-1-2|.
+      lv_wbs_element_post1 = |{ post1 }-管理费用|.
+      gs_wbs_bus2054_new-wbs_element                    = lv_wbs_element."gs_wbs-posid.     "工作分解结构元素 (WBS 元素)
+      gs_wbs_bus2054_new-description                    = lv_wbs_element_post1."gs_wbs-post1.     "PS: 短描述 (第一行文本)
+      gs_wbs_bus2054_new-responsible_no                 = vernr."lv_vernr.         "项目经理编号
+      gs_wbs_bus2054_new-profit_ctr                     = profit_ctr."gs_wbs-prctr.     "利润中心
+      gs_wbs_bus2054_new-proj_type                      = ls_prart."gs_wbs-prart.     "项目类型
+      gs_wbs_bus2054_new-wbs_account_assignment_element = 'X'."gs_wbs-belkz.     "标志：科目分配元素
+*gs_wbs_bus2054_new-wbs_billing_element            = ''."gs_wbs-fakkz.     "标识符： 开票元素
+      gs_wbs_bus2054_new-wbs_left                       = ''."gs_wbs-left_posid."左侧WBS
+      gs_wbs_bus2054_new-wbs_up                         = lv_wbs_element2."gs_wbs-up_posid.  "上级WBS
+*gs_wbs_bus2054_new-user_field_char20_1            = ''."gs_wbs-usr00.     "业务类别
+*gs_wbs_bus2054_new-user_field_char20_2            = ''."gs_wbs-usr01.     "CRM 商机编码
+*gs_wbs_bus2054_new-user_field_char10_1            = ''."'X'.              "产品
+*gs_wbs_bus2054_new-statistical                    = ''."gs_wbs-xstat.     "统计
+*gs_wbs_bus2054_new-wbs_cctr_posted_actual         = ''."gs_wbs-kostl.     "CCtr 过账
+      IF profl = 'ZPS0001' OR profl = 'ZPS0004' OR profl = 'ZPS0007' OR profl = 'ZPS0009'.
+        gs_wbs_bus2054_new-func_area = 'WS02'.
+      ENDIF.
+      APPEND gs_wbs_bus2054_new TO gt_wbs_bus2054_new.
+      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+
+      CALL FUNCTION 'BAPI_BUS2054_CREATE_MULTI'
+        EXPORTING
+          i_project_definition = project_definition
+        TABLES
+          it_wbs_element       = gt_wbs_bus2054_new
+          et_return            = gt_bapiret2.
+
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ENDIF.
+      CHECK sy-subrc NE 0.
+      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+        TABLES
+          et_return = gt_bapiret2.
+
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+          IMPORTING
+            return = gs_bapiret2.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ELSE.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait   = 'X'
+          IMPORTING
+            return = gs_bapiret2.
+        rtype = 'S'.
+        rtmsg = '成功'.
+        IOproject_definition = project_definition.
+        LOOP AT in_tab.
+          in_tab-pspid = project_definition.
+          in_tab-post1 = post1.
+          in_tab-werks = werks.
+          MODIFY in_tab.
+        ENDLOOP.
+        MODIFY ztps010a FROM TABLE in_tab.
+****** WBS创建成功 *****
+
+      ENDIF.
+    ENDIF.
+  ELSEIF flag = 'U'."下达
+    IF ivproject_definition IS NOT INITIAL.
+      "更新价格
+      CLEAR: gs_I_PROJECT_DEFINITION, gs_I_PROJECT_DEFINITION_UPD.
+      gs_I_PROJECT_DEFINITION-project_definition = ivproject_definition.
+      IF usr04 IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-usr04 = usr04.
+        gs_I_PROJECT_DEFINITION_UPD-user_field_quan1 = 'X'.
+      ENDIF.
+      IF post1 IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-description = post1.
+        gs_I_PROJECT_DEFINITION_UPD-description = 'X'.
+      ENDIF.
+      IF vernr IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-responsible_no = vernr.
+        gs_I_PROJECT_DEFINITION_UPD-responsible_no = 'X'.
+      ENDIF.
+      IF plfaz IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-start = plfaz.
+        gs_I_PROJECT_DEFINITION_UPD-start = 'X'.
+      ENDIF.
+      IF plsez IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-finish = plsez.
+        gs_I_PROJECT_DEFINITION_UPD-finish = 'X'.
+      ENDIF.
+      IF company_code IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-company_code = company_code.
+        gs_I_PROJECT_DEFINITION_UPD-company_code = 'X'.
+      ENDIF.
+      IF profit_ctr IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-profit_ctr = profit_ctr.
+        gs_I_PROJECT_DEFINITION_UPD-profit_ctr = 'X'.
+      ENDIF.
+      IF werks IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-plant = werks.
+        gs_I_PROJECT_DEFINITION_UPD-plant = 'X'.
+      ENDIF.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_BUS2001_CHANGE'
+        EXPORTING
+          i_project_definition     = gs_I_PROJECT_DEFINITION
+          i_project_definition_upd = gs_I_PROJECT_DEFINITION_UPD
+        TABLES
+          et_return                = gt_bapiret2.
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ENDIF.
+
+      CHECK sy-subrc NE 0.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+        TABLES
+          et_return = gt_bapiret2.
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        SET UPDATE TASK LOCAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+          IMPORTING
+            return = gs_bapiret2.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ELSE.
+        SET UPDATE TASK LOCAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          IMPORTING
+            return = gs_bapiret2.
+      ENDIF.
+      "下达状态
+      lv_sys_sta = 'REL'.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_BUS2001_SET_STATUS'
+        EXPORTING
+          project_definition = ivproject_definition
+          set_system_status  = lv_sys_sta
+          set_user_status    = '赢单'
+        TABLES
+          e_result           = lt_result.
+      LOOP AT lt_result INTO ls_result WHERE message_id CA 'AE'.
+        rtype = 'E'.
+        rtmsg = ls_result-message_text && '&' && rtmsg.
+      ENDLOOP.
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ENDIF.
+      CHECK sy-subrc NE 0.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+        TABLES
+          et_return = gt_bapiret2.
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        SET UPDATE TASK LOCAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+          IMPORTING
+            return = gs_bapiret2.
+
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ELSE.
+        SET UPDATE TASK LOCAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          IMPORTING
+            return = gs_bapiret2.
+        rtype = 'S'.
+        rtmsg = '更新成功'.
+      ENDIF.
+    ELSE.
+      rtype = 'E'.
+      rtmsg = '项目编码不能为空'.
+    ENDIF.
+  ELSEIF flag = 'D'. "删除
+    IF ivproject_definition IS NOT INITIAL.
+*      SET UPDATE TASK LOCAL.
+*      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+*      SET UPDATE TASK LOCAL.
+*      CALL FUNCTION 'BAPI_BUS2001_DELETE'
+*        EXPORTING
+*          i_project_definition = ivproject_definition
+*        TABLES
+*          et_return            = gt_bapiret2.
+*      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+*        rtype = 'E'.
+*        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+*      ENDLOOP.
+*
+*      IF sy-subrc EQ 0.
+*        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+*        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+*          EXPORTING
+*            i_precommit_ok = 'Y'.
+*      ENDIF.
+*
+*      CHECK sy-subrc NE 0.
+*      SET UPDATE TASK LOCAL.
+*      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+*        TABLES
+*          et_return = gt_bapiret2.
+*      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+*        rtype = 'E'.
+*        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+*      ENDLOOP.
+*
+*      IF sy-subrc EQ 0.
+*        SET UPDATE TASK LOCAL.
+*        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+*          IMPORTING
+*            return = gs_bapiret2.
+*
+*        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+*        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+*          EXPORTING
+*            i_precommit_ok = 'Y'.
+*
+*      ELSE.
+*        SET UPDATE TASK LOCAL.
+*        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+*          IMPORTING
+*            return = gs_bapiret2.
+*        rtype = 'S'.
+*        rtmsg = '删除成功'.
+
+
+      lv_sys_sta = 'DLFL'.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_BUS2001_SET_STATUS'
+        EXPORTING
+          project_definition = ivproject_definition
+          set_system_status  = lv_sys_sta
+          "set_user_status    = '赢单'
+        TABLES
+          e_result           = lt_result.
+      LOOP AT lt_result INTO ls_result WHERE message_id CA 'AE'.
+        rtype = 'E'.
+        rtmsg = ls_result-message_text && '&' && rtmsg.
+      ENDLOOP.
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ENDIF.
+      CHECK sy-subrc NE 0.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+        TABLES
+          et_return = gt_bapiret2.
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        SET UPDATE TASK LOCAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+          IMPORTING
+            return = gs_bapiret2.
+
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ELSE.
+        SET UPDATE TASK LOCAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          IMPORTING
+            return = gs_bapiret2.
+        rtype = 'S'.
+        rtmsg = '更新成功'.
+      ENDIF.
+    ELSE.
+      rtype = 'E'.
+      rtmsg = '项目编码不能为空'.
+    ENDIF.
+  ELSEIF flag = 'F'.  "更新
+    IF ivproject_definition IS NOT INITIAL.
+      CLEAR: gs_I_PROJECT_DEFINITION, gs_I_PROJECT_DEFINITION_UPD.
+      gs_I_PROJECT_DEFINITION-project_definition = ivproject_definition.
+      IF post1 IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-description = post1.
+        gs_I_PROJECT_DEFINITION_UPD-description = 'X'.
+      ENDIF.
+      IF vernr IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-responsible_no = vernr.
+        gs_I_PROJECT_DEFINITION_UPD-responsible_no = 'X'.
+      ENDIF.
+      IF plfaz IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-start = plfaz.
+        gs_I_PROJECT_DEFINITION_UPD-start = 'X'.
+      ENDIF.
+      IF plsez IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-finish = plsez.
+        gs_I_PROJECT_DEFINITION_UPD-finish = 'X'.
+      ENDIF.
+      IF usr02 IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-usr02 = usr02.
+        gs_I_PROJECT_DEFINITION_UPD-user_field_quan1 = 'X'.
+      ENDIF.
+      IF usr04 IS NOT INITIAL.
+        gs_I_PROJECT_DEFINITION-usr04 = usr04.
+        gs_I_PROJECT_DEFINITION_UPD-user_field_quan1 = 'X'.
+      ENDIF.
+*      IF company_code IS NOT INITIAL.
+*        gs_I_PROJECT_DEFINITION-company_code = company_code.
+*        gs_I_PROJECT_DEFINITION_UPD-company_code = 'X'.
+*      ENDIF.
+*      IF profit_ctr IS NOT INITIAL.
+*        gs_I_PROJECT_DEFINITION-profit_ctr = profit_ctr.
+*        gs_I_PROJECT_DEFINITION_UPD-profit_ctr = 'X'.
+*      ENDIF.
+*      IF werks IS NOT INITIAL.
+*        gs_I_PROJECT_DEFINITION-plant = werks.
+*        gs_I_PROJECT_DEFINITION_UPD-plant = 'X'.
+*      ENDIF.
+      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+      CALL FUNCTION 'BAPI_BUS2001_CHANGE'
+        EXPORTING
+          i_project_definition     = gs_I_PROJECT_DEFINITION
+          i_project_definition_upd = gs_I_PROJECT_DEFINITION_UPD
+        TABLES
+          et_return                = gt_bapiret2.
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ENDIF.
+
+      CHECK sy-subrc NE 0.
+      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+        TABLES
+          et_return = gt_bapiret2.
+      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+        rtype = 'E'.
+        rtmsg = gs_bapiret2-message && '&' && rtmsg.
+      ENDLOOP.
+
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+          IMPORTING
+            return = gs_bapiret2.
+
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ELSE.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          IMPORTING
+            return = gs_bapiret2.
+        MODIFY ztps010a FROM TABLE in_tab.
+        rtype = 'S'.
+        rtmsg = '更新成功'.
+      ENDIF.
+    ELSE.
+      rtype = 'E'.
+      rtmsg = '项目编码不能为空'.
+    ENDIF.
+  ELSEIF flag = 'X'."下达
+    "下达状态
+    lv_sys_sta = 'REL'.
+    SET UPDATE TASK LOCAL.
+    CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+    SET UPDATE TASK LOCAL.
+    CALL FUNCTION 'BAPI_BUS2001_SET_STATUS'
+      EXPORTING
+        project_definition = ivproject_definition
+        set_system_status  = lv_sys_sta
+        "set_user_status    = '赢单'
+      TABLES
+        e_result           = lt_result.
+    LOOP AT lt_result INTO ls_result WHERE message_id CA 'AE'.
+      rtype = 'E'.
+      rtmsg = ls_result-message_text && '&' && rtmsg.
+    ENDLOOP.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+    ENDIF.
+    CHECK sy-subrc NE 0.
+    SET UPDATE TASK LOCAL.
+    CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+      TABLES
+        et_return = gt_bapiret2.
+    LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+      rtype = 'E'.
+      rtmsg = gs_bapiret2-message && '&' && rtmsg.
+    ENDLOOP.
+
+    IF sy-subrc EQ 0.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = gs_bapiret2.
+
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+    ELSE.
+      SET UPDATE TASK LOCAL.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        IMPORTING
+          return = gs_bapiret2.
+      rtype = 'S'.
+      rtmsg = '更新成功'.
+    ENDIF.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

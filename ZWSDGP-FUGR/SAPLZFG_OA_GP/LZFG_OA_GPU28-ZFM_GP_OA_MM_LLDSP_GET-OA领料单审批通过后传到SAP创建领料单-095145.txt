@@ -1,0 +1,110 @@
+FUNCTION zfm_gp_oa_mm_lldsp_get .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_211
+*"      OT_STOCK STRUCTURE  ZSMM_212 OPTIONAL
+*"----------------------------------------------------------------------
+
+  zfmdatasave1 'ZFM_GP_OA_MM_LLDSP_GET' .
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  DATA:lt_save TYPE TABLE OF ztmm230 WITH HEADER LINE.
+  TYPES: BEGIN OF zsdwxx,
+           matnr TYPE mara-matnr,
+           meins TYPE mara-meins,
+           bstme TYPE mara-bstme,
+         END OF zsdwxx.
+  DATA: gt_dwxx TYPE TABLE OF zsdwxx WITH HEADER LINE.
+  DATA: i TYPE sy-tabix.
+  SORT in_tab BY zlydh zlydhh.
+
+*& 汇总领料单号
+  LOOP AT in_tab.
+    input_check in_tab-zlydh  '领用单号'.
+    input_check in_tab-zlyrq  '领用日期'.
+    input_check in_tab-bwart  '移动类型'.
+    input_check in_tab-grund  '移动原因'.
+    input_check in_tab-werks  '工厂'.
+    input_check in_tab-kostl  '领用部门'.
+    input_check in_tab-lgort  '库存地点'.
+    input_check in_tab-zzje  '总金额'.
+    input_check in_tab-zlydhh '领用单行号'.
+    input_check in_tab-matnr  '物料编号'.
+    input_check in_tab-zlyl   '领用量'.
+    input_check in_tab-zlyr   '领用人'.
+    ot_stock-zlydh = in_tab-zlydh.
+    COLLECT ot_stock.
+    CLEAR:ot_stock,in_tab.
+  ENDLOOP.
+
+
+  SELECT
+      mara~matnr
+      mara~meins
+      mara~bstme
+    INTO CORRESPONDING FIELDS OF TABLE gt_dwxx
+    FROM mara
+    FOR ALL ENTRIES IN in_tab
+    WHERE mara~matnr = in_tab-matnr
+    .
+  i = 1.
+  SORT gt_dwxx BY matnr .
+  SORT ot_stock BY zlydh.
+  SORT in_tab BY zlydh.
+  LOOP AT ot_stock.
+    LOOP AT in_tab FROM i.
+      IF in_tab-zlydh = ot_stock-zlydh.
+        MOVE-CORRESPONDING in_tab TO lt_save.
+        CLEAR gt_dwxx.
+        READ TABLE gt_dwxx WITH KEY matnr = in_tab-matnr BINARY SEARCH .
+        IF gt_dwxx-bstme IS NOT INITIAL.
+          lt_save-zdanw = gt_dwxx-bstme.
+        ELSE .
+          lt_save-zdanw = gt_dwxx-meins.
+        ENDIF.
+        APPEND lt_save.
+        CLEAR: lt_save,in_tab.
+      ELSE.
+        i = sy-tabix.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    MODIFY ot_stock.
+    CLEAR: ot_stock.
+  ENDLOOP.
+
+  IF lt_save[] IS NOT INITIAL.
+*& 删除历史数据
+    LOOP AT ot_stock.
+      DELETE FROM ztmm230 WHERE zlydh = ot_stock-zlydh.
+      COMMIT WORK AND WAIT.
+    ENDLOOP.
+*& 更新数据
+    MODIFY ztmm230 FROM TABLE lt_save.
+    COMMIT WORK.
+    IF sy-subrc = 0.
+      ret_message 'S' '领料单创建成功!' '' ''.
+    ELSE.
+      ret_message 'E' '领料单创建失败!' '' ''.
+    ENDIF.
+  ENDIF.
+
+  IF rtype = 'E'.
+    ot_stock-flag = 'N'.
+    ot_stock-message = '失败!'.
+  ELSE.
+    ot_stock-flag = 'Y'.
+    ot_stock-message = '成功!'.
+  ENDIF.
+
+  MODIFY ot_stock TRANSPORTING flag message
+   WHERE zlydh <> ''.
+
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

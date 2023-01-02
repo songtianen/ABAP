@@ -1,0 +1,97 @@
+*&---------------------------------------------------------------------*
+*&      Module  SET_DATEN_SUB
+*&---------------------------------------------------------------------*
+* Zur¨¹ckgeben der Daten des Bildbausteins an die U-WA#s, falls         *
+* nicht alle Bildbausteine des Bildes zu einem einheitlichen Programm
+* geh#ren
+* Festhalten der aktuellen REFTAB (zus#tzliches Vorlagehandling)
+*----------------------------------------------------------------------*
+MODULE set_daten_sub OUTPUT.
+  DATA:ls_lfa1 TYPE lfa1 .
+*mk/3.0E Setzen Kz. 'Status-Update am Ende des Bildes erforderlich',
+*falls auf dem Bild Felder zu statusrelevanten Tabellen vorhanden
+*sind
+
+
+  IF rmmzu-kzstat_upd IS INITIAL.
+    LOOP AT sub_ptab WHERE NOT kzsta IS INITIAL.
+      rmmzu-kzstat_upd = x.
+    ENDLOOP.
+  ENDIF.
+
+  IF anz_subscreens IS INITIAL.
+* Keine Bildbausteine auf dem Bild vorhanden
+    CALL FUNCTION 'MAIN_PARAMETER_SET_REFTAB'
+      EXPORTING
+        rmmzu_kzstat_upd = rmmzu-kzstat_upd
+      TABLES
+        reftab           = reftab.
+  ELSEIF NOT kz_ein_programm IS INITIAL.
+* Bildbausteine auf dem Bild vorhanden, alle aus einheitlichem Programm
+    CLEAR kz_bildbeginn.
+    sub_zaehler = sub_zaehler + 1.
+    IF sub_zaehler EQ anz_subscreens.
+      kz_bildbeginn = x.               "f¨¹r PAI notwendig
+      CALL FUNCTION 'MAIN_PARAMETER_SET_REFTAB'
+        EXPORTING
+          rmmzu_kzstat_upd = rmmzu-kzstat_upd
+        TABLES
+          reftab           = reftab.
+    ENDIF.
+  ELSE.
+* Bildbausteine auf dem Bild vorhanden, aus unterschiedlichen Programmen
+    PERFORM zusatzdaten_set_sub.
+    PERFORM matabellen_set_sub.
+    CALL FUNCTION 'MAIN_PARAMETER_SET_REFTAB'
+      EXPORTING
+        rmmzu_kzstat_upd = rmmzu-kzstat_upd
+      TABLES
+        reftab           = reftab.
+  ENDIF.
+  IF t130m-aktyp = aktyph.
+    PERFORM zusatzdaten_set_sub.
+    CALL FUNCTION 'MAIN_PARAMETER_SET_REFTAB'
+      EXPORTING
+        rmmzu_kzstat_upd = rmmzu-kzstat_upd
+      TABLES
+        reftab           = reftab.
+
+  ENDIF.
+
+**only WHEN global mpn flag is active and concatenated material No. has values 1 & 2 values should be
+**Passed from MM01 initial screen(Create Mode) to basic data tab screen .
+  IF cl_immpn_cust=>check_mpn_active( ) EQ abap_true
+       AND t130m-aktyp EQ  aktyph
+       AND ( t134-conctd_matnr EQ cl_mm_mpn_utility=>concat_emnfr_mandatory OR t134-conctd_matnr EQ cl_mm_mpn_utility=>concat_emnfr_optional ).
+
+*If Manufacturer Part number is initial ,fill it from the RMMG1 Structure (Basic data tab)
+    IF mara-mfrpn IS INITIAL.
+      mara-mfrpn = rmmg1-mfrpn.
+    ENDIF.
+
+* If manufacturer number is initial but the external manufacturer is not initial ,determine the Vendor/Supplier(lifnr)
+    IF mara-mfrnr IS INITIAL AND  rmmg1-emnfr IS NOT INITIAL .
+
+      CALL METHOD cl_mm_mpn_utility=>read_lfa1_details
+        EXPORTING
+          iv_emnfr = rmmg1-emnfr
+        IMPORTING
+          es_lfa1  = ls_lfa1.
+
+      IF ls_lfa1-lifnr IS NOT INITIAL .
+        mara-mfrnr = ls_lfa1-lifnr  .
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+  IF   /cwm/cl_switch_check=>main( ) = /cwm/cl_switch_check=>true.
+    LOG-POINT ID /cwm/enh SUBKEY to_upper( sy-tcode && '\/CWM/APPL_MD_LMGD1019\LMGD1019_01\' && sy-cprog ) FIELDS /cwm/cl_enh_layer=>get_field( ).
+*     always set valuation unit of measure, if not yet provided
+    IF mara-/cwm/valum IS INITIAL.
+      mara-/cwm/valum = mara-meins.
+    ENDIF.
+  ENDIF.
+ENHANCEMENT-POINT lmgd1019_01 SPOTS es_lmgd1019 INCLUDE BOUND.
+
+ENDMODULE.                             " SET_DATEN_SUB  OUTPUT

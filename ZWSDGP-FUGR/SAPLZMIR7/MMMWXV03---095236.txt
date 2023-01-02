@@ -1,0 +1,36 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMWXV03  Artikeltypen u. Materialartenkennung             *
+*----------------------------------------------------------------------*
+
+* maximale Eingabel#nge f¨¹r Sammelartikelnummer
+CONSTANTS: MAX_LEN_SATNR TYPE I VALUE 15.
+
+* JH/30.06.97/4.0 (Anfang)
+* Festwert#nderung f¨¹r Dom#ne ATTYP:
+* '  '  Einzelmaterial  ->  '  ' Einzelmaterial (Industrie)
+*                           '00' Einzelmaterial
+*CONSTANTS: ATTYP_EINZ_EINSTIEG LIKE MARA-ATTYP VALUE '00'.
+*CONSTANTS: ATTYP_EINZ      LIKE MARA-ATTYP VALUE '  ',
+CONSTANTS: ATTYP_EINZ      LIKE MARA-ATTYP VALUE '00',
+           ATTYP_EINZ_IND  LIKE MARA-ATTYP VALUE '  ',
+* JH/30.06.97/4.0 (Ende)
+           ATTYP_SAMM      LIKE MARA-ATTYP VALUE '01',
+           ATTYP_VAR       LIKE MARA-ATTYP VALUE '02',
+           ATTYP_VKSET     LIKE MARA-ATTYP VALUE '10',
+           ATTYP_LOT       LIKE MARA-ATTYP VALUE '11',
+           ATTYP_DISP      LIKE MARA-ATTYP VALUE '12',
+           ATTYP_WGWERT    LIKE MARA-ATTYP VALUE '20',
+           ATTYP_WGHIER    LIKE MARA-ATTYP VALUE '21',
+           ATTYP_WERT      LIKE MARA-ATTYP VALUE '22',
+           ATTYP_WGDEF     LIKE MARA-ATTYP VALUE '30'.
+
+CONSTANTS: R_MTART_WERT LIKE T134-WMAKG VALUE '1',
+           R_MTART_LEER LIKE T134-WMAKG VALUE '2',
+           R_MTART_WERB LIKE T134-WMAKG VALUE '3',  "cfo/4.0
+           R_MTART_FRIP LIKE T134-WMAKG VALUE '4',          "
+           R_MTART_ADDI LIKE T134-WMAKG VALUE '5',          "
+* AHE: 02.02.99 - A (4.6a)
+           R_MTART_COUP LIKE T134-WMAKG VALUE '6'.
+* AHE: 02.02.99 - E
+*          MTART_WERT LIKE T134-WMAKG VALUE '1',  cfo/12.6.96
+*          MTART_LEER LIKE T134-WMAKG VALUE '2'.  MTART_.. w. verwend.

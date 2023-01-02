@@ -1,0 +1,399 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD202_V2_TOP
+*&---------------------------------------------------------------------*
+DATA: fldct      TYPE slis_t_fieldcat_alv,
+      slayt      TYPE slis_layout_alv,
+      fldct_jhd  TYPE slis_t_fieldcat_alv,
+      slayt_jhd  TYPE slis_layout_alv,
+      fldct_dbpj TYPE slis_t_fieldcat_alv,
+      slayt_dbpj TYPE slis_layout_alv,
+      varnt      LIKE disvariant,
+      repid      LIKE sy-repid,
+      tabix      LIKE sy-tabix.
+DATA:BEGIN OF it_pcd_alv OCCURS 0,
+       zpcdh      TYPE ztpp_205-zpcdh,
+       name1      TYPE kna1-name1,
+       kunnr      TYPE kna1-kunnr,
+       klabc      TYPE knvv-klabc,
+       projn      TYPE prps-pspnr,
+       posid      TYPE prps-posid,
+       post1      TYPE prps-post1,
+       vbeln      TYPE vbap-vbeln,
+       posnr      TYPE vbap-posnr,
+       matnr      TYPE vbap-matnr,
+       zzl1       TYPE mara-zzl1,
+       wlcms      TYPE char220,
+       werks      TYPE vbap-werks,
+       zpcbz      TYPE ztpp_205b-zpcbz,
+       zzms       TYPE ztpp_205b-zzms,
+       zxishu     TYPE ztpp_205a-zxishu,
+       zpcpfm     TYPE p,
+       zyjhms     TYPE p,
+       zwjhms     TYPE p,
+       zkf        TYPE ztpp_205b-zkf,
+       zywy       TYPE ztpp_205b-zywy,
+       zbx        TYPE atwrt,
+       zhd_quan   TYPE ztpp_206-zcd,
+       zyczk_quan TYPE ztpp_206-zcd,
+       bstkd      TYPE vbkd-bstkd,
+       meins      TYPE ztpp_205-meins,
+       matkl      TYPE mara-matkl,
+       select,
+       toppage,
+     END OF it_pcd_alv.
+DATA:gv_subscreen_800 TYPE sy-dynnr.
+DATA:ok_code          LIKE sy-ucomm,
+     ok_code_cpverid  LIKE sy-ucomm, "填充成品生产版本
+     ok_code_cppcd    LIKE sy-ucomm, "选择成品排产单
+     ok_code_bcpverid LIKE sy-ucomm, "选择半成品生产版本
+     ok_code_cbverid  LIKE sy-ucomm, "选择长板生产版本
+     save_ok          LIKE sy-ucomm, "
+     retcode.
+DATA:BEGIN OF wa_ggzd."公共字段
+       INCLUDE TYPE ztpp_205b.
+DATA:  post1   TYPE prps-post1,
+       name1   TYPE name1,
+       edatu   TYPE vbep-edatu,
+       wlcms   TYPE string,
+       zks_sum TYPE ztpp_205a-zks,
+       zcd_sum TYPE ztpp_205a-zcd,
+       zpcsl   TYPE ztpp_205-zpcsl,
+       tdid    TYPE tdid,
+       bstkd   TYPE vbkd-bstkd,
+       vbeln   TYPE vbeln,
+       matnr   TYPE matnr,
+       posid   TYPE prps-posid,
+       zzsl    TYPE ztpp_205a-zks,
+       qgdh    TYPE char10,
+       zkdje   TYPE kbetr,
+       zjjje   TYPE kbetr,
+       zxgje   TYPE kbetr,
+       zmjje   TYPE kbetr,
+       zhtlyt  TYPE char30,
+       zywyt   TYPE char30,
+       vkgrpt  TYPE char30,
+       vtwegt  TYPE char30,
+       klabc   TYPE knvv-klabc,
+       meins   TYPE meins,
+       zzl1    TYPE mara-zzl1,
+       groes   TYPE mara-groes,
+       matkl   TYPE mara-matkl,
+     END OF wa_ggzd.
+
+DATA: container_wlcms TYPE REF TO cl_gui_custom_container,
+      editor_wlcms    TYPE REF TO cl_gui_textedit,
+      container_qgdh  TYPE REF TO cl_gui_custom_container,
+      editor_qgdh     TYPE REF TO cl_gui_textedit,
+      container_bz    TYPE REF TO cl_gui_custom_container,
+      editor_bz       TYPE REF TO cl_gui_textedit.
+DATA: texttable     TYPE TABLE OF zsmm202 WITH HEADER LINE,
+      lines_wlcms   TYPE STANDARD TABLE OF tline,
+      it_line_wlcms TYPE STANDARD TABLE OF line,
+      lines_qgdh    TYPE STANDARD TABLE OF it_text,
+      it_line_qgdh  TYPE STANDARD TABLE OF zsmm202 WITH HEADER LINE.
+DATA:BEGIN OF it_text OCCURS 0,
+       tdid TYPE stxl-tdid.
+       INCLUDE STRUCTURE zsmm202.
+DATA:END OF it_text.
+DATA:t_text TYPE TABLE OF zsmm202 WITH HEADER LINE.
+DATA:BEGIN OF it_banfn OCCURS 0,
+       banfn TYPE banfn,
+     END OF it_banfn.
+DATA:BEGIN OF it_jhd OCCURS 0,
+       zpcdh       TYPE ztpp_205a-zpcdh,
+       zpcdhh      TYPE ztpp_205a-zpcdhh,
+       plnum       TYPE ztpp_206-plnum,
+       plnumhh     TYPE ztpp_206-plnumhh,
+       matnr       TYPE matnr,
+       zwllx       TYPE ztpp_206-zwllx,
+       zbianhao    TYPE ztpp_206-zbianhao,
+       zbckd       TYPE ztpp_206-zbckd,
+       zcd         TYPE ztpp_206-zcd,
+       zks         TYPE ztpp_206-zks,
+       zysks       TYPE ztpp_206-zks,
+       zwz         TYPE ztpp_205a-zwz,
+       zxishu      TYPE ztpp_205a-zxishu,
+       zms         TYPE ztpp_205a-zms,
+       gsmng       TYPE ztpp_206-gsmng,
+       meins       TYPE ztpp_206-meins,
+       zlmzx       TYPE ztpp_205a-zlmzx,
+       zdtmc       TYPE ztpp_205a-zdtmc,
+       zmxbz       TYPE ztpp_205a-zmxbz,
+       zbz         TYPE ztpp_206-zbz,
+       zks_jhd     TYPE ztpp_206-zks,
+       zzwhd       TYPE ztpp_205a-zzwhd,
+       stufe       TYPE stpox-stufe,
+       wegxx       TYPE stpox-wegxx,
+       verid       TYPE mkal-verid, "生产版本
+       arbpl       TYPE crhd-arbpl, "工作中心
+       stlal       TYPE stlal, "可选BOM号
+       zks_jhd_sum TYPE ztpp_206-zks, "该排产单已计划总块数
+       zks_jhd_sy  TYPE ztpp_206-zks,
+       gsmng_yjh   TYPE ztpp_206-gsmng, "该排产单已计划总量
+       psttr       TYPE ztpp_206-psttr, "计划开始日期
+       pedtr       TYPE ztpp_206-pedtr, "计划结束日期
+       werks       TYPE werks_d,
+       bstkd       TYPE vbkd-bstkd,
+       url         TYPE ztpp_206-url,
+       zjhdshzt    TYPE ztpp_206-zjhdshzt,
+       zbx         TYPE atwrt,
+       matkl       TYPE mara-matkl,
+       posnrpcdh   TYPE char15,
+       posnr10     TYPE posnr,
+       zcbbh       TYPE ztpp_206c-zcbbh,
+       zzl1        TYPE mara-zzl1,
+       zhd_quan    TYPE ztpp_206-zcd,
+       zyczk_quan  TYPE ztpp_206-zcd,
+       zzms        TYPE ztpp_206-zms, "总米数（米数 * 计划块数）
+       plnumcp     TYPE ztpp_206-plnumcp,
+       plnumhhcp   TYPE ztpp_206-plnumhhcp,
+       chbox,
+     END OF it_jhd.
+DATA:BEGIN OF it_pcd OCCURS 0,
+       zpcdh       TYPE ztpp_205-zpcdh,
+       zpcdhh      TYPE ztpp_205a-zpcdhh,
+       matnr       TYPE matnr,
+       zjsxdid     TYPE ztpp_205a-zjsxdid,
+       zjsxddid    TYPE ztpp_205a-zjsxddid,
+       zno         TYPE ztpp_205a-zno,
+       zbckd       TYPE ztpp_205a-zbckd,
+       zcd         TYPE ztpp_205a-zcd,
+       zks         TYPE ztpp_205a-zks,
+       zpcsl       TYPE ztpp_205a-zpcsl,
+       meins       TYPE ztpp_205-meins,
+       zks_yjh     TYPE ztpp_205a-zks,
+       zzl         TYPE p,
+       zxishu      TYPE ztpp_205a-zxishu,
+       zwz         TYPE ztpp_205a-zwz,
+       zdetailname TYPE ztpp_205a-zdetailname,
+       zdtmc       TYPE ztpp_205a-zdtmc,
+       zlmzx       TYPE ztpp_205a-zlmzx,
+       zmxbz       TYPE ztpp_205a-zmxbz,
+       zbh         TYPE ztpp_205a-zbh,
+       zks_jhd_sum TYPE ztpp_206-zks, "该排产单已计划总块数
+       zks_jhd_sy  TYPE ztpp_206-zks,
+       gsmng_yjh   TYPE ztpp_206-gsmng, "该排产单已计划总量
+       matkl       TYPE mara-matkl,
+       zhd_quan    TYPE ztpp_206-zcd,
+       zyczk_quan  TYPE ztpp_206-zcd,
+       zbianhao    TYPE ztpp_205a-zbianhao,
+       chbox,
+     END OF it_pcd.
+
+DATA:it_fieldcat_jhd   TYPE lvc_t_fcat,
+     it_fieldcatex_jhd TYPE lvc_t_fcat,
+     wa_fieldcat_jhd   TYPE lvc_s_fcat,
+     it_f4_jhd         TYPE  lvc_t_f4,
+     wa_f4_jhd         TYPE  lvc_s_f4,
+     is_stable_jhd     TYPE lvc_s_stbl,
+     wa_layout_jhd     TYPE lvc_s_layo.
+DATA:it_fieldcat_pcd   TYPE lvc_t_fcat,
+     it_fieldcatex_pcd TYPE lvc_t_fcat,
+     wa_fieldcat_pcd   TYPE lvc_s_fcat,
+     wa_fieldcat       TYPE lvc_s_fcat,
+     it_f4_pcd         TYPE  lvc_t_f4,
+     wa_f4_pcd         TYPE  lvc_s_f4,
+     is_stable_pcd     TYPE lvc_s_stbl,
+     wa_layout_pcd     TYPE lvc_s_layo.
+DATA:BEGIN OF wa_tc,
+       psttr  TYPE ztpp_206-psttr, "计划开始日期
+       pedtr  TYPE ztpp_206-pedtr, "计划结束日期
+       verid  TYPE mkal-verid, "生产版本
+       arbpl  TYPE crhd-arbpl, "工作中心
+       stlal  TYPE  mkal-stlal, "可选BOM号
+       zbz    TYPE ztpp_206-zbz, "备注
+       zjhdlx TYPE ztpp_206-zjhdlx, "计划单类型
+     END OF wa_tc.
+
+DATA: return_tab TYPE TABLE OF ddshretval WITH HEADER LINE .
+DATA:BEGIN OF it_verid OCCURS 0,"不要改变现有字段顺序，填充用
+       werks TYPE werks_d,
+       matnr TYPE matnr,
+       maktx TYPE makt-maktx,
+       verid TYPE mkal-verid, "生产版本
+       text1 TYPE mkal-text1, "版本描述
+       arbpl TYPE crhd-arbpl, "工作中心
+       ktext TYPE crtx-ktext, "工作中心描述
+       stlal TYPE mkal-stlal, "可选BOM号
+     END OF it_verid.
+
+TYPES: shlp_descr_t TYPE shlp_descr .
+DATA:BEGIN OF it_matnr OCCURS 0,
+       stufe TYPE stpox-stufe,
+       wegxx TYPE stpox-wegxx,
+       matnr TYPE matnr,
+       zzl1  TYPE mara-zzl1,
+       maktx TYPE makt-maktx,
+       gsmng TYPE cs_e_mngko,
+     END OF it_matnr.
+DATA:BEGIN OF it_matnr_sg OCCURS 0,
+       stufe TYPE stpox-stufe,
+       wegxx TYPE stpox-wegxx,
+       matnr TYPE matnr,
+       zzl1  TYPE mara-zzl1,
+       maktx TYPE makt-maktx,
+       gsmng TYPE cs_e_mngko,
+       verid TYPE mkal-verid, "生产版本
+       text1 TYPE mkal-text1, "版本描述
+       arbpl TYPE crhd-arbpl, "工作中心
+       ktext TYPE crtx-ktext, "工作中心描述
+       stlal TYPE mkal-stlal, "可选BOM号
+     END OF it_matnr_sg.
+DATA:BEGIN OF it_bcp OCCURS 0,
+       werks TYPE werks_d,
+       matnr TYPE matnr,
+       maktx TYPE makt-maktx,
+       verid TYPE mkal-verid, "生产版本
+       text1 TYPE mkal-text1, "版本描述
+       arbpl TYPE crhd-arbpl, "工作中心
+       ktext TYPE crtx-ktext, "工作中心描述
+       stlal TYPE mkal-stlal, "可选BOM号
+
+       stufe TYPE stpox-stufe,
+       wegxx TYPE stpox-wegxx,
+       zzl1  TYPE mara-zzl1,
+       gsmng TYPE cs_e_mngko,
+       sel,
+     END OF it_bcp.
+
+DATA:BEGIN OF itab OCCURS 0,
+       plnum       TYPE ztpp_206-plnum,
+       plnumhh     TYPE ztpp_206-plnumhh,
+       matnr       TYPE ztpp_206-matnr,
+       gsmng       TYPE ztpp_206-gsmng,
+       meins       TYPE ztpp_206-meins,
+       psttr       TYPE ztpp_206-psttr,
+       pedtr       TYPE ztpp_206-pedtr,
+       zpcdh       TYPE ztpp_206-zpcdh,
+       zpcdhh      TYPE ztpp_206-zpcdhh,
+       vbeln       TYPE ztpp_206-vbeln,
+       posnr       TYPE ztpp_206-posnr,
+       werks       TYPE ztpp_206-werks,
+       bstkd       TYPE ztpp_206-bstkd,
+       kunnr       TYPE ztpp_206-kunnr,
+       name1       TYPE ztpp_206-name1,
+       zdate       TYPE ztpp_206-zdate,
+       zname       TYPE ztpp_206-zname,
+       ztime       TYPE ztpp_206-ztime,
+       select,
+       verid       TYPE mkal-verid,
+       gsmng_yjh   TYPE ztpp_206-gsmng, "该排产单行已计划量
+       zpcsl       TYPE ztpp_205a-zpcsl, "无合同排产数量
+       zjssl       TYPE ztpp_205a-zjssl, "有合同排产数量
+       aufnr       TYPE ztpp_206-aufnr,
+       zcd         TYPE ztpp_205a-zcd, "排产单长度
+       zks         TYPE ztpp_205a-zks, "排产单块数(无合同)
+       zyyks       TYPE ztpp_205a-zyyks, "排产单块数(有合同)
+       zks_jhd     TYPE ztpp_205a-zks, "本次计划块数
+       zks_jhd_sum TYPE ztpp_205a-zks, "该排产单行已下计划块数
+       zks_jhd_sy  TYPE ztpp_205a-zks, "该排产单行剩余块数
+       projn       TYPE vbap-ps_psp_pnr,
+       posid       TYPE ztpp_205a-posid,
+       post1       TYPE ztpp_205a-post1,
+       del         TYPE ztpp_206-del,
+       del_gd      TYPE ztpp_206-del_gd,
+       psmng       TYPE ztpp_206-psmng,
+       psks        TYPE ztpp_206-psks,
+       maktx       TYPE string,
+       mes_plnum   TYPE ztpp_206-mes_plnum,
+       mes_aufnr   TYPE ztpp_206-mes_aufnr,
+       stufe       TYPE stpox-stufe,
+       wegxx       TYPE stpox-wegxx,
+       arbpl       TYPE crhd-arbpl,
+       dauat       TYPE afpo-dauat,
+       zbz         TYPE char100,
+       zwllx       TYPE ztpp_206-zwllx, "成品、半成品
+       zbckd       TYPE ztpp_206-zbckd,
+       zxishu      TYPE ztpp_205a-zxishu,
+       zmb         TYPE ztpp_205a-zmb,
+       zzs         TYPE ztpp_205a-zzs,
+       zzhankuan   TYPE ztpp_205a-zzhankuan,
+       zzwhd       TYPE ztpp_205a-zzwhd,
+       zdksl       TYPE ztpp_205a-zdksl,
+       zlmzx       TYPE ztpp_205a-zlmzx,
+       zdtmc       TYPE ztpp_205a-zdtmc,
+       zjhdshzt    TYPE ztpp_206-zjhdshzt,
+       stlal       TYPE mkal-stlal, "可选BOM号
+       url         TYPE ztpp_206-url, "打印服务返回的URL
+       zwhtbs      TYPE ztpp_206-zwhtbs,
+       chbox,
+     END OF itab.
+DATA:BEGIN OF it_crtaufnr OCCURS 0,
+       plnum  TYPE ztpp_206-plnum,
+       matnr  TYPE ztpp_206-matnr,
+       maktx  TYPE string,
+       gsmng  TYPE ztpp_206-gsmng,
+       meins  TYPE ztpp_206-meins,
+       psttr  TYPE ztpp_206-psttr,
+       pedtr  TYPE ztpp_206-pedtr,
+       zpcdh  TYPE ztpp_206-zpcdh,
+       vbeln  TYPE ztpp_206-vbeln,
+       posnr  TYPE ztpp_206-posnr,
+       werks  TYPE ztpp_206-werks,
+       bstkd  TYPE ztpp_206-bstkd,
+       kunnr  TYPE ztpp_206-kunnr,
+       name1  TYPE ztpp_206-name1,
+       zdate  TYPE ztpp_206-zdate,
+       zname  TYPE ztpp_206-zname,
+       ztime  TYPE ztpp_206-ztime,
+       verid  TYPE mkal-verid,
+       aufnr  TYPE ztpp_206-aufnr,
+       projn  TYPE vbap-ps_psp_pnr,
+       posid  TYPE ztpp_205a-posid,
+       post1  TYPE ztpp_205a-post1,
+       arbpl  TYPE crhd-arbpl,
+       dauat  TYPE afpo-dauat,
+       stlal  TYPE mkal-stlal,
+       zwhtbs TYPE ztpp_206-zwhtbs,
+       chbox,
+     END OF it_crtaufnr.
+DATA:wherestr TYPE string.
+RANGES:s_auart FOR aufk-auart.
+DATA:l_matnr TYPE matnr,
+     l_werks TYPE werks_d.
+
+DATA:it_fieldcat_1   TYPE lvc_t_fcat,
+     it_fieldcatex_1 TYPE lvc_t_fcat,
+     wa_fieldcat_1   TYPE lvc_s_fcat,
+     it_f4_1         TYPE  lvc_t_f4,
+     wa_f4_1         TYPE  lvc_s_f4,
+     is_stable_1     TYPE lvc_s_stbl,
+     wa_layout_1     TYPE lvc_s_layo.
+
+DATA:"return_tab    TYPE TABLE OF ddshretval WITH HEADER LINE,
+  wa_return_tab TYPE ddshretval,
+  wa_modi       TYPE lvc_s_modi,
+  wa_tab        LIKE LINE OF itab,
+  wa_tabaufnr   LIKE LINE OF it_crtaufnr.
+FIELD-SYMBOLS:<fs>      TYPE any,
+              <it_modi> TYPE lvc_t_modi,
+              <wa>      TYPE any,
+              <itab>    TYPE STANDARD TABLE.
+DATA:it_matnr001 TYPE TABLE OF ccvx_matnr WITH HEADER LINE,
+     outtab001   TYPE TABLE OF zsfms_getpctx WITH HEADER LINE,
+     it_atnam    TYPE TABLE OF tctrw WITH HEADER LINE.
+DATA:i_matkl TYPE matkl,
+     c_menge TYPE ztpp_206-zcd.
+DATA:BEGIN OF it_dbpj OCCURS 0.
+       INCLUDE TYPE ztpp_206c.
+DATA:sel,
+     END OF it_dbpj.
+
+DATA:it206c TYPE TABLE OF ztpp_206c WITH HEADER LINE.
+DATA:it_out TYPE TABLE OF ztpp_206c WITH HEADER LINE.
+
+DATA:return TYPE TABLE OF bapiret2 WITH HEADER LINE.
+DATA:posnrpcdh TYPE char15,
+     posnr10   TYPE posnr.
+
+DATA:it_jhd_sg LIKE TABLE OF it_jhd WITH HEADER LINE.
+
+DATA:BEGIN OF wa_cbtc,"维护长板生产版本
+       verid TYPE mkal-verid, "生产版本
+       arbpl TYPE crhd-arbpl, "工作中心
+       stlal TYPE mkal-stlal, "可选BOM号
+       zzl1  TYPE mara-zzl1, "长板品名
+     END OF wa_cbtc.
+DATA: it_filter TYPE lvc_t_fidx.
+
+DATA:jssl TYPE menge_d.

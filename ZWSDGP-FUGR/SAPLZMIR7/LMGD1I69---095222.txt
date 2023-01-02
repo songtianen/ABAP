@@ -1,0 +1,22 @@
+*&---------------------------------------------------------------------*
+*&      Module  CLEAN_MEINH  INPUT
+*&---------------------------------------------------------------------*
+*       L#scht die Eintr#ge zu denjenigen Mengeneinheiten, f¨¹r die
+*       au#er der Mengeneinheit nichts erfa#t wurde, wieder raus,
+*       damit keine "leeren" S#tze auf die DB gelangen
+*----------------------------------------------------------------------*
+MODULE CLEAN_MEINH INPUT.
+
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+  CHECK BILDFLAG IS INITIAL.
+
+  LOOP AT MEAN_ME_TAB.
+    IF NOT MEAN_ME_TAB-MEINH IS INITIAL AND
+*      MEAN_ME_TAB-HPEAN     IS INITIAL AND
+       MEAN_ME_TAB-EAN11     IS INITIAL AND
+       MEAN_ME_TAB-NUMTP     IS INITIAL.
+      DELETE MEAN_ME_TAB.
+    ENDIF.
+  ENDLOOP.
+
+ENDMODULE.                             " CLEAN_MEINH  INPUT

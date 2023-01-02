@@ -1,0 +1,17 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MILL_LMDG1O04                                              *
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  pcbt_FIELDSEL_XMCNG  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+**----------------------------------------------------------------------
+
+module pcbt_FIELDSEL_XMCNG output.
+
+   call method cl_mill_pcbt_mat_master=>fieldsel_xmcng
+                  exporting
+                      if_mara_dpcbt = mara-dpcbt
+                      if_marc_dpcbt = marc-dpcbt.
+
+endmodule.                 " pcbt_FIELDSEL_XMCNG  OUTPUT

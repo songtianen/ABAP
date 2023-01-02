@@ -1,0 +1,230 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGMEAN                                                   *
+*   Allgemeine Deklarationen f¨¹r EAN.                                  *
+*----------------------------------------------------------------------*
+TABLES: MEAN,
+        *MEAN,
+* AHE: 31.05.96 - A
+        MLEA,
+        *MLEA,
+* AHE: 31.05.96 - E
+        TNTP,                          "Nummernkreistypen,
+        TPRF,                          "EAN-Pr#fixe
+        TSAN.                          "Standard-Artikelnummern
+*        RM03E,
+*        T006M,
+*        TNTPB.
+
+* AHE: 28.01.99 - A (4.6a)
+DATA: HMLEA LIKE MLEA OCCURS 0 WITH HEADER LINE.
+DATA: HTABIX_EAN LIKE SY-TABIX.
+* AHE: 28.01.99 - E
+
+* AHE: 09.04.99 - A (4.6a)
+DATA: SA_VA_EAN LIKE T130F-KZREF.      " Wenn gesetzt, dann im SA drin
+* AHE: 09.04.99 - E
+
+* AHE: 13.02.97 - A
+DATA: BEGIN OF TMEAN_CORR,
+        MEINH LIKE MARM-MEINH,
+        EAN11 LIKE MARM-EAN11,
+      END OF TMEAN_CORR.
+* AHE: 13.02.97 - E
+
+* AHE: 14.04.99 - A (4.6a)
+DATA: BEGIN OF TMEAN_CORR_SA,
+        MATNR LIKE MARM-MATNR,
+        MEINH LIKE MARM-MEINH,
+        EAN11 LIKE MARM-EAN11,
+      END OF TMEAN_CORR_SA.
+* AHE: 14.04.99 - A
+
+* AHE: 08.10.96 - A
+* Zur gezielten Steuerung von Warnungen beim Aufruf des FBs MARA_EAN11.
+* Hier speziell die Warnungen WE 068 und WE 069 (EAN wird ge#ndert /
+* EAN wird intern vergeben).
+DATA: MSGID LIKE SY-MSGID,
+      MSGTY LIKE SY-MSGTY,
+      MSGNO LIKE SY-MSGNO,
+      MSGV1 LIKE SY-MSGV1,
+      MSGV2 LIKE SY-MSGV2,
+      MSGV3 LIKE SY-MSGV3,
+      MSGV4 LIKE SY-MSGV4.
+* AHE: 08.10.96 - E
+
+* AHE: 04.06.96 - A
+* RMMW2 (in MGD1 - Modulen nicht bekannt) wird f¨¹r Retail - Fall
+* ben#tigt, ebenso RMMW1.
+DATA: RMMW2_LIEF LIKE RMMW2-LIFNR,
+      RMMW1_MATN LIKE RMMW1-MATNR,
+      RMMW2_VARN LIKE RMMW1-VARNR,
+      RMMW2_SATN LIKE RMMW2-SATNR.
+
+* Tabelle f¨¹r Lieferanten, f¨¹r die beim L#schen einer lieferantenbe-
+* zogenen EAN das Kennzeichen LFEAN (Haupt-EAN-Lief) abhanden kommt.
+* Es werden nur Lieferanten ungleich dem aktuellen Lief. eingetragen.
+DATA: BEGIN OF LIEF_TAB OCCURS 0,
+         LIFNR LIKE MLEA-LIFNR,
+      END OF LIEF_TAB.
+
+DATA: BEGIN OF MLEA_LFEAN_KEY OCCURS 0,
+*       MANDT LIKE SYST-MANDT,
+*       MATNR LIKE MLEA-MATNR,
+        MEINH LIKE MLEA-MEINH,
+*       LIFNR LIKE MLEA-LIFNR,
+        EAN11 LIKE MLEA-EAN11,
+      END   OF MLEA_LFEAN_KEY.
+
+* AHE: 11.04.99 - A (4.6a)
+DATA: BEGIN OF MLEA_LFEAN_KEY_SA OCCURS 0,
+*       MANDT LIKE SYST-MANDT,
+        MATNR LIKE MLEA-MATNR,
+        MEINH LIKE MLEA-MEINH,
+*       LIFNR LIKE MLEA-LIFNR,
+        EAN11 LIKE MLEA-EAN11,
+      END   OF MLEA_LFEAN_KEY_SA.
+* AHE: 11.04.99 - E
+
+* zu #ndernde EAN mit Lieferantenbeziehung zu anderen Lieferanten
+DATA: EAN_UPD LIKE MLEA-EAN11.
+
+DATA: FLAG_NEW_LFEAN LIKE T130F-KZREF, " KZ Haupt-EAN-Lief umgesetzt ?
+      FLAG_LFEAN     LIKE T130F-KZREF, " KZ       "        vorhanden ?
+      FLAG_EXIT(1)   TYPE C,
+      TITEL_BUF(35)  TYPE C,           " Pop-Up-Titel-Puffer
+      LEERZ(1) VALUE ' ',
+      FLAG_LFEAN_MSG LIKE T130F-KZREF.
+
+DATA: ANTWORT(1) TYPE C.
+
+* AHE: 04.06.96 - E
+
+* AHE: 14.07.96 - A
+* Umstellung EAN-Bild auf Table Control
+CONTROLS: TC_EAN TYPE TABLEVIEW USING SCREEN 0002.
+
+DATA: TC_EAN_TOPL_BUF LIKE SY-STEPL.
+* AHE: 14.07.96 - E
+
+*-- Datenstrukturen f¨¹r EAN-handling ------------------------------
+DATA:
+        EAN_NEU_RET LIKE MARA-EAN11,   "Merken der ¨¹bergebenen EAN
+        EAN_PRAEFIX(3),                "EAN-Pr#fix.
+        EAN_TYP(2),                 "zum Zwischenspeichern des EAN-Typs
+        FL LIKE SY-FDPOS,          "zum Zwischenspeichern von SY-FDPOS
+        FLAG_ZUS_EAN,              " = X, wenn zus. EANs gepflegt werd.
+        HILFS_MEEIN LIKE MARA-MEINS, "Zwischenspeicher f¨¹r Mengeneinheit
+* AHE: 11.04.99 - A (4.6a)
+        MEAN_ME_BUF_SA LIKE MEANI_F, "Puffer f¨¹r Satz aus MEAN_ME_TAB_SA
+        HILFS_MATNR LIKE MARA-MATNR,   "Zwischenspeicher f¨¹r SA / VA
+* AHE: 11.04.99 - E
+        HILFS_EAN LIKE MARM-EAN11,     "f¨¹r EAN-Pr¨¹falgorithmus
+        MEAN_ME_BUF LIKE MEANI,        " Puffer f¨¹r Satz aus MEAN_ME_TAB
+        HILFS_PRFZA LIKE TNTP-PRFZA,"Zwischenspeicher f¨¹r Pr¨¹falgorithm.
+        L LIKE SY-TABIX,               "Anzahl Zeilen einer int. Tabelle
+        MEAN_ME_TAB_CHECK,         "Nachbearbeitung MEAN_ME_TAB notw.
+        MEAN_TAB_CHECK,                "Aktualisieren MEAN_TAB notwendig
+        NK_OBJEKT LIKE INRI-OBJECT,    "Nummernkreis-Objekt
+        PRUEFZIFFER TYPE I,            "enth#lt EAN-Pr¨¹fziffer
+        PRUEF_EAN(18),             "Modifizierte EAN zur NumKreis-Prf.
+        RETCODE LIKE INRI-RETURNCODE,  "RCODE bei Nummernvergabe
+        UNAME LIKE SY-UNAME,           "Benutzername
+        ZIFFER,                        "erste Ziffer der EAN
+        ZWISCHENSUMME     TYPE I,      "f¨¹r bel. Rechenoerationen
+
+*       Hilfsflag f. Feldauswahl: "X" hei#t "Feld wird intensified"
+        FLAG_INTENSIFY LIKE T130F-KZREF,
+
+*       Hilfsflag zum erkennen ob per L#schbutton gel#scht wird:
+*       "X" hei#t OKCODE war L#schen ! Ben#tigt f¨¹r MEINH UPDATE ! ! !
+        FLAG_DEL_EAN   LIKE T130F-KZREF,
+
+        EAN_ZEILEN_NR   LIKE SY-TABIX, "Zeilen-nr.
+        EAN_AKT_ZEILE   LIKE SY-TABIX, "aktuelle Zeile
+        EAN_ERSTE_ZEILE LIKE SY-TABIX, "erste Zeile pro Seite
+        EAN_ERSTE_ZEILE_C(3),    "EAN_ERSTE_ZEILE aufbereitet f¨¹r Dynpro
+        EAN_ZLEPROSEITE LIKE SY-LOOPC, "Anzahl Zeilen pro Seite
+        EAN_SAVSPRAS    LIKE MAKT-SPRAS,"Hilfsfeld Sprachenschluessel
+        EAN_EINTRAEGE_C(3),            "Anz. EAN aufbereitet f. Dynpro
+        EAN_LINES       LIKE SY-TABIX, "Anzahl EAN-Eintr#ge
+        EAN_FEHLERFLG(1),              "Fehlerflag EAN (Bsp. KZ HPEAN)
+* AHE: 23.08.96 - A
+        EAN_FEHLERFLG_LFEAN(1),        "Fehlerfl. Lf.EAN (Bsp. KZ LFEAN)
+* AHE: 23.08.96 - E
+        EAN_FEHLERFLG_ME(1),           "Fehlerflag f¨¹r Mengeneinh.
+        EAN_FLGALT(1)      VALUE 'A',  "Eintrag bereits geprueft
+        EAN_BILDFLAG_OLD.              "Zwischenspeicher Bildflag,
+                                       "um zu merken, ob Bildflag
+                                       "au#erhalb des Bildbausteins
+                                       "gesetzt wurde.
+
+
+*-- Mengeneinheiten Fehlerexits
+DATA:   FDMEAN(1)   VALUE 'D',         "Doppelter Eintrag
+        ULMEAN(1)   VALUE 'U'.         "Feld¨¹berlauf
+
+* Int. Tabelle mit den aktuell anzuzeigenden Mengeneinheiten und den
+* zus#tzlichen EANs
+*DATA: BEGIN OF MEAN_ME_TAB OCCURS 50.
+*        INCLUDE STRUCTURE MEANI.
+** alt:   EAN11 LIKE MARM-EAN11,
+** alt:   NUMTP LIKE MARM-NUMTP,
+*DATA: END OF MEAN_ME_TAB.
+
+* Hilfstabelle zum Aufruf des FB MARA_EAN11
+DATA: BEGIN OF HMEAN_ME_TAB OCCURS 0.
+        INCLUDE STRUCTURE MEANI.
+DATA: END OF HMEAN_ME_TAB.
+
+* Interne Tabelle mit MARM-S#tzen
+DATA: BEGIN OF MARM_TAB OCCURS 10.
+        INCLUDE STRUCTURE MARM.
+DATA: END OF MARM_TAB.
+
+* Interne Tabelle mit TNTP-S#tzen
+DATA: BEGIN OF TNTP_TAB OCCURS 10.
+        INCLUDE STRUCTURE TNTP.
+DATA: END OF TNTP_TAB.
+
+* Feldleiste mit Schl¨¹ssel zu MEAN_TAB
+DATA: BEGIN OF MEAN_TAB_KEY,
+        MEINH LIKE MARM-MEINH,
+        EAN11 LIKE MARM-EAN11,
+      END OF MEAN_TAB_KEY.
+
+* AHE: 11.04.99 - A (4.6a)
+DATA: BEGIN OF MEAN_TAB_KEY_SA,
+        MATNR LIKE MARM-MATNR,
+        MEINH LIKE MARM-MEINH,
+        EAN11 LIKE MARM-EAN11,
+      END OF MEAN_TAB_KEY_SA.
+* AHE: 11.04.99 - E
+
+* Int. Tabelle mit den zu verbuchenden MEAN-Eintr#gen
+* (bzw. in EAN_CONVERT: int. Tabelle mit bereits vorh. MEAN-S#tzen)
+DATA: BEGIN OF MEAN_VBTAB OCCURS 50.
+        INCLUDE STRUCTURE MEAN.
+DATA: END OF MEAN_VBTAB.
+
+*----Ergebnistabelle beim Pr¨¹fen auf Mehrfachverwendung der EAN
+DATA:   BEGIN OF MARM_EAN OCCURS 20.   "Tabelle der Mengeneinheiten
+        INCLUDE STRUCTURE MARM.        "zur EAN
+DATA:   END OF MARM_EAN.
+
+* #bergabe-Tab. f¨¹r EAN_REFERENCES - enth. EANs zu Mengeneinh.
+DATA: BEGIN OF MEAN_TAB OCCURS 10.
+        INCLUDE STRUCTURE MEANI.
+DATA: END OF MEAN_TAB.
+
+DATA: VB_MEAN LIKE SY-MARKY.           "Ubergabeflag f¨¹r Verbuchungs-KZ
+
+* #bergabe-Tab. f¨¹r EAN_REFERENCES - enth. MEs, deren EANs bereits
+DATA: BEGIN OF ME_TAB OCCURS 10.       " gelesen wurden
+        INCLUDE STRUCTURE MEANU.
+DATA: END OF ME_TAB.
+
+* AHE: 15.04.99 - A (4.6a)
+DATA: HMARA_TAB LIKE MARA OCCURS 0 WITH HEADER LINE.
+* AHE: 15.04.99 - E
+
+FIELD-SYMBOLS: <EAN>.                  "Enth#lt Teilstring der EAN

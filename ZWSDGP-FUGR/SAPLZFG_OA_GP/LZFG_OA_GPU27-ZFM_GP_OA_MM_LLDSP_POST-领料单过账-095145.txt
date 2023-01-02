@@ -1,0 +1,168 @@
+FUNCTION zfm_gp_oa_mm_lldsp_post .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZFM_XMD_OA_LLDSP_POST_S1
+*"      OT_STOCK STRUCTURE  ZFM_XMD_OA_LLDSP_POST_S2 OPTIONAL
+*"----------------------------------------------------------------------
+
+  zfmdatasave1 'ZFM_GP_OA_MM_LLDSP_POST' .
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  DATA: goodsmvt_header TYPE bapi2017_gm_head_01,
+        goodsmvt_code   TYPE bapi2017_gm_code,
+        goodsmvt_item   TYPE STANDARD TABLE OF bapi2017_gm_item_create WITH HEADER LINE,
+        return          TYPE STANDARD TABLE OF bapiret2 WITH HEADER LINE.
+
+  DATA: BEGIN OF mthead.
+          INCLUDE STRUCTURE bapi2017_gm_head_ret.
+  DATA: END OF mthead.
+
+  DATA:lt_save    TYPE TABLE OF ztmm230 WITH HEADER LINE,
+       lt_ztmm230 TYPE TABLE OF ztmm230 WITH HEADER LINE.
+
+  DATA:wa_tab TYPE zfm_xmd_oa_lldsp_post_s1.
+
+*& 输入检查
+  IF in_tab[] IS INITIAL.
+    ret_message 'E' '输入数据为空!' 'X' 'X'.
+  ENDIF.
+
+  LOOP AT in_tab.
+    input_check in_tab-zlydh '领用单号'.
+    input_check in_tab-zspbs '审批标识'.
+    CLEAR:in_tab.
+  ENDLOOP.
+
+  READ TABLE in_tab INTO wa_tab INDEX 1.
+
+*& 取领料单数据
+  SELECT *
+    INTO TABLE lt_ztmm230
+    FROM ztmm230
+     FOR ALL ENTRIES IN in_tab
+   WHERE zlydh = in_tab-zlydh.
+
+  IF lt_ztmm230[] IS INITIAL.
+    PERFORM add_ot_stock TABLES ot_stock USING 'N' '未找到领用单数据!'.
+    ret_message 'E' '未找到领用单数据!' 'X' 'X'.
+  ENDIF.
+
+*& 判断审批标识
+  CASE wa_tab-zspbs.
+    WHEN '1'.
+    WHEN '2' OR '3'.
+      UPDATE ztmm230 SET zspbs = 'C'  "审批不通过
+                          zdel  = 'X'
+                    WHERE zlydh = wa_tab-zlydh.
+      COMMIT WORK.
+      PERFORM add_ot_stock TABLES ot_stock USING 'Y' '更新成功!'.
+      ret_message 'S' '更新成功!' 'X' 'X'.
+    WHEN OTHERS.
+      PERFORM add_ot_stock TABLES ot_stock USING 'N' '该审批标识不能记账!'.
+      ret_message 'E' '该审批标识不能记账!' 'X' 'X'.
+  ENDCASE.
+
+*& 汇总领料单号
+  LOOP AT lt_ztmm230.
+    ot_stock-zlydh = lt_ztmm230-zlydh.
+    COLLECT ot_stock.
+    CLEAR:ot_stock,lt_ztmm230.
+  ENDLOOP.
+
+  LOOP AT ot_stock.
+    CLEAR:goodsmvt_header,goodsmvt_code,goodsmvt_item,goodsmvt_item[].
+    CLEAR: mthead,return,return[].
+
+    goodsmvt_header-pstng_date = sy-datum.
+    goodsmvt_header-doc_date = sy-datum.
+    goodsmvt_code = '03'."MB1A
+
+    LOOP AT lt_ztmm230 WHERE zlydh = ot_stock-zlydh.
+      goodsmvt_item-plant      = lt_ztmm230-werks.  "工厂
+      goodsmvt_item-move_type  = lt_ztmm230-bwart.  "移动类型
+      goodsmvt_item-move_reas  = lt_ztmm230-grund.  "移动原因
+*      goodsmvt_item-move_stloc = lt_ztmm230-umlgo.  "收货/发货库存地点
+      goodsmvt_item-stge_loc   = lt_ztmm230-lgort.  "库存地
+      goodsmvt_item-entry_uom  = lt_ztmm230-zdanw.  "单位
+      goodsmvt_item-entry_qnt  = lt_ztmm230-zlyl.   "以单位计的数量
+      goodsmvt_item-costcenter = lt_ztmm230-kostl.  "成本中心
+      goodsmvt_item-orderid    = lt_ztmm230-aufnr.  "订单编号
+      goodsmvt_item-material   = lt_ztmm230-matnr.  "物料号
+      IF lt_ztmm230-charg IS NOT INITIAL.
+        goodsmvt_item-batch  = lt_ztmm230-charg.  "批次
+      ENDIF.
+      APPEND goodsmvt_item.
+      CLEAR: goodsmvt_item,lt_ztmm230.
+    ENDLOOP.
+
+*& 货物移动BAPI
+    CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+      EXPORTING
+        goodsmvt_header  = goodsmvt_header
+        goodsmvt_code    = goodsmvt_code
+      IMPORTING
+        goodsmvt_headret = mthead
+      TABLES
+        goodsmvt_item    = goodsmvt_item
+        return           = return.
+
+    READ TABLE return WITH KEY type = 'E'.
+    IF sy-subrc = 0.
+      PERFORM bapi_rollback.
+      ot_stock-flag = 'N'.
+      ot_stock-message = '过账失败:' && return-message.
+    ELSE.
+      PERFORM bapi_commit.
+      ot_stock-mblnr = mthead-mat_doc.
+      ot_stock-flag = 'Y'.
+      ot_stock-message = '过账成功!'.
+
+*& 更新表
+      UPDATE ztmm230 SET zspbs = 'B'  "审批通过
+                          mblnr = mthead-mat_doc
+                          mjahr = mthead-doc_year
+                          budat = goodsmvt_header-doc_date
+                          zgzbs = 'X'
+                    WHERE zlydh = ot_stock-zlydh.
+      COMMIT WORK.
+    ENDIF.
+
+    MODIFY ot_stock.
+    CLEAR: ot_stock.
+  ENDLOOP.
+
+  READ TABLE ot_stock WITH KEY mblnr = ''.
+  IF sy-subrc = 0.
+    ret_message 'E' '存在过账失败数据!' '' ''.
+  ELSE.
+    ret_message 'S' '过账成功!' '' ''.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.
+
+FORM add_ot_stock  TABLES   lt_stock STRUCTURE zsmm_212
+                   USING    p_flag
+                            p_message.
+  CLEAR:lt_stock[].
+  lt_stock-flag = p_flag.
+  lt_stock-message = p_message.
+  APPEND lt_stock.
+
+ENDFORM.
+
+FORM bapi_commit .
+  CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+    EXPORTING
+      wait = 'X'.
+ENDFORM.
+
+FORM bapi_rollback .
+  CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+ENDFORM.

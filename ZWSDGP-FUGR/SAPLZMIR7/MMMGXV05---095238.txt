@@ -1,0 +1,15 @@
+************************************************************************
+* Include MMMGXV05 f¨¹r Festwerte
+* -  Buchstaben
+************************************************************************
+*--- Buchstabe X ----------------------------------------------------
+CONSTANTS:   X LIKE SY-DATAR     VALUE 'X',
+             STERN               VALUE '*',
+             PLUS                VALUE '+'.
+* Buchstaben z.B. f¨¹r Pr#ferenz und Lieferantenerkl#rung
+CONSTANTS: CHARA LIKE SY-DATAR VALUE 'A',
+           CHARB LIKE SY-DATAR VALUE 'B',
+           CHARC LIKE SY-DATAR VALUE 'C',
+           CHARD LIKE SY-DATAR VALUE 'D',
+           CHARE LIKE SY-DATAR VALUE 'E',
+           CHARF LIKE SY-DATAR VALUE 'F'.

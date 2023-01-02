@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_JSXDCON
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZJSXD_CON' ITSELF
+CONTROLS: ZJSXD_CON TYPE TABLEVIEW USING SCREEN 0901.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZJSXD_CON'
+DATA:     G_ZJSXD_CON_LINES  LIKE SY-LOOPC.

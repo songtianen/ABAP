@@ -1,0 +1,50 @@
+FUNCTION zfm_gp_mes_pp_reserve.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(RSNUM) TYPE  RSNUM
+*"     VALUE(BLDAT) TYPE  DATS
+*"     VALUE(BUDAT) TYPE  DATS
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(MBLNR) TYPE  MBLNR
+*"     VALUE(MJAHR) TYPE  MJAHR
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MES_PP_RESERVE'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:it_migo TYPE TABLE OF zsfms_migopost WITH HEADER LINE.
+  SELECT
+    matnr
+    werks
+    lgort
+    umlgo
+    charg
+    bdmng AS menge
+    meins
+    rsnum
+    rspos
+    INTO CORRESPONDING FIELDS OF TABLE it_migo
+    FROM resb
+    WHERE rsnum = rsnum.
+  CALL FUNCTION 'ZFMS_01_MIGOPOST'
+    EXPORTING
+      budat = budat
+      bldat = bldat
+*     BKTXT =
+*      xblnr =
+      code  = '06'
+      bwart = '311'
+*     XSTOB =
+*     TEST  =
+    IMPORTING
+      rtype = rtype
+      rtmsg = rtmsg
+      mblnr = mblnr
+      mjahr = mjahr
+    TABLES
+      item  = it_migo.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

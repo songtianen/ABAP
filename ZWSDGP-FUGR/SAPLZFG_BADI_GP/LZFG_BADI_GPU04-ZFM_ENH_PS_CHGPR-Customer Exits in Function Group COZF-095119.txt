@@ -1,0 +1,32 @@
+FUNCTION zfm_enh_ps_chgpr.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(CAUFVD_IMP) LIKE  CAUFVD STRUCTURE  CAUFVD
+*"     VALUE(AFVGD_IMP) LIKE  AFVGD STRUCTURE  AFVGD
+*"     VALUE(EBAN_IMP) LIKE  EBAN STRUCTURE  EBAN
+*"     VALUE(EBKN_IMP) LIKE  EBKN STRUCTURE  EBKN
+*"  CHANGING
+*"     VALUE(EBAN_ORD_CUST_CHG) LIKE  EBAN_ORD_CUST STRUCTURE
+*"        EBAN_ORD_CUST
+*"----------------------------------------------------------------------
+  CLEAR:*afvgd.
+  BREAK dongpz.
+  SELECT SINGLE afko~aufnr,
+                afvc~aufpl,
+                afvc~vornr,
+                afvc~banfn,
+                afvc~bnfpo
+    INTO @DATA(wa_afvc)
+    FROM afko INNER JOIN afvc ON afko~aufpl = afvc~aufpl
+    WHERE afko~aufnr = @caufvd_imp-aufnr.
+  IF wa_afvc-banfn IS INITIAL.
+    CASE afvgd_imp-steus.
+      WHEN 'PS04' .
+        eban_ord_cust_chg-bsart = 'Z02'.
+    ENDCASE.
+  ENDIF.
+
+  *afvgd = afvgd_imp.
+
+ENDFUNCTION.

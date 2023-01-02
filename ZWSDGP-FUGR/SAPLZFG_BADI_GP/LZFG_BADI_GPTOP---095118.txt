@@ -1,0 +1,50 @@
+FUNCTION-POOL ZFG_BADI_GP.                  "MESSAGE-ID ..
+TABLES:EKKO,
+       EKPO,
+       AUFK,
+       VBAK,
+       VBAP,
+       PRPS,
+       PROJ,
+       VBRK,
+       VBKD,
+       MARC,
+       *ZTFI201,
+       ZTFI201,
+       *ZTFI202,
+       BP001,
+       ZVSDLIPS_ITEM,
+       ZTFI202,
+       MLDOC,
+       EKBE,
+       EKBZ,
+       AUFM,
+       BSEG,
+       LIPS,
+       ACDOCA,
+       MSEG,
+       MKPF,
+       CEPC,
+       ZFICO_CONF_010,
+       ZFICO_CONF_009,
+       ACCIT,
+       TVKO,
+       MARA,
+       ZTMM_011,
+       BKPF.
+INCLUDE ZFMDATASAVE.
+TABLES:*AFVGD.
+DATA:IT_FIPOST TYPE TABLE OF ZSFMS_FIPOST WITH HEADER LINE.
+DATA:XBLNR TYPE XBLNR.
+* INCLUDE LZFG_BADI_GPD...                   " Local class definition
+
+DEFINE FILLMSG.
+  RTYPE = &1.
+  RTMSG = &2.
+  IF &3 = 'X'.
+  ZFMDATASAVE2 'R'.
+  ENDIF.
+  IF &4 = 'X'.
+RETURN.
+  ENDIF.
+END-OF-DEFINITION.

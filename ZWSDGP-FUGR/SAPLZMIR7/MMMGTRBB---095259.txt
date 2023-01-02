@@ -1,0 +1,440 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGTRBB                                                   *
+* Allgemeine Deklarationen, die sowohl f¨¹r Tr#gerprogramme als auch
+* f¨¹r Bildbausteine ben#tigt werden.
+*----------------------------------------------------------------------*
+TYPE-POOLS: SLIS.
+* ALV
+DATA: GS_LAYOUT TYPE SLIS_LAYOUT_ALV,
+      GT_FIELDCAT TYPE SLIS_T_FIELDCAT_ALV,
+      GT_EVENTTAB TYPE SLIS_T_EVENT,
+      GV_REPID    TYPE SYST-REPID.
+DATA: GT_COMMENTARY TYPE SLIS_T_LISTHEADER.
+
+INCLUDE FM03VCDT.   "Strukturen Matstammtabellen f¨¹r #nderungsbeleg ..
+INCLUDE MMMGXTAB.                      "Strukturen Matstammtab. sonstige
+INCLUDE MMMGWTAB.   "Strukturen Matstammtab. sonstige Retail
+INCLUDE MMMGXTAR.   "Strukturen Materialstammtab. Vorlage
+INCLUDE MMMGXTAU.   "Strukturen Materialstammtab. temp. Dynrostand
+
+
+ENHANCEMENT-POINT MMMGTRBB_01 SPOTS ES_MMMGTRBB STATIC INCLUDE BOUND.
+TABLES: TWPA,                          "Allg. Retail-Steurungsparameter
+        T130M,                         "Transaktionssteuerung
+        T133A,                         "Logische Bilder
+        T133S,                         "Bildsequenzen
+        RMMG1,                         "Einstiegsparameter
+        RMMG1_REF,                     "Einstiegsparameter Vorlage
+        RMMG1_BEZ,                     "Einstiegsparameter Bezeichnungen
+        RMMZU,                         "Zus#tzliche Felder (nur Dialog)
+        RMMG2,                         "Zus#tzl. Felder #bernahme/Dial
+        RM03M,                         "Sonstige Dialgfelder
+        TCURM,                         "Customizing Materialwirtschaft
+        T134,                          "Materialartentabelle
+        T134T,                         "Materialartenbezeichnungen
+        T134M,                         "Mengen-/Wertfortschreibung
+        T137,  *T137,                  "Branchen
+        T137T, *T137T,                 "Branchenbezeichnungen
+        T001, *T001,                   "Buchungskreise
+        MARV,
+        T001W, *T001W,                 "Werke
+        T001L, *T001L,                 "Lagerorte
+        T001K, *T001K,                 "Zuordnung Bwkey zu Bukrs
+        T009,                          "Geschaeftsjahresvarianten
+        T149,                          "Bewertungstyp
+        T149A, *T149A,                 "Bewertungsebene/Bewertungsart
+        T149B,                         "Bewertungstyp/Bewertungsart
+        T300, *T300,                   "Lagernummer
+        T300T, *T300T,                 "Lagernummer-Bezeichnung
+        T301, *T301,                   "Lagernummer/Lagertypen
+        T301T, *T301T,                 "Lagertypbezeichnung
+        TVKO, *TVKO,                   "Verkaufsorganisation
+        TVTW, *TVTW,                   "Vertriebsweg
+        TVKOT, *TVKOT,                 "Verkaufsorgan.-Bezeichung
+        TVTWT, *TVTWT,                 "Vertriebsweg-Bezeichnung
+        TVTA,                          "Vertriebsaktivit#ten
+        T401A,                         "Dispoprofile
+        T401T,                         "Dispoprofiletexte
+        T441A,                         "Prognoseprofile
+        T441T,                         "Prognoseprofiletexte
+        V134W,                         "View Mengen/Wertfortschreibung
+*       maex.                          "Exportdaten
+        RMMW1_BEZ,           "Erg#nzung RMMG1_BEZ f¨¹r Retail "wk to 4.0
+        RMMW2,               "Erg#nzung RMMG1 f¨¹r Retail "wk to 4.0
+        USRM0,               "wk/4.0 Umstellung der Brancheneinstellung
+        MMUE1,               "mk/4.0A f¨¹r WK Schnittstelle ext. NV
+        MMUER1,              "mk/4.0A f¨¹r WK Schnittstelle ext. NV
+        MMUE2,               "mk/4.0A f¨¹r WK Schnittstelle int. NV
+        MMUER2,              "mk/4.0A f¨¹r WK Schnittstelle int. NV
+        TBAC_PHYSCOMM,       "Physical Commodity
+        TBAC_PHYSCOMMT,      "Physical Commodity Text
+* AHE: 27.03.98 - A (4.0c)
+        V01CWS.               "wegen Konvertierung MARD-BSKRF auf Dynpro
+* AHE: 27.03.98 - E
+
+* PTAB mit vollem Key f r Industrie-Tabellen   mk/13.08.96 auch f¨¹r Ind.
+DATA: PTAB_FULL LIKE SPTAB OCCURS 0 WITH HEADER LINE.
+
+"note 2156680
+DATA: RMMG1_PTAB TYPE RMMG1.
+DATA: RMMG1_PTAB_FULL LIKE SPTAB OCCURS 0 WITH HEADER LINE.
+
+* Pflegetabellen Vorgang
+DATA: BEGIN OF PTAB  OCCURS 20.
+        INCLUDE STRUCTURE SPTAP.
+DATA: END   OF PTAB.
+DATA: BEGIN OF PTAB2  OCCURS 20.                            "cfo/4.0C
+        INCLUDE STRUCTURE SPTAP.                            "
+DATA: END   OF PTAB2.                                       "cfo/4.0C
+* Pflegetabellen Vorlage
+DATA: BEGIN OF RPTAB OCCURS 20.
+        INCLUDE STRUCTURE SPTAP.
+DATA: END   OF RPTAB.
+* Feldtabelle je Bild f¨¹r Feldauswahl, Vorlagehandling ....
+DATA: BEGIN OF FAUSWTAB OCCURS 0.
+        INCLUDE STRUCTURE SFAUSWTAB.
+DATA: END OF FAUSWTAB.
+DATA: BEGIN OF FAUSWTAB_SOND OCCURS 60.
+        INCLUDE STRUCTURE SFAUSWTAB.
+DATA: END OF FAUSWTAB_SOND.
+DATA: BEGIN OF FTAB_SFGRUP OCCURS 60.
+        INCLUDE STRUCTURE SREFERENZ.
+DATA: END OF FTAB_SFGRUP.
+
+DATA: gv_/cwm/marc_rem_is_read TYPE boolean,
+      gv_/cwm/sauft_marc_db    LIKE marc-sauft.
+DATA:
+  BEGIN OF ls_/cwm/marc_rem,
+     matnr      TYPE  marc-matnr,
+     werks      TYPE  marc-werks,
+     sauft      TYPE  marc-sauft,
+     sfepr      TYPE  marc-sfepr,
+  END OF ls_/cwm/marc_rem.
+CONSTANTS: lc_/cwm/sauft_initial TYPE marc-sauft VALUE IS INITIAL,
+           lc_/cwm/sfepr_initial TYPE marc-sfepr VALUE IS INITIAL.
+
+ENHANCEMENT-POINT MMMGTRBB_02 SPOTS ES_MMMGTRBB STATIC INCLUDE BOUND.
+* T130F-Eintr#ge und abh#ngige Daten f¨¹r Feldauswahl
+DATA: BEGIN OF IT130F OCCURS 800.
+*     include structure t130f.   mk/4.0A erg#nzt um Tabname,Fieldname
+        INCLUDE STRUCTURE ST130F.
+DATA: END OF IT130F.
+* Verwaltungstabelle zus#tzliches Vorlagehandling
+DATA: BEGIN OF REFTAB OCCURS 0.
+        INCLUDE STRUCTURE MREFTAB.
+DATA: END OF REFTAB.
+* Tabelle der Bilder
+DATA: BEGIN OF BILDTAB OCCURS 30.
+        INCLUDE STRUCTURE MBILDTAB.
+DATA: END OF BILDTAB.
+* Merken des zuletzt prozessierten Hauptbilds
+DATA: BEGIN OF BILDTAB_AKT.
+        INCLUDE STRUCTURE MBILDTAB.
+DATA: END OF BILDTAB_AKT.
+* Merken des T133A-Eintrags, zu dem OrgEbenen angesprungen wird
+DATA: BEGIN OF T133A_AKT.
+        INCLUDE STRUCTURE T133A.
+DATA: END OF T133A_AKT.
+* Hilfs-PTAB z.B. zum Subscreen
+DATA: BEGIN OF SUB_PTAB OCCURS 10.
+        INCLUDE STRUCTURE SPTAP.
+DATA: END OF SUB_PTAB.
+* Relevante Reduzierte Vorgangsstatus
+DATA: BEGIN OF RED_STAT OCCURS 20,
+        RESTA LIKE T130C-RESTA,        "red. Status (Name)
+        STAWE LIKE T130M-PSTAT,        "red. Status (Wert)
+      END OF RED_STAT.
+
+*--- Aufrufende Instanzen des aktuellen Programmes ---------------------
+DATA: TRAEGER_PROGRAMM LIKE SY-REPID,
+      TRAEGER_DYNPRO LIKE SY-DYNNR.
+
+*--- Parameter f¨¹r Tabellenzugriffe ----------------------------------
+*Der Puffer wird nie refreshed, weil die Transaktion generell
+*verlassen wird, wenn auf einem Datenbild anderes Material o.#.
+*angew#hlt wurde
+DATA: KZRFB       LIKE MTCOM-KZRFB VALUE ' ',    "aus Puffer lesen
+      MAXTZ       LIKE MTCOM-MAXTZ VALUE '0',    "max. Puffergr##e
+      SPERRMODUS  LIKE TVGVI-SPERA,    "Sperrmodus
+      KZ_INIT,                         "Erster Aufruf Programm
+      KZ_BERPRF   LIKE T130F-KZREF VALUE 'X'.               "mk/4.0
+
+*--- Ok-Code-Felder --------------------------------------------------
+DATA: OK-CODE    LIKE RMMZU-OKCODE,
+      HOKCODE    LIKE RMMZU-OKCODE.    "Hilfsfeld ('Vereinigung')
+
+* Zentrale Steuerungsparameter
+DATA: NEUFLAG    LIKE T130F-KZREF,     "Flag, Materialstamm neu
+      FLGNUMINT.                       "Flag interne Nummernvergabe
+
+* Zentrale Steuerungsparameter
+
+* Zentrale Statusfelder
+DATA: AKTVSTATUS LIKE MARA-PSTAT,      "Aktueller Vorgangsstatus
+      REF_BISSTATUS LIKE T130M-PSTAT,  "BISSTATUS des Referenzmaterials
+      TRANSTATUS LIKE T130M-PSTAT,     "bisheriger Pflegestatus der Tra.
+      BISSTATUS LIKE T130M-PSTAT.      "bisheriger Pflegestatus des M.
+
+* Deklarationen f¨¹r die Dialogsteuerung
+DATA: BILDSEQUENZ     LIKE T133K-BILDS,"Bildsequenznr
+      USRM1_H         LIKE USRM1,
+      KZ_EIN_PROGRAMM LIKE T130F-KZREF,"... f¨¹r Subscreens eines Bildes
+      KZ_BILDBEGINN   LIKE T130F-KZREF,"Kennz. Bildanfang
+      ANZ_SUBSCREENS  LIKE SY-TABIX,   "Anzahl Subscreens eines Bildes
+      BILDFLAG        LIKE T130F-KZREF,"Flag, gleiches Bild nochmals
+      FLGDARK         LIKE T130F-KZREF,"Kz. Bilder dunkel prozessieren
+      KZ_KTEXT_ON_DYNP LIKE SY-DATAR,  "Kz. Ktext-Subscreen auf Bild
+      FLAG_BILDFOLGE,                  "Kennzeichen Bildfolge ausf¨¹hr.
+      WEITERE_SCREENS  LIKE T130F-KZREF,"Langtexte auf mehreren Screens
+      P_SCREENS        LIKE T130F-KZREF,"Langtexte auf mehreren Screens
+      KZ_REPEAT_SICHTAUSW TYPE C    ."Sichtenauswahl wiederholen TF 4.6A
+* Save window coordinates
+DATA: X_WIN TYPE I, Y_WIN TYPE I, C_SET.
+DATA: C_CLASSIFICATION VALUE ' '.
+
+DATA: NO_CLASSIFICATION VALUE ' '.                          "note 909644
+
+* Datenstrukturen Konfigurationsbewertung (Rest siehe Tr#gerprogramm)
+*DATA:  cfcode         LIKE syst-tcode,      "Fcode nach Konfigbewertung
+" wegen Dump zu 4.0 ( Schnittstellenfehler ) //br240497
+DATA:  CFCODE         LIKE SYST-UCOMM, "Fcode nach Konfigbewertung
+       ERROR_KONF.                     "KZ: Fehler nach Konfig.Bewertg.
+*
+DATA: KZVERB.                     "Gesamtverbrauch/ungepl. Verbrauch
+
+* Hilfstrukturen Tabellen
+DATA:    BEGIN OF HMARA.               "Hilfsstruktur MARA
+        INCLUDE STRUCTURE MARA.
+DATA:    END OF HMARA.
+DATA:    BEGIN OF HMARC.               "Hilfsstruktur MARC
+        INCLUDE STRUCTURE MARC.
+DATA:    END OF HMARC.
+DATA: HMARD LIKE MARD.                 "Hilfsstruktur MARD "mk/24.05.96
+DATA:    BEGIN OF HMLGN.               "Hilfsstruktur MLGN
+        INCLUDE STRUCTURE MLGN.
+DATA:    END OF HMLGN.
+DATA:    BEGIN OF HMVKE.               "Hilfsstruktur MVKE
+        INCLUDE STRUCTURE MVKE.
+DATA:    END OF HMVKE.
+DATA:    BEGIN OF HMARC_TAB OCCURS 0.  "Hilfstabelle MARC
+        INCLUDE STRUCTURE MARC.
+DATA:    END OF HMARC_TAB.
+DATA:    BEGIN OF HMLGN_TAB OCCURS 0.  "Hilfstabelle MLGN
+        INCLUDE STRUCTURE MLGN.
+DATA:    END OF HMLGN_TAB.
+DATA:    BEGIN OF HMVKE_TAB OCCURS 0.  "Hilfstabelle MVKE
+        INCLUDE STRUCTURE MVKE.
+DATA:    END OF HMVKE_TAB.
+DATA:    H_MEINH LIKE SMEINH.          "mk/15.08.96
+DATA:    B_MLGN LIKE MLGN.             "jw 21.12.98
+
+* AHE: 21.01.98 - A (4.0c)
+DATA: TMESSAGE LIKE MATMESS OCCURS 0 WITH HEADER LINE.
+* AHE: 21.01.98 - E
+
+* AHE: 10.03.99 - A (4.6a)
+DATA: HVARTAB LIKE SVARTAB OCCURS 0 WITH HEADER LINE.
+DATA: IPRE03_BUF LIKE PRE03 OCCURS 0 WITH HEADER LINE.
+DATA: IPRE03_MEAN LIKE PRE03 OCCURS 0 WITH HEADER LINE.
+DATA: IPRE03_MLEA LIKE PRE03 OCCURS 0 WITH HEADER LINE.
+DATA: IPRE03_MEINH LIKE PRE03 OCCURS 0 WITH HEADER LINE.
+* AHE: 10.03.99 - E
+
+
+* AHE: 22.10.99 - A (4.6c) HW 180283
+DATA: MARA_BUF LIKE MARA OCCURS 0 WITH HEADER LINE.
+DATA: PTAB_FULL_BUF LIKE SPTAB OCCURS 0 WITH HEADER LINE.
+DATA: PTAB_MARA_REF LIKE SPTAB,
+      PTAB_MARM_REF LIKE SPTAB.
+* AHE: 22.10.99 - E
+
+
+*Hilfs-Tabellenfelder
+DATA:   HMATNR LIKE MARA-MATNR.
+DATA:   HBWKEY LIKE T001K-BWKEY,
+        HWERK  LIKE T001W-WERKS,
+        HCHARG LIKE MCHA-CHARG,
+        HLGORT LIKE MARD-LGORT,
+        HVKORG LIKE MVKE-VKORG,
+        HVTWEG LIKE MVKE-VTWEG,
+        HLGNUM LIKE MLGN-LGNUM,
+        HLGTYP LIKE MLGT-LGTYP,
+        HAUSWG LIKE T133A-AUSWG,
+        HMEINH LIKE MARA-MEINS,
+        HXCHPF LIKE MARC-XCHPF,
+        HDATUM LIKE SY-DATUM,          "ch zu 3.1I ->H: 82597
+        REF_MATNR LIKE MARA-MATNR,
+        REF_WERKS LIKE MARC-WERKS.
+*------------------------------------------------------------------
+* Sonstige Hilfsfelder
+*------------------------------------------------------------------
+DATA:   FLAG1    LIKE T130F-KZREF,     "Hilfsfeld
+        FLAG2(1),                      "Hilfsfeld
+        FLAG3(1),                      "Hilfsfeld
+        FLAG4(1),                      "Hilfsfeld
+        ZEILEN_NR_INPUT    TYPE I,     "Laufende Zeile
+        ZEILEN_NR_TOP      TYPE I,     "Laufende Zeile relativ zu top
+        ZEILEN_NR          TYPE I,     "Hilfsfeld fuer Zeilen-Nr.
+        HTABIX LIKE SY-TABIX     ,     "Hilfs-Tabellenindex
+        SYLOOPC LIKE SY-LOOPC,         "Loopzeilen pro Bild
+        AUFSETZ       TYPE I,          "Zeile, ab der Tabelle angezeigt
+        AKZEILE       TYPE I,          "Zeile, die momemtan verarbeitet
+        AKTYP_NEU  LIKE T130M-AKTYP,   "angew#hlte Materialpflegeart
+        HAKTYP     LIKE T130M-AKTYP,   "Hilfsfeld Aktivit#tstyp
+        HSTATUS    LIKE T130M-PSTAT,   "Hilfsfeld
+        HSTATUS2(32),                  "Hilfsfeld verl#ngerter Status
+        HILFSFELD(20),                 "Hilfsfeld
+        HILFSFELD2(10),                "Hilfsfeld
+        ZAEHLER       TYPE I,          "Hilfsfeld zum zaehlen
+        ZAEHLER2      TYPE I,          "Hilfsfeld zum zaehlen
+        ZAEHLER5      TYPE I,          "Hilfsfeld zum zaehlen
+        ANZD70        TYPE I,          "Anzahl Auswahlbilder fuer D070
+        FELD1 LIKE T130R-FNAME,        "Hilfsfeld
+        FELD2 LIKE T130R-FNAME,        "Hilfsfeld
+        FELD3 LIKE T130R-FNAME,        "Hilfsfeld
+        RET_SYSUBRC LIKE SY-SUBRC,     "Rettfeld Returncode
+        H_LAEDA LIKE MSTA-LAEDA,       "Hilfsfeld #nderungsdatum
+        H_AENAM LIKE MSTA-AENAM,       "Hilfsfeld #nderer
+        VON_TABIX LIKE SY-TABIX,       "Hilfsfeld f¨¹r Tabellenindex
+        BIS_TABIX LIKE SY-TABIX,       "Hilfsfeld f¨¹r Tabellenindex
+        AKT_TABIX LIKE SY-TABIX,       "Hilfsfeld f¨¹r Tabellenindex
+        DOMNAME LIKE DD07V-DOMNAME,    "Hilfsfeld f¨¹r Dom#nenname
+        DOMTEXT LIKE DD07V-DDTEXT,     "Hilfsfeld f¨¹r Dom#nenname
+        DOMVALUE LIKE DD07V-DOMVALUE_L,"Hilfsfeld f¨¹r Dom#nenwert
+        RECHFELD  TYPE F,              "Rechenfeld
+        CHAR(40)       TYPE C,
+        CHAR30(30)     TYPE C,
+        CHAR_1(1),
+        CHAR_2(2),
+        CHAR_3(3),
+        CHAR_4(4),
+        CHAR_7(7),
+        COUNTRY LIKE T001W-LAND1,
+        STRING(140)    TYPE C,
+        TEXT(10)   TYPE C ,
+        T009B_ERROR,                   "T009B-Eintrag nicht vorh.
+        NO_T009B_ABEND,                "Kennz. Kein Abbr wenn -"-
+        FLAG_INITIAL(1),
+        SALES_MATERIAL_TEXT TYPE MAKTX.
+
+* AHE: 23.04.98 - A (4.0c)
+DATA: H_FNAME LIKE T130F-FNAME.
+* AHE: 23.04.98 - E
+
+* AHE: 18.06.98 - A (4.0c)
+* wegen Vorblenden UPC-E Code bei Message WE068 und WE069, bei denen
+* die EAN direkt auf den Screen geschoben wird (ohen Conv-Exi).
+DATA: EAN_BUFF LIKE MEAN-EAN11.
+* AHE: 18.06.98 - E
+
+* Screensequence BADI Exit
+DATA: SCREEN_BADI TYPE REF TO IF_EX_BADI_SCREEN_LOGIC_RT.
+DATA: IMP_FOUND LIKE SY-BATCH VALUE SPACE.
+
+*mk/3.1G
+DATA: TT133D LIKE T133D OCCURS 0 WITH HEADER LINE,
+      HFCODE LIKE T133D-FCODE.
+*wk/4.0 Flag for internal numbers
+DATA: FLG_INT.
+*wk/4.0 Flag for TableControl checking invisibility
+TYPE-POOLS: CXTAB.
+DATA: FLG_TCFULL, FLG_TC.
+FIELD-SYMBOLS: <F_TC> TYPE CXTAB_CONTROL.
+DATA: TC_DUMMY TYPE CXTAB_CONTROL, TC_NAME(32).
+DATA : TC_COL TYPE CXTAB_COLUMN.
+*--Datenstruktur f¨¹r BTCI -(sp#ter entfernen)------------------
+INCLUDE RMMMBIMA.
+
+*--Datenstruktur f¨¹r spezielle Eingabehilfen ------------------
+INCLUDE LMGMMHLP.
+
+*--Daten f¨¹r Dokumentenzuordnung ------------------------------
+*//br4.0c aus trag hierher verlegt wegen anzeige doument
+DATA: BEGIN OF ITAB_DRAD OCCURS 20.    "Zuo. zu Dokumentobjekt MARA
+        INCLUDE STRUCTURE DRAD.
+DATA: END OF ITAB_DRAD.
+* Dokumentenarten Techn. Lieferbedingung
+DATA: BEGIN OF ITQ09  OCCURS 0.
+        INCLUDE STRUCTURE TQ09.
+DATA: END OF ITQ09.
+
+DATA:
+  G_DISFG          TYPE DISFG,
+  EX_BADI_WAHD     TYPE REF TO IF_EX_BADI_WAHD_INTF,
+  IMP_BADI_WAHD(1) TYPE C VALUE ' ',
+  EX_BADI_MAHD     TYPE REF TO IF_EX_BADI_MAHD_INTF,
+  IMP_BADI_MAHD(1) TYPE C VALUE ' ',
+  C_YES            TYPE C VALUE 'X'.
+
+*--Datenstrukturen f¨¹r Dokumentanzeige ------------------------
+TYPES: CONTROL_TYPE(10) TYPE C.                             "
+CONSTANTS: CONTROL_TYPE_HTML TYPE CONTROL_TYPE              "
+                             VALUE 'HTML',                  "
+           CONTROL_TYPE_IMAGE TYPE CONTROL_TYPE             "
+                              VALUE 'IMAGE'.                "
+CONTROLS TC_VIEW TYPE TABLEVIEW USING SCREEN '0002'.
+CONTROLS TC TYPE TABLEVIEW USING SCREEN '0002'.
+FIELD-SYMBOLS: <F>, <F1>, <F2>.
+
+DATA: SAVE_SISEL TYPE C. "TF 4.6A Sichern selektierter Sichten
+
+DATA  OFFSET TYPE I VALUE 10.
+
+* Subscreen-Variablen f¨¹r dynamische Umschaltung der
+* Bewertungs-Subscreens aufs Material-Ledger
+DATA: PROG1_VAL LIKE RS37A-DYNPROG VALUE 'SAPLMGD1',
+      PROG2_VAL LIKE RS37A-DYNPROG VALUE 'SAPLMGD1',
+      PROG3_VAL LIKE RS37A-DYNPROG VALUE 'SAPLMGD1',
+      SUB1_VAL LIKE FELD-DYNNR    VALUE '2801',
+      SUB2_VAL LIKE FELD-DYNNR    VALUE '2802',
+      SUB3_VAL LIKE FELD-DYNNR    VALUE '2804'.
+
+*TF 4.6C Materialfixierung==========================================
+DATA: GV_FIXED_IN_DIALOG TYPE C.
+DATA: GV_PLANNED_CHANGES_EXIST TYPE XFELD.
+DATA: GV_OKCODE LIKE SY-UCOMM.
+*TF 4.6C Materialfixierung==========================================
+
+* EAN.UCC Functionality - GTIN
+* Flag is used to determine if value pack is active.
+DATA: GV_FLAG_GTIN_VP TYPE C.
+DATA: GV_PROG LIKE RS37A-DYNPROG VALUE 'SAPLMGD1'.
+* End:
+
+* note 1347054
+DATA: gv_do_stprs_check TYPE PRSTATUS.
+
+INCLUDE MMMGXV01.                      "Aktivit#tstypen
+INCLUDE MMMGXV02.     "Materialarten/Transaktionsgruppen
+INCLUDE MMMGXV03.                      "PSTAT-MAX
+INCLUDE MMMGXV04.                      "Sperrmodi
+INCLUDE MMMGXV05.                      "Buchstaben  x,...
+INCLUDE MMMGXV06.                      "Einzelstatus
+INCLUDE MMMGXV08.                      "Funktionscodes
+INCLUDE MMMGXV09.                      "Bildtypen
+INCLUDE MMMGXV10.                      "TCURM-Werte
+INCLUDE MMMGXV11.     "zentrale Konstante Tr#gerprogramm
+INCLUDE MMMGXV12.                      "Beschaffungskennzeichen
+INCLUDE MMMGXV13.                      "Herkunft
+INCLUDE MMMGXV14.                      "Dispowerte
+INCLUDE MMMGXV17.                      "Tabellennamen
+INCLUDE MMMGXV22.                      "Feldnamen
+INCLUDE MMMGXV23.                      "KZ_NO_WARN
+INCLUDE MMMGXV24.                      "Prognose
+INCLUDE MMMGXV25.                      "Parameter Usereinstellungen
+INCLUDE MMMGXV27.                      "RFTYPEN f¨¹r Vorlagehandling
+INCLUDE MMMGXV28.                      "Langtextbilder
+INCLUDE MMMGXV29.                      "Langtextdaten
+INCLUDE MMMGXV30.                      "Message-Typen
+INCLUDE MMMGXV31.                      "ChargendefEbenen
+INCLUDE MMMGXV32.                      "Festwerte T130S-Zugriff
+INCLUDE MMMGXV34.     "Festwerte Call-Modi               mk/4.0A
+INCLUDE LMGMMXVA.     "Restliche Konstante - noch nicht separiert
+INCLUDE MMMWXV08.    "'Richtung' beim Abmischen der versch. Pufferst#nde
+INCLUDE MMMWXV03.     "Festwerte Artikeltypen  mk/4.0 <-- mmmwtrbb
+INCLUDE MMMWXV01.                      "Spezielle Feldnamen Retail
+INCLUDE MMMGLTEX.               "Spezielle Deklarationen Langtexte
+
+INCLUDE MMMWXV16.                      "Festwerte Referenztypen cfo/4.0
+
+DATA: GR_DELE_CHECK TYPE REF TO CL_LOGISTICAL_PROD_CONSISTENCY.

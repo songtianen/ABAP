@@ -1,0 +1,35 @@
+************************************************************************
+* Include MMMGXV06 f¨¹r Festwerte
+* -  Einzelstatus
+************************************************************************
+*---- Einzel-Status --------------------------------------------------
+CONSTANTS:
+     STATUS_K(1) TYPE C   VALUE 'K',     "Konstruktion
+     STATUS_C(1) TYPE C   VALUE 'C',     "Klassifizierung
+     STATUS_V(1) TYPE C   VALUE 'V',     "Vertrieb
+     STATUS_E(1) TYPE C   VALUE 'E',     "Einkauf
+     STATUS_D(1) TYPE C   VALUE 'D',     "Disposition
+     STATUS_F(1) TYPE C   VALUE 'F',     "Fertigungshilfsmittel
+     STATUS_L(1) TYPE C   VALUE 'L',     "Lagerung
+     STATUS_G(1) TYPE C   VALUE 'G',     "Kalkulation
+     STATUS_A(1) TYPE C   VALUE 'A',     "Arbeitsvorbereitung
+     STATUS_P(1) TYPE C   VALUE 'P',     "Prognose
+     STATUS_S(1) TYPE C   VALUE 'S',     "LVS
+     STATUS_B(1) TYPE C   VALUE 'B',     "Buchhaltung
+     STATUS_Q(1) TYPE C   VALUE 'Q',     "Qualit#tsmanagement
+     STATUS_X(1) TYPE C   VALUE 'X',     "Werksbestand
+     STATUS_Z(1) TYPE C   VALUE 'Z',     "Lagerortbestand
+
+     STATUS_BG(2) TYPE C  VALUE 'BG',    "MBEW-Status
+     STATUS_DP(2) TYPE C  VALUE 'DP'.    "Dispo + Prognose mk/4.0A
+
+
+
+
+
+
+
+
+
+
+

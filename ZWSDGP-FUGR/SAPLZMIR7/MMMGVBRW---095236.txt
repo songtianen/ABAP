@@ -1,0 +1,17 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGVBRW
+* Deklarationen f¨¹r Verbrauchswerte
+*----------------------------------------------------------------------*
+
+*-- Datenstrukturen f¨¹r Verbrauchswerte -------------------------------
+DATA:   VW_ZEILEN_NR   LIKE SY-TABIX,      "Zeilen-nr.
+        VW_AKT_ZEILE   LIKE SY-TABIX,      "aktuelle Zeile
+        VW_ERSTE_ZEILE LIKE SY-TABIX,      "erste Zeile pro Seite
+        VW_ZLEPROSEITE LIKE SY-LOOPC,      "Anzahl Zeilen pro Seite
+        VW_FEHLERFLG(1),                   "Fehlerflag
+        VW_LINES       LIKE SY-TABIX,      "Anzahl Verbrauswerte
+        VW_BILDFLAG_OLD.                   "gerettetes Bildflag
+
+** for tc to 4.0 wk
+CONTROLS: TC_VERB TYPE TABLEVIEW USING SCREEN 0002.
+DATA  TC_VERB_TOP_LINE_BUF LIKE SY-STEPL.

@@ -1,0 +1,14 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZMMD204	ZEBELN	凭证号码	数据元素	CHAR	000050	000000	
+ZMMD204	ZEDB_ZYSJE	运输金额	数据元素	CURR	000011	000002	
+ZMMD204	ZSMM205	结构	结构				
+ZMMD204	ZSPUBS_0001	日期时间通用结构	结构				
+ZMMD204	ZSPUBS_0002	创建日期结构	结构				
+ZMMD204	ZTMM201	到货通知抬头	透明表				
+ZMMD204	ZTMM202	到货通知行项目	透明表				
+ZMMD204	ZTMM208	委外发料单	透明表				
+ZMMD204	ZTMM209	委外发料单明细	透明表				
+ZMMD204	ZTMM212	运输公司及责任人对照表	透明表				
+ZMMD204	ZTMM220	调拨单主表	透明表				
+ZMMD204	ZTMM221	调拨单行项目表	透明表				
+ZMMD204	ZTMM226	运费核销明细表	透明表				

@@ -1,0 +1,5 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZFG_MM_GP	ZFMDATA	请不要做任何更改!!不要激活!!	透明表				
+ZFG_MM_GP	ZFMDATACFG	ZILOG参数	透明表				
+ZFG_MM_GP	ZSMM_228	采购信息记录及条件记录创建及更新	结构				
+ZFG_MM_GP	ZSMM_229	采购信息记录及条件记录创建及更新返回	结构				

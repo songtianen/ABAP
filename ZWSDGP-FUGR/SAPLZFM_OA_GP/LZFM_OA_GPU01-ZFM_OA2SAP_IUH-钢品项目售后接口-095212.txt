@@ -1,0 +1,38 @@
+FUNCTION zfm_oa2sap_iuh.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IV_TAB STRUCTURE  ZTPS004A
+*"----------------------------------------------------------------------
+
+  zfmdatasave1 'ZFM_OA2SAP_IUH' .
+  zfmdatasave2 'B'.
+  DATA: znum   TYPE ztnums_update-znumber10,
+        wa_tab TYPE ztps004a.
+  IF iv_tab[] IS NOT INITIAL.
+    LOOP AT iv_tab INTO wa_tab.
+      CALL FUNCTION 'ZNUMS_UPDATE'
+        EXPORTING
+          repid   = sy-repid
+*         WERKS   =
+          tcode   = sy-tcode
+          flag    = 'Y'
+*         INITNUM =
+          weishu  = 4
+        IMPORTING
+          znumber = znum.
+      wa_tab-zny4n = |WX{ sy-datum }{ znum }|.
+      MODIFY iv_tab FROM wa_tab.
+    ENDLOOP.
+    MODIFY ztps004a FROM TABLE iv_tab.
+    rtype = 'S'.
+    rtmsg = '更新成功'.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '输入信息为空'.
+  ENDIF.
+    zfmdatasave2 'R'.
+ENDFUNCTION.

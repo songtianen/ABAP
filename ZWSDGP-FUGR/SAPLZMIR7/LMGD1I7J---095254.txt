@@ -1,0 +1,36 @@
+*------------------------------------------------------------------
+*        GET_DATEN_SUB  Input
+*- Falls die Bausteine zu einem einheitlichen Programm geh#ren,
+*  holen Bildflag und Ok-Code aus dem zentralen Puffer, da diese
+*  zu Beginn des PAI des Tr#gerbildes ver#ndert werden konnten,
+*  ansonsten holen der Materialstammdaten sowie aller Parameter
+*  (incl. Bildflag und Ok-Code)
+*------------------------------------------------------------------
+MODULE GET_DATEN_SUB INPUT.
+  CHECK NOT ANZ_SUBSCREENS IS INITIAL.
+*wk/4.0
+  FLG_TC = ' '.
+
+  IF NOT KZ_EIN_PROGRAMM IS INITIAL.
+    IF NOT KZ_BILDBEGINN IS INITIAL.
+      CALL FUNCTION 'MAIN_PARAMETER_GET_BILDPAI_SUB'
+           IMPORTING
+                RMMZU_OKCODE  = RMMZU-OKCODE
+                BILDFLAG      = BILDFLAG
+                RMMG2_VB_KLAS = RMMG2-VB_KLAS.
+      CLEAR SUB_ZAEHLER.
+      CLEAR KZ_BILDBEGINN.
+    ENDIF.
+    SUB_ZAEHLER = SUB_ZAEHLER + 1.
+  ENDIF.
+  IF T130M-AKTYP = AKTYPH.
+    PERFORM ZUSATZDATEN_GET_SUB.
+  ENDIF.
+
+
+  CHECK KZ_EIN_PROGRAMM IS INITIAL.
+
+  PERFORM ZUSATZDATEN_GET_SUB.
+  PERFORM MATABELLEN_GET_SUB.
+
+ENDMODULE.

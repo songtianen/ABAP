@@ -1,0 +1,14 @@
+************************************************************************
+* Include MMMGXV04 f¨¹r Festwerte
+* -  Sperrmodi etc
+************************************************************************
+*--- Sperrmodi ------------------------------------------------------
+CONSTANTS:   SPERRMODUS_S LIKE TVGVI-SPERA  VALUE 'S',
+             SPERRMODUS_E LIKE TVGVI-SPERA  VALUE 'E',
+             SPERRMODUS_N LIKE TVGVI-SPERA  VALUE 'N'.
+*--- Sperrabweichungen-----------------------------------------------
+CONSTANTS:   SPERR_ABW_NACH_OBEN            VALUE '2',
+             SPERR_ABW_NACH_UNTEN           VALUE '1'.
+*--- Tabellenarten im Zusammenhang mit Sperren z.B. TMARA oder IMARA
+CONSTANTS:   TABART_T VALUE 'T',
+             TABART_I VALUE 'I'.

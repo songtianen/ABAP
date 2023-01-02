@@ -1,0 +1,164 @@
+*&---------------------------------------------------------------------*
+*& Include ZRSD202_CKD
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Form CKD
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> R_UCOMM
+*&---------------------------------------------------------------------*
+FORM CKD  USING    P_R_UCOMM.
+  DATA:NUMCKD TYPE I.
+  CLEAR:IT_FHTZ[],RETURN[],NUMCKD.
+  CASE P_R_UCOMM.
+    WHEN 'BUT01A'."创建-传输数据到ZSD206主程序-同一发货通知单同一库存地
+*权限控制
+      CALL FUNCTION 'ZFM_SD_AUTHCONTROL'
+        EXPORTING
+          AUTHACT = 'B'
+          DJLX    = 'FH'
+          UCOMM   = 'BUT01A'
+        IMPORTING
+          RTYPE   = RTYPE
+          RTMSG   = RTMSG.
+      IF RTYPE = 'E'..
+        MESSAGE E000(OO) WITH RTMSG.
+      ENDIF.
+      LOOP AT ITAB WHERE SEL = 'X'.
+        CLEAR:IT_FHTZ.
+        NUMCKD = NUMCKD + 1.
+        IT_FHTZ-VBELN = ITAB-VBELN.
+        IT_FHTZ-LGORT = ITAB-LGORT.
+        COLLECT IT_FHTZ.
+      ENDLOOP.
+      IF NUMCKD NE 1.
+        MESSAGE E004.
+      ENDIF.
+      IF IT_FHTZ[] IS INITIAL.
+        MESSAGE E003.
+      ENDIF.
+      EXPORT T_FHTZ = IT_FHTZ[] TO MEMORY ID 'ZSD202_ZSD206'.
+      SUBMIT ZRSD206
+      WITH P_CRT = 'X'
+      AND RETURN.
+    WHEN 'BUT11'."重置
+      READ TABLE ITAB WITH KEY SEL = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE E003.
+      ENDIF.
+      LOOP AT ITAB WHERE SEL = 'X'.
+*权限控制
+        CALL FUNCTION 'ZFM_SD_AUTHCONTROL'
+          EXPORTING
+            AUTHACT = 'B'
+            DJLX    = 'FH'
+            UCOMM   = 'BUT11'
+            VBELN   = ITAB-VBELN
+          IMPORTING
+            RTYPE   = RTYPE
+            RTMSG   = RTMSG.
+        IF RTYPE = 'E'.
+          MESSAGE E000(OO) WITH RTMSG.
+        ENDIF.
+        CLEAR:IT_FHTZ.
+        IT_FHTZ-VBELN = ITAB-VBELN.
+        COLLECT IT_FHTZ.
+      ENDLOOP.
+      PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+      IF ANSWER NE '1'.
+        EXIT.
+      ENDIF.
+      LOOP AT IT_FHTZ.
+        CLEAR:RTMSG, WA_HEAD.
+        WA_HEAD-VBELN = IT_FHTZ-VBELN.
+        PERFORM BUT04 USING P_R_UCOMM.
+        IF RTMSG+0(1) NE 'E'.
+          PERFORM INMSG(ZPUBFORM) TABLES RETURN
+            USING 'ZMSG_GP' 'S' '017' IT_FHTZ-VBELN
+                  '' '' ''.
+          DELETE ITAB WHERE VBELN = IT_FHTZ-VBELN.
+        ELSE.
+          PERFORM INMSG(ZPUBFORM) TABLES RETURN
+            USING 'ZMSG_GP' 'E' '018' IT_FHTZ-VBELN RTMSG
+                  '' ''.
+          LOOP AT ITAB WHERE VBELN = IT_FHTZ-VBELN.
+            ITAB-MSG = RTMSG.
+            ITAB-ICON = RED.
+            MODIFY ITAB TRANSPORTING MSG ICON.
+          ENDLOOP.
+        ENDIF.
+      ENDLOOP.
+      PERFORM SHOWMSG(ZPUBFORM) TABLES RETURN.
+    WHEN 'STOP'."终止
+      READ TABLE ITAB WITH KEY SEL = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE E003.
+      ENDIF.
+      LOOP AT ITAB WHERE SEL = 'X'.
+        CLEAR:IT_FHTZ.
+        IT_FHTZ-VBELN = ITAB-VBELN.
+        COLLECT IT_FHTZ.
+      ENDLOOP.
+      PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+      IF ANSWER NE '1'.
+        EXIT.
+      ENDIF.
+      LOOP AT IT_FHTZ.
+        REFRESH IT_POSNR.
+        CLEAR:RTMSG, WA_HEAD.
+        WA_HEAD-VBELN = IT_FHTZ-VBELN.
+        LOOP AT ITAB WHERE SEL = 'X'
+                        AND VBELN = IT_FHTZ-VBELN.
+          CLEAR IT_POSNR.
+          IT_POSNR-POSNR = ITAB-POSNR.
+          COLLECT IT_POSNR.
+        ENDLOOP.
+        PERFORM BUT04 USING P_R_UCOMM.
+        IF RTMSG+0(1) NE 'E'.
+          LOOP AT IT_POSNR.
+            PERFORM INMSG(ZPUBFORM) TABLES RETURN
+              USING 'ZMSG_GP' 'S' '019' IT_FHTZ-VBELN
+                    IT_POSNR-POSNR '' ''.
+          ENDLOOP.
+          DELETE ITAB WHERE SEL = 'X'
+                        AND VBELN = IT_FHTZ-VBELN.
+        ELSE.
+          LOOP AT IT_POSNR.
+            PERFORM INMSG(ZPUBFORM) TABLES RETURN
+              USING 'ZMSG_GP' 'E' '020' IT_FHTZ-VBELN
+                    IT_POSNR-POSNR RTMSG ''.
+          ENDLOOP.
+          LOOP AT ITAB WHERE SEL = 'X'
+                          AND VBELN = IT_FHTZ-VBELN.
+            ITAB-MSG = RTMSG.
+            ITAB-ICON = RED.
+            MODIFY ITAB TRANSPORTING MSG ICON.
+          ENDLOOP.
+        ENDIF.
+      ENDLOOP.
+      PERFORM SHOWMSG(ZPUBFORM) TABLES RETURN.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT11
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT11 .
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form STOP
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM STOP .
+
+ENDFORM.

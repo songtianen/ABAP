@@ -1,0 +1,29 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGSTEU
+* Deklarationen f¨¹r die Steuerabwicklung
+*----------------------------------------------------------------------*
+
+TABLES: TSKM,                          "Steuerklassifikation Material
+        TSKMT,                         "Texte Steuerklassifikationen
+        TMKM1,                         "Steuerindikatoren Einkauf
+        TMKM1T,                        "Texte Steuerindikatoren Einkauf
+        MG03STEUER,                    "Struktur Steuertabelle
+        MG03STEUMM,                    "Struktur Steuertabelle Einkauf
+        T685T.                         "Konditionentabelle (Texte)
+
+*-- Datenstrukturen f¨¹r Steuerhandling --------------------------------
+DATA:   ST_ZEILEN_NR   LIKE SY-TABIX,  "Zeilen-nr.
+        ST_AKT_ZEILE   LIKE SY-TABIX,  "aktuelle Zeile
+        ST_ERSTE_ZEILE LIKE SY-TABIX,  "erste Zeile pro Seite
+        ST_ERSTE_ZEILE_C(3),   "ST_ERSTE_ZEILE aufbereitet f¨¹r Dynpro
+        ST_ZLEPROSEITE LIKE SY-LOOPC,  "Anzahl Zeilen pro Seite
+        ST_SAVSPRAS    LIKE MAKT-SPRAS,"Hilfsfeld Sprachenschluessel
+        ST_FEHLERFLG(1),               "Fehlerflag
+        ST_EINTRAEGE_C(3),     "Anzahl Steuern aufbereitet f¨¹r Dynpro
+        ST_LINES       LIKE SY-TABIX,  "Anzahl Steuereintr#ge
+        ST_BILDFLAG_OLD,               "Zwischenspeicher Bildflag
+        ST_KEY(4)      TYPE C.         "Hilfskey STEUERTAB
+** changes for tc to 4.0 wk
+*controls: tc_2181 type tableview using screen 2181.
+CONTROLS: TC_STEUERN TYPE TABLEVIEW USING SCREEN 0002.
+DATA  TC_STEUERN_TOP_LINE_BUF LIKE SY-STEPL."used for all the above

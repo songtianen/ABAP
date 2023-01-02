@@ -1,0 +1,63 @@
+*&---------------------------------------------------------------------*
+*&  Include           WSTR_LMGD1F0I                                    *
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&- Instanciates the BADI EINE_DB_STRG                                 *
+*&- Replaces the select EINE with a call method                        *
+*&- The method will simulate the existance of EINE                     *
+*&- records for the sites that are assigned to a purchasing reference  *
+*&- (by using transaction /nrefsite) if the reference site itself  has*
+*&-  an EINE entry.                                                    *
+*&- Results:                                                           *
+*&-    -If site has an entry: it will be returned                      *
+*&-    -If a site has no entry, if site is assigned to refsite         *
+*&-       -check if its reference site has an entry, it's returned     *
+*&-    -Otherwise no entry is returned.                                *
+*&---------------------------------------------------------------------*
+FORM retail_reference_site_select TABLES heine_tab
+                                         heina_tab.
+
+  DATA: user_exit      TYPE REF TO if_ex_eine_db_strg.
+  DATA:
+        t_entries TYPE tt_eine,
+        w_eine TYPE eine,
+        t_eine TYPE tt_eine.
+
+  CLASS cl_badi_mm DEFINITION LOAD.
+  user_exit ?= cl_badi_mm=>get_instance( 'EINE_DB_STRG' ).
+  sy-subrc = 4.
+
+  IF NOT user_exit IS INITIAL.
+
+    REFRESH: t_entries.
+
+    LOOP AT heina_tab.
+      MOVE-CORRESPONDING heina_tab TO w_eine.
+      APPEND w_eine TO t_entries.
+    ENDLOOP.
+
+    CALL METHOD user_exit->select_eine_infnr_entries_1
+*      EXPORTING
+*        I_EKORG           =
+*        I_ESOKZ           =
+*        I_WERKS           =
+*        I_REALLY_EXIST    =
+*        T_WHERE_CLAUSE_IN =
+      CHANGING
+         t_entries         = t_entries
+         t_eine            = t_eine
+      EXCEPTIONS
+         not_found         = 1
+         error_in_select   = 2
+         OTHERS            = 3
+            .
+
+    IF sy-subrc = 0.
+      IF t_eine[] IS INITIAL.
+        sy-subrc = 4.
+      ELSE.
+        heine_tab[] = t_eine[].
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "retail_reference_site_select

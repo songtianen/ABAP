@@ -1,0 +1,15 @@
+*******************************************************************
+*   System-defined Include-files.                                 *
+*******************************************************************
+  INCLUDE LZFG_PP02TOP.                      " Global Declarations
+  INCLUDE LZFG_PP02UXX.                      " Function Modules
+
+*******************************************************************
+*   User-defined Include-files (if necessary).                    *
+*******************************************************************
+* INCLUDE LZFG_PP02F...                      " Subroutines
+* INCLUDE LZFG_PP02O...                      " PBO-Modules
+* INCLUDE LZFG_PP02I...                      " PAI-Modules
+* INCLUDE LZFG_PP02E...                      " Events
+* INCLUDE LZFG_PP02P...                      " Local class implement.
+* INCLUDE LZFG_PP02T99.                      " ABAP Unit tests

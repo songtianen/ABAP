@@ -1,0 +1,129 @@
+FUNCTION ZFM_GP_OA_MM_POSP .
+*"--------------------------------------------------------------------
+*"*"局部接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_008
+*"      T_RESULT STRUCTURE  ZSMM_009 OPTIONAL
+*"--------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_XMD_OA_POSP_GET'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+
+  DATA:MSG TYPE BAPI_MSG.
+
+  CHECK IN_TAB[] IS NOT INITIAL.
+
+  LOOP AT IN_TAB.
+    CLEAR:MSG,T_RESULT,EKKO.
+
+    T_RESULT-EBELN = IN_TAB-EBELN.
+    SELECT SINGLE *
+      FROM EKKO
+      WHERE EBELN = IN_TAB-EBELN.
+    CASE IN_TAB-FRGKE.
+      WHEN '1'.
+        CASE EKKO-FRGKE.
+          WHEN 'B'.
+            SET UPDATE TASK LOCAL.
+            PERFORM RELPOPR(ZPUBFORM) USING IN_TAB-EBELN
+                                          'Z1'
+                                          ''
+                                          'PO'
+                                    CHANGING MSG.
+            IF MSG+0(1) = 'S'.
+*一级审批后进行二级审批
+              DO .
+                CLEAR EKKO.
+                SELECT SINGLE *
+                  FROM EKKO
+                  WHERE EBELN = IN_TAB-EBELN
+                  AND   FRGKE = 'G'.
+                IF SY-SUBRC EQ 0.
+                  EXIT.
+                ENDIF.
+              ENDDO.
+
+              IF EKKO-FRGKE = 'G'.
+                PERFORM RELPOPR(ZPUBFORM) USING IN_TAB-EBELN
+                                              'Z2'
+                                              ''
+                                              'PO'
+                                        CHANGING MSG.
+              ENDIF.
+            ENDIF.
+
+          WHEN 'G'.
+            PERFORM RELPOPR(ZPUBFORM) USING IN_TAB-EBELN
+                                          'Z2'
+                                          ''
+                                          'PO'
+                                    CHANGING MSG.
+          WHEN 'R'.
+            MSG = 'S:SUCCES'.
+          WHEN OTHERS.
+            MSG = 'E:未找到PO'.
+        ENDCASE.
+      WHEN '2'.
+*取消审批
+        CASE EKKO-FRGKE.
+          WHEN 'G'.
+            MSG = 'X'.
+            PERFORM RELPOPR(ZPUBFORM) USING IN_TAB-EBELN
+                                          'Z1'
+                                          ''
+                                          'PO'
+                                    CHANGING MSG.
+          WHEN 'R'.
+            MSG = 'X'.
+            SET UPDATE TASK LOCAL.
+            PERFORM RELPOPR(ZPUBFORM) USING IN_TAB-EBELN
+                                          'Z2'
+                                          ''
+                                          'PO'
+                                    CHANGING MSG.
+            IF MSG+0(1) = 'S'.
+              MSG = 'X'.
+*二级审批撤销后撤销一级审批
+              DO .
+                CLEAR EKKO.
+                SELECT SINGLE *
+                  FROM EKKO
+                  WHERE EBELN = IN_TAB-EBELN
+                  AND   FRGKE = 'G'.
+                IF SY-SUBRC EQ 0.
+                  EXIT.
+                ENDIF.
+              ENDDO.
+              PERFORM RELPOPR(ZPUBFORM) USING IN_TAB-EBELN
+                                            'Z1'
+                                            ''
+                                            'PO'
+                                      CHANGING MSG.
+            ENDIF.
+        ENDCASE.
+    ENDCASE.
+
+    IF MSG+0(1) = 'S'.
+      T_RESULT-FLAG = 'Y'.
+    ELSE.
+      T_RESULT-FLAG = 'N'.
+    ENDIF.
+    T_RESULT-MESSAGE = MSG.
+    APPEND T_RESULT.
+  ENDLOOP.
+
+  LOOP AT T_RESULT WHERE FLAG = 'N'.
+    CONCATENATE T_RESULT-MESSAGE RTMSG INTO RTMSG.
+  ENDLOOP.
+  IF SY-SUBRC = 0.
+    RTYPE = 'E'.
+  ELSE.
+    RTYPE = 'S'.
+    RTMSG = 'SUCCESS'.
+  ENDIF.
+
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

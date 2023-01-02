@@ -1,0 +1,406 @@
+*&---------------------------------------------------------------------*
+*&  Include           EAN_UCC_ROUTINES
+*&---------------------------------------------------------------------*
+* Include is part of Value pack 2 for EAN.UCC functionality            *
+
+* This include contains subroutines which are called from Material
+* Master screen 2760, 8020, 8021, 8022, 8023, 8024 etc.. from PBO and
+* PAI modules.
+
+* SDP EAN UCC Functionality VP 2
+* Calling points for the routines are defined in Support pack - 7.
+*&----------------------------------------------------------------------*
+
+DATA: eans_gtin_variant_attr_br TYPE eans_gtinvariant_attr_brutto, "eans_gtin_variant_attr_brutto,
+      eans_gtin_variant_attr TYPE ean_gtin_variant_attributes,     "eans_gtin_variant_attr,
+      meinh_gtin_variant_attr_br TYPE eans_gtinvariant_attr_brutto, "eans_gtin_variant_attr_brutto,
+      meinh_gtin_variant_attr TYPE ean_gtin_variant_attributes,     "note 1439552
+      lt_meinh1 TYPE TABLE OF smeinh,
+      ls_meinh TYPE smeinh.
+
+*&---------------------------------------------------------------------*
+*&      Form  MLEA_GET_SUB
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM mlea_get_sub.
+
+  gv_flag_gtin_vp = 'X'.
+
+  CALL FUNCTION 'MLEA_GET_SUB'
+    EXPORTING
+      p_matnr = mara-matnr
+    TABLES
+      wmlea   = tmlea
+      xmlea   = dmlea
+      ymlea   = lmlea.
+
+ENDFORM.                    "MLEA_GET_SUB
+
+*&---------------------------------------------------------------------*
+*&      Form  MLEA_SET_SUB
+*&---------------------------------------------------------------------*
+FORM mlea_set_sub.
+
+  CALL FUNCTION 'MLEA_SET_SUB'
+    EXPORTING
+      matnr = rmmg1-matnr
+    TABLES
+      wmlea = tmlea.
+
+ENDFORM.                    "MLEA_SET_SUB
+
+*&---------------------------------------------------------------------*
+*&      Form  EAN_TMLEA_AKT_MEINH
+*&---------------------------------------------------------------------*
+FORM ean_tmlea_akt_meinh.
+
+*  EAN-Lieferantenbezug-Handling
+*  Wenn ein Abfrage-Pop-UP mit "NEIN" verlassen wurde, darf die EAN
+*  nicht ge#ndert werden
+  CHECK flag_exit NE 'N'.
+
+  PERFORM tmlea_akt_meinh.           "aktualisieren der TMLEA
+
+ENDFORM.                    "EAN_TMLEA_AKT_MEINH
+
+*&---------------------------------------------------------------------*
+*&      Form  EAN_CONSISTENCY_CHECK_MARM
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM ean_consistency_check_marm.
+
+  DATA: lv_megrp_smeinh_meinh TYPE megrp,
+        lv_megrp_ls_meinh_meinh TYPE megrp,
+        lv_counter TYPE i,
+        lv_meinh TYPE meinh.
+
+  DATA: ls_eanc_meinhgrp TYPE eanc_meinhgrp,
+        lt_eanc_meinhgrp LIKE TABLE OF ls_eanc_meinhgrp.
+
+  CLEAR: eans_gtin_variant_attr_br,
+         eans_gtin_variant_attr,
+         meinh_gtin_variant_attr_br,
+         ls_meinh,
+         lt_meinh1.
+
+  REFRESH lt_meinh1.
+  MOVE-CORRESPONDING smeinh TO eans_gtin_variant_attr.
+
+  CALL FUNCTION 'EAN150_MARM_CHECK_CONSISTENCY'
+    EXPORTING
+      i_ean11                        = smeinh-ean11
+      i_gtin_variant                 = smeinh-gtin_variant
+      i_meinh                        = smeinh-meinh
+      i_mara                         = mara
+      i_makt                         = makt
+      i_umrez                        = smeinh-umrez
+      i_umren                        = smeinh-umren
+    CHANGING
+      c_eans_gtin_variant_attr       = eans_gtin_variant_attr
+    EXCEPTIONS
+      wrong_parameter                = 1
+      no_change_dialog_data          = 2
+      change_dialog_data             = 3
+      dialog_data_are_consistent     = 4
+      new_gtin                       = 5
+      new_gtin_variant_combination   = 6
+      dialog_data_need_to_be_changed = 7
+      eangtinvar_auom_mul_auomgroups = 8
+      wrong_auomgroups               = 9
+      OTHERS                         = 10.
+  IF sy-subrc <> 0.
+*     MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  MOVE-CORRESPONDING eans_gtin_variant_attr TO eans_gtin_variant_attr_br.
+  CASE sy-subrc.
+    WHEN 3.
+      READ TABLE meinh INDEX me_akt_zeile.
+      IF sy-subrc = 0.
+        MOVE-CORRESPONDING eans_gtin_variant_attr_br TO smeinh.
+        MOVE-CORRESPONDING eans_gtin_variant_attr_br TO meinh.
+*       since the netweight is determined at PBO from MARA, which has
+*       already the dialogue value
+*       since smeinh does not have the KZBME-Value in every case
+        IF meinh-kzbme = 'X'.
+          MOVE eans_gtin_variant_attr-ntgew TO smeinh-ntgew.
+          MOVE eans_gtin_variant_attr-ntgew TO meinh-ntgew.
+          CALL FUNCTION 'DATENUEBERNAHME_EAN'
+            EXPORTING
+              wmara    = mara
+              p_smeinh = smeinh
+            IMPORTING
+              wmara    = mara
+            TABLES
+              ptab     = ptab.
+        ENDIF.
+        MODIFY meinh INDEX me_akt_zeile.
+        bildflag = 'X'.
+        MESSAGE w001(ean_ucc).
+**insert HL 30.10.02 - end
+      ENDIF.
+    WHEN 4 OR 5 OR 6. "compare with current dialog data
+      lt_meinh1[] = meinh[].
+      LOOP AT lt_meinh1 INTO ls_meinh
+                        WHERE ean11 = smeinh-ean11
+                        AND   gtin_variant = smeinh-gtin_variant.
+
+        MOVE-CORRESPONDING ls_meinh TO meinh_gtin_variant_attr_br.
+        MOVE-CORRESPONDING ls_meinh TO meinh_gtin_variant_attr. "note 1439552
+
+        IF ls_meinh-meinh = smeinh-meinh.
+          IF eans_gtin_variant_attr_br NE meinh_gtin_variant_attr_br.
+            bildflag = 'X'.
+            MESSAGE e004(ean_ucc).
+            EXIT.
+          ENDIF.  "IF eans_gtin_variant_attr_br NE...
+        ELSE.
+*         Get AUoM Group for entered actual screen AUoM
+*         Used new table EANC_MEINHGRP inplace of t006m.
+*         Check if UOM is assigned to more than one group.
+          lv_meinh = smeinh-meinh.                         "note 1439552
+          SELECT *
+            FROM eanc_meinhgrp
+            INTO TABLE lt_eanc_meinhgrp
+            WHERE meinh = lv_meinh.
+
+          DESCRIBE TABLE lt_eanc_meinhgrp LINES lv_counter.
+          CASE lv_counter.
+            WHEN 0.
+              CLEAR lv_megrp_smeinh_meinh.
+            WHEN 1.
+              READ TABLE lt_eanc_meinhgrp INDEX 1
+                INTO ls_eanc_meinhgrp.
+              lv_megrp_smeinh_meinh = ls_eanc_meinhgrp-meinhgroup.
+            WHEN OTHERS.
+              MESSAGE e013(ean_ucc). "WITH SMEINH-MEINH.
+              " Mengeneinheiten-Gruppen-Zuordnung ist fehlerhaft
+              RETURN.
+          ENDCASE.
+
+*         Get AUoM Group for entered other screen AUoM
+          lv_meinh = ls_meinh-meinh.                         "note 1439552
+          SELECT *
+            FROM eanc_meinhgrp
+            INTO TABLE lt_eanc_meinhgrp
+            WHERE meinh = lv_meinh.
+
+          DESCRIBE TABLE lt_eanc_meinhgrp LINES lv_counter.
+          CASE lv_counter.
+            WHEN 0.
+              CLEAR lv_megrp_ls_meinh_meinh.
+            WHEN 1.
+              READ TABLE lt_eanc_meinhgrp INDEX 1
+                INTO ls_eanc_meinhgrp.
+              lv_megrp_ls_meinh_meinh = ls_eanc_meinhgrp-meinhgroup.
+            WHEN OTHERS.
+              MESSAGE e013(ean_ucc). "WITH SMEINH-MEINH.
+              " Mengeneinheiten-Gruppen-Zuordnung ist fehlerhaft
+              RETURN.
+          ENDCASE.
+
+*         note 1439552: if AUoM Group is not equal, then check for consistency
+          IF NOT ( lv_megrp_smeinh_meinh = lv_megrp_ls_meinh_meinh AND
+                   lv_megrp_smeinh_meinh IS NOT INITIAL ).
+*           calculate the net weight if the GEWEI is maintained
+            IF ls_meinh-gewei IS NOT INITIAL AND
+               eans_gtin_variant_attr-gewei IS NOT INITIAL AND
+               mara-meins NE ls_meinh-meinh.
+*             calculate for same gewei for correct comparing
+              meinh_gtin_variant_attr-gewei = eans_gtin_variant_attr-gewei.
+              CALL FUNCTION 'MEINH_BRGEW'
+                EXPORTING
+                  bme_ntgew = mara-ntgew
+                  ame_brgew = ls_meinh-brgew
+                  bme_gewei = mara-gewei
+                  ame_gewei = meinh_gtin_variant_attr-gewei
+                  umrez     = ls_meinh-umrez
+                  umren     = ls_meinh-umren
+                  p_message = 'N'
+                IMPORTING
+                  ame_ntgew = meinh_gtin_variant_attr-ntgew.
+            ENDIF.
+
+            IF eans_gtin_variant_attr <> meinh_gtin_variant_attr.
+              bildflag = 'X'.
+              MESSAGE e004(ean_ucc).
+              RETURN.
+            ENDIF.
+          ENDIF. "lv_megrp_smeinh_meinh IS INITIAL....
+
+        ENDIF.  "IF ls_meinh-meinh = smeinh-meinh.
+
+      ENDLOOP.
+    WHEN 7.
+      bildflag = 'X'.
+      MESSAGE e002(ean_ucc).
+    WHEN 10.
+      bildflag = 'X'.
+      MESSAGE e011(ean_ucc).
+    WHEN 8.
+      bildflag = 'X'.
+      MESSAGE e014(ean_ucc) WITH smeinh-ean11 smeinh-gtin_variant.
+      "EAN GTIN Variante &1 &2 ist ¨¹ber die AME mehreren
+      "ME-Gruppen zugeordnet
+    WHEN 9.
+      bildflag = 'X'.
+      MESSAGE e013(ean_ucc).
+      " Mengeneinheiten-Gruppen-Zuordnung ist fehlerhaft
+  ENDCASE.
+
+ENDFORM.                    "EAN_CONSISTENCY_CHECK_MARM
+
+
+***********************************************************************
+***********************************************************************
+***********************************************************************
+
+FORM ean_consistency_check_mara.
+
+  DATA: lv_megrp_smeinh_meinh TYPE megrp,
+        lv_megrp_ls_meinh_meinh TYPE megrp,
+        lv_counter TYPE i,
+        lv_meinh TYPE meinh.
+
+  DATA: ls_eanc_meinhgrp TYPE eanc_meinhgrp,
+        lt_eanc_meinhgrp LIKE TABLE OF ls_eanc_meinhgrp.
+
+  MOVE-CORRESPONDING mara TO eans_gtin_variant_attr.
+  CALL FUNCTION 'EAN150_MARM_CHECK_CONSISTENCY'
+    EXPORTING
+      i_ean11                        = mara-ean11
+      i_gtin_variant                 = mara-gtin_variant
+      i_meinh                        = mara-meins
+      i_mara                         = mara
+      i_makt                         = makt
+    CHANGING
+      c_eans_gtin_variant_attr       = eans_gtin_variant_attr
+    EXCEPTIONS
+      wrong_parameter                = 1
+      no_change_dialog_data          = 2
+      change_dialog_data             = 3
+      dialog_data_are_consistent     = 4
+      new_gtin                       = 5
+      new_gtin_variant_combination   = 6
+      dialog_data_need_to_be_changed = 7
+      eangtinvar_auom_mul_auomgroups = 8
+      wrong_auomgroups               = 9
+      OTHERS                         = 10.
+
+  CASE sy-subrc.
+    WHEN 3.
+      MOVE-CORRESPONDING eans_gtin_variant_attr TO mara.
+      bildflag = 'X'.
+      MESSAGE w001(ean_ucc).
+    WHEN 4 OR 5 OR 6. "note 1439552: compare with current dialog data
+      lt_meinh1[] = meinh[].
+      LOOP AT lt_meinh1 INTO ls_meinh
+                        WHERE ean11 = mara-ean11
+                        AND   gtin_variant = mara-gtin_variant.
+
+        MOVE-CORRESPONDING ls_meinh TO meinh_gtin_variant_attr. "note 1439552
+
+        IF ls_meinh-meinh = mara-meins.
+          IF eans_gtin_variant_attr NE meinh_gtin_variant_attr. "note 1548838
+            bildflag = 'X'.
+            MESSAGE e004(ean_ucc).
+            EXIT.
+          ENDIF.  "IF eans_gtin_variant_attr_br NE...
+        ELSE.
+*         Get AUoM Group for entered actual screen AUoM
+*         Used new table EANC_MEINHGRP inplace of t006m.
+*         Check if UOM is assigned to more than one group.
+          lv_meinh = mara-meins.                         "note 1439552
+          SELECT *
+            FROM eanc_meinhgrp
+            INTO TABLE lt_eanc_meinhgrp
+            WHERE meinh = lv_meinh.
+
+          DESCRIBE TABLE lt_eanc_meinhgrp LINES lv_counter.
+          CASE lv_counter.
+            WHEN 0.
+              CLEAR lv_megrp_smeinh_meinh.
+            WHEN 1.
+              READ TABLE lt_eanc_meinhgrp INDEX 1
+                INTO ls_eanc_meinhgrp.
+              lv_megrp_smeinh_meinh = ls_eanc_meinhgrp-meinhgroup.
+            WHEN OTHERS.
+              MESSAGE e013(ean_ucc). "WITH SMEINH-MEINH.
+              " Mengeneinheiten-Gruppen-Zuordnung ist fehlerhaft
+              RETURN.
+          ENDCASE.
+
+*         Get AUoM Group for entered other screen AUoM
+          lv_meinh = ls_meinh-meinh.                         "note 1439552
+          SELECT *
+            FROM eanc_meinhgrp
+            INTO TABLE lt_eanc_meinhgrp
+            WHERE meinh = lv_meinh.
+
+          DESCRIBE TABLE lt_eanc_meinhgrp LINES lv_counter.
+          CASE lv_counter.
+            WHEN 0.
+              CLEAR lv_megrp_ls_meinh_meinh.
+            WHEN 1.
+              READ TABLE lt_eanc_meinhgrp INDEX 1
+                INTO ls_eanc_meinhgrp.
+              lv_megrp_ls_meinh_meinh = ls_eanc_meinhgrp-meinhgroup.
+            WHEN OTHERS.
+              MESSAGE e013(ean_ucc). "WITH SMEINH-MEINH.
+              " Mengeneinheiten-Gruppen-Zuordnung ist fehlerhaft
+              RETURN.
+          ENDCASE.
+
+*         note 1439552: if AUoM Group is not equal, then check for consistency
+          IF NOT ( lv_megrp_smeinh_meinh = lv_megrp_ls_meinh_meinh AND
+                   lv_megrp_smeinh_meinh IS NOT INITIAL ).
+*           calculate the net weight if the GEWEI is maintained
+            IF ls_meinh-gewei IS NOT INITIAL AND
+               eans_gtin_variant_attr-gewei IS NOT INITIAL.
+*             calculate for same gewei for correct comparing
+              meinh_gtin_variant_attr-gewei = eans_gtin_variant_attr-gewei.
+              CALL FUNCTION 'MEINH_BRGEW'
+                EXPORTING
+                  bme_ntgew = mara-ntgew
+                  ame_brgew = ls_meinh-brgew
+                  bme_gewei = mara-gewei
+                  ame_gewei = meinh_gtin_variant_attr-gewei
+                  umrez     = ls_meinh-umrez
+                  umren     = ls_meinh-umren
+                  p_message = 'N'
+                IMPORTING
+                  ame_ntgew = meinh_gtin_variant_attr-ntgew.
+            ENDIF.
+
+            IF eans_gtin_variant_attr <> meinh_gtin_variant_attr.
+              bildflag = 'X'.
+              MESSAGE e004(ean_ucc).
+              RETURN.
+            ENDIF.
+          ENDIF. "lv_megrp_smeinh_meinh IS INITIAL....
+
+        ENDIF.  "IF ls_meinh-meinh = smeinh-meinh.
+
+      ENDLOOP.
+    WHEN 7.
+      bildflag = 'X'.
+      MESSAGE e002(ean_ucc).
+*" KB0210 START
+    WHEN 8.
+      bildflag = 'X'.
+      MESSAGE e014(ean_ucc) WITH mara-ean11 mara-gtin_variant.
+      "EAN GTIN Variante &1 &2 ist ¨¹ber die AME mehreren
+      "ME-Gruppen zugeordnet
+    WHEN 9.
+      bildflag = 'X'.
+      MESSAGE e013(ean_ucc).
+      " Mengeneinheiten-Gruppen-Zuordnung ist fehlerhaft
+    WHEN 10.
+      bildflag = 'X'.
+      MESSAGE e011(ean_ucc).
+*  KB0210 END
+  ENDCASE.
+
+ENDFORM.                    "EAN_CONSISTENCY_CHECK_MARA

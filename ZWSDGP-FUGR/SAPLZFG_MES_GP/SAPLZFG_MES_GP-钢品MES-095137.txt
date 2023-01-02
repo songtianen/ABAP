@@ -1,0 +1,15 @@
+*******************************************************************
+*   System-defined Include-files.                                 *
+*******************************************************************
+  INCLUDE LZFG_MES_GPTOP.                    " Global Declarations
+  INCLUDE LZFG_MES_GPUXX.                    " Function Modules
+
+*******************************************************************
+*   User-defined Include-files (if necessary).                    *
+*******************************************************************
+* INCLUDE LZFG_MES_GPF...                    " Subroutines
+* INCLUDE LZFG_MES_GPO...                    " PBO-Modules
+* INCLUDE LZFG_MES_GPI...                    " PAI-Modules
+* INCLUDE LZFG_MES_GPE...                    " Events
+* INCLUDE LZFG_MES_GPP...                    " Local class implement.
+* INCLUDE LZFG_MES_GPT99.                    " ABAP Unit tests

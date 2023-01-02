@@ -1,0 +1,108 @@
+FUNCTION zfm_gp_mes_pp_technicaldetail.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(BS) TYPE  CHAR2
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB_GP STRUCTURE  ZTPP_211 OPTIONAL
+*"      IN_TAB_MC STRUCTURE  ZTPP_215 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MES_PP_TECHNICALDETAIL'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  REFRESH it_vbeln.
+  IF bs = 'GP'.
+    IF in_tab_gp[] IS INITIAL.
+      rtype = 'E'.
+      rtmsg = '输入信息为空'.
+      zfmdatasave2 'R'.
+      EXIT.
+    ENDIF.
+    LOOP AT in_tab_gp.
+      CLEAR it_vbeln.
+      it_vbeln-bstkd = in_tab_gp-bstkd.
+      COLLECT it_vbeln.
+    ENDLOOP.
+    DELETE it_vbeln[] WHERE bstkd IS INITIAL.
+*    IF it_vbeln[] IS INITIAL.
+*      rtype = 'E'.
+*      rtmsg = '输入信息外部合同号为空'.
+*      zfmdatasave2 'R'.
+*      EXIT.
+*    ENDIF.
+    IF it_vbeln[] IS NOT INITIAL.
+      PERFORM getvbeln TABLES it_vbeln.
+    ENDIF.
+    LOOP AT in_tab_gp.
+      CLEAR:in_tab_gp-vbeln,in_tab_gp-pspnr.
+      SELECT SINGLE pspnr INTO in_tab_gp-pspnr FROM prps WHERE posid = in_tab_gp-projn.
+      READ TABLE it_vbeln WITH KEY bstkd = in_tab_gp-bstkd BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        in_tab_gp-vbeln = it_vbeln-vbeln.
+      ENDIF.
+      MODIFY in_tab_gp.
+    ENDLOOP.
+    MODIFY ztpp_211 FROM TABLE in_tab_gp[].
+    IF sy-subrc = 0.
+      rtype = 'S'.
+      rtmsg = '钢品更新成功'.
+      COMMIT WORK.
+    ENDIF.
+  ELSEIF bs = 'MC'.
+    IF in_tab_mc[] IS INITIAL.
+      rtype = 'E'.
+      rtmsg = '输入信息为空'.
+      zfmdatasave2 'R'.
+      EXIT.
+    ENDIF.
+    LOOP AT in_tab_mc.
+      CLEAR it_vbeln.
+      it_vbeln-bstkd = in_tab_mc-bstkd.
+      COLLECT it_vbeln.
+    ENDLOOP.
+    PERFORM getvbeln TABLES it_vbeln.
+    LOOP AT in_tab_mc.
+*      CLEAR:in_tab_mc-vbeln,in_tab_mc-pspnr.
+*      SELECT SINGLE pspnr INTO in_tab_mc-pspnr FROM prps WHERE posid = in_tab_mc-projn.
+      READ TABLE it_vbeln WITH KEY bstkd = in_tab_mc-bstkd BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        in_tab_mc-vbeln = it_vbeln-vbeln.
+      ENDIF.
+      MODIFY in_tab_mc.
+    ENDLOOP.
+    MODIFY ztpp_215 FROM TABLE in_tab_mc[].
+    IF sy-subrc = 0.
+      rtype = 'S'.
+      rtmsg = '门窗更新成功'.
+      COMMIT WORK.
+    ENDIF.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = 'BS传值错误.'.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.
+
+FORM getvbeln TABLES it_vbe STRUCTURE it_vbeln.
+  SELECT vbeln,bstkd
+    INTO TABLE @DATA(lt_bstkd)
+    FROM vbkd
+    FOR ALL ENTRIES IN @it_vbe
+    WHERE vbkd~bstkd = @it_vbe-bstkd
+    AND vbkd~posnr = '000000'.
+
+  SORT lt_bstkd BY bstkd.
+
+  LOOP AT it_vbe.
+    READ TABLE lt_bstkd INTO DATA(lw_bstkd) WITH KEY bstkd = it_vbe-bstkd BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_vbe-vbeln = lw_bstkd-vbeln.
+    ENDIF.
+    MODIFY it_vbe.
+  ENDLOOP.
+  SORT it_vbe BY bstkd.
+ENDFORM.

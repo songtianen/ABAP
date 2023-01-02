@@ -1,0 +1,507 @@
+FUNCTION zfm_gp_mm_oa_po_send .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(P_NAME) TYPE  STRING
+*"     REFERENCE(EBELN) TYPE  EBELN
+*"     VALUE(ZFJ) TYPE  STRING OPTIONAL
+*"  EXPORTING
+*"     REFERENCE(P_OUTPUT) TYPE  STRING
+*"     REFERENCE(P_STATUS) TYPE  I
+*"     REFERENCE(P_RESULT) TYPE  STRING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      T_RESULT STRUCTURE  ZSMM_017 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MM_OA_PO_SEND'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  TYPES:BEGIN OF ty_out ,
+          bsart      TYPE string,
+          ebeln      TYPE zsmm_200-ebeln,
+          zxbjdh     TYPE zsmm_200-zxbjdh,
+          zxbjhh     TYPE zsmm_200-zxbjhh,
+          ebelp      TYPE zsmm_200-ebelp,
+          zhth       TYPE zsmm_200-zhth,
+          pspid      TYPE zsmm_200-pspid,
+          post1      TYPE zsmm_200-post1,
+          kunnr      TYPE zsmm_200-kunnr,
+          name1kunnr TYPE zsmm_200-name1kunnr,
+          aedat      TYPE zsmm_200-aedat,
+          eindt      TYPE zsmm_200-eindt,
+          lfdat      TYPE zsmm_200-lfdat,
+          lifnr      TYPE zsmm_200-lifnr,
+          name1lifnr TYPE zsmm_200-name1lifnr,
+          zgyslx     TYPE string,
+          zjgsd      TYPE string,
+          zfklx      TYPE string,
+          zfkfs      TYPE string,
+          zyfkje     TYPE zsmm_200-zyfkje,
+          zyfkbl     TYPE f,
+          zzbj       TYPE zsmm_200-zzbj,
+          zzbjbl     TYPE f,
+          zddzje     TYPE f,
+          bukrs      TYPE zsmm_200-bukrs,
+          butxt      TYPE zsmm_200-butxt,
+          ekorg      TYPE zsmm_200-ekorg,
+          ekotx      TYPE zsmm_200-ekotx,
+          ekgrp      TYPE zsmm_200-ekgrp,
+          eknam      TYPE zsmm_200-eknam,
+          zfj        TYPE zsmm_200-zfj,
+          zzlyq      TYPE zsmm_200-zzlyq,
+          zbz        TYPE zsmm_200-zbz,
+          zcjztj     TYPE zsmm_200-zcjztj,
+          zyqyq      TYPE zsmm_200-zyqyq,
+          zfkbz      TYPE zsmm_200-zfkbz,
+          zzje       TYPE zsmm_200-zzje,
+          matnr      TYPE zsmm_200-matnr,
+          maktx      TYPE zsmm_200-maktx,
+          menge      TYPE zsmm_200-menge,
+          meins      TYPE zsmm_200-meins,
+          zhsdj      TYPE zsmm_200-zhsdj,
+          zhsje      TYPE zsmm_200-zhsje,
+          text1      TYPE f,
+          waers      TYPE zsmm_200-waers,
+          matnr1     TYPE zsmm_200-matnr1,
+          maktx1     TYPE zsmm_200-maktx1,
+          meins1     TYPE zsmm_200-meins1,
+          menge1     TYPE zsmm_200-menge1,
+          msehl      TYPE zsmm_200-msehl,
+          msehl1     TYPE zsmm_200-msehl1,
+          zcpwg      TYPE string,
+          zwllx      TYPE string,
+          zcglx      TYPE string,
+          zsfcpwg    TYPE string,
+          ktext      TYPE zsmm_200-ktext,
+        END OF ty_out.
+  TYPES:BEGIN OF ty_outxbj,
+          ebelp      TYPE zsmm_200-ebelp,
+          matnr      TYPE zsmm_200-matnr,
+          maktx      TYPE zsmm_200-maktx,
+          lifnr      TYPE zsmm_200-lifnr,
+          name1lifnr TYPE zsmm_200-name1lifnr,
+          menge      TYPE zsmm_200-menge,
+          meins      TYPE zsmm_200-meins,
+          msehl      TYPE zsmm_200-msehl,
+          zxbjhh     TYPE zsmm_200-zxbjhh,
+          zxbjdh     TYPE zsmm_200-zxbjdh,
+          zxbjbz     TYPE zsmm_200-zxbjbz,
+          zgysbj     TYPE zsmm_200-zgysbj,
+          zzxbs      TYPE zsmm_200-zzxbs,
+          zzje       TYPE f,
+        END OF ty_outxbj.
+  DATA: in_tab    TYPE TABLE OF ty_out WITH HEADER LINE,
+        in_tabxbj TYPE TABLE OF ty_outxbj WITH HEADER LINE.
+  DATA:BEGIN OF wa_input1,
+         intab    TYPE TABLE OF ty_out,
+         intabxbj TYPE TABLE OF ty_outxbj,
+       END OF wa_input1,
+       BEGIN OF wa_input,
+         data LIKE wa_input1,
+       END OF wa_input,
+       BEGIN OF wa_output1,
+         tresult TYPE TABLE OF zsmm_017,
+       END OF wa_output1,
+       BEGIN OF wa_output,
+         data LIKE wa_output1,
+       END OF wa_output,
+       wa_out    LIKE LINE OF wa_input1-intab,
+       wa_outxbj LIKE LINE OF wa_input1-intabxbj.
+  DATA:BEGIN OF itab OCCURS 0.
+         INCLUDE TYPE zsmm_200 .
+  DATA:  batxt   TYPE t161t-batxt,
+         zwllx   TYPE ekko-zwllx,
+         zcglx   TYPE ekko-zcglx,
+         zsfcpwg TYPE ekko-zsfcpwg,
+         zxgysbh TYPE lifnr,
+         zxgysmc TYPE name1,
+       END OF itab.
+  DATA:BEGIN OF it_zddzje OCCURS 0,
+         ebeln  TYPE ebeln,
+         zddzje TYPE zsmm_200-zddzje,
+       END OF it_zddzje.
+
+  CLEAR:oastr1,oastr2,oaurl,wa_input,wa_output,
+  oahead[],oasta,oamsg,itab,itab[].
+*URL改为可配置，ZMM000
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_MM_OA_PO_SEND' CHANGING oaurl.
+
+  CHECK oaurl IS NOT INITIAL.
+**********************************************************************
+  " 取数 by kkw 02.12.2022 09:51:48
+  SELECT
+ekko~ebeln  ,
+ekko~bsart AS bsart_po,
+ekko~ekorg AS ekorg_po,
+tpoe~ekotx AS ekotx_po,
+ekko~ekgrp AS ekgrp_po,
+tpo~eknam AS eknam_po,
+ekko~bukrs  ,
+t001~butxt  ,
+ekko~aedat  ,
+ekko~lifnr  ,
+ekko~zgyslx ,
+ekko~zjgsd  ,
+ekko~zfkfs  ,
+ekko~zfklx  ,
+ekko~zyfkje ,
+ekko~zyfkbl ,
+ekko~zzbj   ,
+ekko~zzbjbl ,
+*ekko~zbz    ,
+*ekko~zzlyq  ,
+ekko~zhth   ,
+ekko~knumv  ,
+
+    eban~bsart AS bsart       ,
+    eban~banfn                ,
+    eban~bnfpo                ,
+    eban~knttp                ,
+    eban~pstyp                ,
+    eban~werks                ,
+    eban~afnam                ,
+    ekpo~yl5 AS zchandi,
+*    name1 "wbs客户             ,
+*    proj~post1 "wbs项目        ,
+    eban~matnr                ,
+    makt~maktx                ,
+*    char10 "产地               ,
+    eban~menge                ,
+    eban~meins                ,
+*    eban~zfzsl "辅助数量         ,
+*    eban~zfzdw "辅助单位         ,
+*    name1 "保管                ,
+    eban~lgort                ,
+    t001l~lgobe               ,
+*    ZZFGD "直发工地标识            ,
+*    ZXHDZ "卸货地址              ,
+    eban~lfdat                ,
+    marc~plifz                ,"采购周期
+    eban~ekgrp AS ekgrp_pr                ,
+    eban~ekorg AS ekorg_pr    ,
+    eban~zcgsl,
+    eban~zdddw,
+
+ekpo~menge AS menge_cg,
+ekpo~meins AS meins_cg,
+ekpo~ps_psp_pnr,
+ekpo~ebelp,
+ekpo~mwskz,
+prps~posid,
+prps~post1,
+lfa1~name1,
+ztmm203~zxbjdh,
+ztmm203~zxbjhh,
+ztmm203~zgysbj,
+ztmm203~zzxbs,
+ztmm203~lifnr AS zxgysbh,
+ztmm203~name1 AS zxgysmc,
+t024~eknam,
+eket~eindt,
+ekpo~zzyh,
+eban~bsmng,
+mschl~msehl,
+ekko~zsfcpwg AS zcpwg,
+t161t~batxt,
+ekko~zwllx,
+ekko~zcglx,
+ekko~zsfcpwg,
+eban~txz01
+    INTO TABLE @DATA(lt_po)
+    FROM ekko
+    JOIN ekpo ON ekko~ebeln = ekpo~ebeln
+    JOIN eban ON ekpo~banfn = eban~banfn AND ekpo~bnfpo = eban~bnfpo
+    LEFT JOIN makt ON ekpo~matnr = makt~matnr AND makt~spras = @sy-langu
+    JOIN t001 ON ekko~bukrs = t001~bukrs
+    LEFT JOIN t001l ON ekpo~lgort = t001l~lgort AND ekpo~werks = t001l~werks
+    LEFT JOIN marc ON ekpo~matnr = marc~matnr AND ekpo~werks = marc~werks
+    LEFT JOIN prps ON ekpo~ps_psp_pnr = prps~pspnr
+    LEFT JOIN ztmm203 ON ekpo~ebeln = ztmm203~ebeln AND ekpo~ebelp = ztmm203~ebelp  "AND ztmm203~zzxbs = 'X'
+    LEFT JOIN t024 ON eban~ekgrp = t024~ekgrp
+    LEFT JOIN lfa1 ON ekko~lifnr = lfa1~lifnr
+    LEFT JOIN eket ON eket~ebeln = ekpo~ebeln AND eket~ebelp = ekpo~ebelp AND eket~etenr = '0001'
+    LEFT JOIN t024e AS tpoe ON ekko~ekorg = tpoe~ekorg
+    LEFT JOIN t024 AS tpo ON ekko~ekgrp = tpo~ekgrp
+    LEFT JOIN t006a AS mschl ON  ekpo~meins = mschl~msehi AND mschl~spras = @sy-langu
+    LEFT JOIN t161t ON  t161t~bsart = ekko~bsart AND t161t~bstyp = ekko~bstyp AND t161t~spras = @sy-langu
+  WHERE ekko~ebeln = @ebeln.
+  IF lt_po[] IS NOT INITIAL.
+    SELECT
+      prcd~knumv,
+      prcd~kposn,
+      prcd~kbetr,
+      prcd~stunr,
+      prcd~zaehk,
+      prcd~waers
+    INTO TABLE @DATA(lt_prcd_mx)
+    FROM prcd_elements AS prcd
+    FOR ALL ENTRIES IN @lt_po
+    WHERE prcd~knumv = @lt_po-knumv
+      AND prcd~kschl = 'PBXX'.
+    .
+    SORT lt_prcd_mx BY knumv kposn.
+
+    " 取项目信息  24.10.2022 09:02:03 by kkw,
+    " 取prps~posidq前8位和ztps010a~pspid一样的找客户 23.11.2022 10:00:25 by kkw
+    SELECT
+      ebkn~banfn,
+      ebkn~bnfpo,
+      ebkn~ps_psp_pnr,
+      prps~posid,
+      prps~post1,
+      ztps010a~name1,
+      ztps010a~kunnr,
+      ebkn~zebkn
+      FROM ebkn
+      JOIN prps ON ebkn~ps_psp_pnr = prps~pspnr
+*    LEFT JOIN ztps010a ON prps~posid = ztps010a~pspid
+       LEFT JOIN ztps010a ON ztps010a~pspid = substring( prps~posid,1,8 )
+      FOR ALL ENTRIES IN @lt_po
+      WHERE ebkn~banfn = @lt_po-banfn
+      AND ebkn~bnfpo = @lt_po-bnfpo
+       INTO TABLE @DATA(lt_ebkn).
+    SORT lt_ebkn BY banfn bnfpo.
+
+    SELECT resb~banfn,resb~bnfpo,resb~matnr,resb~meins,resb~bdmng,makt~maktx,mschl1~msehl AS msehl1
+      INTO TABLE @DATA(lt_resb)
+      FROM resb
+      JOIN makt ON resb~matnr = makt~matnr AND makt~spras = @sy-langu
+      LEFT JOIN t006a AS mschl1 ON  resb~meins = mschl1~msehi AND mschl1~spras = @sy-langu
+      FOR ALL ENTRIES IN @lt_po
+      WHERE resb~banfn = @lt_po-banfn
+      AND resb~bnfpo = @lt_po-bnfpo.
+    SORT lt_resb BY banfn bnfpo.
+  ENDIF.
+  REFRESH it_zddzje.
+  LOOP AT lt_po INTO DATA(lw_po).
+    CLEAR itab.
+    itab-bsart         = lw_po-bsart.
+    itab-batxt         = lw_po-batxt.
+    itab-ebeln         = lw_po-ebeln.
+    itab-ebelp         = lw_po-ebelp.
+    itab-zhth          = lw_po-zhth.
+*    itab-pspid         = lw_po-posid.
+*    itab-post1         = lw_po-post1.
+    READ TABLE lt_ebkn INTO DATA(lw_ebkn) WITH KEY banfn = lw_po-banfn bnfpo = lw_po-bnfpo BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-kunnr         = lw_ebkn-kunnr.
+      itab-name1kunnr    = lw_ebkn-name1.
+      itab-pspid         = lw_ebkn-posid.
+      itab-post1         = lw_ebkn-post1.
+    ENDIF.
+    itab-aedat         = lw_po-aedat.
+    itab-eindt         = lw_po-eindt.
+    itab-lfdat         = lw_po-lfdat.
+    itab-lifnr         = lw_po-lifnr.
+    itab-name1lifnr    = lw_po-name1.
+    itab-zgyslx        = lw_po-zgyslx.
+    itab-zjgsd         = lw_po-zjgsd.
+    itab-zfklx         = lw_po-zfklx.
+    itab-zfkfs         = lw_po-zfkfs.
+    itab-zyfkje        = lw_po-zyfkje.
+    itab-zyfkbl        = lw_po-zyfkbl.
+    itab-zzbj          = lw_po-zzbj.
+    itab-zzbjbl        = lw_po-zzbjbl.
+    itab-zddzje        = ''.
+    itab-bukrs         = lw_po-bukrs.
+    itab-butxt         = lw_po-butxt.
+    itab-ekorg         = lw_po-ekorg_po.
+    itab-ekotx         = lw_po-ekotx_po.
+    itab-ekgrp         = lw_po-ekgrp_po.
+    itab-eknam         = lw_po-eknam_po.
+    itab-zfj           = zfj.
+*    itab-zzlyq         = ''.
+*    itab-zbz           = ''.
+    itab-zzje          = ''.
+    itab-matnr         = lw_po-matnr.
+    IF itab-matnr IS INITIAL.
+      itab-maktx         = lw_po-txz01.
+    ELSE.
+      itab-maktx         = lw_po-maktx.
+    ENDIF.
+*    ITAB-MENGE         = LW_PO-ZCGSL.
+    itab-menge         = lw_po-menge_cg."孟娇
+*    ITAB-MEINS         = LW_PO-ZDDDW.
+    itab-meins         = lw_po-meins_cg."孟娇
+    READ TABLE lt_prcd_mx INTO DATA(lw_prcd_mx) WITH KEY knumv = lw_po-knumv kposn = lw_po-ebelp BINARY SEARCH.
+    IF sy-subrc EQ 0." PRCD存的是行单价 22.11.2022 21:48:44 by kkw
+      itab-zhsdj         = lw_prcd_mx-kbetr.
+      itab-zhsje         = lw_prcd_mx-kbetr * lw_po-menge_cg.
+      itab-waers         = lw_prcd_mx-waers.
+    ENDIF.
+    PERFORM gettax(zpubform) USING 'CN' lw_po-mwskz CHANGING itab-text1.
+
+    READ TABLE lt_resb INTO DATA(lw_resb) WITH KEY banfn = lw_po-banfn bnfpo = lw_po-bnfpo BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-matnr1        = lw_resb-matnr.
+      itab-maktx1        = lw_resb-maktx.
+      itab-meins1        = lw_resb-meins.
+      itab-menge1        = lw_resb-bdmng.
+      itab-msehl1        = lw_resb-msehl1.
+    ENDIF.
+
+    itab-zxbjhh        = lw_po-zxbjhh.
+    itab-zgysbj        = lw_po-zgysbj.
+    itab-zzxbs         = lw_po-zzxbs.
+    itab-zxbjdh        = lw_po-zxbjdh.
+    itab-msehl         = lw_po-msehl.
+    itab-zwllx = lw_po-zwllx.
+    itab-zcglx = lw_po-zcglx.
+    itab-zsfcpwg = lw_po-zsfcpwg.
+    itab-zxgysbh = lw_po-zxgysbh.
+    itab-zxgysmc = lw_po-zxgysmc.
+    SELECT SINGLE ktext
+      INTO itab-ktext
+      FROM tcurt
+      WHERE waers = itab-waers
+      AND   spras = sy-langu.
+    APPEND itab.
+    CLEAR:it_zddzje.
+    it_zddzje-ebeln = lw_po-ebeln.
+    it_zddzje-zddzje = itab-zhsje.
+    COLLECT it_zddzje.
+  ENDLOOP.
+  SORT it_zddzje BY ebeln.
+**********************************************************************
+*  in_tab[] = itab[].
+  REFRESH:in_tab,in_tabxbj.
+  LOOP AT itab.
+    CLEAR:in_tab,in_tabxbj.
+    MOVE-CORRESPONDING itab TO in_tab.
+    in_tab-bsart = itab-batxt.
+    MOVE-CORRESPONDING itab TO in_tabxbj.
+    in_tabxbj-lifnr = itab-zxgysbh.
+    in_tabxbj-name1lifnr = itab-zxgysmc.
+    SELECT SINGLE zxbjbz INTO in_tabxbj-zxbjbz
+    FROM ztmm203
+    WHERE zxbjdh = in_tabxbj-zxbjdh AND zxbjhh = in_tabxbj-zxbjhh.
+    APPEND:in_tab,in_tabxbj.
+  ENDLOOP.
+  SORT in_tab BY ebeln ebelp.
+  DELETE ADJACENT DUPLICATES FROM in_tab COMPARING ebeln ebelp.
+
+  LOOP AT in_tab.
+    CLEAR:wa_out.
+    READ TABLE it_zddzje WITH KEY ebeln = in_tab-ebeln BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      in_tab-zddzje = it_zddzje-zddzje.
+    ENDIF.
+    MOVE-CORRESPONDING in_tab TO wa_out.
+    PERFORM getlongtext(zpubform) USING 'F98' in_tab-ebeln 'EKKO'
+          CHANGING wa_out-zzlyq.
+    PERFORM getlongtext(zpubform) USING 'F99' in_tab-ebeln 'EKKO'
+      CHANGING wa_out-zbz.
+    PERFORM getlongtext(zpubform) USING 'F95' in_tab-ebeln 'EKKO'
+      CHANGING wa_out-zcjztj.
+    PERFORM getlongtext(zpubform) USING 'F96' in_tab-ebeln 'EKKO'
+      CHANGING wa_out-zyqyq.
+    PERFORM getlongtext(zpubform) USING 'F97' in_tab-ebeln 'EKKO'
+      CHANGING wa_out-zfkbz.
+
+    SELECT SINGLE ddtext INTO wa_out-zjgsd FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zjgsd AND domname = 'ZD_SF'.
+    SELECT SINGLE ddtext INTO wa_out-zgyslx FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zgyslx AND domname = 'ZD_ZGYSLX'.
+    SELECT SINGLE ddtext INTO wa_out-zjgsd FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zjgsd AND domname = 'ZD_ZGYSLX'.
+    SELECT SINGLE ddtext INTO wa_out-zfklx FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zfklx AND domname = 'ZD_ZFKLX'.
+    SELECT SINGLE ddtext INTO wa_out-zfkfs FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zfkfs AND domname = 'ZD_ZFKFS'.
+    SELECT SINGLE ddtext INTO wa_out-zsfcpwg FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zsfcpwg AND domname = 'ZD_ZSFCPWG'.
+    SELECT SINGLE ddtext INTO wa_out-zwllx FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zwllx AND domname = 'ZDG_ZWLLX'.
+    SELECT SINGLE ddtext INTO wa_out-zcglx FROM dd07t WHERE ddlanguage = sy-langu AND domvalue_l = in_tab-zcglx AND domname = 'ZD_ZCGLX'.
+
+    APPEND wa_out TO wa_input1-intab.
+    MODIFY in_tab.
+  ENDLOOP.
+
+  LOOP AT in_tabxbj.
+    CLEAR:wa_outxbj.
+    MOVE-CORRESPONDING in_tabxbj TO wa_outxbj.
+    wa_outxbj-zzje = wa_outxbj-zgysbj * wa_outxbj-menge.
+
+    IF wa_outxbj-zzxbs = 'X'.
+      wa_outxbj-zzxbs = '是'.
+    ENDIF.
+    APPEND wa_outxbj TO wa_input1-intabxbj.
+  ENDLOOP.
+
+*根据传入数据转JSON
+  wa_input-data-intab = wa_input1-intab.
+  wa_input-data-intabxbj = wa_input1-intabxbj.
+*SAP结构转JSON
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr1
+      data    = wa_input
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  SHIFT oastr1 LEFT  DELETING LEADING  '{'.
+
+  CONCATENATE '{"senderLoginName":"'
+*  CONCATENATE '{"SENDER":"'
+  p_name
+  '",'
+  oastr1 INTO oastr1.
+
+  p_result = oastr1.
+
+
+*获取TOKEN
+  CALL FUNCTION 'ZFM_GETOATOKEN'
+    IMPORTING
+      output = oastr2
+    EXCEPTIONS
+      OTHERS = 1.
+  "zfmdatasave2 'R'.
+  CHECK oastr2 IS NOT INITIAL.
+*填入HEADER
+  CLEAR:oamsg,oasta.
+  REFRESH:oahead.
+  CLEAR oahead.
+  oahead-name = 'token'.
+  oahead-value = oastr2.
+  APPEND oahead.
+*调用函数HTTP
+  CLEAR oastr2.
+
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING oaurl.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = oastr1
+      url       = oaurl
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = oastr2 "返回JSON报文
+      rtmsg     = oamsg "消息
+      status    = oasta "HTTP状态
+    TABLES
+      header    = oahead
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr2
+      data    = wa_output
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  t_result[] = wa_output-data-tresult.
+  p_status = oasta.
+  p_output = oastr2.
+*  P_RESULT = OASTR2.
+  IF p_status = '200'.
+    rtype =  'S'.
+    rtmsg =  '推送oa成功'.
+  ELSE.
+    DATA(cc) = '推送oa失败:' && p_output.
+    rtype =  'E'.
+    rtmsg =  cc.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

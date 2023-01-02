@@ -1,0 +1,106 @@
+FUNCTION zfm_gp_fi_mdm_kjkm_post.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(OATYPE) TYPE  CHAR01
+*"  EXPORTING
+*"     VALUE(P_OUTPUT) TYPE  STRING
+*"     VALUE(P_STATUS) TYPE  I
+*"     VALUE(P_RESULT) TYPE  STRING
+*"     VALUE(LS_RESULT) TYPE  ZSSD_014
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZFI65
+*"      T_RESULT STRUCTURE  ZSMM_017 OPTIONAL
+*"----------------------------------------------------------------------
+
+  zfmdatasave1 'ZFM_GP_FI_MDM_KJKM_POST'.
+  zfmdatasave2 'B'.
+  TYPES:BEGIN OF ty_out .
+          INCLUDE TYPE zfi65.
+  TYPES:  f01 TYPE string,
+          f02 TYPE string,
+        END OF ty_out.
+  DATA:BEGIN OF wa_input1,
+         oatype TYPE char01,
+         intab  TYPE TABLE OF ty_out,
+       END OF wa_input1,
+       BEGIN OF wa_input,
+         data LIKE wa_input1,
+       END OF wa_input,
+       BEGIN OF wa_output1,
+         tresult TYPE TABLE OF zsmm_017,
+       END OF wa_output1,
+       BEGIN OF wa_output,
+         data LIKE wa_output1,
+       END OF wa_output,
+       wa_out LIKE LINE OF wa_input1-intab.
+*URL改为可配置，ZMM000
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_FI_MDM_KJKM_POST' CHANGING oaurl.
+  CHECK oaurl IS NOT INITIAL AND in_tab[] IS NOT INITIAL.
+  LOOP AT in_tab.
+    CLEAR: wa_out.
+    MOVE-CORRESPONDING in_tab TO wa_out.
+    APPEND wa_out TO wa_input1-intab.
+    CLEAR in_tab.
+  ENDLOOP.
+*根据传入数据转json
+  wa_input-data-intab = wa_input1-intab.
+  wa_input-data-oatype = oatype.
+*SAP结构转JSON
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr1
+      data    = wa_input
+    EXCEPTIONS
+      OTHERS  = 1.
+*获取token
+  CALL FUNCTION 'ZFM_GETOATOKEN'
+    IMPORTING
+      output = oastr2
+    EXCEPTIONS
+      OTHERS = 1.
+  "zfmdatasave2 'R'.
+  CHECK oastr2 IS NOT INITIAL.
+*填入HEADER
+  CLEAR:oamsg,oasta.
+  REFRESH:oahead.
+  CLEAR oahead.
+  oahead-name = 'token'.
+  oahead-value = oastr2.
+  APPEND oahead.
+*调用函数HTTP
+  CLEAR oastr2.
+
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING oaurl.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = oastr1
+      url       = oaurl
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = oastr2 "返回JSON报文
+      rtmsg     = oamsg "消息
+      status    = oasta "HTTP状态
+    TABLES
+      header    = oahead
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr2
+      "data    = wa_output
+      data = ls_result
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  "t_result[] = wa_output-data-tresult.
+  p_status = oasta.
+  p_output = oamsg.
+
+
+
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

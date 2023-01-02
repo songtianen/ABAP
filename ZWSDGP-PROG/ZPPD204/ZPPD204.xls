@@ -1,0 +1,16 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZPPD204	ZE_ZHXS	转换系数	数据元素	DEC	000025	000005	
+ZPPD204	ZE_ZKCYL	配送单位库存数量	数据元素	QUAN	000013	000003	MENG13V
+ZPPD204	ZE_ZPSSL_IN	配送单位配送数量	数据元素	QUAN	000013	000003	MENG13V
+ZPPD204	ZSFMS_GETPCTX	获取批次特性	结构				
+ZPPD204	ZSPP201	价格	结构				
+ZPPD204	ZSPP_211A	技术详单通用结构	结构				
+ZPPD204	ZSPP_222	SAP预留推MES结构	结构				
+ZPPD204	ZSPUBS_0001	日期时间通用结构	结构				
+ZPPD204	ZSSD230	订单系统推送SAP-加工明细结构	结构				
+ZPPD204	ZTMM220	调拨单主表	透明表				
+ZPPD204	ZTNUMS_UPDATE	按工厂流水（日/年/月/周清零）	透明表				
+ZPPD204	ZTPP210	配送任务表	透明表				
+ZPPD204	ZTPP_205	钢品生产排产单主表	透明表				
+ZPPD204	ZTPP_205A	钢品生产排产单明细表	透明表				
+ZPPD204	ZTPP_206	生产计划表	透明表				

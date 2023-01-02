@@ -1,0 +1,149 @@
+FUNCTION zfm_gp_oa_mm_getebeln.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"     VALUE(LIFNR) TYPE  LIFNR
+*"     VALUE(MATNR) TYPE  MATNR
+*"     VALUE(EKGRP) TYPE  EKGRP
+*"     VALUE(CHARG) TYPE  CHARG_D OPTIONAL
+*"     VALUE(ZJUANH) TYPE  ATWRT OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      OUT_TAB STRUCTURE  ZSMM_218
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_MM_GETEBELN'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:rcharg LIKE RANGE OF mch1-charg WITH HEADER LINE.
+  REFRESH rcharg.
+  DATA:BEGIN OF itab OCCURS 0.
+         INCLUDE TYPE zsmm_218.
+  DATA:  knumv TYPE ekko-knumv,
+         kposn TYPE prcd_elements-kposn,
+         peinh TYPE ekpo-peinh,
+         smbln TYPE mseg-smbln,
+       END OF itab.
+  REFRESH itab.
+  IF zjuanh IS NOT INITIAL.
+    SELECT
+      mch1~charg
+    INTO TABLE  @DATA(lt_jh)
+    FROM mch1
+      INNER JOIN ausp ON mch1~cuobj_bm = ausp~objek AND klart = '023'
+      INNER JOIN cabn ON ausp~atinn = cabn~atinn
+    WHERE cabn~atnam = 'Z02' AND ausp~atwrt = @zjuanh.
+    LOOP AT lt_jh INTO DATA(lw_jh).
+      CLEAR rcharg.
+      rcharg-sign    = 'I'.
+      rcharg-option  = 'EQ'.
+      rcharg-low     = lw_jh-charg.
+      APPEND rcharg.
+    ENDLOOP.
+  ENDIF.
+  IF charg IS NOT INITIAL.
+    CLEAR rcharg.
+    rcharg-sign    = 'I'.
+    rcharg-option  = 'EQ'.
+    rcharg-low     = charg.
+    APPEND rcharg.
+  ENDIF.
+  IF charg IS NOT INITIAL OR zjuanh IS NOT INITIAL.
+    SELECT
+      ekpo~werks,
+      ekko~lifnr,
+      ekpo~matnr,
+      ekpo~ebeln,
+      ekpo~ebelp,
+      ekko~ekgrp,
+      ekko~aedat,
+      ekko~knumv,
+      ekpo~peinh,
+      cx~smbln,
+      ekpo~meins
+      INTO CORRESPONDING FIELDS OF TABLE @itab
+      FROM mseg
+      LEFT JOIN mseg AS cx ON mseg~mjahr = cx~sjahr AND  mseg~mblnr = cx~smbln AND mseg~zeile = cx~smblp
+      JOIN ekpo ON mseg~ebeln = ekpo~ebeln AND mseg~ebelp = ekpo~ebelp
+      JOIN ekko ON ekpo~ebeln = ekko~ebeln
+      WHERE mseg~werks = @werks
+      AND mseg~lifnr = @lifnr
+      AND mseg~matnr = @matnr
+      AND mseg~charg IN @rcharg
+      AND ekko~ekgrp = @ekgrp
+      AND ekko~bsart = 'NB'
+      AND ekpo~loekz NE 'X'
+    .
+    DELETE itab WHERE smbln IS NOT INITIAL.
+  ELSE.
+    SELECT
+      ekpo~werks
+      ekko~lifnr
+      ekpo~matnr
+      ekpo~ebeln
+      ekpo~ebelp
+      ekko~ekgrp
+      ekko~aedat
+      ekko~knumv
+      ekpo~peinh
+      ekpo~meins
+      INTO CORRESPONDING FIELDS OF TABLE itab
+      FROM ekko
+      JOIN ekpo ON ekko~ebeln = ekpo~ebeln
+      WHERE ekpo~werks = werks
+      AND ekko~lifnr = lifnr
+      AND ekpo~matnr = matnr
+      AND ekko~ekgrp = ekgrp
+      AND ekko~bsart = 'NB'
+      AND ekpo~loekz NE 'X'
+    .
+  ENDIF.
+  "取采购单价
+  IF itab[] IS NOT INITIAL.
+    LOOP AT itab.
+      itab-kposn = itab-ebelp.
+      MODIFY itab.
+    ENDLOOP.
+    SELECT
+      prcd~knumv,
+      prcd~kposn,
+      prcd~stunr,
+      prcd~zaehk,
+      prcd~kbetr,
+      prcd~kschl
+      INTO TABLE @DATA(lt_prcd)
+      FROM prcd_elements AS prcd
+      FOR ALL ENTRIES IN @itab
+      WHERE prcd~knumv = @itab-knumv
+      AND prcd~kposn = @itab-kposn
+      AND prcd~kschl IN ( 'PBXX','PB00' ).
+    DELETE lt_prcd WHERE kschl = 'PBXX' AND kbetr EQ 0.
+    SORT lt_prcd BY knumv kposn kschl DESCENDING.
+    LOOP AT itab.
+      READ TABLE lt_prcd INTO DATA(lw_prcd) WITH KEY knumv = itab-knumv kposn = itab-kposn BINARY SEARCH.
+      IF sy-subrc EQ 0 AND itab-peinh NE 0.
+        itab-zcgdj = lw_prcd-kbetr / itab-peinh.
+        MODIFY itab.
+      ENDIF.
+    ENDLOOP.
+    MOVE-CORRESPONDING itab[] TO out_tab[].
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '查无数据'.
+  ENDIF.
+
+
+
+
+
+
+
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

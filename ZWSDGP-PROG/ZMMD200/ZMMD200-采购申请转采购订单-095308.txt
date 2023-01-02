@@ -1,0 +1,4700 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD200
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd200 MESSAGE-ID zgp_msg.
+TABLES:eban,mara,ekko,t007s,kuagv,prps.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields,stxl.
+DATA: fldct   TYPE slis_t_fieldcat_alv,
+      slayt   TYPE slis_layout_alv,
+      varnt   LIKE disvariant,
+      repid   LIKE sy-repid,
+      tabix   LIKE sy-tabix,
+      fldctpo TYPE slis_t_fieldcat_alv.
+DATA:BEGIN OF it_eban OCCURS 0,"采购申请alv
+       bsart      TYPE eban-bsart,
+       banfn      TYPE eban-banfn,
+       bnfpo      TYPE eban-bnfpo,
+       knttp      TYPE eban-knttp,
+       pstyp      TYPE eban-pstyp,
+       werks      TYPE werks_d,
+       afnam      TYPE eban-afnam,
+       zbaoguan   TYPE eban-zbaoguan,
+       posid      TYPE proj-pspid,
+       post1      TYPE proj-post1,
+       kunnr      TYPE kunnr,
+       name1      TYPE name1,
+       matnr      TYPE matnr,
+       maktx      TYPE maktx,
+       wlcms      TYPE string,
+       zchandi    TYPE eban-zchandi,
+       menge      TYPE eban-menge, "采购申请数量
+       meins      TYPE eban-meins,
+       zdddw      TYPE eban-zdddw,
+       zcgsl      TYPE eban-zcgsl,
+       zbanguan   TYPE eban-zbaoguan,
+       lgort      TYPE lgort_d,
+       lgobe      TYPE lgobe,
+       zsfzf      TYPE eban-zsfzf,
+       zzfdz      TYPE eban-zzfdz,
+       lfdat      TYPE eban-lfdat,
+       ekgrp      TYPE eban-ekgrp,
+       eknam      TYPE t024-eknam,
+       ekorg      TYPE eban-ekorg,
+       ekotx      TYPE t024e-ekotx,
+       plifz      TYPE marc-plifz,
+       ztjcgrq    TYPE dats,
+       zfpcgrq    TYPE dats,
+       zfj        TYPE char200,
+       zfj_button TYPE char1,
+       select,
+       icon       TYPE char25,
+       zfpcgrq1   TYPE dats,
+       zsl1       TYPE char15, "menge_d,
+       zfpcgrq2   TYPE dats,
+       zsl2       TYPE char15, "menge_d,
+       zfpcgrq3   TYPE dats,
+       zsl3       TYPE char15, "menge_d,
+       bsmng      TYPE eban-bsmng, "采购订单数量
+       zyzsl      TYPE eban-bsmng, "已转采购订单数量
+       zwzsl      TYPE eban-bsmng, "未转采购订单数量
+       bmein      TYPE eban-bmein,
+       zggxh      TYPE eban-zggxh,
+       zcpfl      TYPE eban-zcpfl,
+       txz01      TYPE eban-txz01,
+       zwz        TYPE eban-zwz,
+       zggxh_desc TYPE char20,
+       zcpfl_desc TYPE char20,
+       zwz_desc   TYPE char20,
+       zwwgy      TYPE eban-zwwgy,
+     END OF it_eban.
+
+DATA:BEGIN OF wa_cgrq,
+       zfpcgrq1 TYPE dats,
+       zsl1     TYPE menge_d,
+       zfpcgrq2 TYPE dats,
+       zsl2     TYPE menge_d,
+       zfpcgrq3 TYPE dats,
+       zsl3     TYPE menge_d,
+     END OF wa_cgrq.
+
+TYPES:BEGIN OF ty_ekko,
+        ebeln   TYPE ekko-ebeln,
+        bsart   TYPE ekko-bsart,
+        ekorg   TYPE ekko-ekorg,
+        ekotx   TYPE t024e-ekotx,
+        ekgrp   TYPE ekko-ekgrp,
+        eknam   TYPE t024-eknam,
+        bukrs   TYPE ekko-bukrs,
+        aedat   TYPE ekko-aedat,
+        lifnr   TYPE ekko-lifnr,
+        name1   TYPE name1,
+        zgyslx  TYPE ekko-zgyslx,
+        bstkd   TYPE bstkd,
+        zjgsd   TYPE ekko-zjgsd,
+        mwskz   TYPE ekpo-mwskz,
+        zddzje  TYPE ekpo-netwr,
+        zfkfs   TYPE ekko-zfkfs,
+        zfklx   TYPE ekko-zfklx,
+        zyfkje  TYPE ekpo-netwr,
+        zyfkbl  TYPE int1,
+        zzbj    TYPE ekpo-netwr,
+        zzbjbl  TYPE int1,
+        zbz     TYPE char100,
+        zzlyq   TYPE char100,
+        zhth    TYPE ekko-zhth,
+        tdid    TYPE tdid,
+        zysfsgp TYPE ekko-zysfsgp,
+        zxcf    TYPE ekko-zxcf,
+        zyfcdf  TYPE ekko-zyfcdf,
+        ztztgrq TYPE ekko-ztztgrq,
+        zcglx   TYPE ekko-zcglx,
+        zgjgq   TYPE ekko-zgjgq,
+        zdhjsrq TYPE ekko-zdhjsrq,
+        frgke   TYPE ekko-frgke,
+        zckbm   TYPE ekko-zckbm,
+        zckmc   TYPE zvtmm215-zckmc,
+        zckdz   TYPE zvtmm215-zckdz,
+        zwllx   TYPE ekko-zwllx,
+        butxt   TYPE butxt,
+        zfptgsj TYPE ekko-zfptgsj,
+        zsfcpwg TYPE ekko-zsfcpwg,
+        zzfdz   TYPE eban-zzfdz,
+        zwwgy   TYPE eban-zwwgy,
+      END OF ty_ekko.
+DATA:wa_ekko TYPE ty_ekko."pr2po抬头
+DATA:wa_ekko_change TYPE ty_ekko.
+*校验数据修改推oa，增删要校验的字段的话只需要往wa_ekko_old和it_ekpo_old增删字段即可 09.12.2022 10:17:27 by kkw
+DATA:BEGIN OF wa_ekko_old,
+       mwskz  TYPE ekpo-mwskz,
+       zwllx  TYPE ekko-zwllx,
+       zfkfs  TYPE ekko-zfkfs,
+       zfklx  TYPE ekko-zfklx,
+       zyfkje TYPE ekko-zyfkje,
+       zzbj   TYPE ekko-zzbj,
+     END OF wa_ekko_old."用于校验数据变化
+DATA:BEGIN OF it_ekpo_old OCCURS 0,"ebelp不能删
+       mwskz    TYPE ekpo-mwskz,
+       ebelp    TYPE ekpo-ebelp,
+       menge_cg TYPE ekpo-menge,
+       kbetr    TYPE ekpo-netwr,
+     END OF it_ekpo_old."用于校验数据变化
+DATA:BEGIN OF it_ekpo OCCURS 0,"pr2po明细
+       ebelp    TYPE ekpo-ebelp,
+       bsart    TYPE eban-bsart,
+       banfn    TYPE eban-banfn,
+       bnfpo    TYPE eban-bnfpo,
+       knttp    TYPE eban-knttp,
+       pstyp    TYPE eban-pstyp,
+       werks    TYPE werks_d,
+       afnam    TYPE eban-afnam,
+       name1    TYPE name1,
+       posid    TYPE proj-pspid,
+       post1    TYPE proj-post1,
+       matnr    TYPE matnr,
+       maktx    TYPE maktx,
+       zchandi  TYPE eban-zchandi,
+       menge    TYPE eban-menge,
+       meins    TYPE eban-meins,
+       zfzsl    TYPE eban-menge,
+       zfzdw    TYPE eban-meins,
+       lfdat    TYPE eban-lfdat,
+       menge_cg TYPE ekpo-menge,
+       meins_cg TYPE ekpo-meins,
+       kbetr    TYPE ekpo-netwr,
+       mwskz    TYPE ekpo-mwskz,
+       eindt    TYPE eket-eindt,
+       zzyh     TYPE ekpo-zzyh,
+       zfj      TYPE char200,
+       sel,
+       zxbjbs   TYPE char1, "询比价标识
+       bsmng    TYPE eban-bsmng,
+       zyzsl    TYPE eban-bsmng, "已转采购订单数量
+       zwzsl    TYPE eban-bsmng, "未转采购订单数量
+       wlcms    TYPE string,
+       zddzje   TYPE ekpo-netwr, "明细行订单总金额
+       sobkz    TYPE sobkz,
+       pspnr    TYPE ps_psp_pnr,
+       zwwgy    TYPE eban-zwwgy,
+     END OF it_ekpo.
+DATA:BEGIN OF it_xbj OCCURS 0,"询比价屏幕
+       zxbjdh   TYPE ztmm203-zxbjdh,
+       zxbjhh   TYPE ztmm203-zxbjhh,
+       banfn    TYPE eban-banfn,
+       bnfpo    TYPE eban-bnfpo,
+       matnr    TYPE matnr,
+       maktx    TYPE maktx,
+       lifnr    TYPE lifnr,
+       name1    TYPE name1,
+       werks    TYPE werks_d,
+       ekorg    TYPE eban-ekorg,
+       infnr    TYPE eina-infnr,
+       netpr    TYPE eine-netpr,
+       waers    TYPE eine-waers,
+       zbjbs    TYPE char1,
+       zzxbs    TYPE char1,
+       peinh    TYPE eine-peinh,
+       sel,
+       bs       TYPE char1, "新增标识。控制单元格可编辑
+       xxjlbs   TYPE char1, "存在信息记录标识
+       zxbjbz   TYPE ztmm203-zxbjbz,
+       knumh    TYPE a018-knumh,
+       datab    TYPE a018-datab,
+       datbi    TYPE a018-datbi,
+       menge_cg TYPE menge_d, "采购数量
+       kzwi1    TYPE vbap-kzwi1, "金额
+     END OF it_xbj.
+DATA:BEGIN OF it_fkjh OCCURS 0,"付款计划屏幕
+       ebeln  TYPE ebeln,
+       ebelp  TYPE ebelp,
+       zfkjhd TYPE ztmm204-zfkjhd,
+       zfkjhh TYPE ztmm204-zfkjhh,
+       zddzje TYPE eine-netpr,
+       zmxzje TYPE eine-netpr,
+       zfktj  TYPE ze_zfktj,
+       zfkfs  TYPE ze_zfkfs,
+       zfkbl  TYPE int1,
+       zfkje  TYPE eine-netpr,
+       zfkrq  TYPE dats,
+       ddbs   TYPE char1,
+       sel,
+     END OF it_fkjh.
+DATA:BEGIN OF it_ekko1 OCCURS 0,"维护、查询按钮alv
+       ebeln  TYPE ekko-ebeln,
+       bukrs  TYPE ekko-bukrs,
+       ekorg  TYPE ekko-ekorg,
+       ekgrp  TYPE ekko-ekgrp,
+       lifnr  TYPE ekko-lifnr,
+       kunnr  TYPE kunnr,
+       name2  TYPE name1, "项目客户名字
+       name1  TYPE name1, "供应商名字
+       posid  TYPE proj-pspid,
+       post1  TYPE proj-post1,
+       zgyslx TYPE ekko-zgyslx,
+       zhth   TYPE ekko-zhth,
+       zddzje TYPE prcd_elements-kbetr,
+       zfkjhd TYPE ztmm204-zfkjhd,
+       zfklx  TYPE ekko-zfklx,
+       zfkfs  TYPE ekko-zfkfs,
+       zjgsd  TYPE ekko-zjgsd,
+       zyfkje TYPE ekko-zyfkje,
+       zxbjdh TYPE ztmm203-zxbjdh,
+       bsart  TYPE ekko-bsart,
+       pstyp  TYPE ekko-bstyp,
+       zspbs  TYPE char1,
+       frgke  TYPE ekko-frgke,
+       kposn  TYPE ztmmhh-posnr,
+       knumv  TYPE ekko-knumv,
+       menge  TYPE ekpo-menge,
+       aedat  TYPE ekko-aedat,
+       select,
+     END OF it_ekko1.
+DATA: poheader         TYPE bapimepoheader,
+      poheaderx        TYPE bapimepoheaderx,
+      wa_ext           TYPE bapi_te_mepoheader,
+      wa_extx          TYPE bapi_te_mepoheaderx,
+      wa_extp          TYPE bapi_te_mepoitem,
+      wa_extpx         TYPE bapi_te_mepoitemx,
+      exppurchaseorder TYPE bapimepoheader-po_number,
+      extensionin      TYPE TABLE OF bapiparex WITH HEADER LINE,
+      pocomponents     TYPE TABLE OF bapimepocomponent WITH HEADER LINE,
+      pocomponentsx    TYPE TABLE OF bapimepocomponentx WITH HEADER LINE,
+      poitem           TYPE STANDARD TABLE OF bapimepoitem WITH HEADER LINE,
+      poitemx          TYPE STANDARD TABLE OF bapimepoitemx WITH HEADER LINE,
+      poschedule       TYPE STANDARD TABLE OF bapimeposchedule WITH HEADER LINE,
+      poschedulex      TYPE STANDARD TABLE OF bapimeposchedulx WITH HEADER LINE,
+      pocond           TYPE STANDARD TABLE OF bapimepocond WITH HEADER LINE,
+      potextitem       TYPE TABLE OF bapimepotext WITH HEADER LINE,
+      poaccount        TYPE STANDARD TABLE OF bapimepoaccount WITH HEADER LINE,
+      poaccountx       TYPE STANDARD TABLE OF bapimepoaccountx WITH HEADER LINE,
+      return           TYPE TABLE OF bapiret2 WITH HEADER LINE,
+      pocondx          TYPE STANDARD TABLE OF bapimepocondx WITH HEADER LINE,
+      potextheader     TYPE TABLE OF bapimepotextheader WITH HEADER LINE.
+DATA:msg          TYPE bapi_msg,
+     task         TYPE char1,
+     flag         TYPE char1,
+     number       TYPE char3,
+     posnr        TYPE posnr,
+     tdid         TYPE tdid,
+     ok_code1     TYPE sy-ucomm,
+     wa_fileroute TYPE zsftps_fileroute,
+     oaname       TYPE string,
+     zfj          TYPE string.
+DATA: it_203 TYPE TABLE OF ztmm203 WITH HEADER LINE.
+DATA: it_204 TYPE TABLE OF ztmm204 WITH HEADER LINE.
+TYPES: BEGIN OF ty_list,"下拉框用
+         id    TYPE thead-tdid,
+         value TYPE char50,
+       END OF ty_list.
+DATA:it_list1            TYPE TABLE OF ty_list WITH HEADER LINE,
+     go_editor           TYPE REF TO cl_gui_textedit,
+     go_editor_container TYPE REF TO cl_gui_custom_container,
+     BEGIN OF texttable OCCURS 0,
+       text TYPE char255,
+     END OF texttable,
+     t_text TYPE TABLE OF zsmm202 WITH HEADER LINE,
+     tline  TYPE TABLE OF tline WITH HEADER LINE,
+     BEGIN OF it_text OCCURS 0,
+       tdid TYPE stxl-tdid,
+       text TYPE tdline,
+     END OF it_text.
+DATA:BEGIN OF it_yzdd OCCURS 0,
+       banfn TYPE banfn,
+       bnfpo TYPE bnfpo,
+       menge TYPE menge_d,
+     END OF it_yzdd.
+DATA:lt_bsart TYPE RANGE OF eban-bsart."可以一起转pr的po
+lt_bsart = VALUE #( sign = 'I' option = 'EQ'
+( low = 'Z01' )
+( low = 'Z03' )
+( low = 'Z04' )
+( low = 'NB' )
+).
+DATA:fname TYPE thead-tdname.
+DATA:it_list2 TYPE TABLE OF ty_list WITH HEADER LINE."抬头长文本
+*CLEAR:it_list2,it_list2[].
+*it_list2-id = 'F96'.
+*it_list2-value = '油漆要求'.
+*APPEND it_list2.
+*CLEAR:it_list2.
+*it_list2-id = 'F97'.
+*it_list2-value = '付款备注'.
+*APPEND it_list2.
+*CLEAR:it_list2.
+*it_list2-id = 'F98'.
+*it_list2-value = '质量与要求'.
+*APPEND it_list2.
+*CLEAR:it_list2.
+*it_list2-id = 'F99'.
+*it_list2-value = '备注'.
+*APPEND it_list2.
+*CLEAR:it_list2.
+*it_list2-id = 'F95'.
+*it_list2-value = '驻场监造条件'.
+*APPEND it_list2.
+*SORT it_list2 BY id.
+DATA:it_zggxh TYPE TABLE OF dd07v WITH HEADER LINE, "
+     it_zcpfl TYPE TABLE OF dd07v WITH HEADER LINE, "
+     it_zwz   TYPE TABLE OF dd07v WITH HEADER LINE. "
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+*  PARAMETERS:P_WERKS LIKE EBAN-WERKS OBLIGATORY MEMORY ID WERKS.
+  SELECT-OPTIONS:s_werks FOR eban-werks MEMORY ID wrk,
+                 s_banfn FOR eban-banfn MODIF ID m1,
+                 s_ebeln FOR ekko-ebeln MODIF ID m2,
+                 s_ekgrp FOR eban-ekgrp OBLIGATORY MEMORY ID ekg.
+  SELECT-OPTIONS:s_matnr FOR eban-matnr,
+                 s_matkl FOR mara-matkl,
+                 s_afnam FOR eban-afnam,
+                 s_lfdat FOR eban-badat,
+                 s_kunnr FOR kuagv-kunnr,
+                 s_posid FOR prps-posid.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:p_cj RADIOBUTTON GROUP grd1 USER-COMMAND singleclick DEFAULT 'X' MODIF ID p,
+             p_wh RADIOBUTTON GROUP grd1 MODIF ID p,
+             p_cx RADIOBUTTON GROUP grd1 MODIF ID p.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk3 WITH FRAME TITLE t03.
+  SELECTION-SCREEN COMMENT: /1(79) t3 MODIF ID mm,
+    /1(50) t4 MODIF ID mm,
+    /1(79) t5 MODIF ID mm.
+SELECTION-SCREEN END OF BLOCK blk3.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+
+  %_s_werks_%_app_%-text    = '工厂'.
+  %_s_banfn_%_app_%-text    = '采购申请编号'.
+  %_s_ebeln_%_app_%-text    = '采购订单编号'.
+  %_s_ekgrp_%_app_%-text    = '采购组'.
+  %_s_matnr_%_app_%-text    = '物料编号'.
+  %_s_matkl_%_app_%-text    = '物料组'.
+  %_s_afnam_%_app_%-text    = '申请人'.
+  %_s_lfdat_%_app_%-text    = '交货日期'.
+  %_s_kunnr_%_app_%-text    = '客户'.
+  %_s_posid_%_app_%-text    = '项目'.
+
+  t02 = '功能选择'.
+  %_p_cj_%_app_%-text    = '创建'.
+  %_p_cx_%_app_%-text    = '查询'.
+  %_p_wh_%_app_%-text    = '维护'.
+
+  t03 = '说明'.
+  t3 = '维护和查询屏幕是以采购订单抬头为维度展示的，客户和项目筛选条件只针对采购订单00010行对应的客户和项目.'.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+    IF sy-tcode = 'ZMM209'.
+      IF screen-name = 'P_CX' OR screen-name = 'P_WH'.
+        screen-active = 0.
+      ENDIF.
+      IF screen-group1 = 'MM'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+    CASE screen-group1.
+      WHEN 'M1'.
+        IF p_cj NE 'X'.
+          screen-active = 0.
+        ENDIF.
+      WHEN 'M2'.
+        IF p_cj = 'X'.
+          screen-active = 0.
+        ENDIF.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+START-OF-SELECTION.
+
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  IF p_cj = 'X'.
+    PERFORM getdata.
+    PERFORM alvshow.
+  ELSE.
+    PERFORM getdatapo.
+    PERFORM alvshowpo.
+  ENDIF.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdatapo.
+  DATA:BEGIN OF it_ddzje OCCURS 0,
+         ebeln  TYPE ebeln,
+         zddzje TYPE prcd_elements-kbetr,
+       END OF it_ddzje.
+  SELECT
+    ekko~ebeln
+    ekko~bukrs
+    ekko~ekorg
+    ekko~ekgrp
+    ekko~lifnr
+    lfa1~name1
+    ekko~zgyslx
+    ekko~zhth
+*    prcd_elements~kbetr
+    ztmm204~zfkjhd
+    ekko~zfklx
+    ekko~zfkfs
+    ekko~zjgsd
+    ekko~zyfkje
+    ztmm203~zxbjdh
+    ekko~frgke
+*    ekko~bsart
+*    ekko~bstyp
+    ztmmhh~posnr AS kposn
+    ekko~knumv
+    ekpo~menge
+    ekko~aedat
+     INTO CORRESPONDING FIELDS OF TABLE it_ekko1
+  FROM ekko
+    JOIN ekpo ON ekko~ebeln = ekpo~ebeln
+    JOIN eban ON ekpo~banfn = eban~banfn AND ekpo~bnfpo = eban~bnfpo
+    JOIN lfa1 ON ekko~lifnr = lfa1~lifnr
+    LEFT JOIN ztmm203 ON ekko~ebeln = ztmm203~ebeln
+    LEFT JOIN ztmm204 ON ekko~ebeln = ztmm204~ebeln
+    JOIN ztmmhh ON ekpo~ebelp = ztmmhh~ebelp
+    WHERE ekko~ekgrp IN s_ekgrp
+    AND ekpo~werks IN s_werks
+    AND ekko~ebeln IN s_ebeln
+    AND ekpo~matnr IN s_matnr.
+
+  SORT it_ekko1 BY ebeln kposn.
+  DELETE ADJACENT DUPLICATES FROM it_ekko1 COMPARING ebeln kposn.
+
+  IF it_ekko1[] IS NOT INITIAL.
+    " 取项目信息  24.10.2022 09:02:03 by kkw,
+    " 取prps~posidq前8位和ztps010a~pspid一样的找客户 23.11.2022 10:00:25 by kkw
+    SELECT
+      ekkn~ebeln,
+      ekkn~ebelp,
+      ekkn~ps_psp_pnr,
+      prps~posid,
+      prps~post1,
+      ztps010a~name1,
+      ztps010a~kunnr,
+      ekkn~zekkn
+      FROM ekkn
+      JOIN prps ON ekkn~ps_psp_pnr = prps~pspnr
+*    LEFT JOIN ztps010a ON prps~posid = ztps010a~pspid
+       LEFT JOIN ztps010a ON ztps010a~pspid = substring( prps~posid,1,8 )
+      FOR ALL ENTRIES IN @it_ekko1
+      WHERE ekkn~ebeln = @it_ekko1-ebeln
+      AND ekkn~ebelp = '00010'"@it_ekko1-ebelp
+       INTO TABLE @DATA(lt_ekkn).
+
+    SORT lt_ekkn BY ebeln.
+    "取行单价
+    SELECT
+      prcd~kbetr,
+      prcd~kpein,
+      prcd~knumv,
+      prcd~kposn,
+      prcd~stunr,
+      prcd~zaehk
+    INTO TABLE @DATA(lt_prcd_dd)
+    FROM prcd_elements AS prcd
+    FOR ALL ENTRIES IN @it_ekko1
+    WHERE prcd~knumv = @it_ekko1-knumv
+    AND prcd~kposn = @it_ekko1-kposn
+    AND prcd~kschl = 'PBXX'.
+    .
+    SORT lt_prcd_dd BY knumv kposn.
+
+    REFRESH it_ddzje.
+    LOOP AT it_ekko1.
+      READ TABLE lt_prcd_dd INTO DATA(lw_prcd_dd) WITH KEY knumv = it_ekko1-knumv kposn = it_ekko1-kposn BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        CLEAR it_ddzje.
+        it_ddzje-ebeln = it_ekko1-ebeln.
+        IF lw_prcd_dd-kpein NE 0.
+          it_ddzje-zddzje = lw_prcd_dd-kbetr / lw_prcd_dd-kpein  * it_ekko1-menge.
+        ENDIF.
+        COLLECT it_ddzje.
+      ENDIF.
+    ENDLOOP.
+    SORT it_ddzje BY ebeln.
+
+    LOOP AT it_ekko1.
+      "项目和客户信息
+      READ TABLE lt_ekkn INTO DATA(lw_ekkn) WITH KEY ebeln = it_ekko1-ebeln  BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        it_ekko1-kunnr = lw_ekkn-kunnr.
+        it_ekko1-name2 = lw_ekkn-name1.
+        it_ekko1-posid = lw_ekkn-posid.
+        it_ekko1-post1 = lw_ekkn-post1.
+      ENDIF.
+      "订单总金额
+      READ TABLE it_ddzje WITH KEY ebeln = it_ekko1-ebeln BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        it_ekko1-zddzje = it_ddzje-zddzje.
+      ENDIF.
+      IF it_ekko1-frgke = 'R'.
+        it_ekko1-zspbs = 'X'.
+      ENDIF.
+      MODIFY it_ekko1.
+    ENDLOOP.
+  ENDIF.
+  SORT it_ekko1  BY ebeln.
+  DELETE ADJACENT DUPLICATES FROM it_ekko1 COMPARING ebeln.
+  DELETE it_ekko1 WHERE kunnr NOT IN s_kunnr.
+  DELETE it_ekko1 WHERE posid NOT IN s_posid.
+  SORT it_ekko1 BY ebeln.
+ENDFORM.
+
+FORM alvshowpo.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 2."控制用户布局
+
+  PERFORM catlg_set TABLES fldctpo
+                    USING:
+*'BSART' 'EKKO' 'BSART' '采购订单凭证类型',
+'EBELN' 'EKKO' 'EBELN' '采购订单号',
+'AEDAT' 'EKKO' 'AEDAT' '制单日期',
+*'PSTYP' 'EKKO' 'PSTYP' '采购凭证类别',
+'NAME2'     ''        ''            '客户'              ,
+'POST1'     ''        ''            '项目'              ,
+'BUKRS' 'EKKO' 'BUKRS' '公司',
+'EKORG' 'EKKO' 'EKORG' '采购组织',
+'EKGRP' 'EKKO' 'EKGRP' '采购组',
+'LIFNR'   'EKKO'    'LIFNR'    '供应商编码',
+'NAME1'   'EKKO'    'NAME1'    '供应商',
+'ZGYSLX'  'EKKO'    'ZGYSLX'   '供应商类型',
+'ZHTH'    'EKKO'    'ZHTH'     '外部合同号',
+'ZDDZJE'  'EKKO'    'ZDDZJE'   '订单总金额',
+'ZFKJHD'  'EKKO'    'ZFKJHD'   '付款计划单号',
+'ZFKLX'   'EKKO'    'ZFKLX'    '付款类型',
+'ZFKFS'   'EKKO'    'ZFKFS'    '付款方式',
+'ZJGSD'   'EKKO'    'ZJGSD'    '价格锁定',
+'ZYFKJE'  'EKKO'    'ZYFKJE'   '预付款金额',
+'ZXBJDH'  'EKKO'    'ZXBJDH'   '询比价单号',
+'ZSPBS'   ''        ''         '审批标识'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldctpo[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = it_ekko1[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM getdata.
+  SELECT
+    eban~bsart
+    eban~banfn
+    eban~bnfpo
+    eban~knttp
+    eban~pstyp
+    eban~werks
+    eban~afnam
+*    name1 "wbs客户
+*    proj~post1 "wbs项目
+    eban~matnr
+    makt~maktx
+    eban~zchandi "产地
+    eban~menge
+    eban~meins
+    eban~zcgsl "采购数量
+    eban~zdddw"订单单位
+    eban~zbaoguan "保管
+    eban~lgort
+    t001l~lgobe
+    eban~zsfzf "直发工地标识
+    eban~zzfdz "卸货地址
+    eban~lfdat
+    marc~plifz "采购周期
+    eban~ekgrp
+    t024~eknam
+    eban~ekorg
+    t024e~ekotx
+*    ztjcgzq "推荐采购日期
+    zfpcgrq1 "分配采购日期
+    zsl1
+        zfpcgrq2 "分配采购日期
+    zsl2
+        zfpcgrq3 "分配采购日期
+    zsl3
+*    zfj "附件
+    eban~bsmng
+    eban~bmein
+    eban~zggxh
+    eban~zcpfl
+    eban~zwz
+    eban~txz01
+    eban~zwwgy
+     INTO CORRESPONDING FIELDS OF TABLE it_eban
+    FROM eban
+*    JOIN ebkn ON eban~banfn = ebkn~banfn AND eban~bnfpo = ebkn~bnfpo
+    LEFT JOIN makt ON eban~matnr = makt~matnr AND makt~spras = sy-langu
+    LEFT JOIN t001l ON eban~lgort = t001l~lgort AND eban~werks = t001l~werks
+    LEFT JOIN t024e ON eban~ekorg = t024e~ekorg
+    LEFT JOIN t024 ON eban~ekgrp = t024~ekgrp
+    LEFT JOIN marc ON eban~matnr = marc~matnr AND eban~werks = marc~werks
+    WHERE eban~estkz IN ( 'B', 'R' )
+    AND eban~statu IN ( 'N','B' )
+    AND eban~loekz = ''
+    AND eban~frgkz = 'R'
+    AND eban~blckd NE '1'
+    AND eban~werks IN s_werks
+    AND eban~banfn IN s_banfn
+    AND eban~ekgrp IN s_ekgrp
+    AND eban~matnr IN s_matnr
+    AND eban~afnam IN s_afnam
+    AND eban~lfdat IN s_lfdat
+  .
+
+  IF it_eban[] IS INITIAL.
+    MESSAGE s004 WITH '无数据' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  "获取已转订单的数量
+
+  SELECT
+    ekpo~ebeln,
+    ekpo~ebelp,
+    ekpo~banfn,
+    ekpo~bnfpo,
+    ekpo~menge
+    INTO TABLE @DATA(lt_ekpo)
+    FROM ekpo FOR ALL ENTRIES IN @it_eban
+    WHERE ekpo~banfn = @it_eban-banfn
+    AND ekpo~bnfpo = @it_eban-bnfpo
+    AND ekpo~loekz NE 'X'.
+  REFRESH it_yzdd.
+  LOOP AT lt_ekpo INTO DATA(lw_ekpo).
+    CLEAR it_yzdd.
+    it_yzdd-banfn = lw_ekpo-banfn.
+    it_yzdd-bnfpo = lw_ekpo-bnfpo.
+    it_yzdd-menge = lw_ekpo-menge.
+    COLLECT it_yzdd.
+  ENDLOOP.
+  SORT it_yzdd BY banfn bnfpo.
+
+*  LOOP AT it_eban."排除采购已完成的申请
+*    IF it_eban-bsmng GE it_eban-menge.
+*      DELETE it_eban.
+*    ENDIF.
+*  ENDLOOP.
+
+  LOOP AT it_eban.
+    READ TABLE it_yzdd WITH KEY banfn = it_eban-banfn bnfpo = it_eban-bnfpo BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_eban-zyzsl = it_yzdd-menge.
+    ENDIF.
+    it_eban-zwzsl = it_eban-menge - it_eban-zyzsl.
+    IF it_eban-matnr  IS INITIAL.
+      it_eban-wlcms = it_eban-txz01 .
+    ENDIF.
+    MODIFY it_eban.
+    IF it_eban-zyzsl GE it_eban-menge.
+      DELETE it_eban.
+    ENDIF.
+  ENDLOOP.
+
+  IF it_eban[] IS INITIAL.
+    MESSAGE s004 WITH '无数据' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  " 取项目信息  24.10.2022 09:02:03 by kkw,
+  " 取prps~posidq前8位和ztps010a~pspid一样的找客户 23.11.2022 10:00:25 by kkw
+  SELECT
+    ebkn~banfn,
+    ebkn~bnfpo,
+    ebkn~ps_psp_pnr,
+    prps~posid,
+    prps~post1,
+    ztps010a~name1,
+    ztps010a~kunnr,
+    ebkn~zebkn
+    FROM ebkn
+    JOIN prps ON ebkn~ps_psp_pnr = prps~pspnr
+*    LEFT JOIN ztps010a ON prps~posid = ztps010a~pspid
+     LEFT JOIN ztps010a ON ztps010a~pspid = substring( prps~posid,1,8 )
+    FOR ALL ENTRIES IN @it_eban
+    WHERE ebkn~banfn = @it_eban-banfn
+    AND ebkn~bnfpo = @it_eban-bnfpo
+     INTO TABLE @DATA(lt_ebkn).
+
+  SORT lt_ebkn BY banfn bnfpo.
+
+*ICON_2 ICON_LED_GREEN                 '@5B@'."  Green LED; go; OK
+*ICON_2 ICON_LED_RED                   '@5C@'."  Red LED; stop; error
+*ICON_2 ICON_LED_YELLOW                '@5D@'."  Yellow LED; caution
+  PERFORM getdomain(zpubform) TABLES it_zggxh  USING 'ZD_ZBANX'.
+  PERFORM getdomain(zpubform) TABLES it_zcpfl  USING 'ZDMM_ZCPFL'.
+  PERFORM getdomain(zpubform) TABLES it_zwz  USING 'ZDMM_ZWZ'.
+  LOOP AT it_eban.
+    READ TABLE lt_ebkn INTO DATA(lw_ebkn) WITH KEY banfn = it_eban-banfn bnfpo = it_eban-bnfpo BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_eban-kunnr = lw_ebkn-kunnr.
+      it_eban-name1 = lw_ebkn-name1.
+      it_eban-posid = lw_ebkn-posid.
+      it_eban-post1 = lw_ebkn-post1.
+    ENDIF.
+    IF it_eban-ztjcgrq IS INITIAL."推荐采购日期
+      it_eban-ztjcgrq = it_eban-lfdat - it_eban-plifz.
+    ENDIF.
+    IF it_eban-ztjcgrq < sy-datum.
+      it_eban-icon = '@5C@'.
+    ELSEIF it_eban-ztjcgrq = sy-datum.
+      it_eban-icon = '@5D@'.
+    ELSE.
+      it_eban-icon = '@5B@'.
+    ENDIF.
+*    it_eban-zyzsl = it_eban-bsmng.
+*    it_eban-zwzsl = it_eban-menge - it_eban-bsmng.
+    PERFORM getlongtext(zpubform) USING 'GRUN' it_eban-matnr 'MATERIAL' CHANGING it_eban-wlcms.
+    READ TABLE it_zggxh WITH KEY domvalue_l = it_eban-zggxh BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_eban-zggxh_desc = it_zggxh-ddtext.
+    ENDIF.
+    READ TABLE it_zcpfl WITH KEY domvalue_l = it_eban-zcpfl BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_eban-zcpfl_desc = it_zcpfl-ddtext.
+    ENDIF.
+    READ TABLE it_zwz WITH KEY domvalue_l = it_eban-zwz BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_eban-zwz_desc = it_zwz-ddtext.
+    ENDIF.
+    MODIFY it_eban.
+  ENDLOOP.
+
+  DELETE it_eban WHERE kunnr NOT IN s_kunnr.
+  DELETE it_eban WHERE posid NOT IN s_posid.
+  SORT it_eban BY banfn bnfpo.
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1.
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'ICON'      ''        ''            '指示灯'            ,
+'BSART'     'EBAN'    'BSART'       '采购申请凭证类型'  ,
+'BANFN'     'EBAN'    'BANFN'       '采购申请单号'      ,
+'BNFPO'     'EBAN'    'BNFPO'       '行号'              ,
+'KNTTP'     'EBAN'    'KNTTP'       '科目分配类别'      ,
+'PSTYP'     'EBAN'    'PSTYP'       '项目类别'          ,
+'WERKS'     'EBAN'    'WERKS'       '工厂'              ,
+'AFNAM'     'EBAN'    'AFNAM'       '申请人'            ,
+'NAME1'     ''        ''            '客户'              ,
+'POST1'     ''        ''            '项目'              ,
+'MATNR'     'EBAN'    'MATNR'       '物料编码'          ,
+*'MAKTX'     'MAKT'    'MAKTX'       '物料描述'          ,
+'WLCMS'     ''    ''       '物料长描述'          ,
+'ZCHANDI'   'EBAN'    'ZCHANDI'     '产地'              ,
+'MENGE'     'EBAN'    'MENGE'       '申请数量'          ,
+'MEINS'     'EBAN'    'MEINS'       '申请单位'          ,
+'ZYZSL'     'EBAN'    'MENGE'       '已转数量'          ,
+'ZWZSL'     'EBAN'    'MENGE'       '未转数量'          ,
+'ZCGSL'     'EBAN'    'MENGE'       '采购数量'          ,
+'ZDDDW'     'EBAN'    'MEINS'       '订单单位'          ,
+'ZBAOGUAN'       'EBAN'        'ZBAOGUAN'            '保管'              ,
+'LGORT'     'T001L'   'LGORT'       '库存地'            ,
+'LGOBE'     'T001L'   'LGOBE'       '库存地描述'        ,
+'ZSFZF'     'EBAN'        'ZSFZF'            '直发工地标识'      ,
+'ZZFDZ'     'EBAN'        'ZZFDZ'            '卸货地址'          ,
+'LFDAT'     'EBAN'    'LFDAT'       '需求日期'          ,
+*'EKORG'     'EBAN'    'EKORG'       '采购组织'          ,
+*'EKOTX'     'EBAN'    'EKORG'       '采购组织描述'          ,
+'EKGRP'     'EBAN'    'EKGRP'       '采购组'            ,
+'EKNAM'     'EBAN'    'EKGRP'       '采购组描述'            ,
+'PLIFZ'     'MARC'    'PLIFZ'       '采购周期'          ,
+'ZTJCGRQ'   'EBAN'    'LFDAT'       '推荐采购日期'      ,
+'ZFPCGRQ1'   'EBAN'    'LFDAT'       '分配采购日期1'      ,
+'ZSL1'       'EBAN'    'MENGE'       '数量1'      ,
+'ZFPCGRQ2'   'EBAN'    'LFDAT'       '分配采购日期2'      ,
+'ZSL2'       'EBAN'    'MENGE'       '数量2'      ,
+'ZFPCGRQ3'   'EBAN'    'LFDAT'       '分配采购日期3'      ,
+'ZSL3'       'EBAN'    'MENGE'       '数量3'      ,
+'ZGGXH_DESC'       ''    ''       '规格型号'      ,
+'ZCPFL_DESC'       ''    ''       '产品分类'      ,
+'ZWZ_DESC'       ''    ''       '位置'      ,
+'ZWWGY'       'EBAN'    'ZWWGY'       '委外工艺'      ,
+'ZFJ'       'EBAN'    ''            '附件'              .
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = it_eban[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN 'ZFPCGRQ1' OR 'ZFPCGRQ2' OR 'ZFPCGRQ3' OR 'ZSL1' OR 'ZSL2' OR 'ZSL3'.
+*      ls_fldct-edit = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR 'BANFN' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  IF p_cj = 'X'.
+    APPEND 'WH' TO rt_extab.
+    APPEND 'CK' TO rt_extab.
+    IF sy-tcode EQ 'ZMM209'.
+      APPEND 'PR2PO' TO rt_extab.
+      APPEND 'CLOSEPR' TO rt_extab.
+      APPEND 'FJ' TO rt_extab.
+    ELSEIF sy-tcode EQ 'ZMM205'.
+      APPEND 'FPCGRQ' TO rt_extab.
+    ENDIF.
+  ELSEIF p_wh = 'X'.
+    APPEND 'PR2PO' TO rt_extab.
+    APPEND 'CK' TO rt_extab.
+    APPEND 'FPCGRQ' TO rt_extab.
+    APPEND 'CLOSEPR' TO rt_extab.
+    APPEND 'FJ' TO rt_extab.
+  ELSE.
+    APPEND 'WH' TO rt_extab.
+    APPEND 'PR2PO' TO rt_extab.
+    APPEND 'FPCGRQ' TO rt_extab.
+    APPEND 'CLOSEPR' TO rt_extab.
+    APPEND 'FJ' TO rt_extab.
+  ENDIF.
+
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+  SET TITLEBAR 'TIT1000' WITH '采购申请转采购订单'.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF it_eban.
+  DATA wa1 LIKE LINE OF it_ekko1.
+  DATA:filename TYPE string.
+  DATA pdfxstring TYPE xstring.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      IF p_cj = 'X'.
+        READ TABLE it_eban INTO wa INDEX rs_selfield-tabindex.
+      ELSE.
+        READ TABLE it_ekko1 INTO wa1 INDEX rs_selfield-tabindex.
+      ENDIF.
+      CASE rs_selfield-fieldname.
+        WHEN 'BANFN'.
+          PERFORM me53n(zpubform) USING wa-banfn.
+        WHEN 'EBELN'.
+          PERFORM me23n(zpubform) USING wa1-ebeln.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'PR2PO' OR 'WH' OR 'CK'.
+      "清空询比价信息
+      CLEAR:it_xbj,it_xbj[],it_fkjh,it_fkjh[],it_text,it_text[],texttable,texttable[].
+      IF p_cj = 'X'.
+        PERFORM pr2po.
+      ELSE.
+        PERFORM po.
+      ENDIF.
+    WHEN 'FPCGRQ'."分配采购日期
+      PERFORM fpcgrq.
+    WHEN 'CLOSEPR'."冻结采购申请
+      PERFORM closepr.
+    WHEN 'FJ'.
+      PERFORM openfj.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+
+FORM po.
+  DATA:num TYPE i.
+  CLEAR: it_ekpo,it_ekpo[],wa_ekko,num.
+  LOOP AT it_ekko1 WHERE select = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选中一行采购订单.'.
+    RETURN.
+  ENDIF.
+  SELECT
+ekko~ebeln  ,
+ekko~bsart  AS bsart_po,
+ekko~ekorg  AS ekorg_po,
+ekko~ekgrp  AS ekgrp_po,
+ekko~bukrs  ,
+ekko~aedat  ,
+ekko~lifnr  ,
+ekko~zgyslx ,
+ekko~zjgsd  ,
+ekko~zfkfs  ,
+ekko~zfklx  ,
+ekko~zyfkje ,
+ekko~zyfkbl ,
+ekko~zzbj   ,
+ekko~zzbjbl ,
+*ekko~zbz    ,
+*ekko~zzlyq  ,
+ekko~zhth   ,
+ekko~knumv  ,
+
+    eban~bsart AS bsart                ,
+    eban~banfn                ,
+    eban~bnfpo                ,
+    eban~knttp                ,
+    eban~pstyp                ,
+    eban~werks                ,
+    eban~afnam                ,
+    ekpo~yl5 AS zchandi,
+*    name1 "wbs客户             ,
+*    proj~post1 "wbs项目        ,
+    eban~matnr                ,
+    makt~maktx                ,
+*    char10 "产地               ,
+    eban~menge                ,
+    eban~meins                ,
+*    eban~zfzsl "辅助数量         ,
+*    eban~zfzdw "辅助单位         ,
+*    name1 "保管                ,
+    eban~lgort                ,
+    t001l~lgobe               ,
+*    ZZFGD "直发工地标识            ,
+*    ZXHDZ "卸货地址              ,
+    eban~lfdat                ,
+    marc~plifz                ,"采购周期
+    eban~ekgrp AS ekgrp_pr                ,
+    eban~ekorg AS ekorg_pr    ,
+
+ekpo~menge AS menge_cg,
+ekpo~meins AS meins_cg,
+ekpo~ps_psp_pnr,
+ekpo~ebelp,
+ekpo~mwskz,
+prps~posid,
+prps~post1,
+lfa1~name1,
+ztmm203~zzxbs AS zxbjbs,
+t024~eknam,
+eket~eindt,
+ekpo~zzyh,
+eban~bsmng,
+ekko~frgke,
+ekko~zckbm,
+ekko~zwllx,
+ekko~zysfsgp,
+ekko~zgjgq,
+ekko~zyfcdf,
+ekko~zcglx,
+ekko~zxcf,
+ekko~zfptgsj,
+ekko~zsfcpwg,
+eban~zzfdz,
+eban~zwwgy
+    INTO TABLE @DATA(lt_po)
+    FROM ekko
+    JOIN ekpo ON ekko~ebeln = ekpo~ebeln
+    JOIN eban ON ekpo~banfn = eban~banfn AND ekpo~bnfpo = eban~bnfpo
+    LEFT JOIN makt ON ekpo~matnr = makt~matnr AND makt~spras = @sy-langu
+    LEFT JOIN t001l ON ekpo~lgort = t001l~lgort AND ekpo~werks = t001l~werks
+    LEFT JOIN marc ON ekpo~matnr = marc~matnr AND ekpo~werks = marc~werks
+    LEFT JOIN prps ON ekpo~ps_psp_pnr = prps~pspnr
+    LEFT JOIN ztmm203 ON ekpo~ebeln = ztmm203~ebeln AND ekpo~ebelp = ztmm203~ebelp  AND ztmm203~zzxbs = 'X'
+    LEFT JOIN t024 ON eban~ekgrp = t024~ekgrp
+    LEFT JOIN lfa1 ON ekko~lifnr = lfa1~lifnr
+    LEFT JOIN eket ON eket~ebeln = ekpo~ebeln AND eket~ebelp = ekpo~ebelp AND eket~etenr = '0001'
+  WHERE ekko~ebeln = @it_ekko1-ebeln.
+  IF lt_po[] IS NOT INITIAL.
+    SELECT
+      prcd~knumv,
+      prcd~kposn,
+      prcd~kbetr,
+      prcd~kpein,
+      prcd~stunr,
+      prcd~zaehk
+    INTO TABLE @DATA(lt_prcd_mx)
+    FROM prcd_elements AS prcd
+    FOR ALL ENTRIES IN @lt_po
+    WHERE prcd~knumv = @lt_po-knumv
+      AND prcd~kschl = 'PBXX'.
+    .
+    SORT lt_prcd_mx BY knumv kposn.
+
+    " 取项目信息  24.10.2022 09:02:03 by kkw,
+    " 取prps~posidq前8位和ztps010a~pspid一样的找客户 23.11.2022 10:00:25 by kkw
+    SELECT
+      ebkn~banfn,
+      ebkn~bnfpo,
+      ebkn~ps_psp_pnr,
+      prps~posid,
+      prps~post1,
+      ztps010a~name1,
+      ztps010a~kunnr,
+      ebkn~zebkn
+      FROM ebkn
+      JOIN prps ON ebkn~ps_psp_pnr = prps~pspnr
+*    LEFT JOIN ztps010a ON prps~posid = ztps010a~pspid
+       LEFT JOIN ztps010a ON ztps010a~pspid = substring( prps~posid,1,8 )
+      FOR ALL ENTRIES IN @lt_po
+      WHERE ebkn~banfn = @lt_po-banfn
+      AND ebkn~bnfpo = @lt_po-bnfpo
+       INTO TABLE @DATA(lt_ebkn).
+
+    SORT lt_ebkn BY banfn bnfpo.
+
+  ENDIF.
+  REFRESH it_ekpo_old.
+  LOOP AT lt_po INTO DATA(lw_po).
+    CLEAR:wa_ekko,it_ekpo.
+    MOVE-CORRESPONDING lw_po TO wa_ekko.
+    READ TABLE it_ekko1 WITH KEY ebeln = lw_po-ebeln BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_ekko-zddzje = it_ekko1-zddzje.
+    ENDIF.
+    wa_ekko-ekgrp = lw_po-ekgrp_po.
+    wa_ekko-ekorg = lw_po-ekorg_po.
+    wa_ekko-bsart = lw_po-bsart_po.
+    wa_ekko-mwskz = lw_po-mwskz.
+    MOVE-CORRESPONDING lw_po TO it_ekpo.
+    it_ekpo-zyzsl = it_ekpo-bsmng.
+    it_ekpo-zwzsl = it_ekpo-menge - it_ekpo-bsmng.
+*    it_ekpo-ekgrp = lw_po-ekgrp_pr.
+*    it_ekpo-ekorg = lw_po-ekorg_pr.
+    it_ekpo-ebelp = lw_po-ebelp.
+    READ TABLE lt_prcd_mx INTO DATA(lw_prcd_mx) WITH KEY knumv = lw_po-knumv kposn = lw_po-ebelp BINARY SEARCH.
+    IF sy-subrc EQ 0 AND lw_prcd_mx-kpein NE 0." PRCD存的是行单价 22.11.2022 21:48:44 by kkw
+      it_ekpo-kbetr = lw_prcd_mx-kbetr / lw_prcd_mx-kpein.
+    ENDIF.
+    READ TABLE lt_ebkn INTO DATA(lw_ebkn) WITH KEY banfn = lw_po-banfn bnfpo = lw_po-bnfpo BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_ekpo-name1 = lw_ebkn-name1.
+      it_ekpo-post1 = lw_ebkn-post1.
+    ELSE.
+      it_ekpo-name1 = ''.
+      it_ekpo-post1 = ''.
+    ENDIF.
+    PERFORM getlongtext(zpubform) USING 'GRUN' it_ekpo-matnr 'MATERIAL' CHANGING it_ekpo-wlcms.
+    it_ekpo-zddzje = it_ekpo-menge_cg * it_ekpo-kbetr.
+    APPEND it_ekpo.
+    CLEAR it_ekpo_old."数据变化推送oa.
+    MOVE-CORRESPONDING it_ekpo TO it_ekpo_old.
+    APPEND it_ekpo_old.
+  ENDLOOP.
+  SELECT SINGLE zckmc INTO wa_ekko-zckmc FROM zvtmm215 WHERE zckbm = wa_ekko-zckbm.
+  SELECT SINGLE butxt INTO wa_ekko-butxt FROM t001 WHERE bukrs = wa_ekko-bukrs.
+  CLEAR wa_ekko_old.
+  MOVE-CORRESPONDING wa_ekko TO wa_ekko_old."数据变化推送oa.
+  LOOP AT lt_po INTO lw_po WHERE zzfdz IS NOT INITIAL.
+    EXIT.
+  ENDLOOP.
+  wa_ekko-zzfdz = lw_po-zzfdz.
+  CALL SCREEN 900.
+ENDFORM.
+
+FORM pr2po.
+  DATA:BEGIN OF it_bsart OCCURS 0,
+         bsart TYPE eban-bsart,
+       END OF it_bsart.
+  DATA:ebelp TYPE ekpo-ebelp.
+  REFRESH it_bsart.
+  LOOP AT it_eban WHERE select = 'X'.
+    CLEAR it_bsart.
+    it_bsart-bsart = it_eban-bsart.
+    COLLECT it_bsart.
+  ENDLOOP.
+  DATA(line) = lines( it_bsart ).
+  IF line < 1.
+    MESSAGE s004 WITH '请选中需要转PR的行.'.
+    RETURN.
+  ELSEIF line > 1.
+    LOOP AT it_bsart.
+      IF it_bsart-bsart NOT IN lt_bsart.
+        MESSAGE s004 WITH '只允许Z01/Z03/Z04/NB的PR一起转PO.'.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  CLEAR: it_ekpo,it_ekpo[],wa_ekko.
+  ebelp = 0.
+  LOOP AT it_eban WHERE select = 'X'.
+    CLEAR it_ekpo.
+    MOVE-CORRESPONDING it_eban TO it_ekpo.
+*    IF line > 1.
+*      it_ekpo-bsart = 'NB'.
+*    ELSEIF line = 1.
+*      IF it_bsart-bsart IN lt_bsart.
+*        it_ekpo-bsart = 'NB'.
+*      ENDIF.
+*    ENDIF.
+    it_ekpo-sel = ''.
+    ADD 10 TO ebelp.
+    it_ekpo-ebelp = ebelp.
+    " 调整采购数量和采购单位的取值  05.12.2022 14:51:04 by kkw
+    it_ekpo-menge_cg = it_eban-menge.
+    it_ekpo-meins_cg = it_eban-bmein.
+
+    it_ekpo-eindt = it_eban-lfdat.
+    IF it_eban-knttp = 'Q'.
+      it_ekpo-sobkz = 'Q'.
+    ENDIF.
+    APPEND it_ekpo.
+  ENDLOOP.
+  CLEAR wa_ekko.
+  MOVE-CORRESPONDING it_eban TO wa_ekko.
+  LOOP AT it_eban WHERE select = 'X' AND zzfdz IS NOT INITIAL.
+    EXIT.
+  ENDLOOP.
+  wa_ekko-zzfdz = it_eban-zzfdz.
+  PERFORM getbukrs(zpubform) USING it_eban-werks CHANGING wa_ekko-bukrs.
+  SELECT SINGLE butxt INTO wa_ekko-butxt FROM t001 WHERE bukrs = wa_ekko-bukrs.
+  "供应商不要带过来
+  wa_ekko-name1 = ''.
+  IF line > 1.
+    wa_ekko-bsart = 'NB'.
+  ELSEIF line = 1.
+    IF it_bsart-bsart IN lt_bsart.
+      wa_ekko-bsart = 'NB'.
+    ENDIF.
+  ENDIF.
+  CALL SCREEN 900.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0900 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0900 OUTPUT.
+  DATA rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+
+  IF p_cj = 'X'.
+    SET TITLEBAR 'TIT900' WITH 'PR2PO'.
+*    APPEND 'DYHT' TO RT_EXTAB.
+  ELSEIF p_wh = 'X'.
+    SET TITLEBAR 'TIT900' WITH 'CHANGEPO'.
+*    APPEND 'DYHT' TO RT_EXTAB.
+  ELSEIF p_cx = 'X'.
+    SET TITLEBAR 'TIT900' WITH 'PO'.
+    APPEND 'PLDRXBJ' TO rt_extab.
+    APPEND 'SAVE' TO rt_extab.
+    APPEND 'PLDRXBJ' TO rt_extab.
+  ENDIF.
+
+  SET PF-STATUS 'STA900' EXCLUDING rt_extab.
+  PERFORM listbox.
+  IF p_cx = 'X'.
+    LOOP AT SCREEN.
+      screen-input = 0.
+      IF screen-name EQ 'WA_EKKO-TDID' OR screen-name EQ 'WA_EKKO-ZFJ_BUTTON'.
+        screen-input = 1.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ELSEIF p_wh = 'X'.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'WA_EKKO-EKORG' OR screen-name EQ 'WA_EKKO-BUKRS'.
+        screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ENDIF.
+  PERFORM setlist."下拉框
+  IF p_wh = 'X' OR p_cx = 'X'.
+    IF it_text[] IS INITIAL.
+      PERFORM getlongtext.
+    ENDIF.
+  ENDIF.
+  PERFORM editcontainer."长文本
+*  PERFORM DATA_SAVE.
+*    MODULE DATA_SAVE   ON CHAIN-REQUEST.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+DATA:ok_code LIKE sy-ucomm.
+DATA:save_ok LIKE sy-ucomm.
+DATA:ddzje TYPE prcd_elements-kbetr.
+MODULE user_command_0900 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  PERFORM screen2tab USING wa_ekko-tdid.
+  PERFORM tab2screen USING wa_ekko-tdid.
+  DATA: zpcdh       TYPE ztpp_206-zpcdh,
+        gsmng_yjh   TYPE ztpp_206-gsmng,
+        zcd_jhd_sum TYPE ztpp_206-zcd,
+        zks_jhd_sum TYPE ztpp_206-zks.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'DRXBJ'."导入询比价,
+      IF wa_ekko-ekorg IS INITIAL.
+        MESSAGE i004 WITH '请填入采购组织后再维护询比价.' .
+        EXIT.
+      ENDIF.
+      LOOP AT it_ekpo WHERE menge_cg LE 0.
+        EXIT.
+      ENDLOOP.
+      IF sy-subrc EQ 0.
+        MESSAGE s004 WITH '请维护完采购数量后再操作'  DISPLAY LIKE 'E'.
+        RETURN.
+      ENDIF.
+
+      IF p_cj = 'X'."首次点击询比价按钮，获取询比价，再次点击后显示首次获取的+用户维护的信息，po创建成功存203
+        IF it_xbj[] IS  INITIAL.
+          PERFORM getxbj.
+        ENDIF.
+      ELSEIF p_wh = 'X'."首次点击询比价按钮，获取ztmm203底表信息，如果有则展示底表信息，没有则获取询比价，再次点击后显示首次获取的+用户维护的信息，po修改成功后删除2203原先记录，保存新纪录
+        IF it_xbj[] IS  INITIAL.
+          SELECT * INTO CORRESPONDING FIELDS OF TABLE it_203 FROM ztmm203 WHERE ebeln = wa_ekko-ebeln.
+          IF it_203[] IS NOT INITIAL.
+            LOOP AT it_203.
+              MOVE-CORRESPONDING it_203 TO it_xbj.
+              it_xbj-zbjbs = 'X'.
+              it_xbj-netpr = it_203-zgysbj.
+              APPEND it_xbj.
+            ENDLOOP.
+            CLEAR:it_203,it_203[].
+          ELSE.
+            PERFORM getxbj.
+          ENDIF.
+        ENDIF.
+      ELSE."查看按钮
+        IF it_xbj[] IS  INITIAL.
+          SELECT * INTO CORRESPONDING FIELDS OF TABLE it_203 FROM ztmm203 WHERE ebeln = wa_ekko-ebeln.
+          IF it_203[] IS NOT INITIAL.
+            LOOP AT it_203.
+              MOVE-CORRESPONDING it_203 TO it_xbj.
+              it_xbj-zbjbs = 'X'.
+              it_xbj-netpr = it_203-zgysbj.
+              APPEND it_xbj.
+            ENDLOOP.
+            CLEAR:it_203,it_203[].
+          ELSE.
+            MESSAGE s004 WITH '尚未维护询比价信息.' DISPLAY LIKE 'I'.
+            RETURN.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      CALL SCREEN 901.
+    WHEN 'PLDRXBJ'."批量导入询比价
+      DATA lw_pldrxbj TYPE string.
+      CLEAR lw_pldrxbj.
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = '请选择方式'
+          text_question         = '导出模板/上传询比价信息'
+          text_button_1         = '导出模板'
+          text_button_2         = '上传询比价信息'
+          display_cancel_button = 'X'
+          start_column          = 35
+          start_row             = 6
+          popup_type            = 'ICON_MESSAGE_WARNING'
+        IMPORTING
+          answer                = lw_pldrxbj.
+      IF lw_pldrxbj = '1'.
+        PERFORM pldrxbjmb."导出模板
+      ELSEIF lw_pldrxbj = '2'.
+        IF wa_ekko-ekorg IS INITIAL.
+          MESSAGE i004 WITH '请填入采购组织后再维护询比价.' .
+          RETURN.
+        ENDIF.
+        PERFORM pldrxbjsc."上传
+      ENDIF.
+    WHEN 'SAVE'."生成采购订单
+      IF wa_ekko-zzfdz IS NOT INITIAL.
+        LOOP AT it_ekpo.
+          UPDATE eban SET zzfdz = wa_ekko-zzfdz WHERE banfn = it_ekpo-banfn AND bnfpo = it_ekpo-bnfpo.
+        ENDLOOP.
+      ENDIF.
+      IF p_cj = 'X'.
+        CHECK wa_ekko-ebeln IS INITIAL.
+        PERFORM savepo.
+      ELSEIF p_wh = 'X'.
+        CHECK wa_ekko-ebeln IS NOT INITIAL.
+        PERFORM datachanged_check CHANGING flag.
+        IF flag = 'E'."不推oa直接改po
+          CLEAR flag.
+          PERFORM changepo CHANGING flag.
+        ENDIF.
+      ENDIF.
+    WHEN 'CJFKJH'."维护付款计划，一个采购订单只能存在一种付款计划,
+      DATA lw_answer TYPE string.
+      CHECK wa_ekko-ebeln IS NOT INITIAL.
+
+      IF p_cj = 'X'."首次点击付款计划按钮，创建付款计划，保存后村存表204，其他按钮返回上一屏幕，再次点击付款计划显示之前的付款计划
+        IF it_fkjh[] IS INITIAL.
+          CLEAR lw_answer.
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = '请选择方式'
+              text_question         = '订单生成/订单明细生成'
+              text_button_1         = '订单生成'
+              text_button_2         = '订单明细生成'
+              display_cancel_button = 'X'
+              start_column          = 35
+              start_row             = 6
+              popup_type            = 'ICON_MESSAGE_WARNING'
+            IMPORTING
+              answer                = lw_answer.
+          IF lw_answer = '1'.
+            PERFORM getfkjh.
+          ELSEIF lw_answer = '2'.
+            PERFORM getfkjh_mx.
+          ENDIF.
+          IF lw_answer NE 'A'.
+            CALL SCREEN 902.
+          ENDIF.
+        ELSE.
+          CALL SCREEN 902.
+        ENDIF.
+      ELSEIF p_wh = 'X'."首次点击付款计划按钮,从204表获取付款计划，（如果没有付款计划则走创建付款计划流程），如果有付款计划，保存后删除原付款计划，更新付款计划表
+        IF it_fkjh[] IS INITIAL."从底表取付款计划
+          SELECT * INTO CORRESPONDING FIELDS OF TABLE it_204 FROM ztmm204 WHERE ebeln = wa_ekko-ebeln.
+          IF it_204[] IS NOT INITIAL.
+            MOVE-CORRESPONDING it_204[] TO it_fkjh[].
+            READ TABLE it_204 INDEX 1.
+            IF it_204-ddbs = 'X'.
+              lw_answer = '1'.
+            ELSE.
+              lw_answer = '2'.
+            ENDIF.
+            CLEAR:it_204,it_204[].
+            CALL SCREEN 902.
+          ELSE."创建付款计划
+            CLEAR lw_answer.
+            CALL FUNCTION 'POPUP_TO_CONFIRM'
+              EXPORTING
+                titlebar              = '请选择方式'
+                text_question         = '订单生成/订单明细生成'
+                text_button_1         = '订单生成'
+                text_button_2         = '订单明细生成'
+                display_cancel_button = 'X'
+                start_column          = 35
+                start_row             = 6
+                popup_type            = 'ICON_MESSAGE_WARNING'
+              IMPORTING
+                answer                = lw_answer.
+            IF lw_answer = '1'.
+              PERFORM getfkjh.
+            ELSEIF lw_answer = '2'.
+              PERFORM getfkjh_mx.
+            ENDIF.
+            IF lw_answer NE 'A'.
+              CALL SCREEN 902.
+            ENDIF.
+          ENDIF.
+        ELSE."再次点击显示之前的
+          CALL SCREEN 902.
+        ENDIF.
+      ELSE."查看按钮，从底表取数，没有维护的话展示空数据或者展示提示
+        IF it_fkjh[] IS INITIAL.
+          SELECT * INTO CORRESPONDING FIELDS OF TABLE it_204 FROM ztmm204 WHERE ebeln = wa_ekko-ebeln.
+          IF it_204[] IS NOT INITIAL.
+            MOVE-CORRESPONDING it_204[] TO it_fkjh[].
+            READ TABLE it_204 INDEX 1.
+            IF it_204-ddbs = 'X'.
+              lw_answer = '1'.
+            ELSE.
+              lw_answer = '2'.
+            ENDIF.
+            CLEAR:it_204,it_204[].
+            CALL SCREEN 902.
+          ELSE.
+            MESSAGE s004 WITH '尚未维护付款计划.' DISPLAY LIKE 'I'.
+          ENDIF.
+        ELSE.
+          CALL SCREEN 902.
+        ENDIF.
+      ENDIF.
+    WHEN 'TJSP'."提交审批
+      IF wa_ekko-ebeln IS INITIAL.
+        MESSAGE '生成采购订单后再提交审批' TYPE 'I'.
+        EXIT.
+      ENDIF.
+
+      IF wa_ekko-frgke NE 'B'.
+        MESSAGE  '只允许未审批的采购订单提交审批' TYPE 'I'.
+        EXIT.
+      ENDIF.
+      SELECT COUNT(*) FROM ztmm204 WHERE ebeln = wa_ekko-ebeln.
+      IF sy-subrc NE 0.
+        MESSAGE  '维护付款计划后再提交审批' TYPE 'I'.
+        EXIT.
+      ENDIF.
+      PERFORM tjsp.
+    WHEN 'DYHT'."打印合同
+      PERFORM print.
+    WHEN 'ZFJ'."上传附件
+      IF wa_ekko-ebeln IS INITIAL.
+        MESSAGE s000(oo) WITH '生成采购订单后再上传附件.' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+
+      PERFORM uploadfile.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZPR2PO' ITSELF
+CONTROLS: zpr2po TYPE TABLEVIEW USING SCREEN 0900.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZPR2PO'
+DATA:     g_zpr2po_lines  LIKE sy-loopc.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZPR2PO'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zpr2po_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_ekpo LINES zpr2po-lines.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZPR2PO'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zpr2po_get_lines OUTPUT.
+  g_zpr2po_lines = sy-loopc.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZPR2PO'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zpr2po_modify INPUT.
+  MODIFY it_ekpo
+    INDEX zpr2po-current_line.
+  PERFORM update_zddzje.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZPR2PO'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zpr2po_mark INPUT.
+  DATA: g_zpr2po_wa2 LIKE LINE OF it_ekpo.
+  IF zpr2po-line_sel_mode = 1
+  AND it_ekpo-sel = 'X'.
+    LOOP AT it_ekpo INTO g_zpr2po_wa2
+      WHERE sel = 'X'.
+      g_zpr2po_wa2-sel = ''.
+      MODIFY it_ekpo
+        FROM g_zpr2po_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_ekpo
+    INDEX zpr2po-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZPR2PO'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zpr2po_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZPR2PO'
+                              'IT_EKPO'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+
+*----------------------------------------------------------------------*
+*   INCLUDE TABLECONTROL_FORMS                                         *
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_OK_TC                                               *
+*&---------------------------------------------------------------------*
+FORM user_ok_tc USING    p_tc_name TYPE dynfnam
+                         p_table_name
+                         p_mark_name
+                CHANGING p_ok      LIKE sy-ucomm.
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA: l_ok     TYPE sy-ucomm,
+        l_offset TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+*&SPWIZARD: Table control specific operations                          *
+*&SPWIZARD: evaluate TC name and operations                            *
+  SEARCH p_ok FOR p_tc_name.
+  IF sy-subrc <> 0.
+    EXIT.
+  ENDIF.
+  l_offset = strlen( p_tc_name ) + 1.
+  l_ok = p_ok+l_offset.
+*&SPWIZARD: execute general and TC specific operations                 *
+  CASE l_ok.
+    WHEN 'INSR'.                      "insert row
+      PERFORM fcode_insert_row USING    p_tc_name
+                                        p_table_name.
+      CLEAR p_ok.
+
+    WHEN 'DELE'.                      "delete row
+      IF p_wh = 'X' AND sy-dynnr = '0900'." 修改界面不能减行，推送oa  09.12.2022 10:19:34 by kkw
+        EXIT.
+      ENDIF.
+      PERFORM fcode_delete_row USING    p_tc_name
+                                        p_table_name
+                                        p_mark_name.
+      CLEAR p_ok.
+
+    WHEN 'P--' OR                     "top of list
+         'P-'  OR                     "previous page
+         'P+'  OR                     "next page
+         'P++'.                       "bottom of list
+      PERFORM compute_scrolling_in_tc USING p_tc_name
+                                            l_ok.
+      CLEAR p_ok.
+*     WHEN 'L--'.                       "total left
+*       PERFORM FCODE_TOTAL_LEFT USING P_TC_NAME.
+*
+*     WHEN 'L-'.                        "column left
+*       PERFORM FCODE_COLUMN_LEFT USING P_TC_NAME.
+*
+*     WHEN 'R+'.                        "column right
+*       PERFORM FCODE_COLUMN_RIGHT USING P_TC_NAME.
+*
+*     WHEN 'R++'.                       "total right
+*       PERFORM FCODE_TOTAL_RIGHT USING P_TC_NAME.
+*
+    WHEN 'MARK'.                      "mark all filled lines
+      PERFORM fcode_tc_mark_lines USING p_tc_name
+                                        p_table_name
+                                        p_mark_name   .
+      CLEAR p_ok.
+
+    WHEN 'DMRK'.                      "demark all filled lines
+      PERFORM fcode_tc_demark_lines USING p_tc_name
+                                          p_table_name
+                                          p_mark_name .
+      CLEAR p_ok.
+
+*     WHEN 'SASCEND'   OR
+*          'SDESCEND'.                  "sort column
+*       PERFORM FCODE_SORT_TC USING P_TC_NAME
+*                                   l_ok.
+
+  ENDCASE.
+
+ENDFORM.                              " USER_OK_TC
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_INSERT_ROW                                         *
+*&---------------------------------------------------------------------*
+FORM fcode_insert_row
+              USING    p_tc_name           TYPE dynfnam
+                       p_table_name             .
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_lines_name       LIKE feld-name.
+  DATA l_selline          LIKE sy-stepl.
+  DATA l_lastline         TYPE i.
+  DATA l_line             TYPE i.
+  DATA l_table_name       LIKE feld-name.
+  FIELD-SYMBOLS <tc>                 TYPE cxtab_control.
+  FIELD-SYMBOLS <table>              TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <lines>              TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: get looplines of TableControl                              *
+  CONCATENATE 'G_' p_tc_name '_LINES' INTO l_lines_name.
+  ASSIGN (l_lines_name) TO <lines>.
+
+*&SPWIZARD: get current line                                           *
+  GET CURSOR LINE l_selline.
+  IF sy-subrc <> 0.                   " append line to table
+    l_selline = <tc>-lines + 1.
+*&SPWIZARD: set top line                                               *
+    IF l_selline > <lines>.
+      <tc>-top_line = l_selline - <lines> + 1 .
+    ELSE.
+      <tc>-top_line = 1.
+    ENDIF.
+  ELSE.                               " insert line into table
+    l_selline = <tc>-top_line + l_selline - 1.
+    l_lastline = <tc>-top_line + <lines> - 1.
+  ENDIF.
+*&SPWIZARD: set new cursor line                                        *
+  l_line = l_selline - <tc>-top_line + 1.
+
+*&SPWIZARD: insert initial line                                        *
+  INSERT INITIAL LINE INTO <table> INDEX l_selline.
+  <tc>-lines = <tc>-lines + 1.
+*&SPWIZARD: set cursor                                                 *
+  SET CURSOR 1 l_line.
+
+ENDFORM.                              " FCODE_INSERT_ROW
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_DELETE_ROW                                         *
+*&---------------------------------------------------------------------*
+FORM fcode_delete_row
+              USING    p_tc_name           TYPE dynfnam
+                       p_table_name
+                       p_mark_name   .
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: delete marked lines                                        *
+  DESCRIBE TABLE <table> LINES <tc>-lines.
+
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    IF <mark_field> = 'X'.
+      DELETE <table> INDEX syst-tabix.
+      IF sy-subrc = 0.
+        <tc>-lines = <tc>-lines - 1.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                              " FCODE_DELETE_ROW
+
+*&---------------------------------------------------------------------*
+*&      Form  COMPUTE_SCROLLING_IN_TC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*      -->P_OK       ok code
+*----------------------------------------------------------------------*
+FORM compute_scrolling_in_tc USING    p_tc_name
+                                      p_ok.
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_tc_new_top_line     TYPE i.
+  DATA l_tc_name             LIKE feld-name.
+  DATA l_tc_lines_name       LIKE feld-name.
+  DATA l_tc_field_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <lines>      TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+*&SPWIZARD: get looplines of TableControl                              *
+  CONCATENATE 'G_' p_tc_name '_LINES' INTO l_tc_lines_name.
+  ASSIGN (l_tc_lines_name) TO <lines>.
+
+
+*&SPWIZARD: is no line filled?                                         *
+  IF <tc>-lines = 0.
+*&SPWIZARD: yes, ...                                                   *
+    l_tc_new_top_line = 1.
+  ELSE.
+*&SPWIZARD: no, ...                                                    *
+    CALL FUNCTION 'SCROLLING_IN_TABLE'
+      EXPORTING
+        entry_act      = <tc>-top_line
+        entry_from     = 1
+        entry_to       = <tc>-lines
+        last_page_full = 'X'
+        loops          = <lines>
+        ok_code        = p_ok
+        overlapping    = 'X'
+      IMPORTING
+        entry_new      = l_tc_new_top_line
+      EXCEPTIONS
+*       NO_ENTRY_OR_PAGE_ACT  = 01
+*       NO_ENTRY_TO    = 02
+*       NO_OK_CODE_OR_PAGE_GO = 03
+        OTHERS         = 0.
+  ENDIF.
+
+*&SPWIZARD: get actual tc and column                                   *
+  GET CURSOR FIELD l_tc_field_name
+             AREA  l_tc_name.
+
+  IF syst-subrc = 0.
+    IF l_tc_name = p_tc_name.
+*&SPWIZARD: et actual column                                           *
+      SET CURSOR FIELD l_tc_field_name LINE 1.
+    ENDIF.
+  ENDIF.
+
+*&SPWIZARD: set the new top line                                       *
+  <tc>-top_line = l_tc_new_top_line.
+
+
+ENDFORM.                              " COMPUTE_SCROLLING_IN_TC
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_TC_MARK_LINES
+*&---------------------------------------------------------------------*
+*       marks all TableControl lines
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*----------------------------------------------------------------------*
+FORM fcode_tc_mark_lines USING p_tc_name
+                               p_table_name
+                               p_mark_name.
+*&SPWIZARD: EGIN OF LOCAL DATA-----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: mark all filled lines                                      *
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    <mark_field> = 'X'.
+  ENDLOOP.
+ENDFORM.                                          "fcode_tc_mark_lines
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_TC_DEMARK_LINES
+*&---------------------------------------------------------------------*
+*       demarks all TableControl lines
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*----------------------------------------------------------------------*
+FORM fcode_tc_demark_lines USING p_tc_name
+                                 p_table_name
+                                 p_mark_name .
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: demark all filled lines                                    *
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    <mark_field> = space.
+  ENDLOOP.
+ENDFORM.                                          "fcode_tc_mark_lines
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZXBJXX' ITSELF
+CONTROLS: zxbjxx TYPE TABLEVIEW USING SCREEN 0901.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZXBJXX'
+DATA:     g_zxbjxx_lines  LIKE sy-loopc.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZXBJXX'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zxbjxx_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_xbj LINES zxbjxx-lines.
+  DATA:ls_col LIKE LINE OF zxbjxx-cols.
+  LOOP AT zxbjxx-cols INTO ls_col.
+    IF p_cx = 'X'.
+      ls_col-screen-input = 0.
+    ENDIF.
+    MODIFY zxbjxx-cols  FROM ls_col INDEX sy-tabix.
+  ENDLOOP.
+  LOOP AT zxbjxx-cols INTO DATA(cols).
+    CASE  cols-screen-group1.
+      WHEN 'G1'.
+        IF wa_ekko-frgke <> 'R'.
+          cols-screen-input = 1.
+        ENDIF.
+    ENDCASE.
+    MODIFY zxbjxx-cols FROM cols.
+  ENDLOOP.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZXBJXX'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zxbjxx_get_lines OUTPUT.
+  g_zxbjxx_lines = sy-loopc.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZXBJXX'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zxbjxx_modify INPUT.
+  MODIFY it_xbj
+    INDEX zxbjxx-current_line.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZXBJXX'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zxbjxx_mark INPUT.
+  DATA: g_zxbjxx_wa2 LIKE LINE OF it_xbj.
+  IF zxbjxx-line_sel_mode = 1
+  AND it_xbj-sel = 'X'.
+    LOOP AT it_xbj INTO g_zxbjxx_wa2
+      WHERE sel = 'X'.
+      g_zxbjxx_wa2-sel = ''.
+      MODIFY it_xbj
+        FROM g_zxbjxx_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_xbj
+    INDEX zxbjxx-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZXBJXX'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zxbjxx_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZXBJXX'
+                              'IT_XBJ'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0901 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0901 OUTPUT.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  IF p_cx = 'X'.
+    APPEND 'SAVE' TO rt_extab.
+    APPEND 'ADD_ROW' TO rt_extab.
+    APPEND 'DEL_ROW' TO rt_extab.
+  ENDIF.
+  SET PF-STATUS 'STA901' EXCLUDING rt_extab.
+  SET TITLEBAR 'TIT901' WITH '询比价信息维护'.
+
+
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0901  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0901 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      PERFORM savexbj CHANGING flag.
+      IF flag = 'S' OR it_xbj[] IS INITIAL.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+    WHEN 'SAVE'.
+      PERFORM savexbj CHANGING flag.
+      IF flag = 'S' OR it_xbj[] IS INITIAL.
+        PERFORM upd_xxjl."更新信息记录&价格条件.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+    WHEN 'ADD_ROW'.
+      PERFORM add_row_xbj.
+    WHEN 'DEL_ROW'.
+      PERFORM del_row_xbj.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZFKJH' ITSELF
+CONTROLS: zfkjh TYPE TABLEVIEW USING SCREEN 0902.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZFKJH'
+DATA:     g_zfkjh_lines  LIKE sy-loopc.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZFKJH'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zfkjh_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_fkjh LINES zfkjh-lines.
+  DATA:ls_col_fkjh LIKE LINE OF zfkjh-cols.
+  LOOP AT zfkjh-cols INTO ls_col_fkjh.
+    IF ls_col_fkjh-screen-group1 = 'G1'.
+      IF lw_answer = '1'."订单
+        ls_col_fkjh-invisible = 1.
+      ELSEIF lw_answer = '2'."明细
+        ls_col_fkjh-invisible = 0.
+      ENDIF.
+    ELSEIF ls_col_fkjh-screen-group1 = 'G2'.
+      IF lw_answer = '2'.
+        ls_col_fkjh-invisible = 1.
+      ELSEIF lw_answer = '1'.
+        ls_col_fkjh-invisible = 0.
+      ENDIF.
+    ENDIF.
+    IF p_cx = 'X'.
+      ls_col_fkjh-screen-input = 0.
+    ENDIF.
+    MODIFY zfkjh-cols  FROM ls_col_fkjh INDEX sy-tabix.
+  ENDLOOP.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZFKJH'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zfkjh_get_lines OUTPUT.
+  g_zfkjh_lines = sy-loopc.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZFKJH'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zfkjh_modify INPUT.
+  MODIFY it_fkjh
+    INDEX zfkjh-current_line.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZFKJH'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zfkjh_mark INPUT.
+  DATA: g_zfkjh_wa2 LIKE LINE OF it_fkjh.
+  IF zfkjh-line_sel_mode = 1
+  AND it_fkjh-sel = 'X'.
+    LOOP AT it_fkjh INTO g_zfkjh_wa2
+      WHERE sel = 'X'.
+      g_zfkjh_wa2-sel = ''.
+      MODIFY it_fkjh
+        FROM g_zfkjh_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_fkjh
+    INDEX zfkjh-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZFKJH'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zfkjh_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZFKJH'
+                              'IT_FKJH'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0902 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0902 OUTPUT.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  IF p_cx = 'X'.
+    APPEND 'SAVE' TO rt_extab.
+    APPEND 'ADD_ROW' TO rt_extab.
+    APPEND 'DEL_ROW' TO rt_extab.
+  ENDIF.
+  SET PF-STATUS 'STA902' EXCLUDING rt_extab.
+  DATA tit TYPE char30.
+  IF lw_answer = 1.
+    tit = '创建付款计划(订单生成)'.
+  ELSEIF lw_answer = 2.
+    tit = '创建付款计划(订单明细生成)'.
+  ENDIF.
+  SET TITLEBAR 'TIT902' WITH tit.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0902  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0902 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SAVE'.
+      PERFORM datato204 CHANGING flag.
+      IF flag = 'S'.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+    WHEN 'ADD_ROW'.
+      PERFORM add_row_fkjh.
+    WHEN 'DEL_ROW'.
+      PERFORM del_row_fkjh.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+
+FORM getxbj."询比价屏幕赋值
+  REFRESH it_xbj.
+  CHECK it_ekpo[] IS NOT INITIAL.
+  SELECT
+    eina~infnr,
+    eine~netpr,
+    eine~peinh,
+    eina~lifnr,
+    lfa1~name1,
+    eina~matnr,
+    eine~waers,
+    eine~ekorg
+    INTO TABLE @DATA(lt_eine)
+    FROM eina
+    JOIN eine ON eina~infnr = eine~infnr
+    JOIN lfa1 ON eina~lifnr = lfa1~lifnr
+    FOR ALL ENTRIES IN @it_ekpo
+    WHERE eina~matnr = @it_ekpo-matnr
+    AND eine~ekorg = @wa_ekko-ekorg
+    AND eina~loekz NE 'X'
+    AND eine~loekz NE 'X'
+    AND eina~lifnr NE ''
+    AND eine~esokz EQ '0'.
+  SORT lt_eine BY matnr.
+  IF lt_eine IS NOT INITIAL.
+    SELECT a018~knumh,
+      a018~datab,
+      a018~datbi,
+      a018~lifnr,
+      a018~matnr,
+      a018~ekorg
+      INTO TABLE @DATA(lt_a018)
+      FROM a018 FOR ALL ENTRIES IN @lt_eine
+      WHERE a018~lifnr = @lt_eine-lifnr
+      AND a018~matnr = @lt_eine-matnr
+      AND a018~ekorg = @lt_eine-ekorg
+      AND a018~esokz = '0'
+      AND a018~kschl = 'PB00'.
+    SORT lt_a018 BY lifnr matnr ekorg.
+  ENDIF.
+  "先把采购申请行信息全部放入询比价屏幕
+  LOOP AT it_ekpo.
+    CLEAR it_xbj.
+    MOVE-CORRESPONDING it_ekpo TO it_xbj.
+    it_xbj-bs = 'X'.
+    it_xbj-peinh = '1'."信息记录没有值则默认赋值1
+    it_xbj-sel = ''.
+    it_xbj-menge_cg = it_ekpo-menge_cg.
+    APPEND it_xbj.
+  ENDLOOP.
+  SORT it_xbj BY matnr.
+  DATA:i     TYPE i,
+       tabix TYPE i.
+  "信息记录有值则把信息记录的值带入询比价屏幕，没有值则放一条有采购申请的空信息到询比价屏幕，方便手工新增行
+  i = 1.
+  LOOP AT it_xbj.
+    tabix = sy-tabix.
+    LOOP AT lt_eine INTO DATA(lw_eine) FROM i.
+      IF lw_eine-matnr NE it_xbj-matnr.
+        i = sy-tabix.
+        EXIT.
+      ENDIF.
+      it_xbj-xxjlbs =  'X'.
+      MODIFY it_xbj.
+      it_xbj-lifnr = lw_eine-lifnr.
+      it_xbj-name1 = lw_eine-name1.
+      it_xbj-netpr = lw_eine-netpr.
+      it_xbj-waers = lw_eine-waers.
+      it_xbj-infnr = lw_eine-infnr.
+      it_xbj-ekorg = lw_eine-ekorg.
+      it_xbj-peinh = lw_eine-peinh.
+      it_xbj-bs =  ''.
+      it_xbj-xxjlbs =  ''.
+      READ TABLE lt_a018 INTO DATA(lw_a018) WITH KEY lifnr = lw_eine-lifnr
+      matnr = lw_eine-matnr ekorg = lw_eine-ekorg BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        it_xbj-knumh = lw_a018-knumh.
+        it_xbj-datab = lw_a018-datab.
+        it_xbj-datbi = lw_a018-datbi.
+      ENDIF.
+      INSERT it_xbj INDEX tabix.
+    ENDLOOP.
+
+  ENDLOOP.
+  DELETE it_xbj WHERE xxjlbs EQ 'X'.
+  SORT it_xbj BY banfn bnfpo.
+ENDFORM.
+
+FORM add_row_xbj."询比价屏幕新增行
+  DATA:lv_selcount TYPE i.
+
+  LOOP AT it_xbj WHERE sel = 'X'.
+    lv_selcount = lv_selcount + 1.
+  ENDLOOP.
+  IF lv_selcount <> 1.
+    MESSAGE '请选中一行新增.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  READ TABLE it_xbj WITH KEY sel = 'X'.
+  it_xbj-sel = ''.
+  MODIFY it_xbj INDEX sy-tabix.
+  it_xbj-sel = ''.
+  it_xbj-lifnr = ''.
+  it_xbj-name1 = ''.
+  it_xbj-werks = ''.
+  it_xbj-ekorg = ''.
+  it_xbj-netpr = ''.
+  it_xbj-waers = ''.
+  it_xbj-zbjbs = ''.
+  it_xbj-zzxbs = ''.
+  it_xbj-infnr = ''.
+  it_xbj-bs    = 'X'.
+  INSERT it_xbj INDEX sy-tabix.
+  SORT it_xbj BY banfn bnfpo.
+ENDFORM.
+
+FORM del_row_xbj."询比价屏幕删除行
+  DATA:lv_selcount TYPE i.
+
+  LOOP AT it_xbj WHERE sel = 'X'.
+    lv_selcount = lv_selcount + 1.
+  ENDLOOP.
+  IF lv_selcount <> 1.
+    MESSAGE '请选中一行删除.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  READ TABLE it_xbj WITH KEY sel = 'X'.
+  DELETE it_xbj INDEX sy-tabix.
+  SORT it_xbj BY banfn bnfpo.
+ENDFORM.
+
+FORM savexbj CHANGING flg TYPE char1."询比价屏幕保存
+  DEFINE data_check.
+    IF &1 IS INITIAL.
+      MESSAGE s001 WITH &2 DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  END-OF-DEFINITION.
+  CLEAR flg.
+  DATA:BEGIN OF it_zxgys OCCURS 0,
+         banfn TYPE eban-banfn,
+         bnfpo TYPE eban-bnfpo,
+         bj_i  TYPE i, "比价选中数量
+         zx_i  TYPE i, "中选选中数量
+       END OF it_zxgys.
+  DATA:BEGIN OF it_lifnr OCCURS 0,
+         lifnr TYPE lifnr,
+         name1 TYPE name1,
+       END OF it_lifnr.
+  DATA:je(15) TYPE p DECIMALS 6.
+  DATA:zddzje TYPE ekpo-netwr.
+*  "获取底表流水
+*  PERFORM get_snro_number USING 'ZGPMM01' CHANGING number.
+*  IF number IS INITIAL.
+*    MESSAGE s004 WITH '获取流水号出现问题.'.
+*    RETURN.
+*  ENDIF.
+  REFRESH: it_zxgys,it_lifnr.
+  CLEAR:zddzje.
+  LOOP AT it_xbj.
+    "新增行必填项检查
+    IF it_xbj-bs = 'X'.
+      data_check it_xbj-lifnr '新增行的供应商'.
+*      data_check it_xbj-werks '新增行的工厂'.
+      data_check it_xbj-ekorg '新增行的采购组织'.
+      data_check it_xbj-netpr '新增行的净价'.
+      data_check it_xbj-waers '新增行的货币'.
+    ENDIF.
+    IF it_xbj-zzxbs = 'X' AND it_xbj-zbjbs NE 'X'.
+      MESSAGE s004 WITH '中选标识的供应商必须参与比价.' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+    IF it_xbj-peinh LE 0.
+      MESSAGE s004 WITH '价格单位必须大于0.' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+    CLEAR: it_zxgys,it_lifnr.
+    it_zxgys-banfn = it_xbj-banfn.
+    it_zxgys-bnfpo = it_xbj-bnfpo.
+    IF it_xbj-zbjbs = 'X'.
+      it_zxgys-bj_i = 1.
+    ENDIF.
+    IF it_xbj-zzxbs = 'X'.
+      it_zxgys-zx_i = 1.
+      it_lifnr-lifnr = it_xbj-lifnr.
+      it_lifnr-name1 = it_xbj-name1.
+      COLLECT it_lifnr.
+    ENDIF.
+    COLLECT it_zxgys.
+    MODIFY it_xbj.
+  ENDLOOP.
+*  READ TABLE it_zxgys INDEX 1.
+*  DATA(cc) = '比价:' && it_zxgys-bj_i && ',中选:' && it_zxgys-zx_i.
+*  MESSAGE s004 WITH cc.
+  LOOP AT it_zxgys.
+    IF it_zxgys-bj_i LT 1 OR it_zxgys-zx_i NE 1.
+      MESSAGE s004 WITH '每条采购申请比价供应商至少是一个，中选供应商只能是一个.'  DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  ENDLOOP.
+  IF lines( it_lifnr ) NE 1.
+    MESSAGE s004 WITH '同一采购订单中选供应商必须是同一个.'  DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  READ TABLE it_lifnr INDEX 1.
+  wa_ekko-lifnr = it_lifnr-lifnr.
+  wa_ekko-name1 = it_lifnr-name1.
+  flg = 'S'.
+  "更新it_ekko比价标识,净价
+  SORT it_zxgys BY banfn bnfpo.
+*  SORT it_xbj BY banfn bnfpo.
+  CLEAR wa_ekko-zddzje.
+  LOOP AT it_ekpo.
+    CLEAR je.
+    READ TABLE it_zxgys WITH KEY banfn = it_ekpo-banfn BINARY SEARCH.
+    IF sy-subrc EQ 0 AND it_zxgys-zx_i EQ 1.
+      it_ekpo-zxbjbs = 'X'.
+    ENDIF.
+    je  = it_xbj-netpr.
+    READ TABLE it_xbj WITH KEY banfn = it_ekpo-banfn bnfpo = it_ekpo-bnfpo zzxbs = 'X'.
+    IF sy-subrc EQ 0
+      AND it_xbj-peinh GT 0.
+      je = it_xbj-netpr / it_xbj-peinh.
+    ENDIF.
+    it_ekpo-kbetr = je.
+    it_ekpo-zddzje = it_ekpo-menge_cg * je.
+    MODIFY it_ekpo.
+    "更新订单总金额
+    wa_ekko-zddzje = wa_ekko-zddzje + it_ekpo-zddzje.
+  ENDLOOP.
+ENDFORM.
+
+FORM savepo."创建po
+  DATA:ebelp TYPE ebelp,
+       str1  TYPE char1,
+       kschl TYPE kschl,
+       lifnr TYPE lifnr,
+       kbetr TYPE zemm_zfr1.
+  "必填项检查
+  DEFINE data_check.
+    IF &1 IS INITIAL.
+      MESSAGE s001 WITH &2 DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  END-OF-DEFINITION.
+**********************************************************************
+  CONSTANTS:waers TYPE waers VALUE 'CNY',
+            peinh TYPE peinh VALUE 1.
+
+  CLEAR:poheader,poheaderx,ebelp,exppurchaseorder,wa_ext,wa_extx,potextheader.
+  REFRESH:pocomponents,pocomponentsx,poitem,poitemx,poschedule,poschedulex,potextheader,
+  pocond,pocondx,potextitem,return,extensionin,poaccount,poaccountx.
+
+**********************************************************************
+  data_check wa_ekko-ekorg '采购组织'.
+  data_check wa_ekko-ekgrp '采购组'.
+  data_check wa_ekko-bukrs '公司代码'.
+  data_check wa_ekko-lifnr '中选供应商'.
+  data_check wa_ekko-zgyslx '供应商类型'.
+*  data_check wa_ekko-zhth '外部合同号'.
+  data_check wa_ekko-zjgsd '价格锁定'.
+  data_check wa_ekko-mwskz '税率'.
+  data_check wa_ekko-zfkfs '付款方式'.
+  data_check wa_ekko-zfklx '付款类型'.
+**********************************************************************
+  LOOP AT it_ekpo.
+    IF it_ekpo-zxbjbs NE 'X'.
+      MESSAGE '第' && sy-tabix && '行没有进行比价.' TYPE 'E'.
+      RETURN.
+    ENDIF.
+    data_check it_ekpo-eindt '交货日期'.
+  ENDLOOP.
+**********************************************************************
+*  PERFORM checkmenge(zpubform) CHANGING wa_ekko-zddzje flag.
+  CHECK it_ekpo[] IS NOT INITIAL.
+
+**********************************************************************
+  "抬头数据
+  READ TABLE it_xbj WITH KEY banfn = it_ekpo-banfn bnfpo = it_ekpo-bnfpo zzxbs = 'X' .
+  poheader-doc_type = wa_ekko-bsart."凭证类型
+  poheader-comp_code = wa_ekko-bukrs."公司代码
+  poheader-vendor = wa_ekko-lifnr."供应商
+  PERFORM addzero(zpubform) CHANGING poheader-vendor.
+  poheader-purch_org = wa_ekko-ekorg."采购组织
+  poheader-pur_group = wa_ekko-ekgrp."采购组
+  poheader-currency = it_xbj-waers."货币
+  poheader-creat_date = wa_ekko-aedat."PO创建日期,制单日期
+  poheader-doc_date = wa_ekko-aedat."PO创建日期
+  PERFORM setbapix(zpubform) USING poheader CHANGING poheaderx.
+*增强字段
+  MOVE-CORRESPONDING wa_ekko TO wa_ext.
+  PERFORM setbapix(zpubform) USING wa_ext CHANGING wa_extx.
+  extensionin-structure = 'BAPI_TE_MEPOHEADER'.
+  extensionin+30(960) = wa_ext.
+  APPEND extensionin.
+  extensionin-structure = 'BAPI_TE_MEPOHEADERX'.
+  extensionin-valuepart1 = wa_extx.
+  APPEND extensionin.
+**********************************
+**********************************************************************
+  "抬头文本
+*  potextheader-po_number = wa_ekko-ebeln."质量要求
+*  potextheader-text_id = 'F98'.
+*  potextheader-text_form = '*'.
+*  potextheader-text_line = wa_ekko-zzlyq.
+*  APPEND potextheader.
+*  potextheader-po_number = wa_ekko-ebeln."备注
+*  potextheader-text_id = 'F99'.
+*  potextheader-text_form = '*'.
+*  potextheader-text_line = wa_ekko-zbz.
+*  APPEND potextheader.
+**将当前停留文本更新
+*  PERFORM screen2tab USING wa_ekko-tdid.
+*  LOOP AT it_list2.
+*    REFRESH t_text.
+*    LOOP AT it_text WHERE tdid = it_list2-id.
+*      t_text-text = it_text-text.
+*      APPEND t_text.
+*    ENDLOOP.
+*    WAIT UP TO '0.5' SECONDS.
+*    CALL FUNCTION 'ZFM_DEALLONGTEXT'
+*      EXPORTING
+*        intype = 'I'
+*        tdid   = it_list2-id
+*        sapno  = wa_head-zdhdh
+*        sapmk  = 'DHTZ'
+*      TABLES
+*        t_text = t_text.
+*    potextheader-po_number = wa_ekko-ebeln."
+*    potextheader-text_id = it_list2-id.
+*    potextheader-text_form = '*'.
+*    potextheader-text_line = t_text.
+*    APPEND potextheader.
+*ENDLOOP.
+
+**********************************************************************
+  LOOP AT it_ekpo .
+**********************************
+    CLEAR:poitem,poitemx,poschedule,poschedulex,pocond,pocondx.
+    ADD 10 TO ebelp.
+    it_ekpo-ebelp = ebelp.
+*行项目
+    poitem-po_item = it_ekpo-ebelp."行项目
+    poitem-material = it_ekpo-matnr.":物料
+    poitem-plant = it_ekpo-werks."工厂
+    poitem-quantity = it_ekpo-menge_cg."数量
+    poitem-net_price = it_ekpo-kbetr."净价
+    poitem-price_unit = peinh."价格单位
+    poitem-po_unit = it_ekpo-meins_cg."单位
+    poitem-tax_code = wa_ekko-mwskz."税码
+    poitem-preq_no = it_ekpo-banfn."采购申请号
+    poitem-preq_item = it_ekpo-bnfpo."采购申请行号
+    poitem-acctasscat = it_ekpo-knttp."科目分配类别
+    poitem-item_cat = it_ekpo-pstyp."项目类别K
+    poitem-wbs_element = it_ekpo-posid."wbs
+    poitem-gr_basediv = 'X'."基于收货的发票校验
+*    POITEM-STGE_LOC = it_ekpo-LGORT."库存地点
+*    POITEM-BATCH = it_ekpo-CHARG."批次
+    IF it_ekpo-sobkz = 'Q'.
+      poitem-acctasscat = 'Q'.
+    ENDIF.
+    IF it_ekpo-posid IS NOT INITIAL.
+      CLEAR:poaccount,poaccountx.
+*科目分配
+      poaccount-po_item = ebelp.
+      poaccount-wbs_element = it_ekpo-posid.
+      PERFORM setbapix(zpubform) USING poaccount CHANGING poaccountx.
+      APPEND:poaccount,poaccountx.
+    ENDIF.
+*计划行
+    poschedule-po_item = it_ekpo-ebelp."
+    poschedule-sched_line = 1."
+    poschedule-delivery_date = wa_ekko-aedat."交货日期
+    poschedule-quantity = it_ekpo-menge_cg."数量
+*价格条件,从询比价信息屏幕取过来
+    READ TABLE it_xbj WITH KEY banfn = it_ekpo-banfn bnfpo = it_ekpo-bnfpo zzxbs = 'X' ."BINARY SEARCH.
+    pocond-itm_number = it_ekpo-ebelp.
+    pocond-cond_type = 'PBXX'.
+    pocond-currency = it_xbj-waers." 货币这个地方要做校验  25.10.2022 10:37:56 by kkw
+    pocond-cond_p_unt = it_xbj-peinh."
+    pocond-cond_unit = it_ekpo-meins_cg."取订单单位  05.12.2022 15:50:54 by kkw
+    pocond-cond_value = it_xbj-netpr.
+    pocond-cond_unit = it_ekpo-meins_cg.
+    pocond-change_id = 'U'.
+    PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+    APPEND:pocondx, pocond.
+    CLEAR:kbetr.
+*    DO 5 TIMES VARYING kbetr FROM it_ekpo-zfr1 NEXT it_ekpo-zfr2.
+*      CLEAR:pocond,pocondx,str1,kschl.
+*      str1 = sy-index.
+*      CONCATENATE 'ZFR' str1 INTO kschl.
+*      IF kbetr IS NOT INITIAL.
+*        pocond-itm_number = it_ekpo-ebelp.
+*        pocond-cond_type = kschl.
+*        pocond-currency = waers.
+*        pocond-cond_p_unt = peinh.
+*        pocond-cond_value = kbetr.
+*        pocond-change_id = 'U'.
+*        PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+*        APPEND:pocondx, pocond.
+*      ENDIF.
+*    ENDDO.
+*    CLEAR:kbetr.
+*    DO 5 TIMES VARYING kbetr FROM it_ekpo-zm01 NEXT it_ekpo-zm02.
+*      CLEAR:pocond,pocondx,str1,kschl.
+*      str1 = sy-index.
+*      CONCATENATE 'ZM0' str1 INTO kschl.
+*      IF kbetr IS NOT INITIAL.
+*        pocond-itm_number = it_ekpo-ebelp.
+*        pocond-cond_type = kschl.
+*        pocond-currency = waers.
+*        pocond-cond_p_unt = peinh.
+*        pocond-cond_value = kbetr * 10.
+*        pocond-change_id = 'U'.
+*        PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+*        APPEND:pocondx, pocond.
+*      ENDIF.
+*    ENDDO.
+**供应商
+*    DO 5 TIMES VARYING lifnr FROM it_ekpo-zf01 NEXT it_ekpo-zf02.
+*      CLEAR:pocond,pocondx,str1,kschl.
+*      str1 = sy-index.
+*      CONCATENATE 'ZF0' str1 INTO kschl.
+*      IF lifnr IS NOT INITIAL.
+*        pocond-itm_number = it_ekpo-ebelp.
+*        pocond-cond_type = kschl.
+*        pocond-vendor_no = lifnr.
+*        pocond-change_id = 'U'.
+*        PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+*        APPEND:pocondx, pocond.
+*      ENDIF.
+*    ENDDO.
+*增强字段
+    CLEAR:extensionin.
+    MOVE-CORRESPONDING it_ekpo TO wa_extp.
+
+    wa_extp-po_item = it_ekpo-ebelp.
+    wa_extp-yl5 = it_ekpo-zchandi.
+    IF it_ekpo-sobkz = 'Q'."SPEC/2000屏幕特殊写入Q
+      wa_extp-disub_sobkz = 'Q'.
+    ENDIF.
+    extensionin-structure = 'BAPI_TE_MEPOITEM'.
+    extensionin-valuepart1 = wa_extp.
+    APPEND extensionin.
+    PERFORM setbapix(zpubform) USING wa_extp CHANGING wa_extpx.
+    CLEAR:extensionin.
+    extensionin-structure = 'BAPI_TE_MEPOITEMX'.
+    extensionin-valuepart1 = wa_extpx.
+    APPEND extensionin.
+
+    PERFORM setbapix(zpubform) USING poitem CHANGING poitemx.
+    PERFORM setbapix(zpubform) USING poschedule CHANGING poschedulex.
+    APPEND:poitem,poitemx,poschedule,poschedulex.
+    MODIFY it_ekpo.
+  ENDLOOP.
+  SET UPDATE TASK LOCAL.
+  CALL FUNCTION 'BAPI_PO_CREATE1'
+    EXPORTING
+      poheader         = poheader
+      poheaderx        = poheaderx
+      no_price_from_po = 'X'
+    IMPORTING
+      exppurchaseorder = exppurchaseorder
+    TABLES
+      return           = return
+      pocond           = pocond
+      pocondx          = pocondx
+      poitem           = poitem
+      poitemx          = poitemx
+      poschedule       = poschedule
+      poschedulex      = poschedulex
+      poaccount        = poaccount
+      poaccountx       = poaccountx
+*     pocomponents     = pocomponents
+*     pocomponentsx    = pocomponentsx
+      extensionin      = extensionin
+*     potextheader     = potextheader
+    EXCEPTIONS
+      OTHERS           = 1.
+
+
+  LOOP AT return WHERE type CA 'AEX'.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc NE 0
+    AND exppurchaseorder IS NOT INITIAL.
+    PERFORM bapirun(zpubform) USING 'S'.
+*更新底表
+    LOOP AT it_ekpo.
+      it_ekpo-mwskz = wa_ekko-mwskz.
+*      it_ekpo-zhth = wa_ekko-bstkd.
+*      it_ekpo-zyf = wa_ekko-zyf.
+*      it_ekpo-zhtlx = wa_ekko-zhtlx.
+*      it_ekpo-zck = wa_ekko-zck.
+*      it_ekpo-zysfs = wa_ekko-zysfs.
+*      it_ekpo-djzt = 'B'.
+      MODIFY it_ekpo.
+    ENDLOOP.
+    wa_ekko-ebeln = exppurchaseorder.
+    wa_ekko-aedat = sy-datum.
+    wa_ekko-frgke = 'B'.
+    SORT it_ekpo BY banfn bnfpo.
+    MESSAGE i000(oo) WITH '创建成功，采购订单号:' exppurchaseorder DISPLAY LIKE 'I'.
+    "更新长文本
+    PERFORM screen2tab USING wa_ekko-tdid.
+    PERFORM editlongtext.
+    "更新ztmm203
+    "获取底表流水
+    PERFORM get_snro_number USING 'ZGPMM01' CHANGING number.
+    IF number IS INITIAL.
+      MESSAGE s004 WITH '获取流水号出现问题.' DISPLAY LIKE 'I'.
+    ELSE.
+      CLEAR:it_203,it_203[],posnr.
+
+      LOOP AT it_xbj WHERE zbjbs = 'X'.
+        MOVE-CORRESPONDING it_xbj TO it_203.
+        it_203-zxbjdh = 'XBJ' && sy-datum+2(6) && number.
+        ADD 10 TO posnr.
+        it_203-zxbjhh = posnr.
+        it_203-zdate = sy-datum.
+        it_203-zname = sy-uname.
+        it_203-ztime = sy-uzeit.
+        it_203-zgysbj = it_xbj-netpr.
+        it_203-ebeln = exppurchaseorder.
+        it_203-menge_cg = it_xbj-menge_cg.
+        it_203-kzwi1 = it_xbj-kzwi1.
+        READ TABLE it_ekpo WITH KEY banfn = it_xbj-banfn bnfpo = it_xbj-bnfpo.
+        IF sy-subrc EQ 0.
+          it_203-ebelp = it_ekpo-ebelp.
+        ENDIF.
+        APPEND it_203.
+      ENDLOOP.
+      MODIFY ztmm203 FROM TABLE it_203[].
+      COMMIT WORK.
+      CLEAR:it_203,it_203[].
+    ENDIF.
+
+*刷新显示数据
+    PERFORM getdata.
+*    LEAVE TO SCREEN 0.
+  ELSE.
+    PERFORM bapirun(zpubform) USING 'E'.
+    PERFORM showmsg(zpubform) TABLES return.
+  ENDIF.
+ENDFORM.
+
+FORM editlongtext.
+  DATA:header TYPE thead,ekko.
+  CLEAR:tline[],header.
+  DO .
+    SELECT SINGLE COUNT(*)
+      FROM ekko
+      WHERE ebeln = wa_ekko-ebeln.
+    IF sy-subrc EQ 0.
+      EXIT.
+    ENDIF.
+    WAIT UP TO '0.5' SECONDS.
+  ENDDO.
+  LOOP AT it_list2 WHERE id IS NOT INITIAL.
+    CLEAR:tline[],header.
+    LOOP AT it_text WHERE tdid = it_list2-id.
+      CLEAR tline.
+      IF sy-tabix = 1.
+        tline-tdformat = '*'.
+      ENDIF.
+      tline-tdline = it_text-text.
+      APPEND tline.
+    ENDLOOP.
+    IF it_list2-id+0(1) = 'F'.
+      header-tdname = wa_ekko-ebeln.
+      header-tdobject = 'EKKO'.
+      header-tdid = it_list2-id.
+      header-tdspras = sy-langu.
+      CALL FUNCTION 'SAVE_TEXT'
+        EXPORTING
+          header          = header
+          savemode_direct = 'X'
+        TABLES
+          lines           = tline
+        EXCEPTIONS
+          id              = 1
+          language        = 2
+          name            = 3
+          object          = 4
+          OTHERS          = 5.
+    ELSE.
+      header-tdname = wa_ekko-ebeln && it_list2-value+0(5).
+      header-tdobject = 'EKPO'.
+      header-tdid = 'F98'.
+      header-tdspras = sy-langu.
+      CALL FUNCTION 'SAVE_TEXT'
+        EXPORTING
+          header          = header
+          savemode_direct = 'X'
+        TABLES
+          lines           = tline
+        EXCEPTIONS
+          id              = 1
+          language        = 2
+          name            = 3
+          object          = 4
+          OTHERS          = 5.
+    ENDIF.
+
+    COMMIT WORK.
+  ENDLOOP.
+ENDFORM.
+
+FORM changepo CHANGING p_flag."修改po
+  DATA:ebelp TYPE ebelp,
+       str1  TYPE char1,
+       kschl TYPE kschl,
+       lifnr TYPE lifnr,
+       kbetr TYPE zemm_zfr1.
+
+  CONSTANTS:waers TYPE waers VALUE 'CNY',
+            peinh TYPE peinh VALUE 1.
+
+  CLEAR:poheader,poheaderx,ebelp,exppurchaseorder,wa_ext,wa_extx,potextheader.
+  REFRESH:pocomponents,pocomponentsx,poitem,poitemx,poschedule,poschedulex,
+  pocond,pocondx,potextitem,return,extensionin,potextheader.
+
+  CHECK it_ekpo[] IS NOT INITIAL
+   AND wa_ekko-ebeln IS NOT INITIAL.
+**********************************************************************
+  LOOP AT it_ekpo.
+    IF it_ekpo-zxbjbs NE 'X'.
+      MESSAGE '第' && sy-tabix && '行没有进行比价.' TYPE 'E'.
+      RETURN.
+    ENDIF.
+    data_check it_ekpo-eindt '交货日期'.
+  ENDLOOP.
+**********************************************************************
+  "抬头数据
+  READ TABLE it_xbj WITH KEY banfn = it_ekpo-banfn bnfpo = it_ekpo-bnfpo zzxbs = 'X' .
+*  poheader-doc_type = wa_ekko-bsart."凭证类型
+*  poheader-comp_code = wa_ekko-bukrs."公司代码
+  poheader-vendor = wa_ekko-lifnr."供应商
+  PERFORM addzero(zpubform) CHANGING poheader-vendor.
+*  poheader-purch_org = wa_ekko-ekorg."采购组织
+*  poheader-pur_group = wa_ekko-ekgrp."采购组
+  poheader-currency = it_xbj-waers."货币
+  poheader-creat_date = wa_ekko-aedat."PO创建日期,制单日期
+  poheader-doc_date = wa_ekko-aedat."PO创建日期
+  PERFORM setbapix(zpubform) USING poheader CHANGING poheaderx.
+  "20220107添加增强字段的修改
+*增强字段
+  MOVE-CORRESPONDING wa_ekko TO wa_ext.
+  PERFORM setbapix(zpubform) USING wa_ext CHANGING wa_extx.
+  extensionin-structure = 'BAPI_TE_MEPOHEADER'.
+  extensionin+30(960) = wa_ext.
+  APPEND extensionin.
+  extensionin-structure = 'BAPI_TE_MEPOHEADERX'.
+  extensionin-valuepart1 = wa_extx.
+  APPEND extensionin.
+**********************************************************************
+**********************************************************************
+  "抬头文本
+*  potextheader-po_number = wa_ekko-ebeln."质量要求
+*  potextheader-text_id = 'F98'.
+*  potextheader-text_form = '*'.
+*  potextheader-text_line = wa_ekko-zzlyq.
+*  APPEND potextheader.
+*  potextheader-po_number = wa_ekko-ebeln."备注
+*  potextheader-text_id = 'F99'.
+*  potextheader-text_form = '*'.
+*  potextheader-text_line = wa_ekko-zbz.
+*  APPEND potextheader.
+*将当前停留文本更新
+*  PERFORM screen2tab USING wa_ekko-tdid.
+*  LOOP AT it_list2.
+*    REFRESH t_text.
+*    LOOP AT it_text WHERE tdid = it_list2-id.
+*      t_text-text = it_text-text.
+*      APPEND t_text.
+*    ENDLOOP.
+*    WAIT UP TO '0.5' SECONDS.
+**    CALL FUNCTION 'ZFM_DEALLONGTEXT'
+**      EXPORTING
+**        intype = 'I'
+**        tdid   = it_list2-id
+**        sapno  = wa_head-zdhdh
+**        sapmk  = 'DHTZ'
+**      TABLES
+**        t_text = t_text.
+**    potextheader-po_number = wa_ekko-ebeln."
+**    potextheader-text_id = it_list2-id.
+**    potextheader-text_form = '*'.
+**    potextheader-text_line = t_text.
+**    APPEND potextheader.
+*    fname = wa_ekko-ebeln.
+*    CALL FUNCTION 'CREATE_TEXT'
+*      EXPORTING
+*        fid         = it_list2-id "Text ID
+*        flanguage   = sy-langu    "语言代码
+*        fname       = fname "文本名称
+*        fobject     = 'EKKO' "文本对象
+*        save_direct = 'X'    "直接保存标识
+*        fformat     = '*'
+*      TABLES
+*        flines      = t_text[]
+*      EXCEPTIONS
+*        no_init     = 1
+*        no_save     = 2
+*        OTHERS      = 3.
+*  ENDLOOP.
+**********************************************************************
+  "行项目数据
+  LOOP AT it_ekpo .
+**********************************
+    CLEAR:poitem,poitemx,poschedule,poschedulex,pocond,pocondx.
+*行项目
+    poitem-po_item = it_ekpo-ebelp."行项目
+    poitem-quantity = it_ekpo-menge_cg."数量
+    poitem-net_price = it_ekpo-kbetr."净价
+    poitem-tax_code = wa_ekko-mwskz."税码
+    poitem-preq_no = it_ekpo-banfn."采购申请号
+    poitem-preq_item = it_ekpo-bnfpo."采购申请行号
+*计划行
+    poschedule-po_item = it_ekpo-ebelp."
+    poschedule-sched_line = 1."
+    poschedule-delivery_date = wa_ekko-aedat."交货日期
+    poschedule-quantity = it_ekpo-menge_cg."数量
+*价格条件,从询比价信息屏幕取过来
+    " 询比价存的是单价，这里要取金行额  22.11.2022 21:52:28 by kkw
+    READ TABLE it_xbj WITH KEY banfn = it_ekpo-banfn bnfpo = it_ekpo-bnfpo zzxbs = 'X'." BINARY SEARCH.
+    pocond-itm_number = it_ekpo-ebelp.
+    pocond-cond_type = 'PBXX'.
+    pocond-currency = it_xbj-waers." 货币这个地方要做校验  25.10.2022 10:37:56 by kkw
+    pocond-cond_p_unt = it_xbj-peinh.
+    pocond-cond_value = it_xbj-netpr.
+    pocond-cond_unit = it_ekpo-meins_cg."取订单单位  05.12.2022 15:50:54 by kkw
+    pocond-change_id = 'U'.
+    PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+    APPEND:pocondx, pocond.
+    CLEAR:kbetr.
+*    DO 5 TIMES VARYING kbetr FROM it_ekpo-zfr1 NEXT it_ekpo-zfr2.
+*      CLEAR:pocond,pocondx,str1,kschl.
+*      str1 = sy-index.
+*      CONCATENATE 'ZFR' str1 INTO kschl.
+*      IF kbetr IS NOT INITIAL.
+*        pocond-itm_number = it_ekpo-ebelp.
+*        pocond-cond_type = kschl.
+*        pocond-currency = waers.
+*        pocond-cond_p_unt = peinh.
+*        pocond-cond_value = kbetr.
+*        pocond-change_id = 'U'.
+*        PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+*        APPEND:pocondx, pocond.
+*      ENDIF.
+*    ENDDO.
+*    CLEAR:kbetr.
+*    DO 5 TIMES VARYING kbetr FROM it_ekpo-zm01 NEXT it_ekpo-zm02.
+*      CLEAR:pocond,pocondx,str1,kschl.
+*      str1 = sy-index.
+*      CONCATENATE 'ZM0' str1 INTO kschl.
+*      IF kbetr IS NOT INITIAL.
+*        pocond-itm_number = it_ekpo-ebelp.
+*        pocond-cond_type = kschl.
+*        pocond-currency = waers.
+*        pocond-cond_p_unt = peinh.
+*        pocond-cond_value = kbetr * 10.
+*        pocond-change_id = 'U'.
+*        PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+*        APPEND:pocondx, pocond.
+*      ENDIF.
+*    ENDDO.
+**供应商
+*    DO 5 TIMES VARYING lifnr FROM it_ekpo-zf01 NEXT it_ekpo-zf02.
+*      CLEAR:pocond,pocondx,str1,kschl.
+*      str1 = sy-index.
+*      CONCATENATE 'ZF0' str1 INTO kschl.
+*      IF lifnr IS NOT INITIAL.
+*        pocond-itm_number = it_ekpo-ebelp.
+*        pocond-cond_type = kschl.
+*        pocond-vendor_no = lifnr.
+*        pocond-change_id = 'U'.
+*        PERFORM setbapix(zpubform) USING pocond CHANGING pocondx.
+*        APPEND:pocondx, pocond.
+*      ENDIF.
+*    ENDDO.
+*增强字段
+    CLEAR:extensionin.
+    MOVE-CORRESPONDING it_ekpo TO wa_extp.
+    wa_extp-po_item = it_ekpo-ebelp.
+    wa_extp-yl5 = it_ekpo-zchandi.
+    extensionin-structure = 'BAPI_TE_MEPOITEM'.
+    extensionin-valuepart1 = wa_extp.
+    APPEND extensionin.
+    PERFORM setbapix(zpubform) USING wa_extp CHANGING wa_extpx.
+    CLEAR:extensionin.
+    extensionin-structure = 'BAPI_TE_MEPOITEMX'.
+    extensionin-valuepart1 = wa_extpx.
+    APPEND extensionin.
+
+    PERFORM setbapix(zpubform) USING poitem CHANGING poitemx.
+    PERFORM setbapix(zpubform) USING poschedule CHANGING poschedulex.
+    APPEND:poitem,poitemx,poschedule,poschedulex.
+    MODIFY it_ekpo.
+  ENDLOOP.
+
+*  IF return[] IS NOT INITIAL.
+*    PERFORM showmsg(zpubform) TABLES return.
+*    EXIT.
+*  ENDIF.
+
+  SET UPDATE TASK LOCAL.
+  CALL FUNCTION 'BAPI_PO_CHANGE'
+    EXPORTING
+      purchaseorder    = wa_ekko-ebeln
+      no_price_from_po = 'X'
+    TABLES
+      return           = return
+      poitem           = poitem
+      poitemx          = poitemx
+      poschedule       = poschedule
+      poschedulex      = poschedulex
+      pocond           = pocond
+      pocondx          = pocondx
+      extensionin      = extensionin
+*     potextheader     = potextheader
+    .
+
+
+  LOOP AT return WHERE type CA 'AEX'.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc NE 0.
+    PERFORM bapirun(zpubform) USING 'S'.
+    p_flag = 'S'.
+    MESSAGE i000(oo) WITH '修改成功'.
+    "更新长文本
+    PERFORM screen2tab USING wa_ekko-tdid.
+    PERFORM editlongtext.
+*更新底表
+    "更新ztmm203
+    READ TABLE it_xbj INDEX 1.
+    IF sy-subrc EQ 0.
+      IF it_xbj-zxbjdh IS INITIAL.
+        "获取底表流水
+        PERFORM get_snro_number USING 'ZGPMM01' CHANGING number.
+        IF number IS INITIAL.
+          MESSAGE s004 WITH '获取流水号出现问题.' DISPLAY LIKE 'I'.
+        ELSE.
+          CLEAR:it_203,it_203[],posnr.
+
+          LOOP AT it_xbj WHERE zbjbs = 'X'.
+            MOVE-CORRESPONDING it_xbj TO it_203.
+            it_203-zxbjdh = 'XBJ' && sy-datum+2(6) && number.
+            ADD 10 TO posnr.
+            it_203-zxbjhh = posnr.
+            it_203-zdate = sy-datum.
+            it_203-zname = sy-uname.
+            it_203-ztime = sy-uzeit.
+            it_203-zgysbj = it_xbj-netpr.
+            it_203-ebeln = wa_ekko-ebeln.
+            READ TABLE it_ekpo WITH KEY banfn = it_xbj-banfn bnfpo = it_xbj-bnfpo.
+            IF sy-subrc EQ 0.
+              it_203-ebelp = it_ekpo-ebelp.
+            ENDIF.
+            APPEND it_203.
+          ENDLOOP.
+          MODIFY ztmm203 FROM TABLE it_203[].
+          COMMIT WORK.
+          CLEAR:it_203,it_203[].
+        ENDIF.
+      ELSE.
+        DATA(zxbjdh) = it_xbj-zxbjdh.
+        DELETE FROM ztmm203 WHERE zxbjdh = zxbjdh.
+        CLEAR:it_203,it_203[],posnr.
+        LOOP AT it_xbj WHERE zbjbs = 'X'.
+          MOVE-CORRESPONDING it_xbj TO it_203.
+          it_203-zxbjdh = zxbjdh.
+          ADD 10 TO posnr.
+          it_203-zxbjhh = posnr.
+          it_203-zdate = sy-datum.
+          it_203-zname = sy-uname.
+          it_203-ztime = sy-uzeit.
+          it_203-zgysbj = it_xbj-netpr.
+          it_203-ebeln = wa_ekko-ebeln.
+          READ TABLE it_ekpo WITH KEY banfn = it_xbj-banfn bnfpo = it_xbj-bnfpo.
+          IF sy-subrc EQ 0.
+            it_203-ebelp = it_ekpo-ebelp.
+          ENDIF.
+          APPEND it_203.
+        ENDLOOP.
+        MODIFY ztmm203 FROM TABLE it_203[].
+        COMMIT WORK.
+        CLEAR:it_203,it_203[].
+      ENDIF.
+    ENDIF.
+*  IF strlen( it_xbj-zxbjdh ) LT 12.
+*    "获取底表流水
+*    PERFORM get_snro_number USING 'ZGPMM01' CHANGING number.
+*    IF number IS INITIAL.
+*      MESSAGE s004 WITH '获取流水号出现问题.' DISPLAY LIKE 'I'.
+*    ELSE.
+*      LOOP AT it_203.
+*        it_203-ebeln = exppurchaseorder.
+*        it_203-zxbjdh = 'XBJ' && sy-datum+2(6) && number.
+*        READ TABLE it_ekpo WITH KEY banfn = it_203-banfn bnfpo = it_203-bnfpo.
+*        IF sy-subrc EQ 0.
+*          it_203-ebelp = it_ekpo-ebelp.
+*        ENDIF.
+*        MODIFY it_203.
+*      ENDLOOP.
+*      MODIFY ztmm203 FROM TABLE it_203[].
+*      COMMIT WORK.
+*    ENDIF.
+*  ELSE.
+*    DELETE FROM ztmm203 WHERE zxbjdh = it_xbj-zxbjdh.
+*    LOOP AT it_203.
+*      it_203-ebeln = exppurchaseorder.
+*      it_203-zxbjdh = it_xbj-zxbjdh.
+*      READ TABLE it_ekpo WITH KEY banfn = it_203-banfn bnfpo = it_203-bnfpo.
+*      IF sy-subrc EQ 0.
+*        it_203-ebelp = it_ekpo-ebelp.
+*      ENDIF.
+*      MODIFY it_203.
+*    ENDLOOP.
+*    MODIFY ztmm203 FROM TABLE it_203[].
+*    COMMIT WORK.
+*  ENDIF.
+*  CLEAR:it_203,it_203[].
+
+*刷新显示数据
+    PERFORM getdatapo.
+*    LEAVE TO SCREEN 0.
+  ELSE.
+    p_flag = 'E'.
+    PERFORM bapirun(zpubform) USING 'E'.
+    PERFORM showmsg(zpubform) TABLES return.
+  ENDIF.
+ENDFORM.
+
+DATA: BEGIN OF it_prcd OCCURS 0,
+        ebeln TYPE ekko-ebeln,
+        ebelp TYPE ekpo-ebelp,
+        kbetr TYPE prcd_elements-kbetr,
+      END OF it_prcd.
+
+*FORM getfkje CHANGING ddzje."不用了
+*  CLEAR ddzje.
+*  SELECT
+*  ekko~ebeln,
+*  "ekpo~ebelp,
+*  prcd~kposn AS ebelp,
+*  prcd~kbetr
+*  INTO CORRESPONDING FIELDS OF TABLE @it_prcd
+*  FROM ekko
+*  "JOIN ekpo ON ekko~ebeln = ekpo~ebeln
+*  JOIN prcd_elements AS prcd ON ekko~knumv = prcd~knumv "AND ekpo~ebelp = prcd~kposn
+*  WHERE ekko~ebeln = @wa_ekko-ebeln
+*  AND prcd~kschl = 'PBXX'.
+*  .
+*  SORT it_prcd BY ebeln ebelp.
+*  LOOP AT it_prcd.
+*    ddzje = ddzje + it_prcd-kbetr.
+*  ENDLOOP.
+*ENDFORM.
+
+FORM getfkjh."付款计划价屏幕赋值,按订单
+
+  REFRESH it_fkjh.
+  CLEAR it_fkjh.
+  it_fkjh-ebeln    = wa_ekko-ebeln.
+  it_fkjh-ebelp    = ''.
+  it_fkjh-zfkjhd   = ''.
+  it_fkjh-zfkjhh   = ''.
+  it_fkjh-zddzje   = wa_ekko-zddzje.
+  it_fkjh-zmxzje   = ''.
+  it_fkjh-zfktj    = ''.
+  it_fkjh-zfkfs    = ''.
+  it_fkjh-zfkbl    = ''.
+  it_fkjh-zfkje    = ''.
+  it_fkjh-zfkrq    = ''.
+  APPEND it_fkjh.
+ENDFORM.
+
+FORM getfkjh_mx."付款计划价屏幕赋值,按明细
+  REFRESH it_fkjh.
+  LOOP AT it_ekpo.
+    CLEAR it_fkjh.
+    it_fkjh-ebeln    = wa_ekko-ebeln.
+    it_fkjh-ebelp    = it_ekpo-ebelp.
+    it_fkjh-zfkjhd   = ''.
+    it_fkjh-zfkjhh   = ''.
+    it_fkjh-zddzje   = wa_ekko-zddzje.
+    it_fkjh-zmxzje   = it_ekpo-menge_cg * it_ekpo-kbetr.
+    it_fkjh-zfktj    = ''.
+    it_fkjh-zfkfs    = ''.
+    it_fkjh-zfkbl    = ''.
+    it_fkjh-zfkje    = ''.
+    it_fkjh-zfkrq    = ''.
+    APPEND it_fkjh.
+  ENDLOOP.
+ENDFORM.
+
+FORM add_row_fkjh."付款计划屏幕新增行
+  DATA:lv_selcount TYPE i.
+
+  LOOP AT it_fkjh WHERE sel = 'X'.
+    lv_selcount = lv_selcount + 1.
+  ENDLOOP.
+  IF lv_selcount <> 1.
+    MESSAGE '请选中一行新增.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  READ TABLE it_fkjh WITH KEY sel = 'X'.
+  it_fkjh-sel = ''.
+  MODIFY it_fkjh INDEX sy-tabix.
+  it_fkjh-sel = ''.
+  it_fkjh-zfktj = ''.
+  it_fkjh-zfkfs = ''.
+  it_fkjh-zfkbl = ''.
+  it_fkjh-zfkje = ''.
+  it_fkjh-zfkrq = ''.
+  INSERT it_fkjh INDEX sy-tabix.
+  SORT it_fkjh BY ebeln ebelp.
+ENDFORM.
+
+FORM del_row_fkjh."付款计划屏幕删除行
+  DATA:lv_selcount TYPE i.
+
+  LOOP AT it_fkjh WHERE sel = 'X'.
+    lv_selcount = lv_selcount + 1.
+  ENDLOOP.
+  IF lv_selcount <> 1.
+    MESSAGE '请选中一行删除.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  READ TABLE it_fkjh WITH KEY sel = 'X'.
+  DELETE it_fkjh INDEX sy-tabix.
+  SORT it_fkjh BY ebeln ebelp.
+ENDFORM.
+
+FORM datato204 CHANGING flg TYPE char1."询比价屏幕保存
+  CLEAR flg.
+  DATA: posnr  TYPE posnr,
+        zfkjhd TYPE ztmm204-zfkjhd.
+  DATA:BEGIN OF it_ddhz OCCURS 0,"汇总付款信息，订单
+         ebeln  TYPE ebeln,
+         zddzje TYPE eine-netpr,
+         zfkje  TYPE eine-netpr,
+         i      TYPE i,
+       END OF it_ddhz.
+  DATA:BEGIN OF it_mxhz OCCURS 0,"汇总付款信息，明细
+         ebeln  TYPE ebeln,
+         ebelp  TYPE ebelp,
+         zmxzje TYPE eine-netpr,
+         zfkje  TYPE eine-netpr,
+         i      TYPE i,
+       END OF it_mxhz.
+  "有付款计划单号的话延用之前的
+  CLEAR zfkjhd.
+  LOOP AT it_fkjh WHERE zfkjhd NE ''.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc EQ 0.
+    zfkjhd = it_fkjh-zfkjhd.
+    DELETE FROM ztmm204 WHERE zfkjhd = zfkjhd.
+  ELSE.
+    "获取底表流水
+    PERFORM get_snro_number USING 'ZGPMM02' CHANGING number.
+    IF number IS INITIAL.
+      MESSAGE s004 WITH '获取流水号出现问题.'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+  REFRESH:it_ddhz,it_mxhz,it_204.
+  CLEAR posnr.
+  LOOP AT it_fkjh.
+    data_check it_fkjh-zfktj '付款条件'.
+    data_check it_fkjh-zfkfs '付款方式'.
+    data_check it_fkjh-zfkbl '付款比例'.
+    data_check it_fkjh-zfkrq '付款日期'.
+    CLEAR:it_ddhz,it_mxhz,it_204.
+    it_ddhz-ebeln    = it_fkjh-ebeln .
+    it_ddhz-zddzje   = it_fkjh-zddzje.
+    it_ddhz-zfkje    = it_fkjh-zfkje .
+    it_ddhz-i        = 1.
+    COLLECT it_ddhz.
+    it_mxhz-ebeln    = it_fkjh-ebeln .
+    it_mxhz-ebelp    = it_fkjh-ebelp .
+    it_mxhz-zmxzje   = it_fkjh-zmxzje.
+    it_mxhz-zfkje    = it_fkjh-zfkje .
+    it_mxhz-i        = 1.
+    COLLECT it_mxhz.
+    ADD 10 TO posnr.
+    it_fkjh-zfkjhh = posnr.
+    IF zfkjhd IS NOT INITIAL.
+      it_fkjh-zfkjhd = zfkjhd.
+    ELSE.
+      it_fkjh-zfkjhd = 'FKJH' && sy-datum+2(6) && number.
+    ENDIF.
+    IF lw_answer = 1.
+      it_fkjh-ddbs = 'X'.
+    ENDIF.
+    MOVE-CORRESPONDING it_fkjh TO it_204.
+    it_204-zdate = sy-datum.
+    it_204-zname = sy-uname.
+    it_204-ztime = sy-uzeit.
+    APPEND it_204.
+    MODIFY it_fkjh.
+  ENDLOOP.
+  IF lw_answer = 1.
+    LOOP AT it_ddhz.
+      IF ( it_ddhz-zddzje / it_ddhz-i ) NE it_ddhz-zfkje.
+        MESSAGE s004 WITH '付款金额不等于订单总金额.'.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ELSEIF lw_answer = 2.
+    LOOP AT it_mxhz.
+      IF ( it_mxhz-zmxzje / it_mxhz-i ) NE it_mxhz-zfkje.
+        MESSAGE s004 WITH '付款金额不等于明细总金额.'.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+  MODIFY ztmm204 FROM TABLE it_204[].
+  COMMIT WORK.
+  flag = 'S'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  UPDATE_ZFKJE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE update_zfkje INPUT.
+  CLEAR it_fkjh-zfkje.
+  IF lw_answer = 1.
+    it_fkjh-zfkje = it_fkjh-zddzje * it_fkjh-zfkbl / 100.
+  ELSEIF lw_answer = 2.
+    it_fkjh-zfkje = it_fkjh-zmxzje * it_fkjh-zfkbl / 100.
+  ENDIF.
+ENDMODULE.
+
+FORM get_snro_number USING snro TYPE tnro-object CHANGING p_numbr TYPE char3.
+  CLEAR p_numbr.
+*  snro = to_upper( snro ).
+*  TRANSLATE snro TO UPPER CASE.
+  IF snro = 'ZGPMM01'.
+    SELECT COUNT( * ) FROM ztmm203 WHERE zdate = sy-datum.
+  ELSEIF snro = 'ZGPMM02'.
+    SELECT COUNT( * ) FROM ztmm204 WHERE zdate = sy-datum.
+  ENDIF.
+  IF sy-subrc NE 0.
+    CALL FUNCTION 'NUMBER_RANGE_INTERVAL_INIT'
+      EXPORTING
+        object            = snro
+        commit            = 'X'
+      EXCEPTIONS
+        no_interval_found = 1
+        object_not_found  = 2.
+    IF sy-subrc <> 0.
+      MESSAGE '初始化流水号失败.' TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'NUMBER_RANGE_ENQUEUE'
+    EXPORTING
+      object           = snro
+    EXCEPTIONS
+      foreign_lock     = 1
+      object_not_found = 2
+      system_failure   = 3
+      OTHERS           = 4.
+  DO 5 TIMES.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'NUMBER_GET_NEXT'
+        EXPORTING
+          nr_range_nr = '01'
+          object      = snro
+        IMPORTING
+          number      = p_numbr
+        EXCEPTIONS
+          OTHERS      = 4.
+
+      CALL FUNCTION 'NUMBER_RANGE_DEQUEUE'
+        EXPORTING
+          object = snro
+        EXCEPTIONS
+          OTHERS = 4.
+      EXIT.
+    ELSE.
+      WAIT UP TO 1 SECONDS.
+*      RAISE num_range_error.
+    ENDIF.
+  ENDDO.
+
+  IF p_numbr IS INITIAL.
+    MESSAGE '流水号未生成.' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ELSE.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EKKO_MODIFY  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ekko_modify INPUT.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form listbox
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM listbox .
+  DATA:it_list1 TYPE TABLE OF ty_list WITH HEADER LINE.
+  CLEAR:it_list1.
+  SELECT *
+    FROM t007s
+    WHERE kalsm = 'TAXCN' AND spras = sy-langu AND mwskz LIKE 'J%'.
+    CLEAR it_list1.
+    it_list1-id = t007s-mwskz.
+    it_list1-value = t007s-text1.
+    APPEND it_list1.
+  ENDSELECT.
+  SORT it_list1 BY id.
+
+  PERFORM itabtolist(zpubform) TABLES it_list1 USING 'WA_EKKO-MWSKZ'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  FILLMWSKZ  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fillmwskz INPUT.
+  LOOP AT it_ekpo.
+    CLEAR it_ekpo-mwskz .
+    it_ekpo-mwskz = wa_ekko-mwskz.
+    MODIFY it_ekpo.
+  ENDLOOP.
+ENDMODULE.
+
+FORM update_zddzje.
+  DATA zddzje TYPE ekpo-netwr.
+  CLEAR zddzje.
+  LOOP AT it_ekpo INTO DATA(wa_ekpo).
+    zddzje = zddzje + wa_ekpo-menge_cg * wa_ekpo-kbetr.
+  ENDLOOP.
+  wa_ekko-zddzje = zddzje.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  FILLZYFKBL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fillzyfkbl INPUT.
+  wa_ekko_change-zyfkje = wa_ekko-zyfkje.
+  IF wa_ekko-zyfkje > wa_ekko-zddzje.
+    MESSAGE s000(oo) WITH '预付款金额不能大于订单总金额' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  IF wa_ekko-zddzje NE 0.
+    CLEAR wa_ekko_change-zyfkbl.
+    wa_ekko_change-zyfkbl = floor( wa_ekko-zyfkje / wa_ekko-zddzje * 100 ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILLZYFKJE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fillzyfkje INPUT.
+  wa_ekko_change-zyfkbl = wa_ekko-zyfkbl.
+  CLEAR wa_ekko_change-zyfkje.
+  wa_ekko_change-zyfkje =  wa_ekko-zddzje * wa_ekko-zyfkbl / 100 .
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILLZZBJBL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fillzzbjbl INPUT.
+  wa_ekko_change-zzbj   = wa_ekko-zzbj  .
+  IF wa_ekko-zzbj > wa_ekko-zddzje.
+    MESSAGE s000(oo) WITH '质保金金额不能大于订单总金额' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  IF wa_ekko-zddzje NE 0.
+    CLEAR wa_ekko_change-zzbjbl.
+    wa_ekko_change-zzbjbl = floor( wa_ekko-zzbj / wa_ekko-zddzje * 100 ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILLZZBJ  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fillzzbj INPUT.
+  wa_ekko_change-zzbjbl = wa_ekko-zzbjbl.
+  CLEAR wa_ekko_change-zzbj.
+  wa_ekko_change-zzbj =  wa_ekko-zddzje * wa_ekko-zzbjbl / 100 .
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module MDL_CHANGE_INPUT OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE mdl_change_input OUTPUT.
+  IF it_xbj-bs = 'X'.
+    LOOP AT SCREEN .
+      IF screen-name = 'IT_XBJ-LIFNR' ."OR screen-name = 'IT_XBJ-WERKS' OR screen-name = 'IT_XBJ-EKORG'.
+        "OR screen-name = 'IT_XBJ-NETPR' OR screen-name = 'IT_XBJ-WAERS'.
+        screen-input = 1 .   "可输入状态
+        MODIFY SCREEN .
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDMODULE.
+
+
+*&---------------------------------------------------------------------*
+*& Form pldrxbjmb
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM pldrxbjmb.
+  DATA:lv_rc TYPE i.
+  DATA:BEGIN OF wa_copy,
+         text TYPE char2048,
+       END OF wa_copy.
+  DATA : lt_copy LIKE TABLE OF wa_copy.
+  DATA(cc) = cl_abap_char_utilities=>horizontal_tab.
+  CLEAR: wa_copy,lt_copy.
+  CONCATENATE '采购申请编号' cc '行号' cc '物料编码' cc '物料描述' cc '供应商编号'
+  cc '工厂' cc '采购组织' cc '净价' cc '价格单位' cc '货币' cc '选中标识' cc '询比价备注' INTO wa_copy-text.
+  APPEND wa_copy TO lt_copy.
+  LOOP AT it_ekpo.
+    DO 3 TIMES.
+      CONCATENATE it_ekpo-banfn cc it_ekpo-bnfpo cc it_ekpo-matnr cc it_ekpo-maktx cc ''
+      cc it_ekpo-werks cc wa_ekko-ekorg cc '' cc '1' cc 'CNY' cc '' INTO wa_copy-text.
+      APPEND wa_copy TO lt_copy.
+    ENDDO.
+  ENDLOOP.
+  CALL METHOD cl_gui_frontend_services=>clipboard_export
+    IMPORTING
+      data                 = lt_copy
+    CHANGING
+      rc                   = lv_rc
+    EXCEPTIONS
+      cntl_error           = 1
+      error_no_gui         = 2
+      not_supported_by_gui = 3
+      OTHERS               = 4.
+  IF sy-subrc = 0.
+    MESSAGE s000(oo) WITH '已经把表头复制到剪贴板,可以打开一个Excel文件然后粘贴'.
+  ELSE.
+    MESSAGE e000(oo) WITH '复制到剪贴板失败'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form pldrxbjsc
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM pldrxbjsc .
+  DATA : BEGIN OF it_clip OCCURS 0,
+           banfn  TYPE eban-banfn,
+           bnfpo  TYPE eban-bnfpo,
+           matnr  TYPE matnr,
+           maktx  TYPE maktx,
+           lifnr  TYPE lifnr,
+           werks  TYPE werks_d,
+           ekorg  TYPE eban-ekorg,
+           netpr  TYPE eine-netpr,
+           peinh  TYPE eine-peinh,
+           waers  TYPE eine-waers,
+           zzxbs  TYPE char1,
+           zxbjbz TYPE ztmm203-zxbjbz,
+         END OF it_clip.
+
+  PERFORM cliptoitab(zpubform) TABLES it_clip .
+  REFRESH it_xbj.
+  "数据校验
+  LOOP AT it_clip.
+    it_clip-lifnr = |{ it_clip-lifnr ALPHA = IN }|.
+    MODIFY it_clip.
+  ENDLOOP.
+
+  SELECT lifnr,name1 INTO TABLE @DATA(lt_lfa1) FROM lfa1 FOR ALL ENTRIES IN @it_clip
+    WHERE lfa1~lifnr = @it_clip-lifnr.
+  SORT lt_lfa1 BY lifnr.
+  LOOP AT it_clip.
+    CLEAR it_xbj.
+    MOVE-CORRESPONDING it_clip TO it_xbj.
+    it_xbj-zbjbs = 'X'.
+    READ TABLE lt_lfa1 INTO DATA(lw_lfa1) WITH KEY lifnr = it_clip-lifnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_xbj-name1 = lw_lfa1-name1.
+    ENDIF.
+    APPEND it_xbj.
+  ENDLOOP.
+  IF it_xbj[] IS NOT INITIAL.
+    CALL SCREEN 901.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  GETLIFNR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE getlifnr INPUT.
+  DATA: return_tab TYPE ddshretval OCCURS 0 .
+  DATA:BEGIN OF it_lfa1 OCCURS 0,
+         lifnr TYPE char10,
+         name1 TYPE lfa1-name1,
+         ekorg TYPE ekorg,
+         waers TYPE lfm1-waers,
+*    infnr TYPE eina-infnr,
+*    netpr TYPE eine-netpr,
+*    peinh TYPE eine-peinh,
+       END OF it_lfa1.
+  SELECT
+    lfa1~lifnr
+    lfa1~name1
+    lfm1~waers
+    lfm1~ekorg
+     INTO CORRESPONDING FIELDS OF TABLE it_lfa1
+    FROM lfa1
+    JOIN lfm1 ON lfa1~lifnr = lfm1~lifnr
+    WHERE lfm1~ekorg = wa_ekko-ekorg.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'LIFNR'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'IT_XBJ-LIFNR'
+      window_title     = '供应商'
+      value_org        = 'S' "Structure
+      callback_program = sy-repid
+      callback_form    = 'CB_FORM'
+    TABLES
+      value_tab        = it_lfa1[]
+*     field_tab        = l_dfies[]
+      return_tab       = return_tab[]
+*     dynpfld_mapping  = l_dselc[]
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+  IF sy-subrc NE 0.
+
+  ENDIF.
+ENDMODULE.
+
+FORM cb_form TABLES record_tab STRUCTURE seahlpres
+            CHANGING shlp TYPE shlp_descr_t
+                     callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+  interface-shlpfield+4(1) = '2'.
+  interface-valfield = 'IT_XBJ-NAME1'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '3'.
+  interface-valfield = 'IT_XBJ-EKORG'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '4'.
+  interface-valfield = 'IT_XBJ-WAERS'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form setlist
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM setlist .
+  CLEAR:it_list2,it_list2[].
+  it_list2-id = 'F96'.
+  it_list2-value = '油漆要求'.
+  APPEND it_list2.
+  CLEAR:it_list2.
+  it_list2-id = 'F97'.
+  it_list2-value = '付款备注'.
+  APPEND it_list2.
+  CLEAR:it_list2.
+  it_list2-id = 'F98'.
+  it_list2-value = '质量与要求'.
+  APPEND it_list2.
+  CLEAR:it_list2.
+  it_list2-id = 'F99'.
+  it_list2-value = '备注'.
+  APPEND it_list2.
+  CLEAR:it_list2.
+  it_list2-id = 'F95'.
+  it_list2-value = '驻场监造条件'.
+  APPEND it_list2.
+  CLEAR:it_list2.
+  it_list2-id = 'F94'.
+  it_list2-value = '包装方式'.
+  APPEND it_list2.
+  CLEAR:it_list2.
+  it_list2-id = 'F93'.
+  it_list2-value = '其他支付方式备注'.
+  APPEND it_list2.
+  SORT it_list2 BY id.
+  LOOP AT it_ekpo.
+    CLEAR:it_list2.
+    it_list2-id = 'H' && |{ it_ekpo-ebelp ALPHA = OUT }| .
+    it_list2-value = it_ekpo-ebelp && '行明细备注'.
+    APPEND it_list2.
+  ENDLOOP.
+  PERFORM itabtolist(zpubform) TABLES it_list2 USING 'WA_EKKO-TDID'.
+ENDFORM.
+
+FORM getlongtext.
+*取长文本
+  REFRESH it_text.
+  CLEAR it_text.
+  LOOP AT it_list2.
+    CLEAR:tline[],it_text,stxl.
+    IF it_list2-id+0(1) ='F'.
+      stxl-tdname = wa_ekko-ebeln.
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          id                      = it_list2-id
+          language                = sy-langu
+          name                    = stxl-tdname
+          object                  = 'EKKO'
+        TABLES
+          lines                   = tline
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+    ELSE.
+      stxl-tdname = wa_ekko-ebeln && it_list2-value+0(5).
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          id                      = 'F98'
+          language                = sy-langu
+          name                    = stxl-tdname
+          object                  = 'EKPO'
+        TABLES
+          lines                   = tline
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+    ENDIF.
+    LOOP AT tline.
+      CLEAR it_text.
+      it_text-tdid = it_list2-id.
+      it_text-text = tline-tdline.
+      APPEND it_text.
+    ENDLOOP.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form editcontainer
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM editcontainer .
+  IF go_editor_container IS INITIAL.
+    CREATE OBJECT go_editor_container
+      EXPORTING
+        container_name              = 'CONT1'
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5.
+
+    CREATE OBJECT go_editor
+      EXPORTING
+        parent                     = go_editor_container
+        wordwrap_mode              = cl_gui_textedit=>wordwrap_at_fixed_position
+        wordwrap_position          = '100'
+        wordwrap_to_linebreak_mode = cl_gui_textedit=>true.
+  ENDIF.
+  CALL METHOD go_editor->set_toolbar_mode
+    EXPORTING
+      toolbar_mode = 1.
+
+  CASE 'X'.
+    WHEN p_cj OR p_wh.
+    WHEN OTHERS.
+      CALL METHOD go_editor->set_readonly_mode
+        EXPORTING
+          readonly_mode = 1.
+  ENDCASE.
+
+
+  CALL METHOD go_editor->set_statusbar_mode
+    EXPORTING
+      statusbar_mode = 0.
+
+  PERFORM clear_text.
+  cl_gui_control=>set_focus( go_editor ).
+  IF wa_ekko-tdid IS NOT INITIAL.
+*    PERFORM SCREEN2TAB USING WA_HEAD-TDID.
+    PERFORM tab2screen USING wa_ekko-tdid.
+  ENDIF.
+ENDFORM.
+FORM clear_text.
+*  REFRESH:TEXTTABLE.
+  CALL METHOD go_editor->set_text_as_stream
+    EXPORTING
+      text            = texttable[]
+    EXCEPTIONS
+      error_dp        = 1
+      error_dp_create = 2
+      OTHERS          = 3.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM.
+FORM tab2screen USING p_tdid.
+*清空
+  CLEAR texttable[].
+  CALL METHOD go_editor->delete_text .
+  CALL METHOD cl_gui_cfw=>flush.
+
+*取出已有的
+  LOOP AT it_text WHERE tdid = p_tdid.
+    CLEAR:texttable.
+    texttable-text = it_text-text.
+    APPEND texttable.
+  ENDLOOP.
+  CALL METHOD go_editor->set_text_as_stream
+    EXPORTING
+      text            = texttable[]
+    EXCEPTIONS
+      error_dp        = 1
+      error_dp_create = 2
+      OTHERS          = 3.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SCREEN2TAB
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> TDID
+*&---------------------------------------------------------------------*
+FORM screen2tab  USING    p_tdid.
+  REFRESH:texttable.
+  "将容器中内容解析到内表
+  go_editor->get_text_as_r3table( IMPORTING table = texttable[] ).
+*将切换前的记录.
+  DELETE it_text WHERE tdid = p_tdid.
+  LOOP AT texttable.
+    CLEAR:it_text.
+    it_text-tdid = p_tdid.
+    it_text-text = texttable-text.
+    APPEND it_text.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EDITTEXT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE edittext INPUT.
+*若TDID发生变化
+  IF tdid NE wa_ekko-tdid
+    AND tdid IS NOT INITIAL.
+    PERFORM screen2tab  USING tdid.
+  ENDIF.
+  PERFORM tab2screen USING wa_ekko-tdid.
+  tdid = wa_ekko-tdid.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form fpcgrq
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM fpcgrq .
+  DATA:num TYPE i.
+  CLEAR num.
+  LOOP AT it_eban WHERE select = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num < 1.
+    MESSAGE s004 WITH '请选中需要分配采购日期的行.'.
+    RETURN.
+  ENDIF.
+  CALL SCREEN 903 STARTING AT 65 10 ENDING AT 115 20.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0903 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0903 OUTPUT.
+  SET PF-STATUS 'STA903'.
+  SET TITLEBAR 'TIT903' WITH '分配采购日期'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0903  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0903 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SAVE'.
+      PERFORM savecgrq.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form savecgrq
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM savecgrq .
+  DATA:stu TYPE i.
+  CLEAR:stu.
+  LOOP AT it_eban WHERE select = 'X'.
+    UPDATE eban SET zfpcgrq1 = wa_cgrq-zfpcgrq1 zsl1 = wa_cgrq-zsl1
+                    zfpcgrq2 = wa_cgrq-zfpcgrq2 zsl2 = wa_cgrq-zsl2
+                    zfpcgrq3 = wa_cgrq-zfpcgrq3 zsl3 = wa_cgrq-zsl3
+    WHERE banfn = it_eban-banfn AND bnfpo = it_eban-bnfpo.
+    IF sy-subrc EQ 0.
+      stu = 1.
+      it_eban-zfpcgrq1 = wa_cgrq-zfpcgrq1. it_eban-zsl1 = wa_cgrq-zsl1.
+      it_eban-zfpcgrq2 = wa_cgrq-zfpcgrq2. it_eban-zsl2 = wa_cgrq-zsl2.
+      it_eban-zfpcgrq3 = wa_cgrq-zfpcgrq3. it_eban-zsl3 = wa_cgrq-zsl3.
+      MODIFY it_eban.
+    ELSE.
+      stu = 0.
+    ENDIF.
+  ENDLOOP.
+  IF stu = 1.
+    COMMIT WORK.
+    MESSAGE s004 WITH '更新成功'.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form uploadfile
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM uploadfile .
+  DATA:djlx  TYPE ztfile_manage_01-djlx.
+  CALL FUNCTION 'ZFM_FTP_CALLZFTP'
+    EXPORTING
+      sapno = wa_ekko-ebeln
+      sapmk = 'MM'
+      djlx  = 'PRPO'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form closepr
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM closepr .
+  DATA: lv_number  LIKE bapimereqheader-preq_no,
+        gs_pritem  LIKE bapimereqitemimp,
+        gt_pritem  LIKE TABLE OF  bapimereqitemimp,
+        gs_pritemx LIKE bapimereqitemx,
+        gt_pritemx LIKE TABLE OF bapimereqitemx,
+        gs_return  LIKE bapiret2,
+        gt_return  LIKE TABLE OF bapiret2,
+        lw_ans     TYPE string.
+  DATA:num TYPE i.
+  CLEAR num.
+  LOOP AT it_eban WHERE select = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选择一行关闭采购申请.' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      titlebar              = '是否要关闭采购申请？'
+      text_question         = '是否要关闭采购申请？'
+      text_button_1         = '关闭'
+      text_button_2         = '取消'
+      display_cancel_button = 'X'
+      start_column          = 35
+      start_row             = 6
+      popup_type            = 'ICON_MESSAGE_WARNING'
+    IMPORTING
+      answer                = lw_ans.
+  IF lw_ans = '1'.
+    lv_number = it_eban-banfn.
+    REFRESH:gt_return,gt_pritem,gt_pritemx.
+    CLEAR gs_pritem.
+    gs_pritem-preq_item = it_eban-bnfpo .
+    gs_pritem-req_blocked = '1'.
+    gs_pritem-reason_blocking = '用户' && sy-uname && '关闭订单'.
+    APPEND  gs_pritem TO gt_pritem .
+
+    CLEAR gs_pritemx.
+    gs_pritemx-preq_item = it_eban-bnfpo .
+    gs_pritemx-req_blocked = 'X' .
+    gs_pritemx-reason_blocking = 'X' .
+
+    APPEND  gs_pritemx TO  gt_pritemx .
+
+    CALL FUNCTION 'BAPI_PR_CHANGE'
+      EXPORTING
+        number  = lv_number
+      TABLES
+        return  = gt_return
+        pritem  = gt_pritem
+        pritemx = gt_pritemx.
+
+    LOOP AT gt_return INTO gs_return WHERE type CA 'AEX'.
+      EXIT.
+    ENDLOOP.
+    IF sy-subrc NE 0.
+      PERFORM bapirun(zpubform) USING 'S'.
+      MESSAGE s004 WITH '采购订单关闭成功.'.
+
+*刷新显示数据
+      PERFORM getdata.
+*    LEAVE TO SCREEN 0.
+    ELSE.
+      PERFORM bapirun(zpubform) USING 'E'.
+      PERFORM showmsg(zpubform) TABLES gt_return.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form tjsp
+*&---------------------------------------------------------------------*
+*& 提交OA审批
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM tjsp .
+  DATA:in_tab TYPE TABLE OF zsmm_200 WITH HEADER LINE,
+       fields TYPE TABLE OF sval WITH HEADER LINE,
+       p_name TYPE string,
+       rtype  TYPE bapi_mtype,
+       rtmsg  TYPE bapi_msg.
+  CLEAR:oaname.
+**填入发起人
+*  CLEAR:FIELDS.
+*  FIELDS-TABNAME = 'ZTSD001'.
+*  FIELDS-FIELDNAME = 'FQR'.
+*  FIELDS-FIELDTEXT = '发起人'.
+*  APPEND FIELDS.
+*
+*  CALL FUNCTION 'POPUP_GET_VALUES'
+*    EXPORTING
+*      POPUP_TITLE     = '流程发起人'
+*    TABLES
+*      FIELDS          = FIELDS
+*    EXCEPTIONS
+*      ERROR_IN_FIELDS = 1
+*      OTHERS          = 2.
+*  READ TABLE FIELDS INDEX 1.
+*  IF FIELDS-VALUE IS INITIAL.
+*    MESSAGE '请填入发起人' TYPE 'E'.
+*    RETURN.
+*  ENDIF.
+*  P_NAME = FIELDS-VALUE.
+  SELECT SINGLE ekgrp
+    INTO @DATA(ls_ekgrp)
+    FROM ekko
+    WHERE ebeln = @wa_ekko-ebeln.
+  SELECT SINGLE eknam
+    INTO @DATA(ls_eknam)
+    FROM t024
+    WHERE ekgrp = @ls_ekgrp.
+  IF sy-subrc = 0.
+    p_name = ls_eknam.
+  ELSE.
+    MESSAGE '推送OA账号未知' TYPE 'E'.
+  ENDIF.
+  oaname = p_name.
+*附件屏幕
+  CALL SCREEN 9001 STARTING AT 60 5 ENDING AT 150 15.
+*OA-附件传输
+  CALL FUNCTION 'ZFM_GP_MM_OA_PO_SEND'
+    EXPORTING
+      p_name = p_name
+      ebeln  = wa_ekko-ebeln
+      zfj    = zfj
+    IMPORTING
+*     p_output = p_output
+*     p_status = p_status
+      rtype  = rtype
+      rtmsg  = rtmsg
+*     P_RESULT =
+*    TABLES
+*     in_tab = in_tab
+*     T_RESULT =
+    .
+  MESSAGE rtmsg TYPE 'I'.
+  IF rtype = 'S'.
+    PERFORM relpopr(zpubform) USING wa_ekko-ebeln
+                                             'Z1'
+                                             ''
+                                             'PO'
+                                       CHANGING msg.
+    IF msg+0(1) = 'S'.
+      wa_ekko-frgke = 'G'.
+      IF p_cj = 'X'.
+        PERFORM getdata.
+      ELSEIF p_wh = 'X'.
+        PERFORM getdatapo.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  FILL_NAME1  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fill_name1 INPUT.
+  IF it_xbj-lifnr IS NOT INITIAL.
+    CLEAR it_xbj-name1.
+    it_xbj-lifnr = |{ it_xbj-lifnr ALPHA = IN }|.
+
+    SELECT SINGLE
+      lfa1~name1
+      lfm1~waers
+      lfm1~ekorg
+   INTO ( it_xbj-name1, it_xbj-waers,it_xbj-ekorg )
+   FROM lfa1
+   JOIN lfm1 ON lfa1~lifnr = lfm1~lifnr
+   WHERE lfa1~lifnr = it_xbj-lifnr
+     AND lfm1~ekorg = wa_ekko-ekorg.
+
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_ZCKBM  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_zckbm INPUT.
+  DATA:it_zvtmm215 TYPE TABLE OF zvtmm215 WITH HEADER LINE.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_zvtmm215 FROM zvtmm215.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST' "调用函数
+    EXPORTING
+      retfield         = 'ZCKBM'  "搜索帮助内表要输出的的帮助字段名，注：要大写
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'WA_EKKO-ZCKBM' "屏幕字段
+      value_org        = 'S'
+      callback_program = sy-repid
+      callback_form    = 'CB_ZCKBM'
+    TABLES
+      value_tab        = it_zvtmm215 "存储搜索帮助内容的内表
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDMODULE.
+FORM cb_zckbm TABLES record_tab STRUCTURE seahlpres
+           CHANGING shlp TYPE shlp_descr_t
+                    callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  CLEAR:interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+*选中后自动带出(SHLPFIELD字段结构F0001)
+*  INTERFACE-SHLPFIELD+4(1) = '3'."F0001
+*  INTERFACE-VALFIELD = 'ITAB-ZJUANH'.
+*  APPEND INTERFACE TO SHLP-INTERFACE.
+  interface-shlpfield+4(1) = '3'.
+  interface-valfield = 'WA_EKKO-ZCKMC'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '4'.
+  interface-valfield = 'WA_EKKO-ZCKDZ'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  UPD_HZDDZJE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE upd_hzddzje INPUT.
+  it_ekpo-zddzje = it_ekpo-kbetr * it_ekpo-menge_cg.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form datachanged_check
+*&---------------------------------------------------------------------*
+*& 数据变动，推送OA
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM datachanged_check CHANGING oaflag.
+  DATA:"oaflag           TYPE bapi_mtype, "是否需要推送oa
+    lt_ekko          TYPE abap_compdescr_tab WITH HEADER LINE,
+    lt_ekpo          TYPE abap_compdescr_tab WITH HEADER LINE,
+    lr_ref_table_des TYPE  REF  TO cl_abap_structdescr.
+  DATA:in_tabsp TYPE TABLE OF zsmm_008 WITH HEADER LINE,
+       rtype    TYPE bapi_mtype.
+  FIELD-SYMBOLS : <fs_ekko>     TYPE any,
+                  <fs_ekko_old> TYPE any.
+  DATA:flg TYPE char1.
+  "动态得到内表结构  ”抬头结构
+  lr_ref_table_des ?=
+        cl_abap_typedescr=>describe_by_data( wa_ekko_old ).
+  lt_ekko[] = lr_ref_table_des->components[].
+  "循环判断结构每个字段,抬头字段
+  LOOP AT lt_ekko.
+    ASSIGN COMPONENT lt_ekko-name OF STRUCTURE wa_ekko_old TO <fs_ekko_old>.
+    IF sy-subrc = 0.
+      ASSIGN COMPONENT lt_ekko-name OF STRUCTURE wa_ekko TO <fs_ekko>.
+      IF sy-subrc = 0 AND <fs_ekko_old> = <fs_ekko>.
+        oaflag = 'E'.
+      ELSE.
+        oaflag = 'S'.
+        EXIT.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+  IF oaflag = 'E'.
+    "明细字段值变更
+    "动态得到内表结构  ”明细结构
+    lr_ref_table_des ?=
+          cl_abap_typedescr=>describe_by_data( it_ekpo_old ).
+    lt_ekpo[] = lr_ref_table_des->components[].
+    LOOP AT it_ekpo_old.
+      READ TABLE it_ekpo WITH KEY ebelp = it_ekpo_old-ebelp.
+      "循环判断结构每个字段,明细字段
+      LOOP AT lt_ekpo.
+        ASSIGN COMPONENT lt_ekpo-name OF STRUCTURE it_ekpo_old TO FIELD-SYMBOL(<fs_ekpo_old>).
+        IF sy-subrc = 0.
+          ASSIGN COMPONENT lt_ekpo-name OF STRUCTURE it_ekpo TO FIELD-SYMBOL(<fs_ekpo>).
+          IF sy-subrc = 0 AND <fs_ekpo_old> = <fs_ekpo> .
+            oaflag = 'E'.
+          ELSE.
+            oaflag = 'S'.
+            EXIT.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+  ENDIF.
+  IF oaflag = 'S'."'推送oa'.,驳回审批
+    IF wa_ekko-frgke NE 'B'.
+      "PO取消审批
+      REFRESH in_tabsp.
+      CLEAR in_tabsp.
+      in_tabsp-ebeln = wa_ekko-ebeln.
+      in_tabsp-frgke = '2'.
+      APPEND in_tabsp.
+
+      CALL FUNCTION 'ZFM_GP_OA_MM_POSP'
+        IMPORTING
+          rtype  = rtype
+*         rtmsg  =
+        TABLES
+          in_tab = in_tabsp
+*         T_RESULT       =
+        .
+      IF rtype NE 'S'.
+        MESSAGE i004 WITH '修改审批标识产生问题'.
+        EXIT.
+      ELSE."'送oa'.
+        wa_ekko-frgke = 'B'.
+        CLEAR flg.
+        PERFORM changepo CHANGING flg.
+        IF flg = 'S'.
+          PERFORM tjsp.
+        ENDIF.
+      ENDIF.
+    ELSE.
+      CLEAR flg.
+      PERFORM changepo CHANGING flg.
+      IF flg = 'S'.
+        PERFORM tjsp.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form upd_xxjl
+*&---------------------------------------------------------------------*
+*& 更新信息记录,生成PO后调用会更好
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM upd_xxjl .
+  DATA: it_inforecord TYPE TABLE OF zsmm_228 WITH HEADER LINE,
+        et_return     TYPE TABLE OF zsmm_229 WITH HEADER LINE.
+  LOOP AT it_xbj WHERE zbjbs = 'X'.
+    CLEAR it_inforecord.
+    it_inforecord-matnr    = it_xbj-matnr.
+    it_inforecord-lifnr    = it_xbj-lifnr.
+    it_inforecord-ekorg    = it_xbj-ekorg.
+    it_inforecord-ekgrp     = wa_ekko-ekgrp.
+    it_inforecord-esokz    = '0'.
+*    it_inforecord-werks    = it_xbj-werks.
+    IF it_xbj-datab = '00000000'.
+      it_inforecord-datab    = sy-datum.
+    ELSE.
+      it_inforecord-datab    = it_xbj-datab.
+    ENDIF.
+    IF it_xbj-datbi = '00000000'.
+      it_inforecord-datbi    = '99991231'.
+    ELSE.
+      it_inforecord-datbi    = it_xbj-datbi.
+    ENDIF.
+
+    READ TABLE it_ekpo WITH KEY banfn = it_xbj-banfn bnfpo = it_xbj-bnfpo.
+    IF sy-subrc EQ 0.
+      it_inforecord-bprme    = it_ekpo-meins.
+    ENDIF.
+*    it_inforecord-bprme    = it_xbj-.
+    it_inforecord-peinh    = it_xbj-peinh.
+    it_inforecord-waers    = it_xbj-waers.
+*    it_inforecord-mwskz    = wa_ekko-mwskz.
+    IF it_xbj-infnr IS NOT INITIAL.
+      it_inforecord-zstatus  = 'U'.
+    ELSE.
+      it_inforecord-zstatus  = 'C'.
+    ENDIF.
+    it_inforecord-pbxx     = it_xbj-netpr.
+    APPEND it_inforecord.
+  ENDLOOP.
+
+  CALL FUNCTION 'ZFM_GP_MM_CGXXJL_V2'
+* IMPORTING
+*   RTYPE               =
+*   RTMSG               =
+    TABLES
+      it_inforecord = it_inforecord
+      et_return     = et_return.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form openfj
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM openfj .
+  DATA: matcher TYPE REF TO cl_abap_matcher,
+        match   TYPE match_result.
+
+  DATA:num TYPE i,
+       url TYPE c.
+  CLEAR :it_eban,num.
+  LOOP AT it_eban WHERE select = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选择一行查看采购申请附件.' DISPLAY LIKE 'I'.
+    EXIT.
+  ENDIF.
+  CALL FUNCTION 'ZFM_ERP_CALLFILE'
+    EXPORTING
+      sapmk = 'MM'
+      djlx  = 'MMPR'
+      sapno = it_eban-banfn.
+
+*  SELECT SINGLE zfjdz INTO url FROM ztmm237 WHERE banfn = it_eban-banfn.
+*  IF url IS INITIAL.
+*    MESSAGE s012 WITH it_eban-banfn DISPLAY LIKE 'I'.
+*    EXIT.
+*  ELSE.
+*    PERFORM replace(zpubform) USING 'https' 'http' CHANGING url.
+*    PERFORM replace(zpubform) USING 'HTTPS' 'HTTP' CHANGING url.
+*
+*    IF cl_abap_matcher=>matches( pattern = '^((https||HTTPS|http|HTTP|ftp|rtsp|mms)?:\/\/)[^\s]+' text = url ) = abap_false.
+**      matcher = cl_abap_matcher=>get_object( ).
+**      match = matcher->get_match( ).
+**      DATA(cc) = matcher->text+match-offset(match-length).
+*      MESSAGE s013 WITH url DISPLAY LIKE 'E'.
+*      EXIT.
+*    ENDIF.
+*    CALL FUNCTION 'CALL_BROWSER'
+*      EXPORTING
+*        url                    = url
+*        new_window             = 'X'
+**       BROWSER_TYPE           =
+**       CONTEXTSTRING          =
+*      EXCEPTIONS
+*        frontend_not_supported = 1
+*        frontend_error         = 2
+*        prog_not_found         = 3
+*        no_batch               = 4
+*        unspecified_error      = 5
+*        OTHERS                 = 6.
+*  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form PRINT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM print .
+  DATA: BEGIN OF buyer,
+          suppliername     TYPE string,
+          supplieraddr     TYPE string,
+          supplierphone    TYPE string,
+          supplierfax      TYPE string,
+          supplierqianding TYPE string,
+          supplierlvxing   TYPE string,
+          supplierbank     TYPE string,
+          suppliershuihao  TYPE string,
+          supplierzhanghu  TYPE string,
+          supplierfaren    TYPE string,
+          suppliershouquan TYPE string,
+          suppliershouhuo  TYPE TABLE OF string,
+          supplierlinkman  TYPE string,
+          supplieremail    TYPE string,
+        END OF buyer.
+  DATA:it_shr  TYPE TABLE OF zsmm211d WITH HEADER LINE.
+  DATA:shr     TYPE TABLE OF string WITH HEADER LINE.
+  DATA:BEGIN OF erpdata,
+         printimgs TYPE string,
+         pdfid     TYPE string,
+         pdfname   TYPE string,
+         buyer     LIKE buyer,
+         supplier  TYPE zsmm211c,
+         order     TYPE zsmm211,
+         list      TYPE TABLE OF zsmm211a,
+       END OF erpdata,
+       buyer1   TYPE zsmm211b,
+*       SUPPLIER TYPE ZSMM211C_TYPE,
+       supplier TYPE zsmm211c,
+       order    TYPE zsmm211,
+       list     TYPE TABLE OF zsmm211a.
+  DATA:url(1024) TYPE  c.
+  DATA:zerpbh  TYPE ztsd219-zerpbh.
+  DATA:erpjson TYPE string.
+  DATA:erpurl  TYPE string.
+  DATA:lv_guid TYPE guid_16.
+  DATA:rtype     TYPE bapi_mtype,
+       rtmsg     TYPE bapi_msg,
+       tmplid    TYPE string,
+       zhangid   TYPE string,
+       printimgs TYPE string,
+       pdfid     TYPE string,
+       pdfname   TYPE string,
+       osskey    TYPE string.
+
+  DATA: t_spopli TYPE TABLE OF spopli  WITH HEADER LINE,
+        answer   TYPE char1.
+  CLEAR : t_spopli , t_spopli[],zerpbh.
+  SELECT
+    ztsd219~zsapbh,
+    ztsd219~zbhms,
+    ztsd219~zerpbh
+    INTO TABLE @DATA(it_219)
+    FROM ztsd219
+    WHERE ztsd219~zmokuai  = 'MM'
+     AND  ztsd219~zleixing = 'CGDD'
+     .
+  SORT it_219 BY zsapbh.
+  LOOP AT it_219 INTO DATA(wa_219).
+    CLEAR t_spopli.
+    "默认选中第一条
+    IF sy-tabix = 1 .
+      t_spopli-selflag  = 'X'.
+    ENDIF.
+    t_spopli-varoption = wa_219-zbhms.
+    APPEND t_spopli.
+  ENDLOOP.
+
+  CALL FUNCTION 'POPUP_TO_DECIDE_LIST'
+    EXPORTING
+*     CURSORLINE         = 1
+*     MARK_FLAG          = ' '
+*     MARK_MAX           = 1
+*     START_COL          = 0
+*     START_ROW          = 0
+      textline1          = '请选择打印模板：'
+*     TEXTLINE2          = ' '
+*     TEXTLINE3          = ' '
+      titel              = '打印采购订单'
+*     DISPLAY_ONLY       = ' '
+    IMPORTING
+      answer             = answer
+    TABLES
+      t_spopli           = t_spopli
+    EXCEPTIONS
+      not_enough_answers = 1
+      too_much_answers   = 2
+      too_much_marks     = 3
+      OTHERS             = 4.
+
+  IF answer = 'A' .
+    MESSAGE s000(oo) WITH '取消' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  READ TABLE t_spopli WITH KEY selflag  = 'X'.
+  IF sy-subrc = 0.
+    READ TABLE it_219 INTO DATA(wa_219a) WITH KEY zbhms = t_spopli-varoption .
+    IF sy-subrc = 0 .
+      zerpbh = wa_219a-zerpbh.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'ZFM_GP_SD_ERP_CGDDDY_GETDATA'
+    EXPORTING
+      ebeln     = wa_ekko-ebeln
+    IMPORTING
+      rtype     = rtype
+      rtmsg     = rtmsg
+      outtab3   = order
+      outtab1   = buyer1
+      outtab2   = supplier
+      pdfname   = pdfname
+      printimgs = printimgs
+    TABLES
+      outtab4   = list.
+  IF rtype <> 'S'.
+    MESSAGE s000(oo) WITH rtmsg DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  MOVE-CORRESPONDING buyer1 TO buyer.
+  it_shr[] = buyer1-suppliershouhuo.
+  LOOP AT it_shr.
+    shr = it_shr-zshr.
+    APPEND shr.
+  ENDLOOP.
+  buyer-suppliershouhuo = shr[].
+
+  erpdata-pdfid      = zerpbh.
+  erpdata-pdfname    = pdfname.
+  erpdata-printimgs  = printimgs.
+  erpdata-order      = order.
+  erpdata-buyer      = buyer.
+  erpdata-supplier   = supplier.
+  erpdata-list       = list[].
+  CLEAR : rtmsg , rtype .
+
+*WA_EKKO-EBELN
+
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = erpjson
+      data    = erpdata
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  tmplid   = zerpbh .
+*  ZHANGID  = 'NULL'.
+  zhangid  = ''.
+*& 获取GUID，根据GUID生成文件
+  CALL FUNCTION 'GUID_CREATE'
+    IMPORTING
+      ev_guid_16 = lv_guid.
+
+  osskey   = 'cgorder/' && lv_guid && '.pdf' .
+  CALL FUNCTION 'ZFM_GP_SD_ERP_PRINT'
+    EXPORTING
+      tmplid   = tmplid
+      zhangid  = zhangid
+      osskey   = osskey
+      datajson = erpjson
+    IMPORTING
+      url      = erpurl
+      rtype    = rtype
+      rtmsg    = rtmsg.
+  IF rtype = 'S' AND erpurl IS NOT INITIAL.
+    url = erpurl.
+    PERFORM replace(zpubform) USING 'https' 'http' CHANGING url.
+    PERFORM replace(zpubform) USING 'HTTPS' 'HTTP' CHANGING url.
+    CALL FUNCTION 'CALL_BROWSER'
+      EXPORTING
+        url                    = url
+        new_window             = 'X'
+*       BROWSER_TYPE           =
+*       CONTEXTSTRING          =
+      EXCEPTIONS
+        frontend_not_supported = 1
+        frontend_error         = 2
+        prog_not_found         = 3
+        no_batch               = 4
+        unspecified_error      = 5
+        OTHERS                 = 6.
+  ELSE.
+    MESSAGE s000(oo) WITH rtmsg DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  FILEF41  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE filef41 INPUT.
+  PERFORM getfileroute(zpubform) USING '' CHANGING wa_fileroute-file01.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILEF42  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE filef42 INPUT.
+  PERFORM getfileroute(zpubform) USING '' CHANGING wa_fileroute-file02.
+ENDMODULE.
+MODULE filef43 INPUT.
+  PERFORM getfileroute(zpubform) USING '' CHANGING wa_fileroute-file03.
+ENDMODULE.
+MODULE filef44 INPUT.
+  PERFORM getfileroute(zpubform) USING '' CHANGING wa_fileroute-file04.
+ENDMODULE.
+MODULE filef45 INPUT.
+  PERFORM getfileroute(zpubform) USING '' CHANGING wa_fileroute-file05.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9001 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_9001 OUTPUT.
+  SET PF-STATUS '9001'.
+* SET TITLEBAR 'xxx'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_9001 INPUT.
+  DATA:answer      TYPE char1,
+       filerouter  TYPE localfile,
+       filerouter1 TYPE char255,
+       id          TYPE string,
+       state       TYPE string.
+  CLEAR:ok_code1.
+  ok_code1 = sy-ucomm.
+  CASE ok_code1.
+    WHEN 'BUT10'.
+      CLEAR:zfj.
+      IF wa_fileroute-file01 IS NOT INITIAL
+        OR wa_fileroute-file02 IS NOT INITIAL
+        OR wa_fileroute-file03 IS NOT INITIAL
+        OR wa_fileroute-file04 IS NOT INITIAL
+        OR wa_fileroute-file05 IS NOT INITIAL.
+        DO 5 TIMES VARYING filerouter FROM wa_fileroute-file01 NEXT wa_fileroute-file02.
+          IF filerouter IS NOT INITIAL.
+            CLEAR:id,state,filerouter1.
+            filerouter1  = filerouter.
+            CALL FUNCTION 'ZFM_PUTFILE_TOOA'
+              EXPORTING
+                p_name   = oaname
+                sapmk    = 'MM'
+                djlx     = 'MMPO'
+                sapno    = wa_ekko-ebeln
+                djzl     = '01'
+                filepath = filerouter1
+              IMPORTING
+                id       = id
+                state    = state.
+            IF state = '200'
+              AND id IS NOT INITIAL.
+              IF zfj IS INITIAL.
+                zfj = id.
+              ELSE.
+                CONCATENATE zfj ','  id INTO zfj.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDDO.
+      ENDIF.
+      LEAVE TO SCREEN 0.
+    WHEN 'BUT11'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+  CLEAR sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILL_NETPR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fill_netpr INPUT.
+  IF it_xbj-menge_cg NE 0.
+    it_xbj-netpr = it_xbj-kzwi1 / it_xbj-menge_cg.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILL_KZWI1  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fill_kzwi1 INPUT.
+  it_xbj-kzwi1 = it_xbj-netpr * it_xbj-menge_cg.
+  IF it_xbj-peinh GT 0.
+    it_xbj-kzwi1 = it_xbj-netpr * it_xbj-menge_cg / it_xbj-peinh.
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  DATA_CHANGE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE data_change INPUT.
+  wa_ekko-zyfkje = wa_ekko_change-zyfkje.
+  wa_ekko-zyfkbl = wa_ekko_change-zyfkbl.
+  wa_ekko-zzbj   = wa_ekko_change-zzbj  .
+  wa_ekko-zzbjbl = wa_ekko_change-zzbjbl.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  DATA_SAVE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE data_save INPUT.
+  wa_ekko_change-zyfkje = wa_ekko-zyfkje.
+  wa_ekko_change-zyfkbl = wa_ekko-zyfkbl.
+  wa_ekko_change-zzbj   = wa_ekko-zzbj  .
+  wa_ekko_change-zzbjbl = wa_ekko-zzbjbl.
+ENDMODULE.
+
+*FORM DATA_SAVE.
+*  WA_EKKO_CHANGE-ZYFKJE = WA_EKKO-ZYFKJE.
+*  WA_EKKO_CHANGE-ZYFKBL = WA_EKKO-ZYFKBL.
+*  WA_EKKO_CHANGE-ZZBJ   = WA_EKKO-ZZBJ  .
+*  WA_EKKO_CHANGE-ZZBJBL = WA_EKKO-ZZBJBL.
+*ENDFORM.

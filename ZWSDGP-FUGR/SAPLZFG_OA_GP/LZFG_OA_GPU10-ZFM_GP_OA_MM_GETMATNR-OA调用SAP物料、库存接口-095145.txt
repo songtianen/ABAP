@@ -1,0 +1,390 @@
+FUNCTION ZFM_GP_OA_MM_GETMATNR.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"     VALUE(LGORT) TYPE  LGORT_D OPTIONAL
+*"     VALUE(ZSFXM) TYPE  SOBKZ OPTIONAL
+*"     VALUE(CHARG) TYPE  ATWRT OPTIONAL
+*"     VALUE(ZJUANH) TYPE  ATWRT OPTIONAL
+*"     VALUE(MAKTX) TYPE  MAKTX OPTIONAL
+*"     VALUE(ZZBH) TYPE  ATWRT OPTIONAL
+*"     VALUE(ZBS) TYPE  CHAR1 OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      OUT_TAB STRUCTURE  ZMM_200
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_GP_OA_MM_GETMATNR'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+  TABLES T148.
+  INCLUDE ZMMS_I_PCTXMAIN.
+  INCLUDE ZMM006.
+  DATA:ITAB TYPE TABLE OF TY_006 WITH HEADER LINE.
+  DATA:LT_SELECT TYPE TABLE OF RSPARAMS,
+       LS_SELECT TYPE RSPARAMS.
+  DATA:P1 TYPE CHAR1,
+       P2 TYPE CHAR1.
+  " 取长文本用  23.11.2022 21:36:07 by kkw
+  DATA:BEGIN OF WA_KEY,
+         TDOBJECT TYPE  STXL-TDOBJECT,
+         TDNAME   TYPE  STXL-TDNAME,
+         TDID     TYPE  STXL-TDID,
+         TDSPRAS  TYPE  STXL-TDSPRAS,
+       END OF WA_KEY,
+       T_TEXT TYPE TABLE OF TLINE WITH HEADER LINE.
+  " 模糊搜索物料  25.11.2022 19:41:41 by kkw
+  DATA: SMAKTX TYPE RANGE OF MAKT-MAKTX WITH HEADER LINE,
+        SMATNR TYPE RANGE OF MAKT-MATNR WITH HEADER LINE.
+*  DATA:it_marm TYPE TABLE OF marm,
+*       wa_marm TYPE marm.
+  RANGES:RLGORT FOR MARD-LGORT.
+  IF LGORT IS NOT INITIAL.
+    RLGORT[] = VALUE #(
+    ( SIGN = 'I' OPTION = 'EQ' LOW = LGORT )
+    ).
+  ENDIF.
+*  IF maktx IS NOT INITIAL.
+*    maktx = '%' && maktx && '%'.
+*    SELECT matnr INTO TABLE @DATA(lt_matnr) FROM makt WHERE maktx LIKE @maktx AND spras = @sy-langu.
+*    REFRESH smatnr.
+*    LOOP AT lt_matnr INTO DATA(lw_matnr).
+*      CLEAR smatnr.
+*      smatnr-sign = 'I'.
+*      smatnr-option = 'EQ'.
+*      smatnr-low = lw_matnr-matnr.
+*      APPEND smatnr.
+*    ENDLOOP.
+*  ENDIF.
+
+  REFRESH OUT_TAB.
+  CLEAR OUT_TAB.
+  IF CHARG IS NOT INITIAL OR ZJUANH IS NOT INITIAL OR ZZBH IS NOT INITIAL OR ZSFXM IS NOT INITIAL.
+    IF ZSFXM IS NOT INITIAL.
+*      SELECT SINGLE * FROM t148 WHERE sobkz = zsfxm.
+*      IF sy-subrc NE 0.
+*        rtype = 'E'.
+*        rtmsg = '特殊库存标识错误'.
+*        EXIT.
+*        zfmdatasave2 'R'.
+*      ENDIF.
+      IF ZSFXM NE 'Q' AND ZSFXM NE 'O'.
+        RTYPE = 'E'.
+        RTMSG = '特殊库存标识错误'.
+        EXIT.
+        ZFMDATASAVE2 'R'.
+      ENDIF.
+    ENDIF.
+    "获取zmm006报表数据
+    REFRESH:LT_SELECT.
+    CLEAR:LS_SELECT.
+    LS_SELECT-SELNAME = 'S_WERKS'.
+    LS_SELECT-SIGN    = 'I'.
+    LS_SELECT-OPTION  = 'EQ'.
+    LS_SELECT-LOW     = WERKS.
+    APPEND LS_SELECT TO LT_SELECT.
+    IF LGORT IS NOT INITIAL.
+      CLEAR:LS_SELECT.
+      LS_SELECT-SELNAME = 'S_LGORT'.
+      LS_SELECT-SIGN    = 'I'.
+      LS_SELECT-OPTION  = 'EQ'.
+      LS_SELECT-LOW     = LGORT.
+      APPEND LS_SELECT TO LT_SELECT.
+    ENDIF.
+    IF CHARG IS NOT INITIAL.
+      CLEAR:LS_SELECT.
+      LS_SELECT-SELNAME = 'S_CHARG'.
+      LS_SELECT-SIGN    = 'I'.
+      LS_SELECT-OPTION  = 'EQ'.
+      LS_SELECT-LOW     = CHARG.
+      APPEND LS_SELECT TO LT_SELECT.
+    ENDIF.
+    "获取卷号对应的批次
+    IF ZJUANH IS NOT INITIAL.
+
+      SELECT
+        MCH1~CHARG
+      INTO TABLE  @DATA(LT_JH)
+      FROM MCH1
+        INNER JOIN AUSP ON MCH1~CUOBJ_BM = AUSP~OBJEK AND KLART = '023'
+        INNER JOIN CABN ON AUSP~ATINN = CABN~ATINN
+      WHERE CABN~ATNAM = 'Z02' AND AUSP~ATWRT = @ZJUANH.
+      LOOP AT LT_JH INTO DATA(LW_JH).
+        CLEAR:LS_SELECT.
+        LS_SELECT-SELNAME = 'S_CHARG'.
+        LS_SELECT-SIGN    = 'I'.
+        LS_SELECT-OPTION  = 'EQ'.
+        LS_SELECT-LOW     = LW_JH-CHARG.
+        APPEND LS_SELECT TO LT_SELECT.
+      ENDLOOP.
+    ENDIF.
+    "获取自编号对应的批次
+    IF ZZBH IS NOT INITIAL.
+
+      SELECT
+        MCH1~CHARG
+      INTO TABLE @LT_JH
+      FROM MCH1
+        INNER JOIN AUSP ON MCH1~CUOBJ_BM = AUSP~OBJEK AND KLART = '023'
+        INNER JOIN CABN ON AUSP~ATINN = CABN~ATINN
+      WHERE CABN~ATNAM = 'Z01' AND AUSP~ATWRT = @ZZBH.
+      LOOP AT LT_JH INTO LW_JH.
+        CLEAR:LS_SELECT.
+        LS_SELECT-SELNAME = 'S_CHARG'.
+        LS_SELECT-SIGN    = 'I'.
+        LS_SELECT-OPTION  = 'EQ'.
+        LS_SELECT-LOW     = LW_JH-CHARG.
+        APPEND LS_SELECT TO LT_SELECT.
+      ENDLOOP.
+    ENDIF.
+
+    IF CHARG IS NOT INITIAL OR ZJUANH IS NOT INITIAL OR ZZBH IS NOT INITIAL.
+      P1 = 'X'.
+      P2 = ''.
+    ELSE.
+      P1 = ''.
+      P2 = 'X'.
+    ENDIF.
+    IF ZSFXM = 'Q'.
+      SUBMIT ZMMS_STOCK_PCTX_MAIN
+       WITH SELECTION-TABLE LT_SELECT "多选
+             WITH P1 = P1
+             WITH P2 = P2
+             WITH P3 = ''
+              WITH P_FXZ = ''
+              WITH P_Q = 'X'
+              WITH P_O = ''
+             WITH P_SUBMIT = 'X'
+*           WITH s_matnr IN smatnr
+          AND RETURN.
+    ELSEIF ZSFXM = 'O'.
+      SUBMIT ZMMS_STOCK_PCTX_MAIN
+       WITH SELECTION-TABLE LT_SELECT "多选
+             WITH P1 = P1
+             WITH P2 = P2
+             WITH P3 = ''
+              WITH P_FXZ = ''
+              WITH P_Q = ''
+              WITH P_O = 'X'
+             WITH P_SUBMIT = 'X'
+*           WITH s_matnr IN smatnr
+          AND RETURN.
+    ELSEIF ZSFXM = ''.
+      SUBMIT ZMMS_STOCK_PCTX_MAIN
+       WITH SELECTION-TABLE LT_SELECT "多选
+             WITH P1 = P1
+             WITH P2 = P2
+             WITH P3 = ''
+              WITH P_FXZ = 'X'
+              WITH P_Q = ''
+              WITH P_O = ''
+             WITH P_SUBMIT = 'X'
+*           WITH s_matnr IN smatnr
+          AND RETURN.
+    ENDIF.
+
+    IMPORT DATA = ITAB[] FROM MEMORY ID 'ZMMS_STOCK_PCTX_MAIN'.
+    FREE MEMORY ID 'ZMMS_STOCK_PCTX_MAIN'.
+    LOOP AT ITAB.
+      MOVE-CORRESPONDING ITAB TO OUT_TAB.
+      OUT_TAB-MAKTX = ITAB-WLCMS.
+      OUT_TAB-LABST = ITAB-CLABS.
+*      out_tab-lgobe = itab-t023t." ADD BY LZF 30.12.2022 19:39:53
+      OUT_TAB-LGOBE = ITAB-LGOBE.
+*      ASSIGN COMPONENT 'ZCML' OF STRUCTURE itab TO FIELD-SYMBOL(<fs_atwrt>).
+      ASSIGN COMPONENT 'ZTM' OF STRUCTURE ITAB TO FIELD-SYMBOL(<FS_ATWRT>).
+      IF SY-SUBRC EQ 0.
+        OUT_TAB-ZCML = <FS_ATWRT>.
+      ENDIF.
+      APPEND OUT_TAB.
+    ENDLOOP.
+    REFRESH SMAKTX.
+    IF MAKTX IS NOT INITIAL." like语法太慢了  25.11.2022 20:13:20 by kkw
+      CLEAR SMAKTX.
+      SMAKTX-SIGN   = 'I'.
+      SMAKTX-OPTION = 'CP'.
+      SMAKTX-LOW    = '*' && MAKTX && '*'.
+      APPEND SMAKTX.
+      DELETE OUT_TAB WHERE MAKTX NOT IN SMAKTX.
+    ENDIF.
+
+  ELSE."逻辑2，取物料信息
+    IF MAKTX IS NOT INITIAL.
+      MAKTX = '%' && MAKTX && '%'.
+      SELECT MATNR INTO TABLE @DATA(LT_MATNR) FROM MAKT WHERE MAKTX LIKE @MAKTX AND SPRAS = @SY-LANGU.
+    ENDIF.
+    DATA:WHERESTR TYPE STRING.
+    IF ZBS = 'X'.
+      WHERESTR = ` marc~matnr = lt_matnr-matnr`
+                 && ` AND mara~lvorm NE 'X'      `
+                 && ` AND marc~werks = werks     `
+                 && ` AND mara~mtart NOT IN ( 'Z001','Z002' ) `.
+      SELECT
+       MARC~WERKS
+       T001W~NAME1
+*     mard~lgort
+       MARC~MATNR
+*     mard~labst
+       MARA~MEINS
+       MARA~BSTME
+*      t001l~lgobe
+        MSCHL~MSEHL
+        MSCHL1~MSEHL AS MSEHL1
+        INTO CORRESPONDING FIELDS OF TABLE OUT_TAB[]
+       FROM MARC
+       JOIN MAKT ON MARC~MATNR = MAKT~MATNR AND MAKT~SPRAS = SY-LANGU
+       JOIN MARA ON MARC~MATNR = MARA~MATNR
+       LEFT JOIN T001W ON MARC~WERKS = T001W~WERKS
+*      LEFT JOIN t001l ON mard~werks = t001l~werks AND mard~lgort = t001l~lgort
+*     LEFT JOIN mard ON marc~matnr = mard~matnr
+       LEFT JOIN T006A AS MSCHL1 ON  MARA~MEINS = MSCHL1~MSEHI AND MSCHL1~SPRAS = SY-LANGU
+       LEFT JOIN T006A AS MSCHL ON  MARA~BSTME = MSCHL~MSEHI AND MSCHL~SPRAS = SY-LANGU
+       FOR ALL ENTRIES IN LT_MATNR
+       WHERE (WHERESTR)
+        .
+    ELSE.
+      WHERESTR = ` marc~matnr = lt_matnr-matnr`
+                 && ` AND mara~lvorm NE 'X'      `
+                 && ` AND marc~werks = werks     `.
+      SELECT
+          MARC~WERKS
+          T001W~NAME1
+          MARD~LGORT
+          MARC~MATNR
+          MARD~LABST
+          MARA~MEINS
+          MARA~BSTME
+*      t001l~lgobe
+           MSCHL~MSEHL
+           MSCHL1~MSEHL AS MSEHL1
+           INTO CORRESPONDING FIELDS OF TABLE OUT_TAB[]
+          FROM MARC
+          JOIN MAKT ON MARC~MATNR = MAKT~MATNR AND MAKT~SPRAS = SY-LANGU
+          JOIN MARA ON MARC~MATNR = MARA~MATNR
+          LEFT JOIN T001W ON MARC~WERKS = T001W~WERKS
+*      LEFT JOIN t001l ON mard~werks = t001l~werks AND mard~lgort = t001l~lgort
+          LEFT JOIN MARD ON MARC~MATNR = MARD~MATNR
+          LEFT JOIN T006A AS MSCHL1 ON  MARA~MEINS = MSCHL1~MSEHI AND MSCHL1~SPRAS = SY-LANGU
+          LEFT JOIN T006A AS MSCHL ON  MARA~BSTME = MSCHL~MSEHI AND MSCHL~SPRAS = SY-LANGU
+          FOR ALL ENTRIES IN LT_MATNR
+          WHERE (WHERESTR)
+           .
+    ENDIF.
+*  REFRESH smaktx.
+*  IF maktx IS NOT INITIAL." like语法太慢了  25.11.2022 20:13:20 by kkw
+*    CLEAR smaktx.
+*    smaktx-sign   = 'I'.
+*    smaktx-option = 'CP'.
+*    smaktx-low    = '*' && maktx && '*'.
+*    APPEND smaktx.
+*    DELETE out_tab WHERE maktx NOT IN smaktx.
+*  ENDIF.
+    IF LGORT IS NOT INITIAL.
+      DELETE OUT_TAB WHERE LGORT NE LGORT.
+    ENDIF.
+    SELECT LGORT,LGOBE
+      INTO TABLE @DATA(LT_T001L)
+      FROM T001L
+      WHERE WERKS = @WERKS.
+    SORT LT_T001L BY LGORT.
+
+    LOOP AT OUT_TAB.
+*      PERFORM getlongtext(zpubform) USING 'GRUN' out_tab-matnr 'MATERIAL' changing out_tab-maktx.
+      CLEAR WA_KEY.
+      WA_KEY-TDOBJECT   = 'MATERIAL'.
+      WA_KEY-TDNAME     = OUT_TAB-MATNR.
+      WA_KEY-TDID       = 'GRUN'.
+      WA_KEY-TDSPRAS    = SY-LANGU.
+      CLEAR:T_TEXT[].
+      IMPORT TLINE = T_TEXT[] FROM DATABASE STXL(TX) ID WA_KEY.
+      LOOP AT T_TEXT.
+        CONCATENATE T_TEXT-TDLINE OUT_TAB-MAKTX INTO OUT_TAB-MAKTX.
+      ENDLOOP   .
+
+      READ TABLE LT_T001L INTO DATA(LW_T001L) WITH KEY LGORT = OUT_TAB-LGORT BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        OUT_TAB-LGOBE = LW_T001L-LGOBE.
+      ENDIF.
+      MODIFY OUT_TAB.
+    ENDLOOP.
+  ENDIF.
+
+  IF OUT_TAB[] IS NOT INITIAL.
+*&************************更换单位取值逻辑 BY LZF 14.12.2022 14:09:49************************&*
+    SELECT
+       MARA~MATNR,
+       MEINH,
+       UMREZ,"分子
+       UMREN,"分母
+       MEINS,
+      MSCHL1~MSEHL AS MSEHL1,
+      MSCHL~MSEHL AS MSEHL
+  INTO TABLE @DATA(IT_MA)
+  FROM MARM
+  INNER JOIN MARA ON MARA~MATNR = MARM~MATNR
+*      AND mara~meins = marm~meinh
+  LEFT JOIN T006A AS MSCHL ON  MARM~MEINH = MSCHL~MSEHI AND MSCHL~SPRAS = @SY-LANGU
+  LEFT JOIN T006A AS MSCHL1 ON  MARA~MEINS = MSCHL1~MSEHI AND MSCHL1~SPRAS = @SY-LANGU
+  FOR ALL ENTRIES IN @OUT_TAB
+  WHERE MARA~MATNR = @OUT_TAB-MATNR AND KZWSO = 'B' .
+    SORT IT_MA BY MATNR MEINH.
+*&************************更换单位取值逻辑 BY LZF 14.12.2022 14:09:49************************&*
+    SELECT MATNR,BWKEY,BWTAR,VPRSV,VERPR,STPRS
+      INTO TABLE @DATA(LT_MBEW)
+      FROM MBEW
+      FOR ALL ENTRIES IN @OUT_TAB
+      WHERE MATNR = @OUT_TAB-MATNR
+      AND BWKEY = @OUT_TAB-WERKS.
+    SORT LT_MBEW BY MATNR BWKEY VPRSV.
+
+    LOOP AT OUT_TAB.
+      READ TABLE LT_MBEW INTO DATA(LW_MBEW) WITH KEY MATNR = OUT_TAB-MATNR BWKEY = OUT_TAB-WERKS BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        IF LW_MBEW-VPRSV = 'S'.
+          OUT_TAB-ZDANJ = LW_MBEW-STPRS.
+        ELSEIF LW_MBEW-VPRSV = 'V'.
+          OUT_TAB-ZDANJ = LW_MBEW-VERPR.
+        ENDIF.
+      ENDIF.
+*&************************ 更换单位取值BY LZF 14.12.2022 14:14:05************************&*
+      READ TABLE IT_MA INTO DATA(WA_MARM) WITH KEY MATNR = OUT_TAB-MATNR BINARY SEARCH.
+      IF SY-SUBRC = 0.
+        IF WA_MARM-UMREN <> 0.
+*          SELECT
+*             meins,
+*             mschl1~msehl AS msehl1
+*           INTO TABLE @DATA(wa_meins)
+*            FROM mara
+*            LEFT JOIN t006a AS mschl1 ON  mara~meins = mschl1~msehi AND mschl1~spras = @sy-langu
+*            WHERE meins = @wa_marm-meinh.
+*          IF wa_meins[] IS NOT INITIAL.
+*            LOOP AT wa_meins INTO DATA(wa).
+          IF WA_MARM-MEINH IS NOT INITIAL.
+            OUT_TAB-MEINS = WA_MARM-MEINH.
+            OUT_TAB-MSEHL1 = WA_MARM-MSEHL.
+          ELSE.
+            OUT_TAB-MEINS = WA_MARM-MEINS.
+            OUT_TAB-MSEHL1 = WA_MARM-MSEHL1.
+          ENDIF.
+*            ENDLOOP.
+*          ENDIF.
+        ENDIF.
+      ENDIF.
+*&************************ BY LZF 14.12.2022 14:14:05************************&*
+      MODIFY OUT_TAB.
+    ENDLOOP.
+
+  ENDIF.
+
+
+
+  RTYPE = 'S'.
+  RTMSG = '取数成功'.
+  ZFMDATASAVE2 'R'.
+
+
+
+
+ENDFUNCTION.

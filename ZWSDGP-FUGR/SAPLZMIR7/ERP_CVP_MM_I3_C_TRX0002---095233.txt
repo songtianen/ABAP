@@ -1,0 +1,35 @@
+*&---------------------------------------------------------------------*
+*&  Include           ERP_CVP_MM_I3_C_TRX0002
+*&---------------------------------------------------------------------*
+* Called from UI for material and article maintenance MM0x/MM4x
+* Check if competitor is blocked. If it is blocked and user doesn't
+* have auditor authorization, clear competitor field and display message.
+* User can then assign new competitor or save without competitor in
+* change mode. For auditor, display message only.
+
+  DATA:
+    gv_kunnr TYPE wettb.
+
+  CALL FUNCTION 'V_KNA1_SINGLE_READ'
+    EXPORTING
+      pi_kunnr = mara-kunnr
+    IMPORTING
+      pe_kna1  = ls_kna1
+    EXCEPTIONS
+      OTHERS   = 0.
+  IF ls_kna1-cvp_xblck EQ abap_true.
+*   Competitor is blocked, no auditor authorization: clear value
+    IF mara-kunnr NE gv_kunnr.
+      MESSAGE w704(mm).
+    ENDIF.
+    CLEAR:
+      mara-kunnr,
+      lmara-kunnr.
+  ELSEIF ls_kna1-cvp_xblck EQ cvp_cl_block_and_mask=>gc_authorized.
+*   Auditor: Display warning message
+    IF mara-kunnr NE gv_kunnr.
+      MESSAGE w706(mm) WITH mara-kunnr.
+    ENDIF.
+  ENDIF.
+
+  gv_kunnr = mara-kunnr.

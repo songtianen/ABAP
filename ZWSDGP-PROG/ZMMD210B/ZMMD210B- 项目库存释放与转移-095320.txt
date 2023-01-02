@@ -1,0 +1,233 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD201B
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd210b MESSAGE-ID zgp_msg.
+INCLUDE zdbpt.
+TABLES:mara,mard,mcha,prps.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields.
+DATA: fldct    TYPE slis_t_fieldcat_alv,
+      slayt    TYPE slis_layout_alv,
+      varnt    LIKE disvariant,
+      repid    LIKE sy-repid,
+      tabix    LIKE sy-tabix,
+      fldct_wh TYPE slis_t_fieldcat_alv.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  PARAMETERS:p_zdcgc  LIKE mard-werks MEMORY ID p01,
+             p_zdckcd LIKE mard-lgort MEMORY ID p02.
+  SELECT-OPTIONS:s_matnr FOR mara-matnr,
+  s_matkl FOR mara-matkl,
+  s_charg FOR mcha-charg.
+  PARAMETERS:p_kcfl LIKE mska-sobkz AS LISTBOX VISIBLE LENGTH 10 DEFAULT 'Q'.
+  SELECT-OPTIONS:s_pspnr FOR prps-pspnr.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:p_cj RADIOBUTTON GROUP grd1  DEFAULT 'X' USER-COMMAND singleclick MODIF ID p,
+             p_wh RADIOBUTTON GROUP grd1  MODIF ID p,
+             p_cx RADIOBUTTON GROUP grd1 MODIF ID p.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+
+  %_p_zdcgc_%_app_%-text    = '工厂'.
+  %_p_zdckcd_%_app_%-text   = '库存地'.
+  %_s_matnr_%_app_%-text    = '物料编号'.
+  %_s_matkl_%_app_%-text    = '物料组'.
+  %_s_charg_%_app_%-text    = '批次号'.
+  %_p_kcfl_%_app_%-text     = '库存分类'.
+  %_s_pspnr_%_app_%-text    = '项目号'.
+
+  t02 = '功能选择'.
+  %_p_cj_%_app_%-text    = '引库存创建'.
+  %_p_cx_%_app_%-text    = '查询'.
+  %_p_wh_%_app_%-text    = '维护'.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN .
+    IF screen-name = 'P_KCFL' .
+      screen-input = 0 .
+      MODIFY SCREEN .
+    ENDIF .
+  ENDLOOP .
+
+START-OF-SELECTION.
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  IF p_cj = 'X'.
+    PERFORM getdata.
+    PERFORM alvshow.
+  ELSE.
+*    PERFORM getdata_wh.
+*    PERFORM alvshow_wh.
+  ENDIF.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  PERFORM ztmm006_memory(zmmd201) TABLES s_matnr s_matkl s_charg it006
+    USING p_zdckcd p_zdcgc p_kcfl.
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1."控制用户布局
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'CB'       ''         ''       '选择',
+'WERKS'    'EBAN'     'WERKS'       '工厂',
+'ZDCKCD'   'MARD'     'LGORT'       '库存地 ',
+'LGOBE'    'T001L'     'LGOBE'      '库存地名称',
+'MATNR'    'ZTMM220'     'MATNR'    '物料编码',
+'WLCMS'    'ZTMM220'     'ZWLCMS'   '物料长描述',
+'CHARG'    'MCHB'     'CHARG'       '批次',
+'CLABS'    'MCHB'     'CLABS'       '非限制数量',
+'MEINS'    'MRAR'     'MEINS'       '单位',
+'MATKL'    'MARA'     'MATKL'       '物料组',
+'WGBEZ'    'T023T'     'WGBEZ'      '物料组描述',
+'Z02'      'AUSP'     'ATWRT'    '卷号',
+'ZZYH'     'AUSP'     'ATWRT'    '资源号',
+'Z05'     'AUSP'     'ATWRT'    '产地',
+'Z09'      'AUSP'     'ATWRT'       '项目号',
+'Z25'      'AUSP'     'ATWRT'    '销售订单号',
+'Z20'      'AUSP'     'ATWRT'    '包号',
+'Z08'      'AUSP'     'ATWRT'    '库位'.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = it006[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+    WHEN 'CB'.
+      ls_fldct-checkbox = 'X'.
+      ls_fldct-edit = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+*  data: wa_extab type line of slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  CASE  sy-tcode.
+    WHEN 'ZMM210E'."创建、维护、查询
+      SET TITLEBAR 'TIT1000' WITH '项目库存释放与转移'.
+      IF p_cj = 'X'.
+
+*        APPEND 'WHDBD' TO rt_extab.
+*        APPEND 'CXDBD' TO rt_extab.
+      ELSEIF p_wh = 'X'.
+*        APPEND 'CRTDBD' TO rt_extab.
+*        APPEND 'CXDBD' TO rt_extab.
+      ELSE.
+*        APPEND 'WHDBD' TO rt_extab.
+*        APPEND 'CRTDBD' TO rt_extab.
+      ENDIF.
+    WHEN 'ZMM210F'.
+*      IF p_gz = 'X'.
+*        SET TITLEBAR 'TIT1000' WITH '调拨单过账'.
+*      ELSE.
+*        SET TITLEBAR 'TIT1000' WITH '调拨单冲销'.
+*      ENDIF.
+*      APPEND 'CRTDBD' TO rt_extab.
+*      APPEND 'CXDBD' TO rt_extab.
+  ENDCASE.
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF it006.
+  DATA:filename TYPE string.
+  DATA pdfxstring TYPE xstring.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE it006 INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+*        WHEN 'ZPCDH'.
+*          PERFORM show_item.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'CRTDBD'.
+
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.

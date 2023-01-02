@@ -1,0 +1,109 @@
+FUNCTION zfm_oa2sap_xmbmq.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(PSPID) TYPE  PS_PSPID OPTIONAL
+*"     VALUE(POST1) TYPE  PS_POST1 OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      OUT_ITAB STRUCTURE  ZTPS010A
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_OA2SAP_XMBMQ'.  zfmdatasave2 'B'.  COMMIT WORK.
+
+  DATA:BEGIN OF lt_proj OCCURS 0,
+         pspnr TYPE proj-pspnr,
+         pspid TYPE proj-pspid,
+         post1 TYPE proj-post1,
+         usr00 TYPE proj-usr00,
+       END OF lt_proj.
+  FIELD-SYMBOLS:<fs_itab> TYPE ztps010a.
+*  IF pspid IS NOT INITIAL OR post1 IS NOT INITIAL OR name1 IS NOT INITIAL
+*    OR zyzmc IS NOT INITIAL OR vernr IS NOT INITIAL OR verna
+*    IS NOT INITIAL OR zgsbm IS NOT INITIAL OR
+*    zzsbm IS NOT INITIAL OR zkfnr IS NOT INITIAL.
+  IF pspid IS NOT INITIAL.
+    DATA(ls_pspid) = |%{ pspid }%|.
+  ENDIF.
+  IF post1 IS NOT INITIAL.
+    DATA(ls_post1) = |%{ post1 }%|.
+  ENDIF.
+  RANGES s_post1 FOR proj-post1.
+  s_post1-sign = 'I'.
+  s_post1-option = 'CP'.
+  s_post1-low = |*{ post1 }*|.
+  APPEND s_post1.
+
+  IF pspid IS  NOT INITIAL AND post1 IS INITIAL.
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE out_itab
+      FROM ztps010a
+      INNER JOIN proj ON proj~pspid = ztps010a~pspid
+      WHERE
+       ztps010a~pspid LIKE ls_pspid AND proj~loevm <> 'X'.
+  ELSEIF pspid IS INITIAL AND post1 IS NOT INITIAL.
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE out_itab
+      FROM ztps010a
+      INNER JOIN proj ON proj~pspid = ztps010a~pspid
+      WHERE
+       "ztps010a~post1 LIKE ls_post1   AND proj~loevm <> 'X'.
+       ztps010a~post1 IN s_post1   AND proj~loevm <> 'X'.
+  ELSEIF pspid IS NOT INITIAL AND post1 IS NOT INITIAL.
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE out_itab
+      FROM ztps010a
+      INNER JOIN proj ON proj~pspid = ztps010a~pspid
+      WHERE
+       ztps010a~pspid LIKE ls_pspid AND ztps010a~post1 LIKE ls_post1  AND proj~loevm <> 'X'.
+  ELSEIF pspid IS  INITIAL AND post1 IS  INITIAL.
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE out_itab
+      FROM ztps010a
+      INNER JOIN proj ON proj~pspid = ztps010a~pspid
+      WHERE proj~loevm <> 'X'.
+  ENDIF.
+
+  IF out_itab[] IS NOT INITIAL.
+    SELECT
+      pspnr
+      pspid
+      post1
+      usr00
+      FROM proj
+      INTO TABLE lt_proj
+      FOR ALL ENTRIES IN out_itab
+      WHERE pspid = out_itab-pspid.
+
+    LOOP AT out_itab INTO DATA(wa_itab).
+      IF lt_proj[] IS NOT INITIAL.
+        READ TABLE lt_proj WITH KEY pspid = wa_itab-pspid.
+        IF sy-subrc = 0 and lt_proj-usr00 <>''.
+          wa_itab-post1 = lt_proj-usr00 && '-' && wa_itab-post1.
+          MODIFY out_itab FROM wa_itab.
+        ENDIF.
+      ENDIF.
+      SELECT SINGLE
+        cepc~segment
+        fagl_segmt~name
+        INTO (wa_itab-segment,wa_itab-name)
+        FROM proj
+        INNER JOIN cepc ON cepc~prctr = proj~prctr
+        INNER JOIN fagl_segmt ON fagl_segmt~segment = cepc~segment
+        WHERE proj~pspid = wa_itab-pspid.
+      IF sy-subrc = 0.
+        MODIFY out_itab FROM wa_itab.
+      ENDIF.
+    ENDLOOP.
+    rtype = 'S'.
+    rtmsg = '成功'.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '失败'.
+  ENDIF.
+*  ELSE.
+*    rtype = 'E'.
+*    rtmsg = '输入为空'.
+*  ENDIF.
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

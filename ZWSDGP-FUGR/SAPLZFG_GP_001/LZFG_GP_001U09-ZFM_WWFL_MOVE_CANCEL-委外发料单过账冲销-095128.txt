@@ -1,0 +1,770 @@
+FUNCTION ZFM_WWFL_MOVE_CANCEL.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(ZWWFNO) TYPE  ZTMM208-ZWWFNO
+*"     REFERENCE(BUDAT) TYPE  BUDAT DEFAULT SY-DATUM
+*"     REFERENCE(ACT) TYPE  CHAR10
+*"     REFERENCE(BKTXT) TYPE  BKTXT OPTIONAL
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"     REFERENCE(O_ZTMM208) TYPE  ZTMM208
+*"  TABLES
+*"      RETURN STRUCTURE  BAPIRET2 OPTIONAL
+*"      T_ITEM STRUCTURE  ZTMM209 OPTIONAL
+*"----------------------------------------------------------------------
+  TABLES:ZTMM208,ZTMM209,ZVMM208.
+  DATA:BEGIN OF IT_ZWLJESUM OCCURS 0,
+         EBELP TYPE EBELP,
+         ZWLJE TYPE ZTMM209-ZWLJE,
+       END OF IT_ZWLJESUM,
+       ITEM       TYPE TABLE OF BAPI2017_GM_ITEM_04 WITH HEADER LINE,
+       IT_ZSMM208 TYPE TABLE OF ZSMM208 WITH HEADER LINE.
+  DATA:XBLNR   TYPE XBLNR,
+       EBELP   TYPE EBELP,
+       KPOSN   TYPE PRCD_ELEMENTS-KPOSN,
+       ZWWFLCT TYPE CHAR10.
+  CLEAR:O_ZTMM208,ZTMM209,RETURN[],ITEM[],RTYPE,RTMSG,
+  IT_MIGO[],IT_ZTMM226[],EBELP,IT_ZWLJESUM[],IT_ZSMM208[].
+  SELECT *
+    INTO TABLE @DATA(IT_ZWWFNO)
+    FROM ZVMM208
+    WHERE ZWWFNO = @ZWWFNO
+    AND   ZDEL NE 'X'.
+  IF IT_ZWWFNO[] IS INITIAL.
+    FILLMSG 'E' '委外发料单不存在/已删除' 'X'.
+  ENDIF.
+  "过账先101，再541，但541凭证写在MBLNR字段,101写在MBLNR1字段
+*冲销先541，再101
+  "部分处理-过账指处理541，冲销指处理541
+  READ TABLE IT_ZWWFNO INTO DATA(WA_ZWWFNO) INDEX 1.
+  MOVE-CORRESPONDING WA_ZWWFNO TO O_ZTMM208.
+  O_ZTMM208-BUDAT = BUDAT.
+*取采购订单
+  SELECT *
+    INTO TABLE @DATA(IT_ZVMMPO)
+    FROM ZVMMPO
+    WHERE EBELN = @O_ZTMM208-EBELN.
+  IF SY-SUBRC NE 0.
+    FILLMSG 'E' '委外采购订单不存在/已删除' 'X'.
+  ENDIF.
+  SORT IT_ZVMMPO BY EBELP.
+  READ TABLE IT_ZVMMPO INTO ZVMMPO INDEX 1.
+  SELECT *
+    INTO TABLE @DATA(IT_PRCD)
+    FROM PRCD_ELEMENTS
+    WHERE KNUMV = @ZVMMPO-KNUMV
+    AND   KSCHL = 'ZFR6'.
+  SORT IT_PRCD BY KPOSN .
+  IF T_ITEM[] IS INITIAL.
+    LOOP AT IT_ZWWFNO INTO ZVMM208 WHERE DEL NE 'X'.
+      CLEAR:T_ITEM.
+      MOVE-CORRESPONDING ZVMM208 TO T_ITEM.
+      APPEND T_ITEM.
+    ENDLOOP.
+  ELSE.
+*    LOOP AT T_ITEM.
+*      READ TABLE IT_ZWWFNO INTO ZVMM208 WITH KEY ZWWFNO = T_ITEM-ZWWFNO
+*                                                 ZWWFHH = T_ITEM-ZWWFHH
+*                                                 BINARY SEARCH.
+*      IF SY-SUBRC EQ 0.
+*        T_ITEM-DEL = ZVMM208-DEL.
+*      ENDIF.
+*      MODIFY T_ITEM.
+*    ENDLOOP.
+  ENDIF.
+
+  CASE ACT.
+    WHEN 'POST' OR 'POSTWMS'."
+      IF O_ZTMM208-ZZT = 'E'.
+        FILLMSG 'E' '委外发料单状态不允许过账' 'X'.
+      ENDIF.
+*计算总重
+*      CLEAR O_ZTMM208-ZFLZL.
+*      LOOP AT T_ITEM WHERE DEL NE 'X'.
+*        O_ZTMM208-ZFLZL = O_ZTMM208-ZFLZL + T_ITEM-ZWWSL.
+*      ENDLOOP.
+*运费分摊反写
+      IF O_ZTMM208-ZYSJE IS NOT INITIAL
+        AND O_ZTMM208-FTBS NE 'X'.
+        LOOP AT T_ITEM.
+          CLEAR:IT_ZWLJESUM.
+          IT_ZWLJESUM-EBELP = T_ITEM-EBELP.
+          IT_ZWLJESUM-ZWLJE = T_ITEM-ZWLJE.
+          COLLECT IT_ZWLJESUM.
+        ENDLOOP.
+        DELETE IT_ZWLJESUM WHERE EBELP IS INITIAL.
+        LOOP AT IT_ZWLJESUM.
+          READ TABLE IT_ZVMMPO INTO ZVMMPO WITH KEY EBELP = T_ITEM-EBELP BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            KPOSN = ZVMMPO-EBELP.
+            READ TABLE IT_PRCD INTO DATA(WA_PRCD) WITH KEY KPOSN = KPOSN BINARY SEARCH.
+            CLEAR IT_ZSMM208.
+            IT_ZSMM208-EBELP = IT_ZWLJESUM-EBELP.
+            IT_ZSMM208-KSCHL = 'ZM06'.
+            IT_ZSMM208-KBETR = 90.
+            APPEND IT_ZSMM208.
+            IF O_ZTMM208-ZYSGS IS NOT INITIAL.
+              CLEAR IT_ZSMM208.
+              IT_ZSMM208-EBELP = IT_ZWLJESUM-EBELP.
+              IT_ZSMM208-KSCHL = 'ZF01'.
+              IT_ZSMM208-LIFNR = O_ZTMM208-ZYSGS.
+              APPEND IT_ZSMM208.
+            ENDIF.
+            CLEAR IT_ZSMM208.
+            IT_ZSMM208-EBELP = IT_ZWLJESUM-EBELP.
+            IT_ZSMM208-KSCHL = 'ZFR6'.
+            IT_ZSMM208-KBETR = WA_PRCD-KBETR + IT_ZWLJESUM-ZWLJE.
+            APPEND IT_ZSMM208.
+          ENDIF.
+        ENDLOOP.
+        CALL FUNCTION 'ZFM_MM_CHGPOPRICE'
+          EXPORTING
+            EBELN  = O_ZTMM208-EBELN
+          IMPORTING
+            RTYPE  = RTYPE
+            RTMSG  = RTMSG
+          TABLES
+            RETURN = RETURN
+            INTAB  = IT_ZSMM208.
+        IF RTYPE = 'E'.
+          CONCATENATE '采购订单运费分摊失败' RTMSG
+          INTO RTMSG.
+          FILLMSG 'E' RTMSG 'X'.
+        ELSE.
+          UPDATE ZTMM208
+          SET FTBS = 'X'
+          WHERE ZWWFNO = O_ZTMM208-ZWWFNO.
+          COMMIT WORK.
+          WAIT UP TO 1 SECONDS.
+        ENDIF.
+      ENDIF.
+      CLEAR:RTYPE,RTMSG,RETURN[].
+*先往物流对账平台写值
+      IF O_ZTMM208-ZZZC = 'Y'.
+        CLEAR:T_ITEM.
+        LOOP AT T_ITEM WHERE DEL NE 'X'.
+          EXIT.
+        ENDLOOP.
+        MOVE-CORRESPONDING O_ZTMM208 TO IT_ZTMM226.
+        IT_ZTMM226-ZYWDH = O_ZTMM208-ZWWFNO.
+        IT_ZTMM226-ZFYLX = 'CGYF'.
+        IT_ZTMM226-LIFNR = O_ZTMM208-ZYSGS.
+        SELECT SINGLE NAME1
+          INTO IT_ZTMM226-ZYWKH
+          FROM LFA1
+          WHERE LIFNR = O_ZTMM208-ZYSGS.
+        SELECT SINGLE *
+          FROM EKKN
+          WHERE EBELN = O_ZTMM208-EBELN
+          AND   EBELP = T_ITEM-EBELP.
+        IF SY-SUBRC EQ 0.
+          SELECT SINGLE *
+            FROM PRPS
+            WHERE PSPNR = EKKN-PS_PSP_PNR.
+          IT_ZTMM226-ZXMH = PRPS-POST1.
+        ENDIF.
+        IT_ZTMM226-LGORT = T_ITEM-LGORT.
+        IT_ZTMM226-WERKS = O_ZTMM208-WERKS.
+        PERFORM GETBUKRS(ZPUBFORM) USING IT_ZTMM226-WERKS
+              CHANGING IT_ZTMM226-BUKRS.
+        SELECT SINGLE LGOBE
+          INTO IT_ZTMM226-LGOBE
+          FROM T001L
+          WHERE WERKS = O_ZTMM208-WERKS
+          AND   LGORT = T_ITEM-LGORT.
+        IT_ZTMM226-ZZL = O_ZTMM208-ZFLZL.
+        IT_ZTMM226-ZSL = '0.09'.
+        IT_ZTMM226-MWSKZ = 'J4'.
+        IT_ZTMM226-ZYWY = O_ZTMM208-ERNAM.
+        SELECT SINGLE BU_SORT1
+          INTO IT_ZTMM226-ZYWBM
+          FROM BUT000
+          WHERE NAME_ORG1 = IT_ZTMM226-ZYWY.
+        IT_ZTMM226-ZYSD = O_ZTMM208-ZSHDZ.
+        IT_ZTMM226-ZSJDD = O_ZTMM208-ZSJDH.
+        IT_ZTMM226-ZZDRQ = O_ZTMM208-ERDAT.
+        IT_ZTMM226-ZDJLX = 'YS'.
+        IT_ZTMM226-ZYFLX = '10'.
+        IT_ZTMM226-ZZT = '10'.
+
+        APPEND IT_ZTMM226.
+*若发料单已写入，则不更新
+        SELECT SINGLE COUNT(*)
+          FROM ZTMM226
+          WHERE ZYWDH = O_ZTMM208-ZWWFNO.
+        IF SY-SUBRC NE 0.
+          CALL FUNCTION 'ZFM_YFMX001'
+            IMPORTING
+              RTYPE  = RTYPE
+              RTMSG  = RTMSG
+            TABLES
+              IN_TAB = IT_ZTMM226.
+          IF RTYPE = 'E'.
+            CONCATENATE '写入物流对账平台:' RTMSG INTO RTMSG.
+            FILLMSG RTYPE RTMSG 'X'.
+          ELSE.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+      CASE O_ZTMM208-GZ.
+        WHEN 'A' OR ''.
+*101过账
+          CASE O_ZTMM208-ZWWLX.
+            WHEN 'ZTWW'.
+              IF O_ZTMM208-MBLNR101 IS INITIAL.
+                LOOP AT T_ITEM WHERE DEL NE 'X'.
+                  CLEAR IT_MIGO.
+                  IT_MIGO-MATNR = T_ITEM-IDNRK.
+                  IT_MIGO-WERKS = WA_ZWWFNO-WERKS.
+                  IT_MIGO-MENGE = T_ITEM-ZWWSL.
+*              IT_MIGO-MEINS = T_ITEM-MEINS.
+                  IT_MIGO-EBELN = T_ITEM-EBELN101.
+                  IT_MIGO-EBELP = T_ITEM-EBELP101.
+                  IT_MIGO-LGORT = 'V001'."T_ITEM-LGORT.
+                  IT_MIGO-CHARG = T_ITEM-CHARG.
+                  IF T_ITEM-ZZBH IS NOT INITIAL.
+                    IT_MIGO-CHARG = T_ITEM-ZZBH.
+                  ENDIF.
+                  APPEND IT_MIGO.
+                ENDLOOP.
+                CALL FUNCTION 'ZFMS_01_MIGOPOST'
+                  EXPORTING
+                    BUDAT  = O_ZTMM208-BUDAT
+                    BLDAT  = O_ZTMM208-BUDAT
+                    BKTXT  = BKTXT
+                    XBLNR  = XBLNR
+                    CODE   = '01'
+                    BWART  = '101'
+                  IMPORTING
+                    RTYPE  = RTYPE
+                    RTMSG  = RTMSG
+                    MBLNR  = O_ZTMM208-MBLNR101
+                    MJAHR  = O_ZTMM208-MJAHR101
+                  TABLES
+                    ITEM   = IT_MIGO
+                    RETURN = RETURN
+                  EXCEPTIONS
+                    OTHERS = 1.
+              ENDIF.
+              IF RTYPE NE 'E'.
+                FILLMSG 'S' RTMSG ''.
+*更新
+                O_ZTMM208-ZZT = 'D'.
+                UPDATE ZTMM208
+                SET GZ = 'B'
+                    BUDAT = O_ZTMM208-BUDAT
+                    ZFLZL = O_ZTMM208-ZFLZL
+                    ZZT = O_ZTMM208-ZZT
+                    MBLNR101 = O_ZTMM208-MBLNR101
+                    MJAHR101 = O_ZTMM208-MJAHR101
+                    CXMBLNR101 = ''
+                    CXMJAHR101 = ''
+                WHERE ZWWFNO = ZWWFNO.
+                COMMIT WORK.
+              ELSE.
+                FILLMSG 'E' RTMSG 'X'.
+              ENDIF.
+          ENDCASE.
+*541过账
+          PERFORM 541POST TABLES T_ITEM RETURN
+                          USING BKTXT XBLNR ACT
+                        CHANGING O_ZTMM208 RTYPE RTMSG.
+          IF RTYPE NE 'E'.
+            FILLMSG 'S' RTMSG ''.
+          ELSE.
+            FILLMSG 'E' RTMSG 'X'.
+          ENDIF.
+        WHEN 'B'.
+          PERFORM 541POST TABLES T_ITEM RETURN
+                          USING BKTXT XBLNR ACT
+                        CHANGING O_ZTMM208 RTYPE RTMSG.
+          IF RTYPE NE 'E'.
+            FILLMSG 'S' RTMSG ''.
+          ELSE.
+            FILLMSG 'E' RTMSG 'X'.
+          ENDIF.
+        WHEN 'C'.
+          FILLMSG 'E' '委外发料单状态不允许过账' 'X'.
+      ENDCASE.
+    WHEN 'CANCEL'."冲销
+      IF O_ZTMM208-ZZT = 'D'.
+        FILLMSG 'E' '委外发料单状态不允许冲销' 'X'.
+      ENDIF.
+      CASE O_ZTMM208-GZ.
+        WHEN 'B'.
+          IF O_ZTMM208-MBLNR101 IS NOT INITIAL.
+            PERFORM MBST(ZPUBFORM) TABLES ITEM
+              USING O_ZTMM208-MBLNR101 O_ZTMM208-MJAHR101 O_ZTMM208-BUDAT
+                    CHANGING RTMSG.
+            RTYPE = RTMSG+0(1).
+            IF RTYPE = 'S'.
+              O_ZTMM208-CXMBLNR101 = RTMSG+2(10).
+              O_ZTMM208-CXMJAHR101 = RTMSG+12(4).
+            ENDIF.
+          ENDIF.
+          IF RTYPE NE 'E'.
+            FILLMSG 'S' RTMSG ''.
+            O_ZTMM208-ZZT = 'D'.
+            UPDATE ZTMM208
+            SET GZ = 'A'
+                BUDAT = O_ZTMM208-BUDAT
+                MBLNR101 = ''
+                MJAHR101 = ''
+                ZZT = O_ZTMM208-ZZT
+                CXMBLNR101 = O_ZTMM208-CXMBLNR101
+                CXMJAHR101 = O_ZTMM208-CXMJAHR101
+            WHERE ZWWFNO = ZWWFNO.
+            COMMIT WORK.
+          ELSE.
+            FILLMSG 'E' RTMSG 'X'.
+          ENDIF.
+        WHEN 'C'.
+          IF O_ZTMM208-MBLNR IS NOT INITIAL.
+            PERFORM MBST(ZPUBFORM) TABLES ITEM
+              USING O_ZTMM208-MBLNR O_ZTMM208-MJAHR O_ZTMM208-BUDAT
+                    CHANGING RTMSG.
+            RTYPE = RTMSG+0(1).
+            IF RTYPE = 'S'.
+              O_ZTMM208-CXMBLNR = RTMSG+2(10).
+              O_ZTMM208-CXMJAHR = RTMSG+12(4).
+            ENDIF.
+          ENDIF.
+          IF RTYPE NE 'E'.
+            FILLMSG 'S' RTMSG ''.
+            IF O_ZTMM208-MBLNR101 IS INITIAL.
+              O_ZTMM208-GZ = 'A'.
+              O_ZTMM208-ZZT = 'D'.
+            ELSE.
+              O_ZTMM208-GZ = 'B'.
+              O_ZTMM208-ZZT = 'E'.
+            ENDIF.
+            UPDATE ZTMM208
+            SET GZ = O_ZTMM208-GZ
+                BUDAT = O_ZTMM208-BUDAT
+                MBLNR = ''
+                MJAHR = ''
+                ZZT = O_ZTMM208-ZZT
+                CXMBLNR = O_ZTMM208-CXMBLNR
+                CXMJAHR = O_ZTMM208-CXMJAHR
+            WHERE ZWWFNO = ZWWFNO.
+            COMMIT WORK.
+          ELSE.
+            FILLMSG 'E' RTMSG 'X'.
+          ENDIF.
+          IF O_ZTMM208-MBLNR101 IS NOT INITIAL.
+            CLEAR:RTYPE,RTMSG.
+            PERFORM MBST(ZPUBFORM) TABLES ITEM
+              USING O_ZTMM208-MBLNR101 O_ZTMM208-MJAHR101 O_ZTMM208-BUDAT
+                    CHANGING RTMSG.
+            RTYPE = RTMSG+0(1).
+            IF RTYPE = 'S'.
+              O_ZTMM208-CXMBLNR101 = RTMSG+2(10).
+              O_ZTMM208-CXMJAHR101 = RTMSG+12(4).
+            ENDIF.
+            IF RTYPE NE 'E'.
+              FILLMSG 'S' RTMSG ''.
+              O_ZTMM208-ZZT = 'D'.
+              UPDATE ZTMM208
+              SET GZ = 'A'
+                  BUDAT = O_ZTMM208-BUDAT
+                  MBLNR101 = ''
+                  MJAHR101 = ''
+                  ZZT = O_ZTMM208-ZZT
+                  CXMBLNR101 = O_ZTMM208-CXMBLNR101
+                  CXMJAHR101 = O_ZTMM208-CXMJAHR101
+              WHERE ZWWFNO = ZWWFNO.
+              COMMIT WORK.
+            ELSE.
+              FILLMSG 'E' RTMSG 'X'.
+            ENDIF.
+          ENDIF.
+        WHEN OTHERS.
+          FILLMSG 'E' '委外发料单状态不允许冲销' 'X'.
+      ENDCASE.
+  ENDCASE.
+
+*状态变更后进行推送
+*判断触发推送WMS
+  CHECK RTYPE = 'S'.
+  PERFORM GETDATA(ZPUB_DATA) USING 'ZWWFLCT' CHANGING ZWWFLCT.
+  IF ZWWFLCT = 'X'.
+    PERFORM PDSENDWMS IN PROGRAM ZRMM208A
+     USING O_ZTMM208 CHANGING O_ZTMM208-ZWMSJG.
+  ENDIF.
+ENDFUNCTION.
+FORM 541POST TABLES INZTMM208 STRUCTURE ZTMM209
+                     T_RETURN STRUCTURE BAPIRET2
+              USING P_BKTXT TYPE BKTXT
+                    P_XBLNR TYPE XBLNR
+                    P_ACT
+              CHANGING P_ZTMM208 TYPE ZTMM208
+                       P_TYPE
+                       P_MSG.
+  DATA:BEGIN OF IT_POSID OCCURS 0,
+         PSPNR TYPE PRPS-PSPNR,
+         POSID TYPE PRPS-POSID,
+         MATNR TYPE MATNR,
+         LGORT TYPE LGORT_D,
+       END OF IT_POSID.
+  DATA:WA_ZTMM209 TYPE ZTMM209,
+       IT_POSID1  LIKE TABLE OF IT_POSID WITH HEADER LINE,
+       IT_ZSMM212 TYPE TABLE OF ZSMM212 WITH HEADER LINE,
+       IT_POST    TYPE TABLE OF ZSFMS_MIGOPOST WITH HEADER LINE.
+  DATA:TABIX1 TYPE SY-TABIX,
+       NUM    TYPE I,
+       ZWWSL  TYPE ZTMM209-ZWWSL.
+  CLEAR:T_RETURN[],IT_POST[],P_TYPE,P_MSG,IT_ZZBH[],IT_ZSMM206[],
+  IT_POSID[],IT_POSID1[],ZWWSL,IT_ZSMM212[].
+  IF P_ZTMM208-MBLNR IS INITIAL.
+*根据WMS回传数据找批次
+    CASE P_ZTMM208-ZWWLX.
+      WHEN 'ZTWW'."根据101凭证找到
+*根据101凭证找到批次
+        IF P_ZTMM208-MBLNR101 IS NOT INITIAL.
+          DO .
+            SELECT *
+              INTO TABLE @DATA(IT_MSEG)
+              FROM MSEG
+              WHERE MBLNR = @P_ZTMM208-MBLNR101
+              AND   MJAHR = @P_ZTMM208-MJAHR101.
+            IF SY-SUBRC EQ 0.
+              EXIT.
+            ENDIF.
+            WAIT UP TO 1 SECONDS.
+          ENDDO.
+          SORT IT_MSEG BY MATNR EBELN EBELP.
+        ENDIF.
+        LOOP AT INZTMM208 INTO WA_ZTMM209 WHERE DEL NE 'X'.
+          CLEAR IT_POST.
+          IT_POST-MATNR = WA_ZTMM209-IDNRK.
+          IT_POST-WERKS = P_ZTMM208-WERKS.
+          IT_POST-MENGE = WA_ZTMM209-ZWWSL.
+          IT_POST-EBELN = P_ZTMM208-EBELN.
+          IT_POST-LIFNR = P_ZTMM208-LIFNR.
+          IT_POST-EBELP = WA_ZTMM209-EBELP.
+          IT_POST-LGORT = 'V001'.
+          READ TABLE IT_MSEG INTO DATA(WA_MSEG) WITH KEY MATNR = WA_ZTMM209-IDNRK
+                                                         EBELN = WA_ZTMM209-EBELN101
+                                                         EBELP = WA_ZTMM209-EBELP101
+                                                         BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_POST-CHARG = WA_MSEG-CHARG.
+          ENDIF.
+          APPEND IT_POST.
+        ENDLOOP.
+      WHEN 'CQWW'."根据回传数据查找
+        CASE P_ACT.
+          WHEN 'POSTWMS'.
+            LOOP AT INZTMM208 INTO WA_ZTMM209.
+              CLEAR:IT_ZZBH,IT_POSID.
+              IT_ZZBH-ZJH = WA_ZTMM209-ZZBH.
+              IT_POSID-POSID = WA_ZTMM209-POSID.
+              IT_POSID-MATNR = WA_ZTMM209-IDNRK.
+              IT_POSID-LGORT = WA_ZTMM209-LGORT.
+              CALL FUNCTION 'CONVERSION_EXIT_ABPSP_INPUT'
+                EXPORTING
+                  INPUT     = IT_POSID-POSID
+                IMPORTING
+                  OUTPUT    = IT_POSID-PSPNR
+                EXCEPTIONS
+                  NOT_FOUND = 1
+                  OTHERS    = 2.
+              COLLECT :IT_POSID,IT_ZZBH.
+            ENDLOOP.
+*根据自编号取101批次
+            IF IT_ZZBH[] IS NOT INITIAL.
+              CALL FUNCTION 'ZFM_CHECKUSE_BYJH'
+                EXPORTING
+                  ATNAM  = 'Z01'
+                TABLES
+                  INTAB  = IT_ZZBH
+                  OUTTAB = IT_ZSMM206.
+              DELETE IT_ZSMM206 WHERE CLABS IS INITIAL.
+              SORT IT_ZSMM206 BY Z01.
+            ENDIF.
+
+            IT_POSID1[] = IT_POSID[].
+*取项目号
+            DELETE IT_POSID WHERE POSID IS INITIAL
+                               OR PSPNR IS INITIAL
+                               OR MATNR IS INITIAL
+                               OR LGORT IS INITIAL.
+            IF IT_POSID[] IS NOT INITIAL.
+              SORT IT_POSID BY PSPNR MATNR LGORT.
+              SELECT *
+                INTO TABLE @DATA(IT_MSPR)
+                FROM MSPR
+                FOR ALL ENTRIES IN @IT_POSID
+                WHERE PSPNR = @IT_POSID-PSPNR
+                AND   MATNR = @IT_POSID-MATNR
+                AND   LGORT = @IT_POSID-LGORT
+                AND   WERKS = @P_ZTMM208-WERKS
+                AND   PRLAB GT 0.
+              SORT IT_MSPR BY PSPNR MATNR LGORT ERSDA CHARG.
+              SORT IT_POSID BY POSID.
+            ENDIF.
+*取批次库存
+            DELETE IT_POSID1 WHERE MATNR IS INITIAL
+                               OR  LGORT IS INITIAL.
+            SORT IT_POSID1 BY MATNR LGORT.
+            DELETE ADJACENT DUPLICATES FROM IT_POSID1
+            COMPARING MATNR.
+            IF IT_POSID1[] IS NOT INITIAL.
+              SELECT *
+                INTO TABLE @DATA(IT_MCHB)
+                FROM MCHB
+                FOR ALL ENTRIES IN @IT_POSID1
+                WHERE MATNR = @IT_POSID1-MATNR
+                AND   LGORT = @IT_POSID1-LGORT
+                AND   WERKS = @P_ZTMM208-WERKS
+                AND   CLABS GT 0.
+              SORT IT_MCHB BY MATNR LGORT ERSDA CHARG.
+            ENDIF.
+            CLEAR:P_TYPE,P_MSG.
+            LOOP AT INZTMM208 INTO WA_ZTMM209 WHERE DEL NE 'X'.
+              CLEAR:ZWWSL,NUM,IT_ZSMM206.
+              IF WA_ZTMM209-ZZBH IS NOT INITIAL.
+                LOOP AT IT_ZSMM206 WHERE Z01 = WA_ZTMM209-ZZBH
+                                       AND LGORT = WA_ZTMM209-LGORT.
+                  NUM = NUM + 1.
+                ENDLOOP.
+                IF NUM NE 1.
+                  CONCATENATE '自编号' WA_ZTMM209-ZZBH '找不到批次/找到多个批次' INTO P_MSG.
+                  P_TYPE = 'E'.
+                ENDIF.
+                CLEAR IT_POST.
+                IT_POST-MATNR = WA_ZTMM209-IDNRK.
+                IT_POST-WERKS = P_ZTMM208-WERKS.
+                IT_POST-MENGE = WA_ZTMM209-ZWWSL.
+                IT_POST-EBELN = P_ZTMM208-EBELN.
+                IT_POST-LIFNR = P_ZTMM208-LIFNR.
+                IT_POST-EBELP = WA_ZTMM209-EBELP.
+                IT_POST-LGORT = WA_ZTMM209-LGORT.
+                IT_POST-CHARG = IT_ZSMM206-CHARG.
+                IF IT_ZSMM206-PSPNR IS NOT INITIAL.
+                  IT_POST-PSPNR = IT_ZSMM206-PSPNR.
+                  IT_POST-SOBKZ = 'Q'.
+                ENDIF.
+                APPEND IT_POST.
+              ELSE."无序列号则判断项目号
+                IF WA_ZTMM209-POSID IS NOT INITIAL.
+                  READ TABLE IT_POSID WITH KEY POSID = WA_ZTMM209-POSID BINARY SEARCH.
+                  IF SY-SUBRC EQ 0.
+                    READ TABLE IT_MSPR INTO DATA(WA_MSPR) WITH KEY PSPNR = IT_POSID-PSPNR
+                                                                   MATNR = IT_POSID-MATNR
+                                                                   LGORT = IT_POSID-LGORT
+                                                                   BINARY SEARCH.
+                    IF SY-SUBRC EQ 0.
+                      TABIX1 = SY-TABIX.
+                      ZWWSL = WA_ZTMM209-ZWWSL.
+                      LOOP AT IT_MSPR INTO WA_MSPR FROM TABIX1.
+                        CLEAR:IT_POST.
+                        IF WA_MSPR-PSPNR NE IT_POSID-PSPNR
+                          OR WA_MSPR-MATNR NE IT_POSID-MATNR
+                          OR WA_MSPR-LGORT NE IT_POSID-LGORT.
+                          EXIT.
+                        ENDIF.
+                        IF WA_MSPR-PRLAB LE 0.
+                          CONTINUE.
+                        ENDIF.
+                        IF ZWWSL LE 0.
+                          EXIT.
+                        ENDIF.
+                        IF WA_MSPR-PRLAB GT ZWWSL.
+                          WA_MSPR-PRLAB = WA_MSPR-PRLAB - ZWWSL.
+                          MODIFY IT_MSPR FROM WA_MSPR TRANSPORTING PRLAB.
+                          IT_POST-MATNR = WA_ZTMM209-IDNRK.
+                          IT_POST-WERKS = P_ZTMM208-WERKS.
+                          IT_POST-MENGE = ZWWSL.
+                          IT_POST-EBELN = P_ZTMM208-EBELN.
+                          IT_POST-LIFNR = P_ZTMM208-LIFNR.
+                          IT_POST-EBELP = WA_ZTMM209-EBELP.
+                          IT_POST-LGORT = WA_ZTMM209-LGORT.
+                          IT_POST-CHARG = WA_MSPR-CHARG.
+                          IF WA_MSPR-PSPNR IS NOT INITIAL.
+                            IT_POST-PSPNR = WA_MSPR-PSPNR.
+                            IT_POST-SOBKZ = 'Q'.
+                          ENDIF.
+                          APPEND IT_POST.
+                          CLEAR ZWWSL.
+                        ELSE.
+                          ZWWSL = ZWWSL - WA_MSPR-PRLAB.
+                          IT_POST-MATNR = WA_ZTMM209-IDNRK.
+                          IT_POST-WERKS = P_ZTMM208-WERKS.
+                          IT_POST-MENGE = WA_MSPR-PRLAB.
+                          IT_POST-EBELN = P_ZTMM208-EBELN.
+                          IT_POST-LIFNR = P_ZTMM208-LIFNR.
+                          IT_POST-EBELP = WA_ZTMM209-EBELP.
+                          IT_POST-LGORT = WA_ZTMM209-LGORT.
+                          IT_POST-CHARG = WA_MSPR-CHARG.
+                          IF WA_MSPR-PSPNR IS NOT INITIAL.
+                            IT_POST-PSPNR = WA_MSPR-PSPNR.
+                            IT_POST-SOBKZ = 'Q'.
+                          ENDIF.
+                          APPEND IT_POST.
+                          WA_MSPR-PRLAB = 0.
+                          MODIFY IT_MSPR FROM WA_MSPR TRANSPORTING PRLAB.
+                        ENDIF.
+                      ENDLOOP.
+                    ENDIF.
+                  ENDIF.
+                ELSE."消耗批次库存
+                  READ TABLE IT_MCHB INTO DATA(WA_MCHB) WITH KEY MATNR = WA_ZTMM209-MATNR
+                                                                 LGORT = WA_ZTMM209-LGORT
+                                                                 BINARY SEARCH.
+                  IF SY-SUBRC EQ 0.
+                    TABIX1 = SY-TABIX.
+                    ZWWSL = WA_ZTMM209-ZWWSL.
+                    LOOP AT IT_MCHB INTO WA_MCHB FROM TABIX1.
+                      CLEAR:IT_POST.
+                      IF WA_MCHB-MATNR NE WA_ZTMM209-MATNR
+                        OR WA_MCHB-LGORT NE 'V001'.
+                        EXIT.
+                      ENDIF.
+                      IF WA_MCHB-CLABS LE 0.
+                        CONTINUE.
+                      ENDIF.
+                      IF ZWWSL LE 0.
+                        EXIT.
+                      ENDIF.
+                      IF WA_MCHB-CLABS GT ZWWSL.
+                        WA_MCHB-CLABS = WA_MCHB-CLABS - ZWWSL.
+                        MODIFY IT_MCHB FROM WA_MCHB TRANSPORTING CLABS.
+                        IT_POST-MATNR = WA_ZTMM209-IDNRK.
+                        IT_POST-WERKS = P_ZTMM208-WERKS.
+                        IT_POST-MENGE = ZWWSL.
+                        IT_POST-EBELN = P_ZTMM208-EBELN.
+                        IT_POST-LIFNR = P_ZTMM208-LIFNR.
+                        IT_POST-EBELP = WA_ZTMM209-EBELP.
+                        IT_POST-LGORT = WA_ZTMM209-LGORT.
+                        IT_POST-CHARG = WA_MCHB-CHARG.
+                        APPEND IT_POST.
+                        CLEAR ZWWSL.
+                      ELSE.
+                        ZWWSL = ZWWSL - WA_MCHB-CLABS.
+                        IT_POST-MATNR = WA_ZTMM209-IDNRK.
+                        IT_POST-WERKS = P_ZTMM208-WERKS.
+                        IT_POST-MENGE = WA_MCHB-CLABS.
+                        IT_POST-EBELN = P_ZTMM208-EBELN.
+                        IT_POST-LIFNR = P_ZTMM208-LIFNR.
+                        IT_POST-EBELP = WA_ZTMM209-EBELP.
+                        IT_POST-LGORT = WA_ZTMM209-LGORT.
+                        IT_POST-CHARG = WA_MCHB-CHARG.
+                        APPEND IT_POST.
+                        WA_MCHB-CLABS = 0.
+                        MODIFY IT_MCHB FROM WA_MCHB TRANSPORTING CLABS.
+                      ENDIF.
+                    ENDLOOP.
+                  ENDIF.
+                ENDIF.
+                IF ZWWSL GT 0.
+                  P_TYPE = 'E'.
+                  P_MSG = 'E:未找到足够541的数量'.
+                  EXIT.
+                ENDIF.
+              ENDIF.
+            ENDLOOP.
+*比较找到的库存与需要入库的
+          WHEN 'POST'.
+            LOOP AT INZTMM208 INTO WA_ZTMM209 WHERE DEL NE 'X'.
+              CLEAR IT_POST.
+              IT_POST-MATNR = WA_ZTMM209-IDNRK.
+              IT_POST-WERKS = P_ZTMM208-WERKS.
+              IT_POST-MENGE = WA_ZTMM209-ZWWSL.
+              IT_POST-EBELN = P_ZTMM208-EBELN.
+              IT_POST-LIFNR = P_ZTMM208-LIFNR.
+              IT_POST-EBELP = WA_ZTMM209-EBELP.
+              IT_POST-LGORT = WA_ZTMM209-LGORT.
+              IT_POST-CHARG = WA_ZTMM209-CHARG.
+              IF WA_ZTMM209-ZZBH IS NOT INITIAL.
+                IT_POST-CHARG = WA_ZTMM209-ZZBH.
+              ENDIF.
+*取采购订单项目号
+              SELECT SINGLE *
+                FROM EKKN
+                WHERE EBELN = P_ZTMM208-EBELN
+                AND   EBELP = WA_ZTMM209-EBELP.
+              IF SY-SUBRC EQ 0.
+                IF EKKN-PS_PSP_PNR IS NOT INITIAL.
+                  IT_POST-PSPNR = EKKN-PS_PSP_PNR.
+                  IT_POST-SOBKZ = 'Q'.
+                ENDIF.
+              ENDIF.
+              APPEND IT_POST.
+            ENDLOOP.
+        ENDCASE.
+    ENDCASE.
+    CHECK P_TYPE NE 'E'.
+    LOOP AT IT_POST WHERE CHARG IS INITIAL.
+      EXIT.
+    ENDLOOP.
+    IF SY-SUBRC EQ 0.
+      P_TYPE = 'E'.
+      P_MSG = 'E:未找到批次'.
+      EXIT.
+    ENDIF.
+*将新增物料反写采购订单组件行
+    IF P_ACT = 'POST'.
+      LOOP AT INZTMM208 INTO WA_ZTMM209 WHERE MATNR IS INITIAL
+                                          AND EBELP IS NOT INITIAL.
+        CLEAR:IT_ZSMM212.
+        IT_ZSMM212-EBELP = WA_ZTMM209-EBELP.
+        IT_ZSMM212-IDNRK = WA_ZTMM209-IDNRK.
+        IT_ZSMM212-BDMNG = WA_ZTMM209-ZWWSL.
+        IT_ZSMM212-MEINS = WA_ZTMM209-MEINS.
+        APPEND IT_ZSMM212.
+      ENDLOOP.
+      IF IT_ZSMM212[] IS NOT INITIAL.
+        CALL FUNCTION 'ZFM_MM_CHGPOZJ'
+          EXPORTING
+            EBELN = P_ZTMM208-EBELN
+          IMPORTING
+            RTYPE = P_TYPE
+            RTMSG = P_MSG
+          TABLES
+            INTAB = IT_ZSMM212.
+        IF P_TYPE = 'E'.
+          EXIT.
+        ENDIF.
+        WAIT UP TO 1 SECONDS.
+      ENDIF.
+    ENDIF.
+    CALL FUNCTION 'ZFMS_01_MIGOPOST'
+      EXPORTING
+        BUDAT  = P_ZTMM208-BUDAT
+        BLDAT  = P_ZTMM208-BUDAT
+        BKTXT  = P_BKTXT
+        XBLNR  = P_XBLNR
+        CODE   = '04'
+        BWART  = '541'
+      IMPORTING
+        RTYPE  = P_TYPE
+        RTMSG  = P_MSG
+        MBLNR  = P_ZTMM208-MBLNR
+        MJAHR  = P_ZTMM208-MJAHR
+      TABLES
+        ITEM   = IT_POST
+        RETURN = T_RETURN
+      EXCEPTIONS
+        OTHERS = 1.
+  ENDIF.
+  IF P_TYPE NE 'E'.
+
+*更新
+    P_ZTMM208-ZZT = 'E'.
+    UPDATE ZTMM208
+    SET GZ = 'C'
+        ZZT = P_ZTMM208-ZZT
+        ZFLZL = P_ZTMM208-ZFLZL
+        BUDAT = P_ZTMM208-BUDAT
+        MBLNR = P_ZTMM208-MBLNR
+        MJAHR = P_ZTMM208-MJAHR
+        CXMBLNR = ''
+        CXMJAHR = ''
+    WHERE ZWWFNO = P_ZTMM208-ZWWFNO.
+    COMMIT WORK.
+  ENDIF.
+ENDFORM.

@@ -1,0 +1,7 @@
+************************************************************************
+* Include MMMGXV25 f¨¹r Festwerte
+* -  Usereinstellungen
+************************************************************************
+CONSTANTS:
+      FLG_SCHLBILD_DARK VALUE 'D',
+      FLG_SCHLBILD_HELL VALUE 'H'.

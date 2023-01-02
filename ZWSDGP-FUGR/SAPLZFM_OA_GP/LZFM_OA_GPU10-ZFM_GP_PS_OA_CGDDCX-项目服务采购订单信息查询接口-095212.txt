@@ -1,0 +1,109 @@
+FUNCTION zfm_gp_ps_oa_cgddcx.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(PSPID) TYPE  PS_PSPID
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      OUT_TAB STRUCTURE  ZOUT23 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_PS_OA_CGDDCX' .
+  zfmdatasave2 'B'.
+  DATA: wa_tab  LIKE out_tab,
+        et_bank LIKE TABLE OF zoa_rfc_bankaccount_read_s1.
+  IF pspid IS INITIAL.
+    rtype = 'E'.
+    rtmsg = '传入为空'.
+    EXIT.
+  ENDIF.
+*  SELECT
+*  ekkn~ebeln,
+*  ekkn~ebelp,
+*  ekko~lifnr,
+*  ekpo~brtwr,
+*  ztps010a~zqdje
+*  FROM proj
+*  INNER JOIN prps ON prps~psphi = proj~pspnr AND prps~stufe = '2' and prps~werks = proj~werks
+*  INNER JOIN aufk ON aufk~pspel = prps~posid AND aufk~auart LIKE 'ZPS%'
+*  INNER JOIN ekkn ON ekkn~nplnr = aufk~aufnr
+*  INNER JOIN ekko ON ekko~ebeln = ekkn~ebeln AND ekko~bsart = 'Z02'
+*  INNER JOIN ekpo ON ekpo~ebeln = ekkn~ebeln AND ekpo~ebelp = ekkn~ebelp
+*  INNER JOIN ztps010a on ztps010a~pspid = proj~pspid
+*  WHERE proj~pspid = @pspid
+*  INTO CORRESPONDING FIELDS OF TABLE @out_tab.
+
+  SELECT
+    prps~pspnr
+    INTO TABLE @DATA(lt_pspnr)
+    FROM prps
+    INNER JOIN proj ON   prps~psphi = proj~pspnr AND prps~stufe = '2' AND prps~werks = proj~werks
+    WHERE proj~pspid = @pspid.
+  IF lt_pspnr[]  IS NOT INITIAL.
+    SELECT
+      aufnr
+      INTO TABLE @DATA(lt_aufnr)
+      FROM aufk
+      FOR ALL ENTRIES IN @lt_pspnr
+      WHERE aufk~pspel = @lt_pspnr-pspnr
+      AND aufk~auart LIKE 'ZPS%'.
+    IF lt_aufnr[] IS NOT INITIAL.
+      SELECT
+        ekkn~ebeln,
+        ekkn~ebelp,
+        ekko~lifnr,
+        ekpo~brtwr AS zfbje
+        INTO TABLE @DATA(lt_ekkn)
+        FROM ekkn
+        INNER JOIN ekko ON ekko~ebeln = ekkn~ebeln AND ekko~bsart = 'Z02'
+        INNER JOIN ekpo ON ekpo~ebeln = ekkn~ebeln AND ekpo~ebelp = ekkn~ebelp
+        FOR ALL ENTRIES IN @lt_aufnr
+        WHERE ekkn~nplnr = @lt_aufnr-aufnr.
+      LOOP AT lt_ekkn INTO DATA(wa_ekkn).
+        MOVE-CORRESPONDING wa_ekkn TO out_tab.
+        APPEND out_tab.
+      ENDLOOP.
+      CLEAR wa_tab.
+      SELECT SINGLE
+      zqdje
+      INTO @wa_tab-zqdje
+      FROM ztps010a
+      WHERE pspid = @pspid.
+
+      LOOP AT out_tab.
+        SELECT SUM( dmbtr_act ) INTO @out_tab-zljyf
+          FROM ztfi_pyrehd
+          WHERE zcont = @out_tab-ebeln AND zprstus = '20'.
+        out_tab-zqdje = wa_tab-zqdje.
+        CALL FUNCTION 'ZOA_RFC_BANKACCOUNT_READ'
+          EXPORTING
+            ipartner = out_tab-lifnr
+          TABLES
+            et_bank  = et_bank.
+        IF et_bank IS NOT INITIAL.
+          out_tab-bankl_k = et_bank[ 1 ]-bankl_k.
+        ENDIF.
+        SELECT SINGLE name1 INTO out_tab-name1
+          FROM lfa1
+          WHERE lifnr = out_tab-lifnr.
+        SELECT SINGLE
+          lfb1~akont
+          skat~txt50
+          INTO (out_tab-akont,out_tab-txt50)
+          FROM lfb1
+          INNER JOIN skat ON lfb1~akont = skat~SAKNR
+          WHERE lfb1~lifnr = out_tab-lifnr.
+        MODIFY out_tab.
+      ENDLOOP.
+      IF out_tab[] IS NOT INITIAL.
+        rtmsg = '成功'.
+        rtype = 'S'.
+      ELSE.
+        rtmsg = '失败'.
+        rtype = 'E'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  zfmdatasave2 'R'.
+ENDFUNCTION.

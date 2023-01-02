@@ -1,0 +1,54 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV34                                                   *
+*----------------------------------------------------------------------*
+
+* Aufrufarten Materialpflege ( MATERIAL_MAINTAIN_DARK, UPDATE_ALL .. )
+
+CONSTANTS:
+
+      CALL_MODE_ALE     " ALE-Eingang
+                          LIKE MMDCMODE-CALL_MODE VALUE 'ALE',
+
+      CALL_MODE_MDIP_D  " Aktivierung eines Dispoprofils ( L#schen )
+                          LIKE MMDCMODE-CALL_MODE VALUE 'DPD',
+
+      CALL_MODE_MDIP_U  " Aktivierung eines Dispoprofils ( #nderung )
+                          LIKE MMDCMODE-CALL_MODE VALUE 'DPU',
+
+      CALL_MODE_MPRP_D  " Aktivierung eines Prognoseprofils ( L#schen )
+                          LIKE MMDCMODE-CALL_MODE VALUE 'FPD',
+
+      CALL_MODE_MPRP_U  " Aktivierung eines Prognoseprofils ( #nderung )
+                          LIKE MMDCMODE-CALL_MODE VALUE 'FPU',
+
+      CALL_MODE_ACTV    " Aktivierung von geplanten #nderungen
+                          LIKE MMDCMODE-CALL_MODE VALUE 'ACT',
+*mk/4.0A  vorerst, bis Umstellung auf maintain_dark_ret m#glich ist
+      CALL_MODE_RPL     " Aufruf der MARC-#nderungen aus Replenishment
+                          LIKE MMDCMODE-CALL_MODE VALUE 'RPL'.
+
+*--------------------------------------------------------------------
+*mk/40A Zus#tzliche Aufrufart zur zus#tzlichen Differenzierung des
+*Aufrufers, insbesondere auch f¨¹r den Dialog
+CONSTANTS:
+
+      CALL_MODE2_WAGR   " Warengruppenpflege
+                          LIKE RMMG2-CALL_MODE2 VALUE 'WGR',
+      CALL_MODE2_CAD    " Pflege aus CAD-System heraus
+                          LIKE RMMG2-CALL_MODE2 VALUE 'CAD',
+      CALL_MODE2_KALK   " Pflege aus Kalkulation heraus
+                          LIKE RMMG2-CALL_MODE2 VALUE 'KAL',
+* cfo/4.6A Zur Unterscheidung bei Aufruf aus Listung
+      call_mode2_list   " Pflege aus Listung heraus
+                          LIKE RMMG2-CALL_MODE2 VALUE 'LIS',
+      call_mode2_mdg    " Pflege aus MDG/Syndney heraus
+                          LIKE RMMG2-CALL_MODE2 VALUE 'MDG'.
+
+*JB/10.02.99/4.6A  Zus#tzliche Aufrufsart f¨¹r Bapi_material_save
+CONSTANTS:
+      CALL_MODE_BAPI      "BAPI-Eingang
+                           LIKE MMDCMODE-CALL_MODE VALUE 'BAP',
+*CH/4.6A: Zus. Aufrufart f¨¹r RMDATIND, da dann keine Prf. ob
+*         Retail-Materialien ¨¹bergeben wurden
+      CALL_MODE_RMDATIND  "Aufruf aus RMDATIND
+                           LIKE MMDCMODE-CALL_MODE VALUE 'RMD'.

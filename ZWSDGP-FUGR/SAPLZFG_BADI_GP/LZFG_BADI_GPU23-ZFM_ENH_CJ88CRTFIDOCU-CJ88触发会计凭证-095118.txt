@@ -1,0 +1,138 @@
+FUNCTION ZFM_ENH_CJ88CRTFIDOCU.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(I_AUAK) TYPE  AUAK OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(BELNR) TYPE  BELNR_D
+*"     VALUE(GJAHR) TYPE  GJAHR
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_ENH_CJ88CRTFIDOCU'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+  DATA:L_SEGMENT TYPE  CEPC-SEGMENT,
+       L_PRCTR   TYPE CEPC-PRCTR,
+       L_DMBTR   TYPE DMBTR.
+  CLEAR:PRPS,ZTFI202,*ZTFI202,
+  RTMSG,RTYPE,IT_FIPOST[],XBLNR,
+  L_DMBTR,L_SEGMENT,L_PRCTR.
+  CHECK I_AUAK-BELNR IS NOT INITIAL.
+  BREAK DONGPZ.
+*根据对象号
+  SELECT SINGLE *
+    FROM PRPS
+    WHERE OBJNR = I_AUAK-OBJNR.
+  IF SY-SUBRC EQ 0.
+    FILLMSG 'E' '未获取到WBS号' 'X' 'X'.
+  ENDIF.
+*全都过账，则做凭证
+  SELECT *
+    INTO TABLE @DATA(IT_LIPS)
+    FROM LIPS
+    WHERE PS_PSP_PNR = @PRPS-PSPNR.
+*根据WBS获取到所有出库单
+*判定是过账还是冲销
+  IF I_AUAK-STFLG IS INITIAL
+    AND I_AUAK-STBEL IS INITIAL."过账
+    LOOP AT IT_LIPS INTO LIPS WHERE WBSTA NE 'C'.
+      EXIT.
+    ENDLOOP.
+    IF SY-SUBRC EQ 0.
+      EXIT.
+    ENDIF.
+*取项目信息
+    SELECT SINGLE CEPC~SEGMENT
+    CEPC~PRCTR
+    INTO ( L_SEGMENT,L_PRCTR )
+    FROM CEPC INNER JOIN PRPS ON CEPC~PRCTR = PRPS~PRCTR
+    WHERE CEPC~KOKRS = 'WISD'
+    AND   PRPS~PSPNR = PRPS-PSPNR.
+    IF SY-SUBRC NE 0.
+      FILLMSG 'E' '未取得段' 'X' 'X'.
+    ENDIF.
+    CLEAR IT_FIPOST.
+    IT_FIPOST-BSCHL = '40'.
+    IT_FIPOST-HKONT = '1406010100'.
+    APPEND IT_FIPOST.
+    CLEAR IT_FIPOST.
+    IT_FIPOST-BSCHL = '50'.
+    IT_FIPOST-NEWKO = '1407010000'.
+    APPEND IT_FIPOST.
+*汇总金额
+    SELECT *
+      FROM ACDOCA
+      WHERE RBUKRS = PRPS-PBUKR
+      AND   PS_PSP_PNR = PRPS-PSPNR
+      AND   RACCT = '140710000'.
+      L_DMBTR = L_DMBTR + ACDOCA-KSL.
+    ENDSELECT.
+    IF L_DMBTR IS INITIAL.
+      FILLMSG 'E' '凭证金额为零' 'X' 'X'.
+    ENDIF.
+    LOOP AT IT_FIPOST.
+      IT_FIPOST-PROJK = PRPS-PSPNR.
+      IT_FIPOST-ZZFI03 = 'CJ/项目发货结算'.
+      IT_FIPOST-SEGMENT = L_SEGMENT.
+      IT_FIPOST-PRCTR = L_PRCTR.
+      IT_FIPOST-DMBTR = L_DMBTR.
+      MODIFY IT_FIPOST.
+    ENDLOOP.
+    CLEAR:ZTFI201.
+    XBLNR = I_AUAK-BELNR.
+    CALL FUNCTION 'ZFMS_13_FIPOST'
+      EXPORTING
+        BUKRS = PRPS-PBUKR
+        BKTXT = '厂景项目发货结算'
+        BLART = 'ZJ'
+        WAERS = 'CNY'
+        BLDAT = I_AUAK-BUDAT
+        BUDAT = I_AUAK-BUDAT
+        XBLNR = XBLNR
+      IMPORTING
+        BELNR = BELNR
+        RTMSG = RTMSG
+        GJAHR = GJAHR
+      TABLES
+        INTAB = IT_FIPOST.
+    *ZTFI202-BELNR_JS = I_AUAK-BELNR.
+    IF BELNR IS NOT INITIAL.
+      RTYPE = 'S'.
+      *ZTFI202-BELNR = BELNR.
+      *ZTFI202-GJAHR = BELNR.
+      *ZTFI202-BUKRS = PRPS-PBUKR.
+      CLEAR:*ZTFI202-CX.
+    ELSE.
+      RTYPE = 'E'.
+    ENDIF.
+    ZTFI202-RTYPE = RTYPE.
+    ZTFI202-RTMSG = RTMSG.
+    MODIFY ZTFI202 FROM *ZTFI202.
+  ELSE.
+    IF I_AUAK-STBEL IS NOT INITIAL.
+      SELECT SINGLE *
+        FROM ZTFI202
+        WHERE BELNR_JS = I_AUAK-STBEL
+        AND   CX NE 'X'.
+    ENDIF.
+    IF ZTFI202 IS NOT INITIAL.
+      PERFORM FB08(ZPUBFORM) USING ZTFI202-BELNR
+                                   ZTFI202-GJAHR
+                                   ZTFI202-BUKRS
+                                   ''
+                                   SY-DATUM
+                             CHANGING RTMSG.
+      RTYPE = RTMSG+0(1).
+      IF RTYPE = 'S'.
+        UPDATE ZTFI202
+        SET CX = 'X'
+            RTYPE = RTYPE
+            RTMSG = RTMSG
+        WHERE BELNR_JS = ZTFI202-BELNR_JS.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  COMMIT WORK.
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

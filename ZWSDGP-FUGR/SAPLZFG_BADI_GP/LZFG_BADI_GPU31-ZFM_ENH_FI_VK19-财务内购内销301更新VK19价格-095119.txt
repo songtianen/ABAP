@@ -1,0 +1,173 @@
+FUNCTION ZFM_ENH_FI_VK19.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(XMKPF) TYPE  TY_T_MKPF OPTIONAL
+*"     VALUE(XMSEG) TYPE  TY_T_MSEG OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"----------------------------------------------------------------------
+  DATA BEGIN OF IT_MBLNR OCCURS 0.
+  INCLUDE STRUCTURE MSEG_KEY.
+  DATA:MATNR TYPE MATNR,
+       CHARG TYPE CHARG_D,
+       SORTF TYPE NUMC2,
+       NETPR TYPE NETPR,
+       END OF IT_MBLNR,
+       IT_MCHAS TYPE TABLE OF MCHA WITH HEADER LINE,
+       IT_PCTX  TYPE TABLE OF ZSFMS_GETPCTX WITH HEADER LINE.
+  DATA:WERKS TYPE WERKS_D,
+       NETPR TYPE NETPR.
+  CLEAR:MSEG,MKPF,IT_MCHAS[],IT_PCTX[],WERKS,
+  IT_MBLNR[].
+  READ TABLE XMSEG INTO MSEG INDEX 1.
+  WERKS = MSEG-WERKS.
+  CASE MSEG-BWART.
+    WHEN '301'.
+      ZFMDATASAVE1 'ZFM_ENH_FI_VK19'.
+      ZFMDATASAVE2 'B'.
+      COMMIT WORK.
+      LOOP AT XMSEG INTO MSEG.
+        CLEAR:IT_MCHAS.
+        IT_MCHAS-MATNR = MSEG-MATNR.
+        IT_MCHAS-CHARG = MSEG-CHARG.
+        COLLECT IT_MCHAS.
+      ENDLOOP.
+      CHECK IT_MCHAS[] IS NOT INITIAL.
+      CALL FUNCTION 'ZFMS_05_GETPCTX'
+        EXPORTING
+          ATNAM  = 'Z76,Z66,Z67,Z68,Z77,Z78,Z79'
+        TABLES
+          INTAB  = IT_MCHAS
+          OUTTAB = IT_PCTX.
+      SORT IT_PCTX BY MATNR CHARG ATNAM.
+      SORT IT_MCHAS BY MATNR CHARG.
+*汇总物料凭证
+      LOOP AT IT_MCHAS.
+        CLEAR:IT_MBLNR.
+        IT_MBLNR-MATNR = IT_PCTX-MATNR.
+        IT_MBLNR-CHARG = IT_PCTX-CHARG.
+        LOOP AT IT_PCTX WHERE MATNR = IT_MCHAS-MATNR
+                           AND CHARG = IT_MCHAS-CHARG.
+          CASE IT_PCTX-ATNAM.
+            WHEN 'Z77'.
+              IT_MBLNR-MBLNR = IT_PCTX-ATWRT.
+            WHEN 'Z78'.
+              IT_MBLNR-MJAHR = IT_PCTX-ATWRT.
+            WHEN 'Z79'.
+              IT_MBLNR-ZEILE = IT_PCTX-ATWRT.
+          ENDCASE.
+        ENDLOOP.
+        IT_MBLNR-SORTF = 'A'.
+        COLLECT IT_MBLNR.
+        CLEAR:IT_MBLNR.
+        IT_MBLNR-MATNR = IT_PCTX-MATNR.
+        IT_MBLNR-CHARG = IT_PCTX-CHARG.
+        LOOP AT IT_PCTX WHERE MATNR = IT_MCHAS-MATNR
+                           AND CHARG = IT_MCHAS-CHARG.
+          CASE IT_PCTX-ATNAM.
+            WHEN 'Z66'.
+              IT_MBLNR-MBLNR = IT_PCTX-ATWRT.
+            WHEN 'Z67'.
+              IT_MBLNR-MJAHR = IT_PCTX-ATWRT.
+            WHEN 'Z68'.
+              IT_MBLNR-ZEILE = IT_PCTX-ATWRT.
+          ENDCASE.
+        ENDLOOP.
+        IT_MBLNR-SORTF = 'B'.
+        COLLECT IT_MBLNR.
+      ENDLOOP.
+      DELETE IT_MBLNR WHERE MBLNR IS INITIAL
+                         OR MJAHR IS INITIAL
+                         OR ZEILE IS INITIAL.
+      IF IT_MBLNR[] IS NOT INITIAL.
+        SORT IT_MBLNR BY MATNR CHARG SORTF.
+        DELETE ADJACENT DUPLICATES FROM IT_MBLNR
+        COMPARING MATNR CHARG.
+        SORT IT_MBLNR BY MBLNR MJAHR ZEILE.
+        SELECT *
+          INTO TABLE @DATA(IT_EKBE)
+          FROM EKBE
+          FOR ALL ENTRIES IN @IT_MBLNR
+          WHERE BELNR = @IT_MBLNR-MBLNR
+          AND   GJAHR = @IT_MBLNR-MJAHR
+          AND   BUZEI = @IT_MBLNR-ZEILE
+          AND   VGABE = '1'.
+        SORT IT_EKBE BY BELNR GJAHR BUZEI.
+*取历史
+        SELECT *
+          INTO TABLE @DATA(IT_EKBZ)
+          FROM EKBZ
+          FOR ALL ENTRIES IN @IT_MBLNR
+          WHERE BELNR = @IT_MBLNR-MBLNR
+          AND   GJAHR = @IT_MBLNR-MJAHR
+          AND   BUZEI = @IT_MBLNR-ZEILE
+          AND   VGABE = '1'.
+        SORT IT_EKBZ BY BELNR GJAHR BUZEI.
+      ENDIF.
+*汇总出每个物料的价格
+      LOOP AT IT_MBLNR.
+        CLEAR:NETPR.
+        READ TABLE IT_EKBE INTO EKBE WITH KEY BELNR = IT_MBLNR-MBLNR
+                                              GJAHR = IT_MBLNR-MJAHR
+                                              BUZEI = IT_MBLNR-ZEILE
+                                              BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          NETPR = EKBE-DMBTR.
+        ENDIF.
+        READ TABLE IT_EKBZ INTO EKBZ WITH KEY BELNR = IT_MBLNR-MBLNR
+                                              GJAHR = IT_MBLNR-MJAHR
+                                              BUZEI = IT_MBLNR-ZEILE
+                                              BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          NETPR = NETPR + EKBE-DMBTR.
+        ENDIF.
+        IF EKBE-MENGE GT 0.
+          IT_MBLNR-NETPR = NETPR / EKBE-MENGE.
+        ENDIF.
+        MODIFY IT_MBLNR.
+      ENDLOOP.
+      SORT IT_MBLNR BY MATNR CHARG.
+
+*获取调拨信息
+      SELECT ZTMM221~ZDBDH,
+             ZTMM221~ZHH,
+             ZTMM221~MATNR,
+             ZTMM221~CHARG,
+             ZTMM221~ZYXSDDH AS VBELN,
+             ZTMM221~ZYXSDH AS POSNR,
+             ZTMM220~WERKS AS DRGC,
+             ZTMM220~ZDCGC AS DCGC
+        INTO TABLE @DATA(IT_DBINFO)
+        FROM ZTMM221 INNER JOIN ZTMM220 ON ZTMM221~ZDBDH = ZTMM220~ZDBDH
+        FOR ALL ENTRIES IN @IT_MCHAS
+        WHERE MATNR = @IT_MCHAS-MATNR
+        AND   CHARG = @IT_MCHAS-CHARG
+        AND   DEL NE 'X'.
+      IF SY-SUBRC EQ 0.
+*获取利润中心
+        SORT IT_DBINFO BY DCGC MATNR.
+        SELECT *
+          INTO TABLE @DATA(IT_MARCDC)
+          FROM MARC
+          FOR ALL ENTRIES IN @IT_DBINFO
+          WHERE WERKS = @IT_DBINFO-DCGC
+          AND   MATNR = @IT_DBINFO-MATNR.
+        SORT IT_MARCDC BY WERKS MATNR.
+        SORT IT_DBINFO BY DRGC MATNR.
+        SELECT *
+          INTO TABLE @DATA(IT_MARCDR)
+          FROM MARC
+          FOR ALL ENTRIES IN @IT_DBINFO
+          WHERE WERKS = @IT_DBINFO-DRGC
+          AND   MATNR = @IT_DBINFO-MATNR.
+        SORT IT_MARCDC BY WERKS MATNR.
+      ENDIF.
+*更新价格
+      LOOP AT IT_MBLNR WHERE NETPR GT 0.
+
+      ENDLOOP.
+  ENDCASE.
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

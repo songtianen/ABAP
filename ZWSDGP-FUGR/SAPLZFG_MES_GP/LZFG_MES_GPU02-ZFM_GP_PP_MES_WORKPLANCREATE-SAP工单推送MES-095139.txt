@@ -1,0 +1,570 @@
+FUNCTION zfm_gp_pp_mes_workplancreate.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(IN_TAB) TYPE  ZSPP_208
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"     REFERENCE(P_OUTPUT) TYPE  STRING
+*"     REFERENCE(P_STATUS) TYPE  I
+*"     REFERENCE(P_RESULT) TYPE  STRING
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_PP_MES_WORKPLANCREATE'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  TYPES: BEGIN OF t_token,
+           login_account TYPE string,
+           login_pwd     TYPE string,
+         END OF t_token.
+  TYPES: BEGIN OF t_token_re,
+           code    TYPE i,
+           message TYPE string,
+           data    TYPE string,
+         END OF t_token_re.
+  DATA:BEGIN OF meshead OCCURS 0,
+         name  TYPE string,
+         value TYPE string,
+       END OF meshead.
+  DATA: itoken   TYPE t_token,
+        itokenre TYPE t_token_re.
+  DATA:
+*    mes_token_url            TYPE string VALUE 'http://11.1.100.99:30882/authorityservice/LoginService/GetUserToken',
+*    mes_token_str            TYPE string,
+*    mes_tokenre_str          TYPE string,
+*    mes_token_msg            TYPE string,
+*    mes_token_sta            TYPE i,
+*    mes_token                TYPE string,
+*    mes_workplancreate_url   TYPE string VALUE 'http://11.1.100.99:30882/workplanmgtservice/WorkPlanUseCase/WorkPlanCreate'," MES  22.09.2022 12:19:39 by kkw
+    mes_workplancreate_url   TYPE string, " VALUE 'http://192.168.0.53:8290/mes/workplanmgtservice/WorkPlanUseCase/WorkPlanCreate', " ESB  22.09.2022 12:19:31 by kkw
+    mes_workplancreate_str   TYPE string,
+    mes_workplancreatere_str TYPE string,
+    mes_workplancreate_msg   TYPE string,
+    mes_workplancreate_sta   TYPE i,
+    int                      TYPE i.
+  DATA: gt_tab  TYPE zspp_208,
+        gs_tab  LIKE LINE OF gt_tab,
+        gt_tab4 TYPE TABLE OF zspp_204,
+        gs_tab4 LIKE LINE OF gt_tab4,
+        gt_tab5 TYPE TABLE OF zspp_205,
+        gs_tab5 LIKE LINE OF gt_tab5,
+        gt_tab6 TYPE TABLE OF zspp_206,
+        gs_tab6 LIKE LINE OF gt_tab6,
+        gt_tab7 TYPE TABLE OF zspp_207,
+        gs_tab7 LIKE LINE OF gt_tab7.
+  DATA: ref_descr TYPE REF TO cl_abap_structdescr.
+  FIELD-SYMBOLS:<fs> TYPE any.
+  DATA:father1       TYPE char2,
+       son1          TYPE char2,
+       father2       TYPE char2,
+       son2          TYPE char2,
+       father_order1 TYPE aufnr,
+       son_order1    TYPE aufnr,
+       father_order2 TYPE aufnr,
+       son_order2    TYPE aufnr,
+       father        TYPE char2,
+       son           TYPE char2,
+       father_order  TYPE aufnr,
+       son_order     TYPE aufnr,
+       father_wllx   TYPE ztpp_206-zwllx,
+       son_wllx      TYPE ztpp_206-zwllx,
+       father_zzl1   TYPE mara-zzl1,
+       son_zzl1      TYPE mara-zzl1.
+
+  DATA: it_ztpp212 TYPE TABLE OF ztpp_212 WITH HEADER LINE,
+        it_ztpp220 TYPE TABLE OF ztpp_220 WITH HEADER LINE.
+
+  TYPES:BEGIN OF ty_vbap,
+          aufnr TYPE  ztpp_206-aufnr,
+          vbeln TYPE  vbap-vbeln,
+          posnr TYPE  vbap-posnr,
+          matnr TYPE  vbap-matnr,
+*          WERKS TYPE  VBAP-WERKS,
+        END OF ty_vbap.
+  DATA:it_vbap TYPE TABLE OF ty_vbap WITH HEADER LINE.
+
+  TYPES:BEGIN OF ty_mara,
+          matnr TYPE matnr,
+          zzl1  TYPE mara-zzl1,
+        END OF ty_mara.
+  DATA:it_mara TYPE TABLE OF ty_mara WITH HEADER LINE.
+
+
+
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_PP_MES_WORKPLANCREATE' CHANGING mes_workplancreate_url.
+  CHECK mes_workplancreate_url IS NOT INITIAL.
+
+
+  " 对每个字段去空格  20.09.2022 09:37:13 by kkw
+  ref_descr ?= cl_abap_typedescr=>describe_by_data( gs_tab ).
+  DATA(cont) = lines( ref_descr->components ) - 4.
+  ref_descr ?= cl_abap_typedescr=>describe_by_data( gs_tab4 ).
+  DATA(cont4) = lines( ref_descr->components ).
+  ref_descr ?= cl_abap_typedescr=>describe_by_data( gs_tab5 ).
+  DATA(cont5) = lines( ref_descr->components ).
+  ref_descr ?= cl_abap_typedescr=>describe_by_data( gs_tab6 ).
+  DATA(cont6) =  lines( ref_descr->components ).
+  ref_descr ?= cl_abap_typedescr=>describe_by_data( gs_tab7 ).
+  DATA(cont7) = lines( ref_descr->components ).
+*_work_order
+*_work_order_bom
+*_work_order_c_k
+*_work_order_material
+
+  "获取ztpp_212
+  SELECT arbpl
+         zmesjgzx
+    INTO CORRESPONDING FIELDS OF TABLE it_ztpp212
+    FROM ztpp_212
+    .
+  SORT it_ztpp212 BY zmesjgzx.
+
+  SELECT *
+    INTO CORRESPONDING FIELDS OF TABLE it_ztpp220
+    FROM ztpp_220.
+
+  SELECT vbap~vbeln
+         vbap~posnr
+         vbap~matnr
+         ztpp_206~aufnr
+    INTO CORRESPONDING FIELDS OF TABLE it_vbap
+    FROM vbap
+    INNER JOIN ztpp_206 ON ztpp_206~vbeln = vbap~vbeln AND ztpp_206~posnr = vbap~posnr
+    .
+  SORT it_vbap BY aufnr.
+
+  CLEAR:gs_tab,gt_tab,gs_tab4,gt_tab4,gs_tab5,gt_tab5,gs_tab6,gt_tab6,gs_tab7,gt_tab7.
+  LOOP AT in_tab INTO gs_tab.
+    SELECT SINGLE
+       werks
+      INTO @DATA(werks)
+      FROM ztpp_206
+      WHERE aufnr = @gs_tab-_order_no
+       .
+    "新增单品编码 BY CL 20221222
+    READ TABLE it_vbap WITH KEY aufnr = gs_tab-_order_no BINARY SEARCH.
+    IF sy-subrc = 0.
+      gs_tab-_final_product = it_vbap-matnr.
+    ENDIF.
+
+    DO cont TIMES.
+      ASSIGN COMPONENT sy-index OF STRUCTURE gs_tab TO <fs>.
+      IF sy-subrc EQ 0 AND <fs> IS NOT INITIAL.
+        CONDENSE <fs> NO-GAPS.
+      ENDIF.
+    ENDDO.
+    LOOP AT gs_tab-_work_order INTO gs_tab4.
+      DO cont4 TIMES.
+        ASSIGN COMPONENT sy-index OF STRUCTURE gs_tab4 TO <fs>.
+        IF sy-subrc EQ 0 AND <fs> IS NOT INITIAL.
+          CONDENSE <fs> NO-GAPS.
+        ENDIF.
+      ENDDO.
+      "ADD 20221115 BY HANWQ
+      "SAP传生产工单到镇江MES时，需在订单号中,"PC"后插入当天日期（六位 年/月/日 例如221111）
+      gs_tab4-_order_no = gs_tab4-_order_no+0(2) && sy-datum+2(6) && gs_tab4-_order_no+2(10) .
+*      gs_tab4-_order_seq = '9234567890'. 不能超过 2的 xxx 次方
+
+      int                =   gs_tab4-_qty.
+      gs_tab4-_qty       =   int .
+      "add 数量改成整型 20221121 by hanwq
+      "ADD 3062工厂 单位写死   杨晨鸣
+
+      IF werks = '3062' .
+        gs_tab4-_unit2  = '毫米'.
+        gs_tab4-_total_unit = '平方米'.
+      ENDIF.
+
+      "如果是C型钢或者Z型钢，数量的取值
+      APPEND gs_tab4 TO gt_tab4.
+    ENDLOOP.
+    LOOP AT gs_tab-_work_order_bom INTO gs_tab5.
+      DO cont5 TIMES.
+        ASSIGN COMPONENT sy-index OF STRUCTURE gs_tab5 TO <fs>.
+        IF sy-subrc EQ 0 AND <fs> IS NOT INITIAL.
+          CONDENSE <fs> NO-GAPS.
+        ENDIF.
+      ENDDO.
+
+      "获取工作中心,根据220配置表拿到mes工序和工艺分类  add by cl 20221222
+      READ TABLE it_ztpp212 WITH KEY zmesjgzx =  gs_tab-_work_centre .
+      IF sy-subrc = 0.
+        READ TABLE it_ztpp220 WITH KEY arbpl = it_ztpp212-arbpl
+                                       matnr = gs_tab5-_material_code.
+        IF sy-subrc = 0.
+          gs_tab5-_operation = it_ztpp220-zmesgx.
+          gs_tab5-_routing_type = it_ztpp220-zgyfl.
+        ENDIF.
+      ENDIF.
+      "ADD 20221115 BY HANWQ
+      "SAP传生产工单到镇江MES时，需在订单号中,"PC"后插入当天日期（六位 年/月/日 例如221111）
+      gs_tab5-_order_no = gs_tab5-_order_no+0(2) && sy-datum+2(6) && gs_tab5-_order_no+2(10) .
+      APPEND gs_tab5 TO gt_tab5.
+    ENDLOOP.
+    LOOP AT gs_tab-_work_order_c_k INTO gs_tab6.
+      DO cont6 TIMES.
+        ASSIGN COMPONENT sy-index OF STRUCTURE gs_tab6 TO <fs>.
+        IF sy-subrc EQ 0 AND <fs> IS NOT INITIAL.
+          CONDENSE <fs> NO-GAPS.
+        ENDIF.
+      ENDDO.
+      "ADD 20221115 BY HANWQ
+      "SAP传生产工单到镇江MES时，需在订单号中,"PC"后插入当天日期（六位 年/月/日 例如221111）
+      gs_tab6-_order_no = gs_tab6-_order_no+0(2) && sy-datum+2(6) && gs_tab6-_order_no+2(10) .
+      APPEND gs_tab6 TO gt_tab6.
+    ENDLOOP.
+    LOOP AT gs_tab-_work_order_material INTO gs_tab7.
+      DO cont7 TIMES.
+        ASSIGN COMPONENT sy-index OF STRUCTURE gs_tab7 TO <fs>.
+        IF sy-subrc EQ 0 AND <fs> IS NOT INITIAL.
+          CONDENSE <fs> NO-GAPS.
+        ENDIF.
+      ENDDO.
+      "ADD 20221115 BY HANWQ
+      "SAP传生产工单到镇江MES时，需在订单号中,"PC"后插入当天日期（六位 年/月/日 例如221111）
+      gs_tab7-_order_no = gs_tab7-_order_no+0(2) && sy-datum+2(6) && gs_tab7-_order_no+2(10) .
+      APPEND gs_tab7 TO gt_tab7.
+    ENDLOOP.
+    IF gt_tab4 IS NOT INITIAL.
+      gs_tab-_work_order = gt_tab4.
+    ENDIF.
+    IF gt_tab5 IS NOT INITIAL.
+      gs_tab-_work_order_bom = gt_tab5.
+    ENDIF.
+    IF gt_tab6 IS NOT INITIAL.
+      gs_tab-_work_order_c_k = gt_tab6.
+    ENDIF.
+    IF gt_tab7 IS NOT INITIAL.
+      gs_tab-_work_order_material = gt_tab7.
+    ENDIF.
+**********************************************************************
+    " 赋值父子计划号 by kkw 22.12.2022 20:57:05
+***    DATA(char2) = gs_tab-_order_no+9(2).
+***    father      = char2 - 1 .
+***    son         = char2 + 1 .
+***    PERFORM addzero(zpubform) CHANGING father.
+***    PERFORM addzero(zpubform) CHANGING son.
+***    father_order = gs_tab-_order_no(9) && father.
+***    son_order    = gs_tab-_order_no(9) && son.
+***    SELECT SINGLE
+***      aufnr
+***      INTO gs_tab-_father_order_no
+***      FROM afko
+***      WHERE aufnr = father_order
+***      .
+***    IF sy-subrc = 0.
+***      gs_tab-_father_order_no = gs_tab-_father_order_no+0(2) && sy-datum+2(6) && gs_tab-_father_order_no+2(10) .
+***    ENDIF.
+***    SELECT SINGLE
+***      aufnr
+***      INTO gs_tab-_son_order_no
+***      FROM afko
+***      WHERE aufnr = son_order
+***      .
+***    IF sy-subrc = 0.
+***      gs_tab-_son_order_no = gs_tab-_son_order_no+0(2) && sy-datum+2(6) && gs_tab-_son_order_no+2(10) .
+***    ENDIF.
+
+
+***    DATA(char2) = gs_tab-_order_no+9(2).
+***    DATA(matnr) = 'N0400083423'."'E1602203426'.
+***    father1      = char2 - 1 .
+***    son1         = char2 + 1 .
+***    father2      = char2 - 2 .
+***    son2         = char2 + 2 .
+***    CLEAR:father_order1,father_order2,son_order1,son_order2.
+***    IF father1 > 0.
+***      PERFORM addzero(zpubform) CHANGING father1.
+***      father_order1 = gs_tab-_order_no(9) && father1.
+***    ENDIF.
+***    IF father2 > 0.
+***      PERFORM addzero(zpubform) CHANGING father2.
+***      father_order2 = gs_tab-_order_no(9) && father2.
+***    ENDIF.
+***    PERFORM addzero(zpubform) CHANGING son1.
+***
+***    PERFORM addzero(zpubform) CHANGING son2.
+***
+***    son_order1    = gs_tab-_order_no(9) && son1.
+***    son_order2    = gs_tab-_order_no(9) && son2.
+***
+***    SELECT SINGLE * INTO @DATA(wa_206) FROM ztpp_206 WHERE aufnr = @gs_tab-_order_no.
+***    IF wa_206-zwllx = '成品'."全是子计划
+***      SELECT SINGLE * INTO @DATA(wa_son2) FROM ztpp_206 WHERE aufnr = @son_order2.
+***      IF wa_son2-matnr = matnr."1
+***        gs_tab-_son_order_no =  son_order1+0(2) && sy-datum+2(6) && son_order1+2(10) && '|' && son_order2+0(2) && sy-datum+2(6) && son_order2+2(10).
+***      ELSE."2
+***        SELECT SINGLE * INTO @DATA(wa_son1) FROM ztpp_206 WHERE aufnr = @son_order1.
+***        IF wa_son1-matnr = matnr.
+***          gs_tab-_son_order_no =  son_order1+0(2) && sy-datum+2(6) && son_order1+2(10).
+***        ENDIF.
+***      ENDIF.
+***    ELSEIF wa_206-zwllx = '半成品'."子计划和父计划
+***      SELECT SINGLE * INTO @wa_son1 FROM ztpp_206 WHERE aufnr = @son_order1."子计划
+***      IF wa_son1-matnr = matnr."3
+***        SELECT SINGLE * INTO @wa_son2 FROM ztpp_206 WHERE aufnr = @son_order2.
+***        IF wa_son2-matnr = matnr .
+***          gs_tab-_son_order_no = son_order2+0(2) && sy-datum+2(6) && son_order2+2(10).
+***        ELSE.
+***          gs_tab-_son_order_no = son_order1+0(2) && sy-datum+2(6) && son_order1+2(10).
+***        ENDIF.
+***      ENDIF.
+***
+***      IF wa_206-matnr = matnr."4
+***        gs_tab-_son_order_no = ''.
+***        IF father2 IS NOT INITIAL.
+***          SELECT SINGLE * INTO @DATA(wa_father2) FROM ztpp_206 WHERE aufnr = @father2.
+***          IF sy-subrc EQ 0.
+***            gs_tab-_father_order_no = father_order2+0(2) && sy-datum+2(6) && father_order2+2(10).
+***          ENDIF.
+***        ENDIF.
+***      ELSE."5
+***        IF father1 IS NOT INITIAL.
+***          SELECT SINGLE * INTO @DATA(wa_father1) FROM ztpp_206 WHERE aufnr = @father1.
+***          IF wa_father1-matnr = matnr.
+***            IF father2 IS NOT INITIAL.
+***              SELECT SINGLE * INTO @wa_father2 FROM ztpp_206 WHERE aufnr = @father2.
+***              IF sy-subrc EQ 0.
+***                gs_tab-_father_order_no = father_order2+0(2) && sy-datum+2(6) && father_order2+2(10).
+***              ELSE.
+***                gs_tab-_father_order_no = father_order1+0(2) && sy-datum+2(6) && father_order1+2(10).
+***              ENDIF.
+***            ELSE.
+***              gs_tab-_father_order_no = father_order1+0(2) && sy-datum+2(6) && father_order1+2(10).
+***            ENDIF.
+***
+***          ENDIF.
+***        ENDIF.
+***      ENDIF.
+***
+***    ENDIF.
+
+**********************************************************************
+    " 父子计划取值逻辑变更 by kkw 25.12.2022 09:42:38
+    SELECT SINGLE * INTO @DATA(wa_206) FROM ztpp_206 WHERE aufnr = @gs_tab-_order_no.
+    SELECT SINGLE zzl1 INTO @DATA(zzl1) FROM mara WHERE matnr = @wa_206-matnr.
+    IF wa_206-werks = '3060'.
+      IF wa_206-zwllx = '成品'."全是子计划
+        gs_tab-_father_order_no = ''.
+        CLEAR:father_order,father_wllx,son_order,son_wllx,father_zzl1,son_zzl1.
+        PERFORM get_order USING wa_206-aufnr CHANGING father_order father_wllx father_zzl1 son_order son_wllx  son_zzl1.
+        IF son_wllx = '半成品'.
+          gs_tab-_son_order_no = son_order+0(2) && sy-datum+2(6) && son_order+2(10).
+**********************************************************************
+          "  新增找灰板工单号逻辑by kkw 29.12.2022 18:55:45
+          DO.
+            CLEAR:father_order,father_wllx,son_order,son_wllx,father_zzl1,son_zzl1.
+            PERFORM get_order USING son_order CHANGING father_order father_wllx father_zzl1 son_order son_wllx son_zzl1.
+            IF son_wllx = '半成品'.
+              IF son_zzl1 CS '灰板'.
+                gs_tab-_son_order_no = gs_tab-_son_order_no && '|' && son_order+0(2) && sy-datum+2(6) && son_order+2(10).
+              ENDIF.
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDDO.
+**********************************************************************
+
+        ENDIF.
+      ELSEIF wa_206-zwllx = '半成品'.
+        IF NOT zzl1 CS '灰板' .
+
+          CLEAR:father_order,father_wllx,son_order,son_wllx,father_zzl1,son_zzl1.
+          PERFORM get_order USING wa_206-aufnr CHANGING father_order father_wllx father_zzl1 son_order son_wllx son_zzl1.
+          IF father_order IS NOT INITIAL.
+            gs_tab-_father_order_no = father_order+0(2) && sy-datum+2(6) && father_order+2(10).
+          ENDIF.
+          IF son_wllx = '半成品'.
+            gs_tab-_son_order_no = son_order+0(2) && sy-datum+2(6) && son_order+2(10).
+          ENDIF.
+
+        ELSE.
+**********************************************************************
+          " 新增找灰板逻辑 by kkw 29.12.2022 19:20:17
+          gs_tab-_son_order_no = ''.
+          DO.
+            CLEAR:father_order,father_wllx,son_order,son_wllx,father_zzl1,son_zzl1.
+            PERFORM get_order USING wa_206-aufnr CHANGING father_order father_wllx father_zzl1 son_order son_wllx son_zzl1.
+            IF father_wllx = ''.
+              EXIT.
+            ELSEIF father_wllx = '成品'.
+              gs_tab-_father_order_no = father_order+0(2) && sy-datum+2(6) && father_order+2(10).
+              EXIT.
+            ENDIF.
+          ENDDO.
+**********************************************************************
+        ENDIF.
+      ENDIF.
+    ELSEIF wa_206-werks = '3062'.
+      IF wa_206-zwllx = '成品'.
+        gs_tab-_father_order_no = ''.
+        DO.
+          IF sy-index = '1'.
+            DATA(aufnr) = wa_206-aufnr.
+          ELSE.
+            aufnr = son_order.
+          ENDIF.
+          CLEAR:father_order,father_wllx,son_order,son_wllx,father_zzl1,son_zzl1.
+          PERFORM get_order USING aufnr CHANGING father_order father_wllx father_zzl1 son_order son_wllx son_zzl1.
+          IF son_wllx = '半成品'.
+            gs_tab-_son_order_no = gs_tab-_son_order_no && '|' && son_order+0(2) && sy-datum+2(6) && son_order+2(10).
+          ELSE.
+            EXIT.
+          ENDIF.
+        ENDDO.
+        DATA(son_len) = strlen( gs_tab-_son_order_no ) - 1.
+        IF son_len > 0.
+          gs_tab-_son_order_no = gs_tab-_son_order_no+1(son_len).
+        ENDIF.
+
+      ELSEIF wa_206-zwllx = '半成品'.
+        gs_tab-_son_order_no = ''.
+        DO.
+          IF sy-index = '1'.
+            aufnr = wa_206-aufnr.
+          ELSE.
+            aufnr = father_order.
+          ENDIF.
+          CLEAR:father_order,father_wllx,son_order,son_wllx,father_zzl1,son_zzl1.
+          PERFORM get_order USING aufnr CHANGING father_order father_wllx father_zzl1 son_order son_wllx son_zzl1.
+          IF father_wllx = '成品'.
+            gs_tab-_father_order_no = father_order+0(2) && sy-datum+2(6) && father_order+2(10).
+            exit.
+          ELSEIF father_wllx = ''.
+            EXIT.
+          ENDIF.
+        ENDDO.
+      ENDIF.
+    ENDIF.
+
+**********************************************************************
+
+**********************************************************************
+
+    "ADD 20221115 BY HANWQ
+    "SAP传生产工单到镇江MES时，需在订单号中,"PC"后插入当天日期（六位 年/月/日 例如221111）
+    gs_tab-_order_no = gs_tab-_order_no+0(2) && sy-datum+2(6) && gs_tab-_order_no+2(10) .
+    "SAP传生产工单到镇江MES时，块数取整
+    int = gs_tab-_total_piece.
+    gs_tab-_total_piece = int .
+    CONDENSE gs_tab-_total_piece.
+
+
+
+    APPEND gs_tab TO gt_tab.
+  ENDLOOP.
+  " 获取MES token
+*  itoken-login_account = 'wms'.
+*  itoken-login_pwd = '123456'.
+*
+*  mes_token_str = /ui2/cl_json=>serialize( data = itoken  compress = abap_false pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+*  "获取token
+*  PERFORM replace(zpubform) USING 'https' 'http' CHANGING mes_token_url .
+*
+*  CALL FUNCTION 'ZFMS_15_HTTP'
+*    EXPORTING
+*      input     = mes_token_str
+*      url       = mes_token_url
+*      reqmethod = 'POST' "HTTP 方法
+*      http1_1   = 'X' "协议1.1/1.0
+*    IMPORTING
+*      output    = mes_tokenre_str "返回JSON报文
+*      rtmsg     = mes_token_msg "消息
+*      status    = mes_token_sta "HTTP状态
+**    TABLES
+**     header    = oahead
+*    EXCEPTIONS
+*      OTHERS    = 1.
+*  CHECK mes_token_sta = '200'.
+*  /ui2/cl_json=>deserialize( EXPORTING json = mes_tokenre_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case CHANGING data = itokenre ).
+*  mes_token = itokenre-data.
+*  CHECK mes_token IS NOT INITIAL.
+  "调用mes计划单创建接口
+  mes_workplancreate_str = /ui2/cl_json=>serialize( data = gt_tab  compress = abap_false pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+  p_output = mes_workplancreate_str.
+*  CLEAR:meshead,meshead[].
+*  meshead-name = 'authentication'.
+*  meshead-value = mes_token.
+*  APPEND meshead.
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_PP_MES_WORKPLANCREATE' CHANGING mes_workplancreate_url.
+  CHECK mes_workplancreate_url IS NOT INITIAL.
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING mes_workplancreate_url .
+
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = mes_workplancreate_str
+      url       = mes_workplancreate_url
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = mes_workplancreatere_str "返回JSON报文
+      rtmsg     = mes_workplancreate_msg "消息
+      status    = mes_workplancreate_sta "HTTP状态
+*    TABLES
+*     header    = meshead
+    EXCEPTIONS
+      OTHERS    = 1.
+*  CHECK mes_workplancreate_sta = '200'.
+  CLEAR itokenre.
+  /ui2/cl_json=>deserialize( EXPORTING json = mes_workplancreatere_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case CHANGING data = itokenre ).
+  p_result = mes_workplancreatere_str.
+  p_status = mes_workplancreate_sta.
+  rtype = itokenre-code.
+  rtmsg = itokenre-message.
+  TRANSLATE rtype TO UPPER CASE.
+  IF mes_workplancreate_sta = '200'.
+    IF rtype = '0'.
+      rtype = 'S'.
+    ELSE.
+      rtype = 'E'.
+    ENDIF.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '网络连接出现错误'.
+  ENDIF.
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.
+
+FORM get_order USING
+                    aufnr TYPE aufnr
+               CHANGING
+                    father_order TYPE aufnr
+                    father_wllx TYPE ztpp_206-zwllx
+                    father_zzl1 TYPE mara-zzl1
+                    son_order TYPE aufnr
+                    son_wllx TYPE ztpp_206-zwllx
+                    son_zzl1 TYPE mara-zzl1.
+  DATA:char2  TYPE char2,
+       father TYPE char2,
+       son    TYPE char2.
+  char2  = aufnr+9(2).
+  father = char2 - 1 .
+  son    = char2 + 1 .
+  CLEAR:father_order,son_order,father_wllx,son_wllx.
+  IF father > 0.
+    PERFORM addzero(zpubform) CHANGING father.
+    father_order = aufnr(9) && father.
+    SELECT SINGLE * INTO @DATA(wa_206) FROM ztpp_206 WHERE aufnr = @father_order.
+    IF sy-subrc NE 0.
+      father_order = ''.
+    ELSE.
+      SELECT SINGLE zzl1 INTO father_zzl1 FROM mara WHERE matnr = wa_206-matnr.
+      father_wllx = wa_206-zwllx.
+    ENDIF.
+  ENDIF.
+
+  PERFORM addzero(zpubform) CHANGING son.
+  son_order    = aufnr(9) && son.
+  SELECT SINGLE * INTO @wa_206 FROM ztpp_206 WHERE aufnr = @son_order.
+  IF sy-subrc NE 0.
+    son_order = ''.
+  ELSE.
+    SELECT SINGLE zzl1 INTO son_zzl1 FROM mara WHERE matnr = wa_206-matnr.
+    son_wllx = wa_206-zwllx.
+  ENDIF.
+ENDFORM.

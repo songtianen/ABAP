@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_V3_ZBOM
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZBOM_CON' ITSELF
+CONTROLS: ZBOM_CON TYPE TABLEVIEW USING SCREEN 9103.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZBOM_CON'
+DATA:     G_ZBOM_CON_LINES  LIKE SY-LOOPC.

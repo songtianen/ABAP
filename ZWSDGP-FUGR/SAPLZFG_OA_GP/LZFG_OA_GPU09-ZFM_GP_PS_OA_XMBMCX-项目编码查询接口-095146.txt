@@ -1,0 +1,23 @@
+FUNCTION ZFM_GP_PS_OA_XMBMCX.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  TABLES
+*"      OT_TAB STRUCTURE  ZSFI204
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_GP_PS_OA_XMBMCX'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+
+
+  SELECT
+    PROJ~PSPID
+    PROJ~POST1
+    INTO TABLE OT_TAB
+    FROM PROJ
+    WHERE PROJ~LOEVM <> 'X' .
+
+
+  ZFMDATASAVE2 'R'.
+
+
+ENDFUNCTION.

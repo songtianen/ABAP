@@ -1,0 +1,113 @@
+*------------------------------------------------------------------
+*           Referenzdaten vorschlagen
+*
+* Felder, die referenziert werden sollen, muessen in der Tabelle T130F
+* als solche gekennzeichnet werden.
+* Die Feldinhalte dieser Felder werden vorgeschlagen, falls das Feld
+* auf dem Bildschirm eingabebereit ist.
+* Eingabebereit ist das Feld nur, wenn der entsprechende Status des
+* Feldes gepflegt wird, wenn das Feld nicht bereits durch einen
+* vorhergehenden Vorgang haette gepflegt werden koennen und falls
+* die entsprechende Tabelle angefordert wurde.
+* Die Referenz darf bei mehrmaligem prozessieren eines Bildes nur
+* einmal durchgefuehrt werden. Dazu wird das Kennzeichen, Bild bereits
+* prozessiert (Kennzeichen wird im Modul Dynpro_prozessiert gesetzt)
+* abgefragt.
+* Felder, die auf mehreren Bildern eingebbar sind, duerfen auch nur
+* einmal referenziert werden. Dazu wird das referenzierte Feld nach
+* der Uebernahme in die Referenztabelle geschrieben. Eine Uebernahme
+* erfolgt nur, wenn das Feld noch nicht in der Referenztabelle steht.
+* mk/16.02.95  Jetzt auch beim Dunkel-Prozessieren  Vorlagehandling
+* mk/16.02.95: Sonderregel f¨¹r Vorplanungsmaterial ge#ndert, da
+* RM03M-Felder ersetzt durch MPGD-Felder.
+* mk/22.03.95: Umrechnung W#hrungsfelder funktioniert nur, wenn
+* Buchungskreis-Daten gelesen wurden, also aktuell nur, wenn
+* der AKTVSTATUS B oder G enth#lt oder wenigstens ein Werk vorgegeben
+* wurde (in diesem Fall wird T001 und *T001 nachgelesen)
+* mk/29.03.95: Tabelle REFERENZ notwendig, da Vorlagewerte
+* auf Bild1 absichtlich zur¨¹ckgesetzt werden k#nnen, dann nat¨¹rlich
+* auf Bild2 nicht mehr mit Vorlagedaten ¨¹berschrieben werden sollen
+* Au#erdem benutzt, damit Daten, die aus einem Profil vorgeschlagen
+* mit Initialwert vorgeschlagen wurden, nicht mit dem Vorlagedaten
+* ¨¹berschrieben werden.
+* br/06.04.95 die Vorlage f¨¹r die Kurztexte wird ¨¹ber das Kennzeichen
+* FLGKTEXTREF gesteuert
+*-------------------------------------------------------------------
+MODULE REFDATEN_VORSCHLAGEN OUTPUT.
+
+ENHANCEMENT-SECTION     REFDATEN_VORSCHLAGEN_01 SPOTS ES_LMGD1O1A INCLUDE BOUND .
+  CHECK NOT RMMG1_REF-MATNR IS INITIAL AND
+            T130M-AKTYP = AKTYPH.
+* CHECK BILDFLAG IS INITIAL.                           "cfo/3.1I
+
+*----Pruefen, ob Bild bereits prozessiert wurde-----------------
+* CHECK BILDTAB-KZPRO IS INITIAL.                      "cfo/3.1I
+
+  CALL FUNCTION 'MATERIAL_REFERENCE_GEN'
+       EXPORTING
+            FLGKTEXTREF = RMMG2-FLGKTREF
+            FLGMEINREF  = RMMG2-FLGMEINREF
+            KZRFB       = KZRFB
+            WMAKT       = MAKT
+            WMARA       = MARA
+            WMARC       = MARC
+            WMPGD       = MPGD
+            WMARD       = MARD
+            WMBEW       = MBEW
+            WMFHM       = MFHM
+            WMLGN       = MLGN
+            WMLGT       = MLGT
+            WMPOP       = MPOP
+            WMVKE       = MVKE
+            WMYMS       = MYMS
+            RMAKT       = RMAKT
+            RMARA       = RMARA
+            RMARC       = RMARC
+            RMPGD       = RMPGD
+            RVPBME      = RVPBME
+            RMARD       = RMARD
+            RMBEW       = RMBEW
+            RMFHM       = RMFHM
+            RMLGN       = RMLGN
+            RMLGT       = RMLGT
+            RMPOP       = RMPOP
+            RMVKE       = RMVKE
+            RMYMS       = RMYMS
+            WT134       = T134
+            T001_WAERS  = T001-WAERS
+            RT001_WAERS = *T001-WAERS
+            WERKS       = RMMG1-WERKS
+            REF_WERKS   = RMMG1_REF-WERKS
+            MANBR       = RMMG2-MANBR                   "cfo/4.5B
+       IMPORTING
+            FLGKTEXTREF = RMMG2-FLGKTREF
+            FLGMEINREF  = RMMG2-FLGMEINREF
+            WMAKT       = MAKT
+            WMARA       = MARA
+            WMARC       = MARC
+            WMPGD       = MPGD
+            VPBME       = RMMZU-VPBME
+            WMARD       = MARD
+            WMBEW       = MBEW
+            WMFHM       = MFHM
+            WMLGN       = MLGN
+            WMLGT       = MLGT
+            WMPOP       = MPOP
+            WMVKE       = MVKE
+            WMYMS       = MYMS
+       TABLES
+            FAUSWTAB    = FAUSWTAB
+            PTAB        = PTAB
+            RPTAB       = RPTAB
+            KTEXT       = KTEXT
+            RKTEXT      = RKTEXT
+            MEINH       = MEINH
+            RMEINH      = RMEINH
+            STEUERTAB   = STEUERTAB
+            RSTEUERTAB  = RSTEUERTAB
+            STEUMMTAB   = STEUMMTAB
+            RSTEUMMTAB  = RSTEUMMTAB
+            MEAN_ME_TAB = MEAN_ME_TAB.   " AHE: 17.06.98 (4.0c) HW 71129
+END-ENHANCEMENT-SECTION.
+
+ENDMODULE.

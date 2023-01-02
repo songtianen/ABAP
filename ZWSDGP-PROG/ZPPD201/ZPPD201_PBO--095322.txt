@@ -1,0 +1,19 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TS 'ZPCD_FY'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: SETS ACTIVE TAB
+MODULE ZPCD_FY_ACTIVE_TAB_SET OUTPUT.
+  ZPCD_FY-ACTIVETAB = G_ZPCD_FY-PRESSED_TAB.
+  CASE G_ZPCD_FY-PRESSED_TAB.
+    WHEN C_ZPCD_FY-TAB1.
+      G_ZPCD_FY-SUBSCREEN = '0901'.
+    WHEN C_ZPCD_FY-TAB2.
+      G_ZPCD_FY-SUBSCREEN = '0902'.
+    WHEN C_ZPCD_FY-TAB3.
+      G_ZPCD_FY-SUBSCREEN = '0903'.
+    WHEN OTHERS.
+*&SPWIZARD:      DO NOTHING
+  ENDCASE.
+ENDMODULE.

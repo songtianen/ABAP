@@ -1,0 +1,791 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD204_CLASS
+*&---------------------------------------------------------------------*
+CLASS ALV_EVENT DEFINITION.
+  PUBLIC SECTION.
+    "上屏幕
+    METHODS HANDLE_DATA_CHANGED_1 FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID"数据改动事件
+      IMPORTING ER_DATA_CHANGED E_ONF4 E_ONF4_BEFORE E_ONF4_AFTER E_UCOMM.
+    METHODS HANDLE_DOUBLE_CLICK_1 FOR EVENT DOUBLE_CLICK  OF CL_GUI_ALV_GRID"双击事件
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+    METHODS HANDLE_ON_F4_1 FOR EVENT ONF4 OF CL_GUI_ALV_GRID"F4
+      IMPORTING E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA ET_BAD_CELLS E_DISPLAY.
+    METHODS HANDLE_USER_COMMAND_1 FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID"用户按钮事件
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK_1 FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID"热区单击事件
+      IMPORTING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    METHODS HANDLE_TOOLBAR_1 FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID"工具条事件
+      IMPORTING E_OBJECT E_INTERACTIVE.
+    "下屏幕
+    METHODS HANDLE_DATA_CHANGED_2 FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID"数据改动事件
+      IMPORTING ER_DATA_CHANGED E_ONF4 E_ONF4_BEFORE E_ONF4_AFTER E_UCOMM.
+    METHODS HANDLE_DOUBLE_CLICK_2 FOR EVENT DOUBLE_CLICK  OF CL_GUI_ALV_GRID"双击事件
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+    METHODS HANDLE_ON_F4_2 FOR EVENT ONF4 OF CL_GUI_ALV_GRID"F4
+      IMPORTING E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA ET_BAD_CELLS E_DISPLAY.
+    METHODS HANDLE_USER_COMMAND_2 FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID"用户按钮事件
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK_2 FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID"热区单击事件
+      IMPORTING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    METHODS HANDLE_TOOLBAR_2 FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID"工具条事件
+      IMPORTING E_OBJECT E_INTERACTIVE.
+ENDCLASS.
+
+CLASS ALV_EVENT IMPLEMENTATION.
+  "上屏幕
+  METHOD HANDLE_DATA_CHANGED_1.        "数据改动事件
+    PERFORM FRM_HANDLE_DATA_CHANGED_1 USING ER_DATA_CHANGED.
+    PERFORM FRM_REFRESH_ALV_1.
+  ENDMETHOD.
+  METHOD HANDLE_DOUBLE_CLICK_1 .      "双击事件
+    PERFORM FRM_DOUBLE_CLICK_1 USING E_ROW E_COLUMN ES_ROW_NO.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD HANDLE_ON_F4_1.              "F4
+    PERFORM FRM_ALV_ON_F4_1 USING  E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA E_DISPLAY.
+  ENDMETHOD.
+  METHOD HANDLE_USER_COMMAND_1.       "用户按钮事件
+    PERFORM FRM_HANDLE_USER_COMMAND_1 USING E_UCOMM.
+    PERFORM FRM_REFRESH_ALV_1.
+  ENDMETHOD.
+  METHOD HANDLE_HOTSPOT_CLICK_1.       "热区单击事件
+    PERFORM HANDLE_HOTSPOT_CLICK_1 USING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    PERFORM FRM_REFRESH_ALV_1.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  HANDLE_TOOLBAR_1.            "工具条事件
+    PERFORM FRM_HANDLE_TOOLBAR_1 USING E_OBJECT E_INTERACTIVE."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+  "下屏幕
+  METHOD HANDLE_DATA_CHANGED_2.        "数据改动事件
+    PERFORM FRM_HANDLE_DATA_CHANGED_2 USING ER_DATA_CHANGED.
+    PERFORM FRM_REFRESH_ALV_2.
+  ENDMETHOD.
+  METHOD HANDLE_DOUBLE_CLICK_2 .      "双击事件
+    PERFORM FRM_DOUBLE_CLICK_2 USING E_ROW E_COLUMN ES_ROW_NO.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD HANDLE_ON_F4_2.              "F4
+    PERFORM FRM_ALV_ON_F4_2 USING  E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA E_DISPLAY.
+    PERFORM FRM_REFRESH_ALV_2.
+  ENDMETHOD.
+  METHOD HANDLE_USER_COMMAND_2.       "用户按钮事件
+    PERFORM FRM_HANDLE_USER_COMMAND_2 USING E_UCOMM.
+    PERFORM FRM_REFRESH_ALV_2.
+  ENDMETHOD.
+  METHOD HANDLE_HOTSPOT_CLICK_2.       "热区单击事件
+    PERFORM HANDLE_HOTSPOT_CLICK_2 USING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    PERFORM FRM_REFRESH_ALV_2.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  HANDLE_TOOLBAR_2.            "工具条事件
+    PERFORM FRM_HANDLE_TOOLBAR_2 USING E_OBJECT E_INTERACTIVE."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+ENDCLASS.
+DATA:LCL_EVENT_RECEIVER_1 TYPE REF TO ALV_EVENT,
+     LCL_EVENT_RECEIVER_2 TYPE REF TO ALV_EVENT.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_DATA_CHANGED_1  USING    P_ER_DATA_CHANGED.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM FRM_DOUBLE_CLICK_1  USING    P_E_ROW
+                                  P_E_COLUMN
+                                  P_ES_ROW_NO.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM FRM_ALV_ON_F4_1  USING    P_E_FIELDNAME
+                               P_E_FIELDVALUE
+                               P_ES_ROW_NO
+                               P_ER_EVENT_DATA
+                               P_E_DISPLAY.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_USER_COMMAND_1  USING    P_E_UCOMM.
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      LOOP AT IT_PCTX.
+        IT_PCTX-CHBOX = 'X'.
+        MODIFY IT_PCTX TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT IT_PCTX.
+        IT_PCTX-CHBOX = ''.
+        MODIFY IT_PCTX TRANSPORTING CHBOX.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM HANDLE_HOTSPOT_CLICK_1  USING    P_E_ROW_ID
+                                      P_E_COLUMN_ID
+                                      P_ES_ROW_NO.
+  DATA:WA LIKE LINE OF IT_PCTX.
+  FIELD-SYMBOLS:<FSE> TYPE ANY,
+                <WAE> TYPE ANY.
+  CONDENSE P_E_ROW_ID     NO-GAPS.
+  CONDENSE P_E_COLUMN_ID  NO-GAPS.
+  READ TABLE IT_PCTX ASSIGNING <WAE> INDEX P_E_ROW_ID.
+  ASSIGN COMPONENT P_E_COLUMN_ID OF STRUCTURE <WAE> TO <FSE>.
+  CHECK SY-SUBRC = 0.
+  IF <FSE> = 'X'.
+    <FSE> = ''.
+  ELSE.
+    <FSE> = 'X'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_TOOLBAR_1  USING    P_E_OBJECT  TYPE REF TO CL_ALV_EVENT_TOOLBAR_SET
+                                    P_E_INTERACTIVE.
+  DATA: LS_TOOLBAR TYPE STB_BUTTON.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+*  CLEAR: ls_toolbar.
+*  ls_toolbar-function = 'CRTDBD'.    " 功能码
+*  ls_toolbar-icon = '@39@'.  " 图标名称
+*  ls_toolbar-quickinfo = '生成调拨单'.   " 图标的提示信息
+*  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+*  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+*  ls_toolbar-text = '生成调拨单'.       " 按钮上显示的文本
+*  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_DATA_CHANGED_2 USING P_ER_DATA_CHANGED TYPE REF TO CL_ALV_CHANGED_DATA_PROTOCOL.
+  DATA:MOD_DATA    TYPE LVC_T_MODI,
+       WA_MOD_DATA TYPE LVC_S_MODI.
+  CLEAR:MOD_DATA,WA_MOD_DATA.
+  MOD_DATA = P_ER_DATA_CHANGED->MT_MOD_CELLS.
+  LOOP AT MOD_DATA INTO WA_MOD_DATA.
+    READ TABLE IT_PSRW INDEX WA_MOD_DATA-ROW_ID.
+    CHECK SY-SUBRC = 0.
+    CASE WA_MOD_DATA-FIELDNAME.
+      WHEN 'ZPSSL'.
+        ASSIGN COMPONENT WA_MOD_DATA-FIELDNAME OF STRUCTURE IT_PSRW TO FIELD-SYMBOL(<FS>).
+        IF SY-SUBRC EQ 0.
+          PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+          <FS> = WA_MOD_DATA-VALUE.
+          MODIFY IT_PSRW  INDEX WA_MOD_DATA-ROW_ID TRANSPORTING ZPSSL.
+        ENDIF.
+      WHEN 'ZKCYL'.
+        ASSIGN COMPONENT WA_MOD_DATA-FIELDNAME OF STRUCTURE IT_PSRW TO <FS>.
+        IF SY-SUBRC EQ 0.
+          PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+          <FS> = WA_MOD_DATA-VALUE.
+          MODIFY IT_PSRW  INDEX WA_MOD_DATA-ROW_ID TRANSPORTING ZKCYL.
+        ENDIF.
+      WHEN 'ZPSSL_IN'.
+        ASSIGN COMPONENT WA_MOD_DATA-FIELDNAME OF STRUCTURE IT_PSRW TO <FS>.
+        IF SY-SUBRC EQ 0.
+          PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+          <FS> = WA_MOD_DATA-VALUE.
+          IF IT_PSRW-KBETR NE 0.
+            IT_PSRW-ZPSSL = WA_MOD_DATA-VALUE / IT_PSRW-KBETR.
+          ENDIF.
+          MODIFY IT_PSRW  INDEX WA_MOD_DATA-ROW_ID TRANSPORTING ZPSSL_IN ZPSSL.
+        ENDIF.
+    ENDCASE.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM FRM_DOUBLE_CLICK_2  USING    P_E_ROW
+                                  P_E_COLUMN
+                                  P_ES_ROW_NO.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM FRM_ALV_ON_F4_2  USING    P_E_FIELDNAME
+                               P_E_FIELDVALUE
+                               P_ES_ROW_NO TYPE LVC_S_ROID
+                               P_ER_EVENT_DATA TYPE REF TO CL_ALV_EVENT_DATA
+                               P_E_DISPLAY.
+  P_ER_EVENT_DATA->M_EVENT_HANDLED = 'X'.
+  ASSIGN P_ER_EVENT_DATA->M_DATA->* TO <IT_MODI>.
+  CASE P_E_FIELDNAME.
+    WHEN 'MEINS_IN'.
+      PERFORM F4HELP TABLES RETURN_TAB USING  P_E_FIELDNAME 'IT_PSRW' WA_TAB P_ES_ROW_NO-ROW_ID.
+  ENDCASE.
+  IF RETURN_TAB[] IS NOT INITIAL.
+    READ TABLE RETURN_TAB INTO WA_RETURN_TAB INDEX 1.
+    IF SY-SUBRC EQ 0.
+      WA_MODI-ROW_ID = P_ES_ROW_NO-ROW_ID.
+      WA_MODI-FIELDNAME = P_E_FIELDNAME.
+      WA_MODI-VALUE = WA_RETURN_TAB-FIELDVAL.
+      APPEND WA_MODI TO <IT_MODI>.
+    ENDIF.
+    READ TABLE RETURN_TAB INTO WA_RETURN_TAB INDEX 2.
+    IF SY-SUBRC EQ 0.
+      WA_MODI-ROW_ID = P_ES_ROW_NO-ROW_ID.
+      WA_MODI-FIELDNAME = 'KBETR'.
+      WA_MODI-VALUE = WA_RETURN_TAB-FIELDVAL.
+      APPEND WA_MODI TO <IT_MODI>.
+    ENDIF.
+    READ TABLE RETURN_TAB INTO WA_RETURN_TAB INDEX 3.
+    IF SY-SUBRC EQ 0.
+      WA_MODI-ROW_ID = P_ES_ROW_NO-ROW_ID.
+      WA_MODI-FIELDNAME = 'ZKCYL'.
+      WA_MODI-VALUE = WA_RETURN_TAB-FIELDVAL.
+      APPEND WA_MODI TO <IT_MODI>.
+    ENDIF.
+    READ TABLE RETURN_TAB INTO WA_RETURN_TAB INDEX 4.
+    IF SY-SUBRC EQ 0.
+      WA_MODI-ROW_ID = P_ES_ROW_NO-ROW_ID.
+      WA_MODI-FIELDNAME = 'ZPSSL'.
+      WA_MODI-VALUE = WA_RETURN_TAB-FIELDVAL.
+      APPEND WA_MODI TO <IT_MODI>.
+    ENDIF.
+    READ TABLE RETURN_TAB INTO WA_RETURN_TAB INDEX 5.
+    IF SY-SUBRC EQ 0.
+      WA_MODI-ROW_ID = P_ES_ROW_NO-ROW_ID.
+      WA_MODI-FIELDNAME = 'ZPSSL_IN'.
+      WA_MODI-VALUE = WA_RETURN_TAB-FIELDVAL.
+      APPEND WA_MODI TO <IT_MODI>.
+    ENDIF.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_USER_COMMAND_2  USING    P_E_UCOMM.
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      LOOP AT IT_PSRW.
+        IT_PSRW-CHBOX = 'X'.
+        MODIFY IT_PSRW TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT IT_PSRW.
+        IT_PSRW-CHBOX = ''.
+        MODIFY IT_PSRW TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'DEL'.
+      READ TABLE IT_PSRW WITH KEY CHBOX  = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE S022 DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      LOOP AT IT_PSRW WHERE CHBOX = 'X'.
+        DELETE IT_PSRW.
+      ENDLOOP.
+    WHEN 'ADD'.
+      CLEAR IT_PSRW.
+      INSERT IT_PSRW INDEX 1.
+    WHEN 'MES'.
+      PERFORM MESYLPS.
+      PERFORM FRM_REFRESH_ALV_1.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM HANDLE_HOTSPOT_CLICK_2  USING    P_E_ROW_ID
+                                      P_E_COLUMN_ID
+                                      P_ES_ROW_NO.
+  DATA:WA LIKE LINE OF IT_PSRW.
+  FIELD-SYMBOLS:<FSE> TYPE ANY,
+                <WAE> TYPE ANY.
+  CONDENSE P_E_ROW_ID     NO-GAPS.
+  CONDENSE P_E_COLUMN_ID  NO-GAPS.
+  READ TABLE IT_PSRW ASSIGNING <WAE> INDEX P_E_ROW_ID.
+  ASSIGN COMPONENT P_E_COLUMN_ID OF STRUCTURE <WAE> TO <FSE>.
+  CHECK SY-SUBRC = 0.
+  IF <FSE> = 'X'.
+    <FSE> = ''.
+  ELSE.
+    <FSE> = 'X'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_TOOLBAR_2  USING    P_E_OBJECT TYPE REF TO CL_ALV_EVENT_TOOLBAR_SET
+                                    P_E_INTERACTIVE.
+  DATA:DISABLED1 TYPE CHAR1,
+       DISABLED2 TYPE CHAR2.
+  DATA: LS_TOOLBAR TYPE STB_BUTTON.
+  IF R_CJ = 'X'.
+    DISABLED1 = ''.
+    DISABLED2 = 'X'.
+  ELSE.
+    DISABLED1 = 'X'.
+    DISABLED2 = ''.
+  ENDIF.
+
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR LS_TOOLBAR.
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'ALL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4B@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = DISABLED2.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'DEL'.    " 功能码
+  LS_TOOLBAR-ICON = '@18@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '删除明细'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = DISABLED1.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '删除明细'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'ADD'.    " 功能码
+  LS_TOOLBAR-ICON = '@17@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '添加行'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = DISABLED1.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '添加行'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'MES'.    " 功能码
+  LS_TOOLBAR-ICON = '@B8@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '推送MES原料信息'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '推送MES原料信息'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_refresh_alv_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FRM_REFRESH_ALV_1 .
+  DATA: LT_CELLTAB TYPE LVC_T_STYL,
+        LS_CELLTAB TYPE LVC_S_STYL,
+        LS_STABLE  TYPE LVC_S_STBL.
+
+  LS_STABLE-ROW = 'X'.  "固定行
+  LS_STABLE-COL = 'X'.  "固定列
+
+  CHECK ALV_GRID1 IS NOT INITIAL.
+
+  CALL METHOD ALV_GRID1->REFRESH_TABLE_DISPLAY
+    EXPORTING
+      IS_STABLE = LS_STABLE
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      FINISHED  = 1
+      OTHERS    = 2.
+
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_refresh_alv_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FRM_REFRESH_ALV_2 .
+  DATA: LT_CELLTAB TYPE LVC_T_STYL,
+        LS_CELLTAB TYPE LVC_S_STYL,
+        LS_STABLE  TYPE LVC_S_STBL.
+
+  LS_STABLE-ROW = 'X'.  "固定行
+  LS_STABLE-COL = 'X'.  "固定列
+
+  CHECK ALV_GRID2 IS NOT INITIAL.
+
+  CALL METHOD ALV_GRID2->REFRESH_TABLE_DISPLAY
+    EXPORTING
+      IS_STABLE = LS_STABLE
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      FINISHED  = 1
+      OTHERS    = 2.
+
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+
+FORM F4HELP  TABLES  P_RETURN_TAB STRUCTURE DDSHRETVAL
+              USING   P_E_FIELDNAME
+                      P_INTERTAB
+                      P_INWA
+                      P_ROW.
+  DATA:RETFIELD    TYPE DFIES-FIELDNAME,
+       DYNPROFIELD TYPE DYNFNAM.
+  DATA: L_MATNR LIKE VBAP-MATNR,
+        L_CHARG LIKE MCH1-CHARG,
+        L_CLABS LIKE MARD-LABST.
+  DATA:BEGIN OF IT_MEINS OCCURS 0,
+         MEINS_IN TYPE  MARM-MEINH,
+         UMREZ    TYPE  MARM-UMREZ,
+         UMREN    TYPE  MARM-UMREN,
+         MATNR    TYPE  MARM-MATNR,
+         ATINN    TYPE  MARM-ATINN,
+         KBETR    TYPE  ZE_ZHXS,
+         ZKCYL    TYPE ZE_ZKCYL, "配送单位库存量
+         ZPSSL    TYPE ZTPP210-ZPSSL, "基本单位配送数量
+         ZPSSL_IN TYPE ZE_ZPSSL_IN, "配送单位配送数量
+       END OF IT_MEINS.
+  DATA:BEGIN OF IT_ATINN OCCURS 0,
+         ATINN TYPE MARM-ATINN,
+       END OF IT_ATINN.
+
+  FIELD-SYMBOLS:<F4_TAB1> TYPE STANDARD TABLE .
+  CLEAR:RETFIELD,DYNPROFIELD,P_RETURN_TAB[].
+  CONCATENATE P_INTERTAB '-' P_E_FIELDNAME INTO DYNPROFIELD.
+  RETFIELD = P_E_FIELDNAME.
+  CASE P_E_FIELDNAME.
+    WHEN 'MEINS_IN'.
+      CLEAR:L_MATNR,L_CHARG,L_CLABS.
+      READ TABLE IT_PSRW INDEX P_ROW.
+      IF SY-SUBRC EQ 0.
+        L_MATNR = IT_PSRW-MATNR.
+        L_CHARG = IT_PSRW-CHARG.
+        L_CLABS = IT_PSRW-ZSL.
+
+        SELECT MEINH AS MEINS_IN,UMREZ,UMREN,MATNR,ATINN
+          INTO CORRESPONDING FIELDS OF TABLE @IT_MEINS
+          FROM MARM
+          WHERE MATNR = @L_MATNR.
+        REFRESH IT_ATINN.
+        LOOP AT IT_MEINS.
+          CLEAR IT_ATINN.
+          IT_ATINN-ATINN = IT_MEINS-ATINN.
+          APPEND IT_ATINN.
+        ENDLOOP.
+        IF IT_ATINN[] IS NOT INITIAL.
+          SELECT MCH1~CHARG,
+                 MCH1~MATNR,
+                 AUSP~ATINN,
+                 AUSP~ATFLV
+            INTO TABLE @DATA(LT_AUSP)
+            FROM AUSP
+            JOIN MCH1 ON AUSP~OBJEK = MCH1~CUOBJ_BM AND KLART = '023'
+            FOR ALL ENTRIES IN @IT_ATINN
+            WHERE AUSP~ATINN = @IT_ATINN-ATINN
+            AND MCH1~CHARG = @L_CHARG.
+        ENDIF.
+        LOOP AT IT_MEINS.
+          READ TABLE LT_AUSP INTO DATA(LW_AUSP) WITH KEY MATNR = IT_MEINS-MATNR CHARG = L_CHARG ATINN = IT_MEINS-ATINN.
+          IF SY-SUBRC EQ 0.
+            IT_MEINS-KBETR = LW_AUSP-ATFLV.
+          ENDIF.
+          IF IT_MEINS-KBETR NE 0.
+            IT_MEINS-ZKCYL = L_CLABS * IT_MEINS-KBETR.
+          ELSE.
+            IF IT_MEINS-UMREZ NE 0.
+              IT_MEINS-KBETR = IT_MEINS-UMREN / IT_MEINS-UMREZ.
+              IT_MEINS-ZKCYL = L_CLABS * IT_MEINS-UMREN / IT_MEINS-UMREZ.
+            ENDIF.
+          ENDIF.
+          MODIFY IT_MEINS.
+        ENDLOOP.
+        DELETE IT_MEINS WHERE ZKCYL EQ 0.
+      ENDIF.
+      IF IT_MEINS[] IS NOT INITIAL.
+        ASSIGN IT_MEINS[] TO <F4_TAB1>.
+      ENDIF.
+  ENDCASE.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST' "调用函数
+    EXPORTING
+      RETFIELD         = RETFIELD  "搜索帮助内表要输出的的帮助字段名，注：要大写
+      DYNPPROG         = SY-REPID
+      DYNPNR           = SY-DYNNR
+      DYNPROFIELD      = DYNPROFIELD "屏幕字段
+      VALUE_ORG        = 'S'
+      CALLBACK_PROGRAM = SY-REPID
+      CALLBACK_FORM    = 'CB_MEINS'
+    TABLES
+      VALUE_TAB        = <F4_TAB1> "存储搜索帮助内容的内表
+      RETURN_TAB       = P_RETURN_TAB
+    EXCEPTIONS
+      PARAMETER_ERROR  = 1
+      NO_VALUES_FOUND  = 2
+      OTHERS           = 3.
+ENDFORM.
+FORM CB_MEINS TABLES RECORD_TAB STRUCTURE SEAHLPRES
+            CHANGING SHLP TYPE SHLP_DESCR_T
+                     CALLCONTROL LIKE DDSHF4CTRL.
+  DATA: INTERFACE LIKE LINE OF SHLP-INTERFACE.
+  READ TABLE SHLP-INTERFACE INTO INTERFACE INDEX 1.
+  INTERFACE-SHLPFIELD+4(1) = '6'.
+  INTERFACE-VALFIELD = 'IT_PSRW-KBETR'.
+  APPEND INTERFACE TO SHLP-INTERFACE.
+  INTERFACE-SHLPFIELD+4(1) = '7'.
+  INTERFACE-VALFIELD = 'IT_PSRW-ZKCYL'.
+  APPEND INTERFACE TO SHLP-INTERFACE.
+  INTERFACE-SHLPFIELD+4(1) = '8'.
+  INTERFACE-VALFIELD = 'IT_PSRW-ZPSSL'.
+  APPEND INTERFACE TO SHLP-INTERFACE.
+  INTERFACE-SHLPFIELD+4(1) = '9'.
+  INTERFACE-VALFIELD = 'IT_PSRW-ZPSSL_IN'.
+  APPEND INTERFACE TO SHLP-INTERFACE.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form mesylps
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM MESYLPS .
+  DATA:WERKS_BS TYPE CHAR20,
+       ZNUMBER  TYPE ZTNUMS_UPDATE-ZNUMBER10.
+  DATA:IT210 TYPE TABLE OF ZTPP210 WITH HEADER LINE.
+  DATA:ZPLDH TYPE ZTPP210-ZPLDH.
+  DATA:INTAB    TYPE TABLE OF ZSPP_222 WITH HEADER LINE,
+       IT_MCHAS TYPE TABLE OF MCHA WITH HEADER LINE,
+       IT_PCTXN TYPE TABLE OF ZSFMS_GETPCTX WITH HEADER LINE,
+       RTYPE    TYPE BAPI_MTYPE,
+       RTMSG    TYPE BAPI_MSG.
+  READ TABLE IT_PCTX INDEX TABIX.
+  IF IT_PCTX-ZPLDH IS NOT INITIAL.
+    MESSAGE I004 WITH '所选成品行已生成配料单号了'.
+    EXIT.
+  ENDIF.
+
+  LOOP AT IT_PSRW WHERE CHBOX = 'X'.
+    IF IT_PSRW-ZPSSL_IN LE 0.
+      MESSAGE S004 WITH '配送数量应该大于0' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+    IF IT_PSRW-ZPSSL_IN > IT_PSRW-ZKCYL.
+      MESSAGE S004 WITH '配送数量不能大于配送单位库存数量' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  ENDLOOP.
+  IF SY-SUBRC NE 0.
+    MESSAGE S022 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  "生配送任务流水号
+  WERKS_BS = 'PPPSRW' .
+  CALL FUNCTION 'ZNUMS_UPDATE'
+    EXPORTING
+      REPID    = SY-REPID
+*     TCODE    = SY-TCODE
+      WERKS    = WERKS_BS
+      FLAG     = 'D'
+*     INITNUM  =
+      WEISHU   = 4
+    IMPORTING
+      ZNUMBER  = ZNUMBER
+    EXCEPTIONS
+      OVERFLOW = 1
+      OTHERS   = 2.
+  CONCATENATE SY-DATUM+2(6) ZNUMBER INTO ZPLDH.
+
+  REFRESH IT210.
+  REFRESH :IT_MCHAS,INTAB.
+  LOOP AT IT_PSRW WHERE CHBOX = 'X'.
+    CLEAR:IT_MCHAS, IT210.
+    MOVE-CORRESPONDING IT_PSRW TO IT210.
+    IT210-AUFNR = IT_PCTX-AUFNR.
+    IT210-ZPCDH = IT_PCTX-ZPCDH.
+    IT210-ZPLDH = ZPLDH.
+    IT210-MATNRC = IT_PCTX-MATNR.
+    IT210-ZZL1 = IT_PCTX-ZZL1.
+    IT210-LGORT = P_LGORT.
+    IT210-ZDCKCD = IT_PSRW-LGORT.
+    APPEND IT210.
+*    it_psrw-zpldh = zpldh.
+*    MODIFY it_psrw TRANSPORTING zpldh.
+    CLEAR INTAB.
+    INTAB-WERKS  = IT_PSRW-WERKS.
+    INTAB-MATNR  = IT_PSRW-MATNR.
+    INTAB-AUFNR  = IT_PCTX-AUFNR.
+    INTAB-MENGE  = IT_PSRW-ZPSSL_IN.
+    INTAB-LGORT  = IT_PSRW-LGORT.
+    INTAB-CHARG  = IT_PSRW-CHARG.
+    INTAB-TULGO  = P_LGORT.
+    INTAB-MEINS  = IT_PSRW-MEINS_IN.
+    INTAB-RSNUM  = ZPLDH.
+    INTAB-XLOEK  = ''.
+    INTAB-ZUP    = ''.
+    INTAB-ZYLPC  = ''.
+    INTAB-ZYLZBH = ''.
+    INTAB-ZYLJH  = IT_PSRW-ZJH.
+    APPEND INTAB.
+    IT_MCHAS-MATNR = IT_PSRW-MATNR.
+    IT_MCHAS-CHARG = IT_PSRW-CHARG.
+    COLLECT IT_MCHAS.
+  ENDLOOP.
+  CALL FUNCTION 'ZFMS_05_GETPCTX'
+    EXPORTING
+      ATNAM  = 'Z01,Z02'
+    TABLES
+      INTAB  = IT_MCHAS
+      OUTTAB = IT_PCTXN.
+  SORT IT_PCTXN BY MATNR CHARG ATNAM.
+
+*  it_pctx-zpldh = zpldh.
+*  MODIFY it_pctx INDEX tabix.
+
+*  MODIFY ztpp210 FROM TABLE it210.
+*  COMMIT WORK.
+  LOOP AT INTAB.
+    READ TABLE IT_PCTXN WITH KEY MATNR = INTAB-MATNR
+                                 CHARG = INTAB-CHARG
+                                 ATNAM = 'Z01'
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      INTAB-Z01 = IT_PCTXN-ATWRT.
+    ENDIF.
+    READ TABLE IT_PCTXN WITH KEY MATNR = INTAB-MATNR
+                                 CHARG = INTAB-CHARG
+                                 ATNAM = 'Z02'
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      INTAB-Z02 = IT_PCTXN-ATWRT.
+    ENDIF.
+    MODIFY INTAB.
+  ENDLOOP.
+
+
+  CALL FUNCTION 'ZFM_GP_PP_MES_RESERVE'
+    IMPORTING
+      RTYPE  = RTYPE
+      RTMSG  = RTMSG
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+    TABLES
+      IN_TAB = INTAB.
+  " 推送成功才存表  27.12.2022 20:43:06 by kkw
+  IF RTYPE NE 'W'.
+    LOOP AT IT_PSRW WHERE CHBOX = 'X'.
+      IT_PSRW-ZPLDH = ZPLDH.
+      MODIFY IT_PSRW TRANSPORTING ZPLDH.
+    ENDLOOP.
+    IT_PCTX-ZPLDH = ZPLDH.
+    MODIFY IT_PCTX INDEX TABIX.
+    MODIFY ZTPP210 FROM TABLE IT210.
+    COMMIT WORK.
+  ENDIF.
+  MESSAGE I004 WITH RTMSG.
+
+ENDFORM.

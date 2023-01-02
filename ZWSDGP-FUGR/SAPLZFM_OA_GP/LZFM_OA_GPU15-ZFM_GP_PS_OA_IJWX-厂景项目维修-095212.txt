@@ -1,0 +1,32 @@
+FUNCTION zfm_gp_ps_oa_ijwx.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_HEAD STRUCTURE  ZTPS014A
+*"      IN_BODY STRUCTURE  ZTPS014B
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_PS_OA_IJWX'.  zfmdatasave2 'B'.  COMMIT WORK.
+
+  IF in_head[] IS INITIAL OR in_body[] IS INITIAL.
+    rtype = 'E'.
+    rtmsg = '输入信息为空'.
+    EXIT.
+  ENDIF.
+
+  MODIFY ztps014a FROM TABLE in_head.
+  MODIFY ztps014b FROM TABLE in_body.
+  IF sy-subrc = 0.
+    rtype = 'S'.
+    rtmsg = '更新成功'.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '更新失败'.
+  ENDIF.
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

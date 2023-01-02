@@ -1,0 +1,22 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGMEWS                                                   *
+*----------------------------------------------------------------------*
+* Dialogstruktur f¨¹r Anteils-/variable Mengeneinheiten
+TABLES: smeinh_ws,
+* DDIC-Texte
+        dd07t.
+
+* Constants for KZWSO/KZWSM
+CONSTANTS: kzwso_ws(2)             VALUE 'AB',  "Anteils-/variable ME
+           kzwso_a LIKE marm-kzwso VALUE 'A',   "Anteils-ME
+           kzwso_b LIKE marm-kzwso VALUE 'B'.   "variable ME
+
+* Dynpro f¨¹r Table Control
+DATA  dp_8030 LIKE sy-dynnr VALUE '8030'.
+* WA f¨¹r Table Control-Tabelle TC_ME_8030-COLS
+DATA  dp_8030_column TYPE scxtab_column.
+
+* field for F4 help: characteristic
+DATA: value_atnam LIKE api_ch_att-atnam.
+* field for F4 help: characteristic value
+DATA: value_atwrt LIKE api_value-atwrt.

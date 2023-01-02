@@ -1,0 +1,21 @@
+*&---------------------------------------------------------------------*
+*& °üº¬               ZRPP201_SCR
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*& ²éÑ¯ÆÁÄ»
+*&---------------------------------------------------------------------*
+
+*SELECTION-SCREEN FUNCTION KEY: 1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  PARAMETERS:
+      p_werks TYPE marc-werks OBLIGATORY.
+
+  SELECT-OPTIONS:
+      s_matkl FOR t023-matkl,
+
+      s_matnr FOR marc-matnr.
+
+SELECTION-SCREEN END OF BLOCK b1.

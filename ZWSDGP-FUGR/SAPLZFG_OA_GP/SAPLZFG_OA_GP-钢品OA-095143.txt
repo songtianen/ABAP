@@ -1,0 +1,15 @@
+*******************************************************************
+*   System-defined Include-files.                                 *
+*******************************************************************
+  INCLUDE LZFG_OA_GPTOP.                     " Global Declarations
+  INCLUDE LZFG_OA_GPUXX.                     " Function Modules
+
+*******************************************************************
+*   User-defined Include-files (if necessary).                    *
+*******************************************************************
+* INCLUDE LZFG_OA_GPF...                     " Subroutines
+* INCLUDE LZFG_OA_GPO...                     " PBO-Modules
+* INCLUDE LZFG_OA_GPI...                     " PAI-Modules
+* INCLUDE LZFG_OA_GPE...                     " Events
+* INCLUDE LZFG_OA_GPP...                     " Local class implement.
+* INCLUDE LZFG_OA_GPT99.                     " ABAP Unit tests

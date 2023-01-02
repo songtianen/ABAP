@@ -1,0 +1,50 @@
+************************************************************************
+* Include MMMGXV30 f¨¹r Festwerte   -  Message-Typen                    *
+************************************************************************
+* - Der Message-Typ MESSAGE_DUMMY ist f¨¹r die Meldungen in der Daten-
+*   ¨¹bernahme, die nicht unterdr¨¹ckt werden sollen - z.B. die Erfolgs-
+*   meldung beim Anlegen des Materials.
+************************************************************************
+
+CONSTANTS: NO_MESSAGE    LIKE RMMG08_012-MSGTYP VALUE ' ',
+           MESSAGE_ABEND LIKE RMMG08_012-MSGTYP VALUE 'A',
+           MESSAGE_ERROR LIKE RMMG08_012-MSGTYP VALUE 'E',
+           MESSAGE_WARN  LIKE RMMG08_012-MSGTYP VALUE 'W',
+           MESSAGE_INFO  LIKE RMMG08_012-MSGTYP VALUE 'I',
+           MESSAGE_SUCC  LIKE RMMG08_012-MSGTYP VALUE 'S',
+           MESSAGE_DUMMY LIKE RMMG08_012-MSGTYP VALUE 'D',
+* Header-Info f¨¹r Application Log ALE
+           MESSAGE_APPH  LIKE RMMG08_012-MSGTYP VALUE 'H'.  " //br40
+
+CONSTANTS: MESSAGE_ID_M3 LIKE T100-ARBGB VALUE 'M3',
+           MESSAGE_ID_MG LIKE T100-ARBGB VALUE 'MG',
+* AHE: 05.07.96 - A
+           MESSAGE_ID_MM LIKE T100-ARBGB VALUE 'MM',
+* AHE: 05.07.96 - E
+           MESSAGE_ID_MH LIKE SY-MSGID VALUE 'MH',     "mk/4.0A
+           MESSAGE_ID_MK LIKE SY-MSGID VALUE 'MK',     "//br40
+           MESSAGE_ID_8Z LIKE SY-MSGID VALUE '8Z',     "ch/4.5b
+           MESSAGE_ID_C1 LIKE SY-MSGID VALUE 'C1'.     "note
+
+CONSTANTS: MESSAGE_NO_LVORM LIKE SY-MSGNO VALUE '008',
+           MESSAGE_NO_LVRES LIKE SY-MSGNO VALUE '253',
+           MESSAGE_NO_ERWEI LIKE SY-MSGNO VALUE '364',
+           MESSAGE_NO_MANBR LIKE SY-MSGNO VALUE '301',
+           MESSAGE_NO_BEGRU LIKE SY-MSGNO VALUE '312',
+           MESSAGE_NO_XCHPF LIKE SY-MSGNO VALUE '530',
+* AHE: 07.04.99 - A (4.6a)
+           MESSAGE_NO_EXTWG LIKE SY-MSGNO VALUE '189',
+* AHE: 07.04.99 - E
+           MESSAGE_NO_KUNDE LIKE SY-MSGNO VALUE '358', "JB/17.03.99/4.6A
+           MESSAGE_NO_LAUFZ LIKE SY-MSGNO VALUE '359', "JB/19.03.99/4.6A
+           MESSAGE_NO_NOVTL LIKE SY-MSGNO VALUE '362', "JB/30.04.99/4.6A
+           MESSAGE_NO_NOWRK LIKE SY-MSGNO VALUE '361', "JB/30.04.99/4.6A
+           MESSAGE_VC_PUREX LIKE SY-MSGNO VALUE '326', "CH/01.07.99/4.6B
+           MESSAGE_VC_PROEX LIKE SY-MSGNO VALUE '327'. "CH/01.07.99/4.6B
+* jw/4.6B-A: Anzahl der MABW-S#tze, ab der eine Meldung ausgegeben wird
+CONSTANTS: MAX_NEW_MABW TYPE I VALUE 10,        "neue MABW-S#tze
+           MAX_MABW_MAT TYPE I VALUE 10,        "bestehende MABW-S#tze
+                                                "auf Mandantenebene
+           MAX_MABW_WERK TYPE I VALUE 10.       "bestehende MABW-S#tze
+                                                "auf Werksebene
+* jw/4.6B-E

@@ -1,0 +1,27 @@
+FUNCTION zfm_gp_sd_app_picurl.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZTSD20X
+*"----------------------------------------------------------------------
+
+
+  IF in_tab[] IS INITIAL.
+    rtype = 'S'.
+    rtmsg = '输入为空'.
+    EXIT.
+  ENDIF.
+
+  MODIFY ztsd20x FROM TABLE in_tab.
+  IF sy-subrc = 0.
+    rtype = 'S'.
+    rtmsg = '更新成功'.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '更新失败'.
+  ENDIF.
+
+ENDFUNCTION.

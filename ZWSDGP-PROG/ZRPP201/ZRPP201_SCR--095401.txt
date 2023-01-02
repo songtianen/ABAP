@@ -1,0 +1,113 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZRPP201_SCR
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*& 查询屏幕
+*&---------------------------------------------------------------------*
+
+*SELECTION-SCREEN FUNCTION KEY: 1.
+
+*查询条件
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-018.
+  PARAMETERS p_werks TYPE t001w-werks OBLIGATORY.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+  SELECTION-SCREEN:
+
+  PUSHBUTTON /1(55) button1 USER-COMMAND tcode1,
+  SKIP,
+  PUSHBUTTON /1(55) button2 USER-COMMAND tcode2,
+  SKIP.
+*  PUSHBUTTON /1(55) button3 USER-COMMAND tcode3,
+*  SKIP.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF SCREEN 1001
+  AS WINDOW
+  TITLE TEXT-001.
+
+  SELECTION-SCREEN:
+
+  PUSHBUTTON /1(55) button4 USER-COMMAND tcode4,
+  SKIP,
+  PUSHBUTTON /1(55) button5 USER-COMMAND tcode5,
+  SKIP,
+  PUSHBUTTON /1(55) button15 USER-COMMAND tcode15,
+  SKIP,
+  PUSHBUTTON /1(55) button6 USER-COMMAND tcode6,
+  SKIP,
+  PUSHBUTTON /1(55) button7 USER-COMMAND tcode7,
+  SKIP,
+
+  PUSHBUTTON /1(55) button32 USER-COMMAND tcode32,
+  SKIP,
+
+  PUSHBUTTON /1(55) button8 USER-COMMAND tcode8,
+  SKIP,
+  PUSHBUTTON /1(55) button9 USER-COMMAND tcode9,
+  SKIP,
+  PUSHBUTTON /1(55) button10 USER-COMMAND tcode10,
+  SKIP,
+  PUSHBUTTON /1(55) button11 USER-COMMAND tcode11,
+  SKIP,
+  PUSHBUTTON /1(55) button12 USER-COMMAND tcode12,
+  SKIP,
+  PUSHBUTTON /1(55) button13 USER-COMMAND tcode13,
+  SKIP,
+  PUSHBUTTON /1(55) button14 USER-COMMAND tcode14,
+  SKIP,
+  PUSHBUTTON /1(55) button16 USER-COMMAND tcode16,
+  SKIP,
+  PUSHBUTTON /1(55) button17 USER-COMMAND tcode17,
+  SKIP,
+
+  PUSHBUTTON /1(55) button18 USER-COMMAND tcode18,
+  SKIP,
+
+  PUSHBUTTON /1(55) button19 USER-COMMAND tcode19,
+  SKIP,
+
+  PUSHBUTTON /1(55) button20 USER-COMMAND tcode20,
+  SKIP,
+
+  PUSHBUTTON /1(55) button22 USER-COMMAND tcode22,
+  SKIP,
+
+  PUSHBUTTON /1(55) button21 USER-COMMAND tcode21,
+  SKIP.
+
+SELECTION-SCREEN END OF SCREEN 1001.
+
+
+SELECTION-SCREEN BEGIN OF SCREEN 1002
+  AS WINDOW
+  TITLE TEXT-001.
+
+  SELECTION-SCREEN:
+
+  PUSHBUTTON /1(55) button30 USER-COMMAND tcode4,
+  SKIP,
+  PUSHBUTTON /1(55) button31 USER-COMMAND tcode19,
+  SKIP,
+
+  PUSHBUTTON /1(55) button23 USER-COMMAND tcode23,
+  SKIP,
+  PUSHBUTTON /1(55) button24 USER-COMMAND tcode24,
+  SKIP,
+  PUSHBUTTON /1(55) button25 USER-COMMAND tcode25,
+  SKIP,
+  PUSHBUTTON /1(55) button26 USER-COMMAND tcode26,
+  SKIP,
+  PUSHBUTTON /1(55) button27 USER-COMMAND tcode27,
+  SKIP,
+  PUSHBUTTON /1(55) button28 USER-COMMAND tcode28,
+  SKIP,
+  PUSHBUTTON /1(55) button29 USER-COMMAND tcode29,
+  SKIP,
+  PUSHBUTTON /1(55) button33 USER-COMMAND tcode33,
+  SKIP.
+SELECTION-SCREEN END OF SCREEN 1002.

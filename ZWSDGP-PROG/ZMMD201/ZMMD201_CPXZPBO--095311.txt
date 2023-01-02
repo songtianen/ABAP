@@ -1,0 +1,24 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201_CPXZPBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZCPXZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zcpxz_con_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it316 LINES zcpxz_con-lines.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZCPXZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zcpxz_con_get_lines OUTPUT.
+  g_zcpxz_con_lines = sy-loopc.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0600 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0600 OUTPUT.
+  SET PF-STATUS 'STA600'.
+  SET TITLEBAR 'TIT600' WITH '³ÉÆ·Ñ¡Ôñ'.
+ENDMODULE.

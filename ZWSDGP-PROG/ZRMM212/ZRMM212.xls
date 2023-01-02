@@ -1,0 +1,15 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRMM212	ZSFILE_MANAGE_01	通用结构	结构				
+ZRMM212	ZSMM201	到货单	结构				
+ZRMM212	ZSMM202	长文本	结构				
+ZRMM212	ZSMM206	接口结构	结构				
+ZRMM212	ZSPP_006	接口结构	结构				
+ZRMM212	ZSPUBS_0001	日期时间通用结构	结构				
+ZRMM212	ZSPUBS_0002	创建日期结构	结构				
+ZRMM212	ZSSD225	合同时序表输入结构	结构				
+ZRMM212	ZTFILE_MANAGE_01	FTP文件管理	透明表				
+ZRMM212	ZTMM201	到货通知抬头	透明表				
+ZRMM212	ZTMM202	到货通知行项目	透明表				
+ZRMM212	ZTMM205	来料加工抬头表	透明表				
+ZRMM212	ZTMM206	来料加工明细表	透明表				
+ZRMM212	ZTMM206A	来料加工部分冲销	透明表				

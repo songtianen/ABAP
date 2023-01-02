@@ -1,0 +1,768 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD204_FORM
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module STATUS_0900 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0900 OUTPUT.
+  DATA rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  APPEND 'MES' TO rt_extab.
+  IF r_cj = 'X'.
+    APPEND 'SHOWPLD' TO rt_extab.
+    SET TITLEBAR 'TIT900' WITH '创建配送任务'.
+  ELSEIF r_xg = 'X'.
+    APPEND 'XZYL' TO rt_extab.
+    APPEND 'SX' TO rt_extab.
+    SET TITLEBAR 'TIT900' WITH '修改配送任务'.
+  ENDIF.
+  SET PF-STATUS 'STA900' EXCLUDING rt_extab.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0900 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'XZYL'."选择原料信息
+      REFRESH it_psrw.
+      CLEAR tabix.
+      PERFORM xzyl.
+*    WHEN 'MES'.
+*      PERFORM mes."推送mes原料信息
+    WHEN 'SX'.
+      PERFORM clear_pld."清除配料单号重新推送mes
+    WHEN 'CRTDBD'."生成调拨单
+      IF r_cj = 'X'.
+        PERFORM crtdbd_rcj.
+      ELSEIF r_xg = 'X'.
+        PERFORM crtdbd_rwh.
+      ENDIF.
+
+    WHEN 'SHOWPLD'."展示配料单
+      PERFORM showpld.
+    WHEN 'PRTPLNUM'.
+      CLEAR num.
+      LOOP AT it_pctx WHERE chbox = 'X'.
+        num = num + 1.
+      ENDLOOP.
+      IF num NE 1.
+        MESSAGE s004 WITH '请选择一行打印计划单即可' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      READ TABLE it_pctx WITH KEY chbox = 'X' .
+      PERFORM jhddy IN PROGRAM ztest_jhddy USING it_pctx-plnum.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module OUT_SCREEN OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE out_screen OUTPUT.
+**  IF r_cj = 'X'.
+  IF alv_container IS INITIAL.
+    CREATE OBJECT alv_container
+      EXPORTING
+        repid     = sy-repid
+        dynnr     = sy-dynnr
+        side      = cl_gui_docking_container=>dock_at_top
+        extension = 500.
+    "创建spillter container对象
+    CREATE OBJECT alv_splitter_container
+      EXPORTING
+        parent  = alv_container
+        rows    = 2
+        columns = 1.
+    "调用cl_splitter_container对象方法，获取容器
+    CALL METHOD alv_splitter_container->get_container
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = ref_container.
+
+    CALL METHOD alv_splitter_container->get_container
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = ref_container2.
+
+    CREATE OBJECT alv_grid1
+      EXPORTING
+        i_parent = ref_container.
+    CREATE OBJECT alv_grid2
+      EXPORTING
+        i_parent = ref_container2.
+    CALL METHOD cl_gui_cfw=>dispatch.
+
+    CREATE OBJECT lcl_event_receiver_1.
+    SET HANDLER lcl_event_receiver_1->handle_double_click_1 FOR alv_grid1.
+    SET HANDLER lcl_event_receiver_1->handle_data_changed_1 FOR alv_grid1.
+    SET HANDLER lcl_event_receiver_1->handle_hotspot_click_1 FOR alv_grid1."热点点击
+    SET HANDLER lcl_event_receiver_1->handle_toolbar_1 FOR alv_grid1."增加按钮
+    SET HANDLER lcl_event_receiver_1->handle_user_command_1 FOR alv_grid1."按钮响应
+    SET HANDLER lcl_event_receiver_1->handle_on_f4_1 FOR alv_grid1."搜索帮助
+*    alv_grid_jgmx->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+    alv_grid1->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_enter )."mc_evt_enter
+    alv_grid1->register_delayed_event( i_event_id = cl_gui_alv_grid=>mc_evt_delayed_change_select )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    CREATE OBJECT lcl_event_receiver_2.
+    SET HANDLER lcl_event_receiver_2->handle_double_click_2 FOR alv_grid2.
+    SET HANDLER lcl_event_receiver_2->handle_data_changed_2 FOR alv_grid2.
+    SET HANDLER lcl_event_receiver_2->handle_hotspot_click_2 FOR alv_grid2."热点点击
+    SET HANDLER lcl_event_receiver_2->handle_toolbar_2 FOR alv_grid2."增加按钮
+    SET HANDLER lcl_event_receiver_2->handle_user_command_2 FOR alv_grid2."按钮响应
+    SET HANDLER lcl_event_receiver_2->handle_on_f4_2 FOR alv_grid2."搜索帮助
+*    alv_grid_jgmx->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+    alv_grid2->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_enter )."mc_evt_enter
+    alv_grid2->register_delayed_event( i_event_id = cl_gui_alv_grid=>mc_evt_delayed_change_select )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM: callalvn1,callalvn2.
+  ELSE.
+    PERFORM: callalvn1,callalvn2.
+  ENDIF.
+  PERFORM:frm_refresh_alv_1,frm_refresh_alv_2.
+**  ELSEIF r_xg = 'X'.
+**    IF alv_container2 IS INITIAL.
+**      CREATE OBJECT alv_container2
+**        EXPORTING
+**          repid     = sy-repid
+**          dynnr     = sy-dynnr
+**          side      = cl_gui_docking_container=>dock_at_top
+**          extension = 600.
+**      CREATE OBJECT alv_grid2
+**        EXPORTING
+**          i_parent = alv_container2.
+**      CALL METHOD cl_gui_cfw=>dispatch.
+**      CREATE OBJECT lcl_event_receiver_2.
+**      SET HANDLER lcl_event_receiver_2->handle_double_click_2 FOR alv_grid2.
+**      SET HANDLER lcl_event_receiver_2->handle_data_changed_2 FOR alv_grid2.
+**      SET HANDLER lcl_event_receiver_2->handle_hotspot_click_2 FOR alv_grid2."热点点击
+**      SET HANDLER lcl_event_receiver_2->handle_toolbar_2 FOR alv_grid2."增加按钮
+**      SET HANDLER lcl_event_receiver_2->handle_user_command_2 FOR alv_grid2."按钮响应
+**      SET HANDLER lcl_event_receiver_2->handle_on_f4_2 FOR alv_grid2."搜索帮助
+***    alv_grid_jgmx->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+**      alv_grid2->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_enter )."mc_evt_enter
+**      alv_grid2->register_delayed_event( i_event_id = cl_gui_alv_grid=>mc_evt_delayed_change_select )."MC_EVT_DELAYED_CHANGE_SELECT
+**      PERFORM: callalvn2.
+**    ELSE.
+**      PERFORM: callalvn2.
+**    ENDIF.
+**    PERFORM:frm_refresh_alv_2.
+**  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form callalvn
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM callalvn1 .
+  CLEAR:it_fieldcat_1.
+  PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_1 USING:
+'CHBOX' '选择' '' ''.
+  IF r_cj = 'X'.
+    PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_1 USING:
+'ZPLDH  '   '配料单号  '  'ZTPP210' 'ZPLDH',
+'ZDBDH  '   '调拨单号  '  'ZTPP210' 'ZDBDH',
+'ZBZ  '   '备注      '  'ZTPP210' 'ZBZ'.
+  ENDIF.
+  PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_1 USING:
+'NAME1  '   '客户名称      '  'ZTPP_205' 'NAME1',
+'POST1  '   '项目名称      '  'ZTPP_205' 'POST1',
+'ZKS  '   '工单块数      '  'ZTPP_206' 'PSKS',
+'GSMNG  '   '工单数量      '  'ZTPP_206' 'PSMNG',
+'WERKS   '   '工厂          '     ''  '',
+'AUFNR   '   '工单          '     ''  '',
+'ZPCDH   '   '排产单        '     ''  '',
+'ARBPL   '   '工作中心        '     ''  '',
+'KTEXT   '   '工作中心描述        '     ''  '',
+'MATNR   '   '物料编码      '     ''  '',
+'ZZL1    '   '品名          '     ''  '',
+'ZBX     '   '版型          '     ''  '',
+'ZBK     '   '板宽          '     ''  '',
+'ZBH     '   '板厚          '     ''  '',
+'ZWBXZ   '   '外板形状      '     ''  '',
+'ZWBFM   '   '外板覆膜      '     ''  '',
+'ZNBXZ   '   '内板形状      '     ''  '',
+'ZNBFM   '   '内板覆膜      '     ''  '',
+'ZXCCD   '   '芯材产地      '     ''  '',
+'ZXCZL   '   '芯材种类      '     ''  '',
+'ZXCRZ   '   '芯材容重      '     ''  '',
+'ZRSDJ   '   '燃烧等级      '     ''  '',
+'ZNBCZ   '   '内板材质      '     ''  '',
+'ZNBHD   '   '内板厚度      '     ''  '',
+'ZNBYS   '   '内板颜色      '     ''  '',
+'ZNBDC   '   '内板镀层      '     ''  '',
+'ZNBTC   '   '内板涂层      '     ''  '',
+'ZWBCZ   '   '外板材质      '     ''  '',
+'ZWBHD   '   '外板厚度      '     ''  '',
+'ZWBYS   '   '外板颜色      '     ''  '',
+'ZWBQD   '   '外板强度      '     ''  '',
+'ZWBDC   '   '外板镀层      '     ''  '',
+'ZWBTC   '   '外板涂层      '     ''  '',
+'ZNBCD   '   '内板产地      '     ''  '',
+'ZWBCD   '   '外板产地      '     ''  '',
+'ZNBQD   '   '内板强度      '     ''  '',
+'ZJQJYQ  '   '加强筋要求    '     ''  '',
+'ZFBYQ   '   '封边要求      '     ''  '',
+'ZLGLX   '   '龙骨类型      '     ''  '',
+'ZSCHD   '   '实测厚度      '     ''  '',
+'ZLFWGG  '   '铝蜂窝规格    '     ''  '',
+'ZSGBPP  '   '石膏板品牌    '     ''  '',
+'ZSGBFSYQ'   '石膏板防水要求'     ''  '',
+'ZHF     '   '是否带回风功能'     ''  '',
+'ZGNXP   '   '功能选配      '     ''  '',
+'ZCZ  '   '材质        '  '' '',
+'ZHD  '   '厚度(mm)    '  '' '',
+'ZYS'     '颜色     '     '' '',
+'ZCZQD'   '材质强度    '  '' '',
+'ZDCHL'   '镀层含量    '  '' '',
+'ZTCZL'   '涂层种类    '  '' '',
+'ZDC'     '镀层     '     '' '',
+'ZXHGG'   '型号规格    '  '' '',
+'ZYCZK'   '原材展宽(mm)'  '' '',
+'ZCD  '   '产地        '  '' '',
+'ZBMCL'   '表面处理    '  '' '',
+'ZDETAILNAME' '折弯名称   '  'ZTPP_205A'  'ZDETAILNAME',
+'ZCHANDI    ' '产地       '  'ZTPP_205A'  'ZCHANDI    ',
+'ZCOLOR     ' '颜色       '  'ZTPP_205A'  'ZCOLOR     ',
+'ZZHANKUAN  ' '展宽       '  'ZTPP_205A'  'ZZHANKUAN  ',
+'ZZS        ' '折数       '  'ZTPP_205A'  'ZZS        ',
+'ZMB        ' '抿边       '  'ZTPP_205A'  'ZMB        ',
+'ZDKSL      ' '打孔(开洞) '  'ZTPP_205A'  'ZDKSL      ',
+'ZZWHD      ' '折弯厚度   '  'ZTPP_205A'  'ZZWHD      '.
+
+  LOOP AT it_fieldcat_1 INTO wa_fieldcat_1.
+    CASE wa_fieldcat_1-fieldname.
+      WHEN 'DEL' OR 'ZJBS'.
+        wa_fieldcat_1-checkbox   = 'X'.
+      WHEN 'CHBOX' OR 'CHBOX1'.
+        wa_fieldcat_1-hotspot   = 'X'.
+        wa_fieldcat_1-edit   = 'X'.
+        wa_fieldcat_1-checkbox   = 'X'.
+        wa_fieldcat_1-fix_column   = 'X'.
+      WHEN 'ZMF' OR 'ZSFHG'.
+        wa_fieldcat_1-checkbox   = 'X'.
+*      WHEN 'MATNR'.
+*        wa_fieldcat_1-f4availabl = 'X'.
+      WHEN 'ZPLDH' OR 'ZDBDH'.
+        wa_fieldcat_1-outputlen   = 13.
+      WHEN 'ZBZ'.
+        wa_fieldcat_1-outputlen   = 40.
+        wa_fieldcat_1-edit   = 'X'.
+    ENDCASE.
+    CASE wa_fieldcat_1-fieldname.
+      WHEN 'ZBZ'.
+        wa_fieldcat_1-outputlen = 40.
+      WHEN OTHERS.
+        wa_fieldcat_1-outputlen = 13.
+    ENDCASE.
+    MODIFY it_fieldcat_1 FROM wa_fieldcat_1.
+  ENDLOOP.
+*设置搜索帮助
+  CLEAR:it_f4_1.
+  LOOP AT it_fieldcat_1 INTO wa_fieldcat_1 WHERE f4availabl = 'X'
+                                         AND edit = 'X'
+                                         .
+    CLEAR:wa_f4_1.
+    wa_f4_1-fieldname = wa_fieldcat_1-fieldname.
+    wa_f4_1-register = 'X'.
+    wa_f4_1-getbefore = space.
+    wa_f4_1-chngeafter = 'X'.
+    INSERT wa_f4_1 INTO TABLE it_f4_1.
+  ENDLOOP.
+  CALL METHOD alv_grid1->register_f4_for_fields
+    EXPORTING
+      it_f4 = it_f4_1.
+
+  PERFORM callalv
+  TABLES it_pctx USING alv_grid1 it_fieldcat_1 'P204'.
+ENDFORM.
+FORM callalvn2 .
+  CLEAR it_fieldcat_2.
+  PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_2 USING:
+'CHBOX' '选择' '' '',
+'ZPLDH  '   '配料单号  '  'ZTPP210' 'ZPLDH',
+'ZDBDH  '   '调拨单号  '  'ZTPP210' 'ZDBDH'.
+  IF r_xg = 'X'.
+    PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_2 USING:
+  'AUFNR   '   '工单          '     ''  '',
+  'ZPCDH   '   '排产单        '     ''  '',
+  'MATNRC  '   '成品物料编码  '     ''  '',
+  'ZZL1    '   '品名          '     ''  ''.
+  ENDIF.
+  PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_2 USING:
+'WERKS  '   '工厂      '  '' '',
+'LGORT  '   '库存地    '  '' '',
+'LGOBE  '   '库存地名称'  '' '',
+'MATNR  '   '物料编码  '  'MARA' 'MATNR',
+'CHARG  '   '批次      '  '' '',
+'MEINS_IN'   '配送单位'  'ZTPP210' 'MEINS',
+'ZPSSL_IN'   '配送数量'  'ZTPP210' 'ZPSSL',
+'KBETR'   '转换系数'  'ZTMM221' 'KBETR',
+'ZPSSL  '   '基本单位配送数量'  'ZTPP210' 'ZPSSL',
+'ZKCYL  '   '配送单位库存数量  '  'ZTPP210' 'ZPSSL',
+'MEINS  '   '基本单位  '  '' '',
+'ZSL    '   '基本单位库存数量'      'ZTPP210' 'ZPSSL',
+'CLABS  '   '非限制数量'  'MCHB' 'CLABS',
+'PRLAB  '   '项目数量  '  'MSPR' 'PRLAB',
+'MATKL  '   '物料组    '  '' '',
+*'WGBEZ  '   '物料组描述'  '' '',
+'ZZL1   '   '品名      '  '' '',
+'WLCMS  '   '物料长描述'  '' '',
+'ZJH    '   '卷号      '  '' '',
+'ZZYH   '   '资源号    '  '' '',
+'ZCD    '   '产地      '  '' '',
+'POSID  '   '项目号    '  '' '',
+'POST1  '   '项目号描述'  '' '',
+'VBELN  '   '销售订单号'  '' '',
+'POSNR  '   '行号      '  '' '',
+'Z00  '   '配送单位    '  '' '',
+'Z01  '   '自编号      '  '' '',
+'ZKL  '   '库龄      '  '' ''.
+  LOOP AT it_fieldcat_2 INTO wa_fieldcat_2.
+    CASE wa_fieldcat_2-fieldname.
+      WHEN 'DEL' OR 'ZJBS'.
+        wa_fieldcat_2-checkbox   = 'X'.
+      WHEN 'CHBOX' OR 'CHBOX1'.
+        wa_fieldcat_2-hotspot   = 'X'.
+        wa_fieldcat_2-edit   = 'X'.
+        wa_fieldcat_2-checkbox   = 'X'.
+        wa_fieldcat_2-fix_column   = 'X'.
+      WHEN 'ZMF' OR 'ZSFHG'.
+        wa_fieldcat_2-checkbox   = 'X'.
+      WHEN 'MEINS_IN'.
+        wa_fieldcat_2-f4availabl = 'X'.
+        wa_fieldcat_2-edit = 'X'.
+      WHEN 'ZPSSL_IN'.
+        wa_fieldcat_2-edit = 'X'.
+      WHEN 'ZPLDH' OR 'ZDBDH'.
+        wa_fieldcat_2-outputlen   = '13'.
+      WHEN 'ZBZ'.
+        wa_fieldcat_2-outputlen   = 200.
+    ENDCASE.
+
+    MODIFY it_fieldcat_2 FROM wa_fieldcat_2.
+  ENDLOOP.
+*设置搜索帮助
+  CLEAR:it_f4_2.
+  LOOP AT it_fieldcat_2 INTO wa_fieldcat_2 WHERE f4availabl = 'X'
+*                                         AND edit = 'X'
+                                         .
+    CLEAR:wa_f4_2.
+    wa_f4_2-fieldname = wa_fieldcat_2-fieldname.
+    wa_f4_2-register = 'X'.
+    wa_f4_2-getbefore = space.
+    wa_f4_2-chngeafter = 'X'.
+    INSERT wa_f4_2 INTO TABLE it_f4_2.
+  ENDLOOP.
+  CALL METHOD alv_grid2->register_f4_for_fields
+    EXPORTING
+      it_f4 = it_f4_2.
+
+  PERFORM callalv(zpubform)
+  TABLES it_psrw USING alv_grid2 it_fieldcat_2 'P203'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form xzyl
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM xzyl ."选择原料信息
+  DATA:num TYPE i.
+  LOOP AT  it_pctx WHERE chbox = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s024 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  READ TABLE it_pctx WITH KEY chbox = 'X'.
+  tabix = sy-tabix.
+  "取该工单对应项目下的所有物料
+  SELECT
+    z5~posid,
+    z5~post1,
+    z5~vbeln,
+    z5~posnr,
+    mspr~matnr,
+    mspr~werks,
+    mspr~lgort,
+    mspr~charg,
+    mspr~prlab,
+    t001l~lgobe,
+    makt~maktx,
+    mara~matkl,
+    mara~zzl1,
+    mara~meins
+
+    INTO CORRESPONDING FIELDS OF TABLE @it_psrw
+    FROM ztpp_205 AS z5
+    JOIN mspr ON z5~projn = mspr~pspnr
+    JOIN t001l ON mspr~werks = t001l~werks AND mspr~lgort = t001l~lgort
+    JOIN makt ON mspr~matnr = makt~matnr AND makt~spras = @sy-langu
+    JOIN mara ON mspr~matnr = mara~matnr
+    JOIN prps ON z5~projn = prps~pspnr
+    WHERE z5~projn = @it_pctx-projn
+    AND z5~werks = @it_pctx-werks
+    AND z5~zpcdh = @it_pctx-zpcdh
+    AND mspr~lgort = @p_zdckcd
+    AND mspr~prlab > 0
+    .
+  "追加钢卷信息
+  SELECT
+    mchb~matnr,
+    mchb~werks,
+    mchb~lgort,
+    mchb~charg,
+    mchb~clabs,
+    t001l~lgobe,
+    makt~maktx,
+    mara~matkl,
+    mara~zzl1,
+    mara~meins
+    APPENDING CORRESPONDING FIELDS OF TABLE @it_psrw
+    FROM mchb
+    JOIN t001l ON mchb~werks = t001l~werks AND mchb~lgort = t001l~lgort
+    JOIN makt ON mchb~matnr = makt~matnr AND makt~spras = @sy-langu
+    JOIN mara ON mchb~matnr = mara~matnr
+    WHERE mchb~werks = @p_werks
+    AND mchb~lgort = @p_zdckcd
+    AND mchb~clabs > 0
+  .
+
+  IF it_psrw[] IS INITIAL.
+    MESSAGE s025 WITH it_psrw-post1.
+    EXIT.
+  ENDIF.
+  REFRESH:intab,it_matnr.
+  LOOP AT it_psrw.
+    CLEAR:intab,it_matnr.
+    intab-werks = it_psrw-werks.
+    intab-matnr = it_psrw-matnr.
+    intab-charg = it_psrw-charg.
+    it_matnr-matnr = it_psrw-matnr.
+    COLLECT:intab,it_matnr.
+  ENDLOOP.
+  CALL FUNCTION 'ZFMS_05_GETPCTX'
+    EXPORTING
+      atnam  = 'Z01,Z00,Z02,Z03,Z05,Z38'
+    TABLES
+      intab  = intab
+      outtab = outtab
+    EXCEPTIONS
+      OTHERS = 1.
+*  IF it_matnr IS NOT INITIAL.
+*    SELECT matnr,meinh
+*      INTO TABLE @DATA(lt_marm)
+*      FROM marm FOR ALL ENTRIES IN @it_matnr
+*      WHERE marm~matnr = @it_matnr-matnr.
+*    SORT lt_marm BY matnr.
+*  ENDIF.
+
+
+  LOOP AT it_psrw.
+    READ TABLE outtab WITH KEY matnr = it_psrw-matnr charg = it_psrw-charg atnam = 'Z02' BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_psrw-zjh = outtab-atwrt.
+    ENDIF.
+    READ TABLE outtab WITH KEY matnr = it_psrw-matnr charg = it_psrw-charg atnam = 'Z03' BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_psrw-zzyh = outtab-atwrt.
+    ENDIF.
+    READ TABLE outtab WITH KEY matnr = it_psrw-matnr charg = it_psrw-charg atnam = 'Z05' BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_psrw-zcd = outtab-atwrt.
+    ENDIF.
+    READ TABLE outtab WITH KEY matnr = it_psrw-matnr charg = it_psrw-charg atnam = 'Z00' BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_psrw-z00 = outtab-atwrt.
+    ENDIF.
+    READ TABLE outtab WITH KEY matnr = it_psrw-matnr charg = it_psrw-charg atnam = 'Z01' BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_psrw-z01 = outtab-atwrt.
+    ENDIF.
+    READ TABLE outtab WITH KEY matnr = it_psrw-matnr charg = it_psrw-charg atnam = 'Z38' BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_psrw-z38 = outtab-atwrt.
+      it_psrw-z38_dats = it_psrw-z38.
+      it_psrw-zkl = sy-datum - it_psrw-z38_dats.
+    ENDIF.
+*    READ TABLE lt_marm INTO DATA(lw_marm) WITH KEY matnr = it_psrw-matnr BINARY SEARCH.
+*    IF sy-subrc EQ 0.
+*      it_psrw-meins = lw_marm-meinh.
+*    ENDIF.
+    CLEAR wa_key.
+    wa_key-tdobject   = 'MATERIAL'.
+    wa_key-tdname     = it_psrw-matnr.
+    wa_key-tdid       = 'GRUN'.
+    wa_key-tdspras    = sy-langu.
+    CLEAR:t_text[].
+    IMPORT tline = t_text[] FROM DATABASE stxl(tx) ID wa_key.
+    LOOP AT t_text.
+      CONCATENATE t_text-tdline it_psrw-wlcms INTO it_psrw-wlcms.
+    ENDLOOP   .
+    IF it_psrw-prlab IS NOT INITIAL.
+      it_psrw-zsl = it_psrw-prlab.
+    ELSEIF it_psrw-clabs IS NOT INITIAL.
+      it_psrw-zsl = it_psrw-clabs.
+    ENDIF.
+    it_psrw-zkcyl = it_psrw-zsl.
+
+    " 赋值配送单位和系数初始值  27.12.2022 23:19:22 by kkw
+    it_psrw-kbetr = 1.
+    it_psrw-meins_in = it_psrw-meins.
+    MODIFY it_psrw.
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form mes
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM mes .
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form clear_pld
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM clear_pld .
+  DATA:num TYPE i.
+  LOOP AT it_pctx WHERE chbox = 'X' AND zpldh IS NOT INITIAL.
+    num = num + 1.
+  ENDLOOP.
+
+  IF num NE 1.
+    MESSAGE i004 WITH '请选中一行有配料单号的明细'.
+    EXIT.
+  ENDIF.
+  READ TABLE it_pctx WITH KEY chbox = 'X'.
+  DATA(tabix) = sy-tabix.
+  it_pctx-zpldh = ''.
+  it_pctx-zdbdh = ''.
+  MODIFY it_pctx INDEX tabix TRANSPORTING zpldh zdbdh.
+  LOOP AT it_psrw WHERE zpldh = it_pctx-zpldh.
+    it_psrw-zpldh = ''.
+    it_psrw-zdbdh = ''.
+    MODIFY it_psrw TRANSPORTING zpldh zdbdh.
+  ENDLOOP.
+  MESSAGE i004 WITH '刷新成功,历史配料单号可到查询界面查看'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form crtdbd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM crtdbd .
+  DATA:BEGIN OF it_dbpt OCCURS 0,
+         zdcgc  TYPE werks_d,
+         zdckcd TYPE lgort_d,
+         werks  TYPE werks_d,
+         lgort  TYPE lgort_d,
+         matnr  TYPE matnr,
+         charg  TYPE charg_d,
+         sobkz  TYPE sobkz,
+         zpssl  TYPE ztpp210-zpssl,
+         meins  TYPE ztpp210-meins,
+         kbetr  TYPE ztpp210-kbetr,
+       END OF it_dbpt.
+  DATA:BEGIN OF it_pldh OCCURS 0,
+         zpldh TYPE ztpp210-zpldh,
+       END OF it_pldh.
+  REFRESH: it_dbpt,it_pldh.
+  LOOP AT it_pctx WHERE chbox = 'X' AND zpldh IS NOT INITIAL.
+    CLEAR:it_pldh.
+    it_pldh-zpldh = it_pctx-zpldh.
+    COLLECT it_pldh.
+  ENDLOOP.
+  DELETE it_pldh WHERE zpldh IS INITIAL.
+  IF it_pldh[] IS INITIAL.
+    MESSAGE i004 WITH '请选择有配料单号的行生成调拨单'.
+    EXIT.
+  ENDIF.
+  SELECT * INTO TABLE @DATA(lt210)
+    FROM ztpp210
+    FOR ALL ENTRIES IN @it_pldh
+    WHERE ztpp210~zpldh = @it_pldh-zpldh.
+
+  LOOP AT lt210 INTO DATA(lw210).
+    CLEAR it_dbpt.
+    it_dbpt-zdcgc   = lw210-werks.
+    it_dbpt-zdckcd  = lw210-zdckcd.
+    it_dbpt-werks   = lw210-werks.
+    it_dbpt-lgort   = lw210-lgort.
+    it_dbpt-matnr   = lw210-matnr.
+    it_dbpt-charg   = lw210-charg.
+    IF lw210-prlab > 0.
+      it_dbpt-sobkz   = 'Q'.
+    ENDIF.
+    it_dbpt-zpssl   = lw210-zpssl_in.
+    it_dbpt-meins   = lw210-meins_in.
+    it_dbpt-kbetr   = lw210-kbetr.
+    APPEND it_dbpt.
+  ENDLOOP.
+  EXPORT it_dbpt[] TO MEMORY ID 'P1'.
+
+  SUBMIT zmmd201  WITH p_zdcgc   = lw210-werks
+                  WITH p_zdckcd  = lw210-zdckcd
+                  WITH p_lgort   = lw210-lgort
+                  WITH p_zdblx   = 'CNDB'
+                  WITH p_cj     = 'X'
+                  WITH p_wh     = abap_false
+                  WITH p_cx     = abap_false
+                  WITH p_submit = 'X'
+                  AND RETURN.
+
+  "获取调拨单号
+  IMPORT lt_dbdh FROM MEMORY ID 'M1'.
+  DELETE lt_dbdh WHERE zdbdh IS INITIAL.
+  IF lt_dbdh IS NOT INITIAL.
+    READ TABLE lt_dbdh INTO ls_dbdh INDEX 1.
+    LOOP AT it_pctx ASSIGNING FIELD-SYMBOL(<fa_get>) WHERE chbox = 'X'.
+      <fa_get>-zdbdh = ls_dbdh-zdbdh.
+      UPDATE ztpp210 SET zdbdh = ls_dbdh-zdbdh zbz = it_pctx-zbz WHERE zpldh = it_psrw-zpldh.
+    ENDLOOP.
+    COMMIT WORK.
+    LOOP AT it_psrw ASSIGNING FIELD-SYMBOL(<fa_get1>) WHERE chbox = 'X'.
+      <fa_get1>-zdbdh = ls_dbdh-zdbdh.
+    ENDLOOP.
+    PERFORM: frm_refresh_alv_1,frm_refresh_alv_2.
+    MESSAGE s035 WITH ls_dbdh-zdbdh.
+  ENDIF.
+ENDFORM.
+
+
+FORM callalv TABLES intab
+              USING p_alvgrid TYPE REF TO cl_gui_alv_grid
+                   p_fieldcat TYPE lvc_t_fcat
+                   p_handle.
+  DATA: wa_layoutc TYPE lvc_s_layo,
+        it_ef1c    TYPE ui_functions,
+        variantc   TYPE disvariant,
+        wa_fieldc  TYPE lvc_s_fcat.
+  CLEAR: it_ef1c[],wa_layoutc,variantc,wa_fieldc.
+*LAYOUT
+*  WA_LAYOUTC-CWIDTH_OPT = 'X'.
+  wa_layoutc-zebra      = 'X'.
+  LOOP AT p_fieldcat INTO wa_fieldc WHERE fieldname = 'CELLSTYLE'.
+    wa_layoutc-stylefname = 'CELLSTYLE'.
+    EXIT.
+  ENDLOOP.
+*布局
+  variantc-report = sy-repid.
+  variantc-handle = p_handle.
+
+  APPEND cl_gui_alv_grid=>mc_fc_loc_copy_row      TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_delete_row    TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_append_row    TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_insert_row    TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_move_row      TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_cut           TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_paste         TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_paste_new_row TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_copy          TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_loc_undo          TO it_ef1c.
+  APPEND cl_gui_alv_grid=>mc_fc_refresh          TO it_ef1c.
+
+*ALV展示
+  CALL METHOD p_alvgrid->set_table_for_first_display
+    EXPORTING
+      i_save                        = 'A'
+      is_layout                     = wa_layoutc
+      is_variant                    = variantc
+      it_toolbar_excluding          = it_ef1c[]
+    CHANGING
+      it_outtab                     = intab[]
+      it_fieldcatalog               = p_fieldcat
+    EXCEPTIONS
+      invalid_parameter_combination = 1
+      program_error                 = 2
+      too_many_lines                = 3
+      OTHERS                        = 4.
+  IF sy-subrc NE 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form showpld
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM showpld .
+  DATA:num TYPE i.
+  LOOP AT it_pctx WHERE chbox = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选择一行数据' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_psrw
+    FROM ztpp210 WHERE aufnr = it_pctx-aufnr.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form crtdbd_rcj
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM crtdbd_rcj .
+  LOOP AT it_pctx WHERE chbox = 'X' AND zdbdh IS NOT INITIAL.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc EQ 0.
+    MESSAGE i004 WITH '不要选中已生成调拨单的配料单.'.
+    EXIT.
+  ENDIF.
+  PERFORM crtdbd.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form crtdbd_rwh
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM crtdbd_rwh .
+
+ENDFORM.

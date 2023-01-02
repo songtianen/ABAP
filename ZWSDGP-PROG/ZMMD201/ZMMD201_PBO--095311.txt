@@ -1,0 +1,84 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZDBDWH_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zdbdwh_con_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_221 LINES zdbdwh_con-lines.
+  DATA:ls_col LIKE LINE OF zdbdwh_con-cols.
+  LOOP AT zdbdwh_con-cols INTO ls_col.
+    CASE ls_col-screen-group1.
+      WHEN 'HC'.
+        IF wa_220-zdblx NE 'GYSHC'.
+          ls_col-invisible = 1.
+        ELSE.
+          ls_col-invisible = 0.
+        ENDIF.
+      WHEN 'QT'.
+        IF wa_220-zdblx = 'GYSHC'.
+          ls_col-invisible = 1.
+        ELSE.
+          ls_col-invisible = 0.
+        ENDIF.
+      WHEN 'IV'.
+        ls_col-invisible = 1.
+    ENDCASE.
+    IF p_cx = 'X'.
+      ls_col-screen-input = 0.
+*    ELSEIF ( p_cj = 'X' OR p_wh = 'X' ) AND sy-tcode NE 'ZMM210D'.
+    ELSEIF  p_cj = 'X' AND f_code NE 'ZMM210D'.
+      IF ls_col-screen-name EQ 'IT_221-ZDBSL_IN' OR ls_col-screen-name EQ 'IT_221-LGORT' OR ls_col-screen-name EQ 'IT_221-ZXMH' OR ls_col-screen-name EQ 'IT_221-ZXSDDH'
+        OR ls_col-screen-name EQ 'IT_221-MEINS_IN' OR ls_col-screen-name EQ 'IT_221-ZBZ'.
+        ls_col-screen-input = 1.
+      ENDIF.
+    ELSEIF p_wh = 'X' AND f_code NE 'ZMM210D'.
+      IF ls_col-screen-name EQ 'IT_221-ZDBSL_IN' OR ls_col-screen-name EQ 'IT_221-LGORT' OR ls_col-screen-name EQ 'IT_221-ZXMH' OR ls_col-screen-name EQ 'IT_221-ZXSDDH'
+         OR ls_col-screen-name EQ 'IT_221-ZBZ'..
+        ls_col-screen-input = 1.
+      ENDIF.
+
+    ENDIF.
+*    case sy-tcode.
+    CASE f_code.
+      WHEN 'ZMM210A' OR 'ZSD051' OR 'ZMM214' OR 'ZMM210B' OR 'ZMM210C'.
+      WHEN 'ZMM210D'.
+        CASE wa_220-zdblx.
+          WHEN 'KGCDB' OR 'CNDB'.
+            IF ls_col-screen-name EQ 'IT_221-LGORT' OR ls_col-screen-name EQ 'IT_221-ZZBH'
+                      OR ls_col-screen-name EQ 'IT_221-ZKW' OR ls_col-screen-name EQ 'IT_221-ZXMH'.
+              ls_col-screen-input = 1.
+            ENDIF.
+          WHEN 'GYSHC'.
+            IF ls_col-screen-name EQ 'IT_221-LGORT' OR ls_col-screen-name EQ 'IT_221-ZZBH' OR ls_col-screen-name EQ 'IT_221-ZJH'
+        OR ls_col-screen-name EQ 'IT_221-ZKW' OR ls_col-screen-name EQ 'IT_221-ZXMH' OR ls_col-screen-name EQ 'IT_221-CHARG'.
+              ls_col-screen-input = 1.
+            ENDIF.
+        ENDCASE.
+
+    ENDCASE.
+    MODIFY zdbdwh_con-cols  FROM ls_col INDEX sy-tabix.
+  ENDLOOP.
+
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZDBDWH_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zdbdwh_con_get_lines OUTPUT.
+  g_zdbdwh_con_lines = sy-loopc.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module MDL_CHANGE_INPUT OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE mdl_change_input OUTPUT.
+  IF it_221-cpxz = 'X'.
+    LOOP AT SCREEN .
+      IF screen-name = 'IT_221-MEINS_IN' .
+        screen-input = 0 .   "ø… ‰»Î◊¥Ã¨
+        MODIFY SCREEN .
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDMODULE.

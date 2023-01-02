@@ -1,0 +1,97 @@
+*------------------------------------------------------------------
+*Module MBEW-VJBKL.
+*
+*Pruefung der Bewertungsklasse des Vorjahres
+*
+* - einheitliche Bewertung
+*   Bewertungsklasse mu# gef¨¹llt sein
+*   weitere Pr¨¹fung siehe Routine Bewertungsklasse
+* - getrennte Bewertung
+*  - Bewertungsklasse mu# in folgenden F#llen gef¨¹llt sein:
+*    - Bewertungsart ist gef¨¹llt
+*    - Bewertungsart ungef¨¹llt, aber die automatische Anlage von
+*      Bewertungss#tzen ist erlaubt f¨¹r den Bewertungstyp
+*      (in diesem Fall wird bei der automatischen Anlage in der
+*      Bestandsf¨¹hrung die Bewertungsklasse des Kopfsatzes in den
+*      Detailsatz ¨¹bernommen)
+*    In diesen F#llen wird die Bewertungsklasse durch die Routine
+*    Bewertungsklasse gepr¨¹ft (anderenfalls keine weiteren
+*    Pr¨¹fungen, da nicht f¨¹r Kontenfindung eingesetzt)
+*    Ab 3.0 erfolgen diese weiteren Pr¨¹fungen nur noch, wenn eine
+*    bereits zugeordnete Bewertungsklasse ge#ndert wird. (K11K093523)
+*------------------------------------------------------------------
+MODULE MBEW-VJBKL.
+
+  CHECK BILDFLAG = SPACE.
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+*mk/3.1G Pr¨¹fung nur sinnvoll, wenn MBEW ¨¹berhaupt aktiv ist
+* CHECK AKTVSTATUS CA STATUS_B.                "ch zu 3.1I ->H: 81698
+
+* Pr¨¹fstatus zur¨¹cksetzen, falls relevante Felder ge#ndert wurden.
+  IF ( RMMZU-PS_BKLAS = X ) AND
+     ( ( UMBEW-VJBKL NE MBEW-VJBKL ) OR
+* Note 316843
+       ( UMBEW-BWTTY NE MBEW-BWTTY ) OR
+* Da im Retail von einem auf einen anderen Betrieb bzw. von der VZ-Sicht
+* auf die Filialsicht gewechselt werden kann, m¨¹ssen auch die
+* Schl¨¹sselfelder in den Vergleich miteinbezogen werden, weil ansonsten
+* die Pr¨¹fung f¨¹r den anderen Betrieb nicht mehr l#uft, wenn die Pr¨¹fung
+* schon f¨¹r den vorangegangen Betrieb gelaufen ist und die Daten bei
+* beiden Betrieben den gleichen Stand haben.
+       ( UMBEW-MATNR NE MBEW-MATNR ) OR
+       ( UMBEW-BWKEY NE MBEW-BWKEY ) OR
+       ( UMBEW-BWTAR NE MBEW-BWTAR ) ).
+    CLEAR RMMZU-PS_BKLAS.
+  ENDIF.
+* Wenn Pr¨¹fstatus nicht gesetzt, Pr¨¹fbaustein aufrufen.
+* Bem.: Der Pr¨¹fstatus bezieht sich nur auf Warnungen.
+  IF RMMZU-PS_BKLAS IS INITIAL.
+
+    CALL FUNCTION 'MBEW_VJBKL'
+         EXPORTING
+              WMBEW_VJBKL     = MBEW-VJBKL
+              WMBEW_VJSAL     = MBEW-VJSAL
+              WMBEW_BWKEY     = MBEW-BWKEY
+              WMBEW_BWTAR     = MBEW-BWTAR
+              WMBEW_BWTTY     = MBEW-BWTTY
+              LMBEW_VJBKL     = LMBEW-VJBKL
+              OMBEW_VJBKL     = *MBEW-VJBKL
+              WMBEW_MATNR     = RMMG1-MATNR         "ch/40C ->H: 102653
+              WMARA_ATTYP     = MARA-ATTYP          "ch/40C
+              WRMMG1_MTART    = RMMG1-MTART
+              P_AKTYP         = T130M-AKTYP
+              P_PS_BKLAS      = RMMZU-PS_BKLAS
+              OMBEW_MLAST     = *MBEW-MLAST      "1388546
+         IMPORTING
+              WMBEW_VJBKL     = MBEW-VJBKL
+              P_PS_BKLAS      = RMMZU-PS_BKLAS
+         EXCEPTIONS
+              NO_VJBKL        = 01
+              ERROR_BKLAS     = 02.
+
+* Errormeldung als S-Meldung ausgeben
+    IF SY-SUBRC NE 0.
+      BILDFLAG = X.
+      RMMZU-CURS_FELD = 'MBEW-VJBKL'.
+      MESSAGE ID SY-MSGID TYPE 'S' NUMBER SY-MSGNO
+         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+* Warnung als S-Meldung ausgeben, da mehrere Felder betroffen sind.
+    IF RMMZU-PS_BKLAS NE SPACE.
+      BILDFLAG = X.
+      RMMZU-FLG_FLISTE = 'X'.                               "note 865189
+      RMMZU-CURS_FELD = 'MBEW-VJBKL'.
+      MESSAGE S368.
+* Aktuellen Stand UMXXX aktualisieren, da bei Bildwiederholung am Ende
+* des Bildes keine Aktualisierung von UMXXX erfolgt.
+      UMBEW = MBEW.
+    ENDIF.
+  ELSE.
+* Wenn Pr¨¹fstatus = X und Felder wurden nicht ge#ndert, Pr¨¹fung durch-
+* f¨¹hren, keine Warnung ausgeben (im Pr¨¹fbaustein wird nach der Warnung
+* aufgesetzt). Da nach der Warnung keine Aktionen im Pr¨¹fbaustein statt-
+* finden, kann dieser Zweig hier entfallen.
+  ENDIF.
+
+ENDMODULE.

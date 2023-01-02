@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*&  Include           WSTR_DEFINITION                                  *
+*&---------------------------------------------------------------------*
+CLASS CL_EXITHANDLER DEFINITION LOAD.
+DATA:
+  user_exit_eine           TYPE REF TO if_ex_eine_db_strg, "#EC NEEDED
+  user_exit_lfm2           TYPE REF TO if_ex_lfm2_db_strg, "#EC NEEDED
+  user_exit_refsite        TYPE REF TO IF_EX_REFERENCE_SITE.
+                                                           "#EC NEEDED

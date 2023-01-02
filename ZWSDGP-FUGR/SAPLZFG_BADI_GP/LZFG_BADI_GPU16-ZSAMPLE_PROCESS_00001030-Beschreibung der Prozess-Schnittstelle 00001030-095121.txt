@@ -1,0 +1,31 @@
+FUNCTION ZSAMPLE_PROCESS_00001030.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(I_MHNK) LIKE  MHNK STRUCTURE  MHNK
+*"  CHANGING
+*"     VALUE(C_FORM_TYPE) LIKE  T047E-FORM_TYPE
+*"     VALUE(C_FORNR) LIKE  T047E-FORNR
+*"     VALUE(C_FORNR_LONG) LIKE  T047E-FORNR_LONG
+*"     VALUE(C_LISTN) LIKE  T047E-LISTN
+*"     VALUE(C_XAVIS) LIKE  T047E-XAVIS
+*"     VALUE(C_ZLSCH) LIKE  T047E-ZLSCH
+*"----------------------------------------------------------------------
+
+*  CALL FUNCTION 'ZFM_ENH_FI_DOCU_02'
+*    EXPORTING
+*      I_MHNK       = I_MHNK
+*    CHANGING
+*      C_FORM_TYPE  = C_FORM_TYPE
+*      C_FORNR      = C_FORNR
+*      C_FORNR_LONG = C_FORNR_LONG
+*      C_LISTN      = C_LISTN
+*      C_XAVIS      = C_XAVIS
+*      C_ZLSCH      = C_ZLSCH.
+
+
+
+
+
+
+ENDFUNCTION.

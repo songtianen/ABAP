@@ -1,0 +1,13 @@
+*----------------------------------------------------------------------*
+*        Module ANZEIGEN_TAXIM OUTPUT                                  *
+* Anzeigen des Steuerindikators f¨¹r den Einkauf.                       *
+*----------------------------------------------------------------------*
+MODULE ANZEIGEN_TAXIM OUTPUT.
+
+  READ TABLE STEUMMTAB INDEX 1.
+  CHECK SY-SUBRC = 0.
+
+*-------Aufbereiten Daten f¨¹r Dynpro-----------------------------------
+  MOVE STEUMMTAB TO MG03STEUMM.
+
+ENDMODULE.                             " ANZEIGEN_TAXIM  OUTPUT

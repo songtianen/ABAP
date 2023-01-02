@@ -1,0 +1,6 @@
+*&---------------------------------------------------------------------*
+*& Include ZPS208_1_TOP
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'TC01' ITSELF
+CONTROLS: tc01 TYPE TABLEVIEW USING SCREEN 0100.

@@ -1,0 +1,22 @@
+*----------------------------------------------------------------------*
+***INCLUDE LMGD1O22.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module MDACH_VISIBILITY OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE mdach_visibility OUTPUT.
+
+  "MDACH field is not supported in cloud.
+  IF cl_cos_utilities=>is_cloud( ) = abap_true.
+    LOOP AT SCREEN.
+       CHECK screen-name = 'MARC-MDACH'.
+       screen-invisible = 1.
+       screen-active    = 0.
+       screen-input     = 0.
+       MODIFY SCREEN.
+     ENDLOOP.
+  ENDIF.
+
+ENDMODULE.

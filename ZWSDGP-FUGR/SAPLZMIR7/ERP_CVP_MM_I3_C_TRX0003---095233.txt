@@ -1,0 +1,37 @@
+*&---------------------------------------------------------------------*
+*&  Include           ERP_CVP_MM_I3_C_TRX0003
+*&---------------------------------------------------------------------*
+* Called from UIs for material maintenance MM0x
+* Check if manufacturer is blocked. If it is blocked and user doesn't
+* have auditor authorization, clear manufacturer field and display
+* message. User can then assign new manufacturer or save without
+* manufacturer in change mode. For auditor, display message only.
+
+  DATA:
+    gv_mfrnr TYPE mfrnr.
+
+  CALL FUNCTION 'LFA1_SINGLE_READ'
+    EXPORTING
+      lfa1_lifnr = mara-mfrnr
+    IMPORTING
+      wlfa1      = ls_lfa1
+    EXCEPTIONS
+      OTHERS     = 0.
+  IF ls_lfa1-cvp_xblck EQ abap_true.
+*   Manufacturer is blocked, no auditor authorization: clear value
+    IF mara-mfrnr NE gv_mfrnr.
+      MESSAGE w703(mm).
+    ENDIF.
+    CLEAR:
+      mara-mfrnr,
+      mara-mfrpn,
+      lmara-mfrnr,
+      lmara-mfrpn.
+  ELSEIF ls_lfa1-cvp_xblck EQ cvp_cl_block_and_mask=>gc_authorized.
+*   Auditor: Display warning message
+    IF mara-mfrnr NE gv_mfrnr.
+      MESSAGE w707(mm) WITH mara-mfrnr.
+    ENDIF.
+  ENDIF.
+
+  gv_mfrnr = mara-mfrnr.

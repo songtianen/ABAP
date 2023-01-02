@@ -1,0 +1,1039 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD201_CLASS
+*&---------------------------------------------------------------------*
+DATA:ALV_GRID_JSXD      TYPE REF TO CL_GUI_ALV_GRID, "容器的实例
+     ALV_CONTAINER_JSXD TYPE REF TO CL_GUI_CUSTOM_CONTAINER, "ALV container容器 需要画屏幕容器
+     ALV_GRID_JGMX      TYPE REF TO CL_GUI_ALV_GRID,
+     ALV_CONTAINER_JGMX TYPE REF TO CL_GUI_CUSTOM_CONTAINER,
+     ALV_GRID_PCD       TYPE REF TO CL_GUI_ALV_GRID,
+     ALV_CONTAINER_PCD  TYPE REF TO CL_GUI_CUSTOM_CONTAINER.
+CLASS ALV_EVENT DEFINITION.
+  PUBLIC SECTION.
+    "技术详单事件
+    METHODS HANDLE_DATA_CHANGED_JSXD FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID"数据改动事件
+      IMPORTING ER_DATA_CHANGED E_ONF4 E_ONF4_BEFORE E_ONF4_AFTER E_UCOMM.
+    METHODS HANDLE_DOUBLE_CLICK_JSXD FOR EVENT DOUBLE_CLICK  OF CL_GUI_ALV_GRID"双击事件
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+    METHODS HANDLE_ON_F4_JSXD FOR EVENT ONF4 OF CL_GUI_ALV_GRID"F4
+      IMPORTING E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA ET_BAD_CELLS E_DISPLAY.
+    METHODS HANDLE_USER_COMMAND_JSXD FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID"用户按钮事件
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK_JSXD FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID"热区单击事件
+      IMPORTING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    METHODS HANDLE_TOOLBAR_JSXD FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID"工具条事件
+      IMPORTING E_OBJECT E_INTERACTIVE.
+    "加工明细事件
+    METHODS HANDLE_DATA_CHANGED_JGMX FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID"数据改动事件
+      IMPORTING ER_DATA_CHANGED E_ONF4 E_ONF4_BEFORE E_ONF4_AFTER E_UCOMM.
+    METHODS HANDLE_DOUBLE_CLICK_JGMX FOR EVENT DOUBLE_CLICK  OF CL_GUI_ALV_GRID"双击事件
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+    METHODS HANDLE_ON_F4_JGMX FOR EVENT ONF4 OF CL_GUI_ALV_GRID"F4
+      IMPORTING E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA ET_BAD_CELLS E_DISPLAY.
+    METHODS HANDLE_USER_COMMAND_JGMX FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID"用户按钮事件
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK_JGMX FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID"热区单击事件
+      IMPORTING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    METHODS HANDLE_TOOLBAR_JGMX FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID"工具条事件
+      IMPORTING E_OBJECT E_INTERACTIVE.
+    "排产单事件
+    METHODS HANDLE_DATA_CHANGED_PCD FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID"数据改动事件
+      IMPORTING ER_DATA_CHANGED E_ONF4 E_ONF4_BEFORE E_ONF4_AFTER E_UCOMM.
+    METHODS HANDLE_DOUBLE_CLICK_PCD FOR EVENT DOUBLE_CLICK  OF CL_GUI_ALV_GRID"双击事件
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+    METHODS HANDLE_ON_F4_PCD FOR EVENT ONF4 OF CL_GUI_ALV_GRID"F4
+      IMPORTING E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA ET_BAD_CELLS E_DISPLAY.
+    METHODS HANDLE_USER_COMMAND_PCD FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID"用户按钮事件
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK_PCD FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID"热区单击事件
+      IMPORTING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    METHODS HANDLE_TOOLBAR_PCD FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID"工具条事件
+      IMPORTING E_OBJECT E_INTERACTIVE.
+    "冲孔事件
+    METHODS HANDLE_DATA_CHANGED_CK FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID"数据改动事件
+      IMPORTING ER_DATA_CHANGED E_ONF4 E_ONF4_BEFORE E_ONF4_AFTER E_UCOMM.
+    METHODS HANDLE_DOUBLE_CLICK_CK FOR EVENT DOUBLE_CLICK  OF CL_GUI_ALV_GRID"双击事件
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+    METHODS HANDLE_ON_F4_CK FOR EVENT ONF4 OF CL_GUI_ALV_GRID"F4
+      IMPORTING E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA ET_BAD_CELLS E_DISPLAY.
+    METHODS HANDLE_USER_COMMAND_CK FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID"用户按钮事件
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK_CK FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID"热区单击事件
+      IMPORTING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    METHODS HANDLE_TOOLBAR_CK FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID"工具条事件
+      IMPORTING E_OBJECT E_INTERACTIVE.
+ENDCLASS.
+
+CLASS ALV_EVENT IMPLEMENTATION.
+  "技术详单
+  METHOD HANDLE_DATA_CHANGED_JSXD.        "数据改动事件
+    PERFORM FRM_HANDLE_DATA_CHANGED_JSXD USING ER_DATA_CHANGED.
+  ENDMETHOD.
+  METHOD HANDLE_DOUBLE_CLICK_JSXD .      "双击事件
+    PERFORM FRM_DOUBLE_CLICK_JSXD USING E_ROW E_COLUMN ES_ROW_NO.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD HANDLE_ON_F4_JSXD.              "F4
+    PERFORM FRM_ALV_ON_F4_JSXD USING  E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA E_DISPLAY.
+    ER_EVENT_DATA->M_EVENT_HANDLED = 'X' .
+  ENDMETHOD.
+  METHOD HANDLE_USER_COMMAND_JSXD.       "用户按钮事件
+    PERFORM FRM_HANDLE_USER_COMMAND_JSXD USING E_UCOMM.
+    PERFORM FRM_REFRESH_ALV_JSXD.
+  ENDMETHOD.
+  METHOD HANDLE_HOTSPOT_CLICK_JSXD.       "热区单击事件
+    PERFORM HANDLE_HOTSPOT_CLICK_JSXD USING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    PERFORM FRM_REFRESH_ALV_JSXD.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  HANDLE_TOOLBAR_JSXD.            "工具条事件
+    PERFORM FRM_HANDLE_TOOLBAR_JSXD USING E_OBJECT E_INTERACTIVE."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+  "加工明细
+  METHOD HANDLE_DATA_CHANGED_JGMX.        "数据改动事件
+    PERFORM FRM_HANDLE_DATA_CHANGED_JGMX USING ER_DATA_CHANGED.
+  ENDMETHOD.
+  METHOD HANDLE_DOUBLE_CLICK_JGMX .      "双击事件
+    PERFORM FRM_DOUBLE_CLICK_JGMX USING E_ROW E_COLUMN ES_ROW_NO.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD HANDLE_ON_F4_JGMX.              "F4
+    PERFORM FRM_ALV_ON_F4_JGMX USING  E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA E_DISPLAY.
+    ER_EVENT_DATA->M_EVENT_HANDLED = 'X' .
+  ENDMETHOD.
+  METHOD HANDLE_USER_COMMAND_JGMX.       "用户按钮事件
+    PERFORM FRM_HANDLE_USER_COMMAND_JGMX USING E_UCOMM.
+    PERFORM FRM_REFRESH_ALV_JGMX.
+  ENDMETHOD.
+  METHOD HANDLE_HOTSPOT_CLICK_JGMX.       "热区单击事件
+    PERFORM HANDLE_HOTSPOT_CLICK_JGMX USING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    PERFORM FRM_REFRESH_ALV_JGMX.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  HANDLE_TOOLBAR_JGMX.            "工具条事件
+    PERFORM FRM_HANDLE_TOOLBAR_JGMX USING E_OBJECT E_INTERACTIVE."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+  "排产单
+  METHOD HANDLE_DATA_CHANGED_PCD.        "数据改动事件
+    PERFORM FRM_HANDLE_DATA_CHANGED_PCD USING ER_DATA_CHANGED.
+    PERFORM FRM_REFRESH_ALV_PCD.
+  ENDMETHOD.
+  METHOD HANDLE_DOUBLE_CLICK_PCD .      "双击事件
+    PERFORM FRM_DOUBLE_CLICK_PCD USING E_ROW E_COLUMN ES_ROW_NO.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD HANDLE_ON_F4_PCD.              "F4
+    DATA:WA_PCD LIKE LINE OF IT_PCD .
+*    PERFORM FRM_ALV_ON_F4_PCD USING  E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA E_DISPLAY.
+    ER_EVENT_DATA->M_EVENT_HANDLED = 'X'.
+    ASSIGN ER_EVENT_DATA->M_DATA->* TO <IT_MODI>.
+    READ TABLE IT_PCD INTO WA_PCD INDEX ES_ROW_NO-ROW_ID.
+    CHECK SY-SUBRC = 0.
+    CASE E_FIELDNAME.
+      WHEN ''.
+        PERFORM F4HELP TABLES RETURN_TAB USING  E_FIELDNAME 'IT_PCD' WA_PCD.
+    ENDCASE.
+    IF RETURN_TAB[] IS NOT INITIAL.
+*      READ TABLE RETURN_TAB INTO WA_RETURN_TAB INDEX 1.
+*      IF SY-SUBRC EQ 0.
+*        WA_MODI-ROW_ID = ES_ROW_NO-ROW_ID.
+*        WA_MODI-FIELDNAME = E_FIELDNAME.
+*        WA_MODI-VALUE = WA_RETURN_TAB-FIELDVAL.
+*        APPEND WA_MODI TO <IT_MODI>.
+*      ENDIF.
+    ENDIF.
+    PERFORM REFRESHALV.
+  ENDMETHOD.
+  METHOD HANDLE_USER_COMMAND_PCD.       "用户按钮事件
+    PERFORM FRM_HANDLE_USER_COMMAND_PCD USING E_UCOMM.
+    PERFORM FRM_REFRESH_ALV_PCD.
+  ENDMETHOD.
+  METHOD HANDLE_HOTSPOT_CLICK_PCD.       "热区单击事件
+    PERFORM HANDLE_HOTSPOT_CLICK_PCD USING E_ROW_ID E_COLUMN_ID ES_ROW_NO.
+    PERFORM FRM_REFRESH_ALV_PCD.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  HANDLE_TOOLBAR_PCD.            "工具条事件
+    PERFORM FRM_HANDLE_TOOLBAR_PCD USING E_OBJECT E_INTERACTIVE."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+*冲孔
+  METHOD HANDLE_DATA_CHANGED_CK.        "数据改动事件
+    PERFORM FRM_HANDLE_DATA_CHANGED_CK USING ER_DATA_CHANGED.
+    PERFORM REFRESHALV.
+  ENDMETHOD.
+  METHOD HANDLE_DOUBLE_CLICK_CK .      "双击事件
+*    PERFORM FRM_DOUBLE_CLICK_PCD USING E_ROW E_COLUMN ES_ROW_NO.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD HANDLE_ON_F4_CK.              "F4
+*    PERFORM FRM_ALV_ON_F4_PCD USING  E_FIELDNAME E_FIELDVALUE ES_ROW_NO ER_EVENT_DATA E_DISPLAY.
+*    ER_EVENT_DATA->M_EVENT_HANDLED = 'X' .
+  ENDMETHOD.
+  METHOD HANDLE_USER_COMMAND_CK.       "用户按钮事件
+    PERFORM FRM_HANDLE_USER_COMMAND_CK USING E_UCOMM.
+    PERFORM REFRESHALV..
+  ENDMETHOD.
+  METHOD HANDLE_HOTSPOT_CLICK_CK.       "热区单击事件
+    FIELD-SYMBOLS:<FSE> TYPE ANY,
+                  <WAE> TYPE ANY.
+    CONDENSE E_ROW_ID     NO-GAPS.
+    CONDENSE E_COLUMN_ID  NO-GAPS.
+    READ TABLE IT_CKFY ASSIGNING <WAE> INDEX E_ROW_ID.
+    ASSIGN COMPONENT E_COLUMN_ID OF STRUCTURE <WAE> TO <FSE>.
+    CHECK SY-SUBRC = 0.
+    IF <FSE> = 'X'.
+      <FSE> = ''.
+    ELSE.
+      <FSE> = 'X'.
+    ENDIF.
+    PERFORM REFRESHALV.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  HANDLE_TOOLBAR_CK.            "工具条事件
+    DATA: LS_TOOLBAR TYPE STB_BUTTON,
+          DISABLED   TYPE CHAR1,
+          DISABLED1  TYPE CHAR1.
+    CLEAR: LS_TOOLBAR,DISABLED,DISABLED1.
+*除了客服修改及创建，其他人不允许编辑
+    CASE SY-TCODE.
+      WHEN TCODE5.
+      WHEN TCODE1.
+        IF P_XG = 'X'.
+        ELSE.
+          DISABLED = 'X'.
+        ENDIF.
+      WHEN OTHERS.
+        DISABLED = 'X'.
+    ENDCASE.
+    IF DISABLED NE 'X'.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-FUNCTION = 'ADD'.    " 功能码
+      LS_TOOLBAR-ICON = '@17@'.  " 图标名称
+      LS_TOOLBAR-QUICKINFO = '添加明细'.   " 图标的提示信息
+      LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+      LS_TOOLBAR-DISABLED = DISABLED.        " X表示灰色，不可用
+      LS_TOOLBAR-TEXT = '添加明细'.       " 按钮上显示的文本
+      APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-FUNCTION = 'DEL'.    " 功能码
+      LS_TOOLBAR-ICON = '@18@'.  " 图标名称
+      LS_TOOLBAR-QUICKINFO = '删除明细'.   " 图标的提示信息
+      LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+      LS_TOOLBAR-DISABLED = DISABLED.        " X表示灰色，不可用
+      LS_TOOLBAR-TEXT = '删除明细'.       " 按钮上显示的文本
+      APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    ENDIF.
+
+    CLEAR: LS_TOOLBAR.
+    LS_TOOLBAR-FUNCTION = 'ALL'.    " 功能码
+    LS_TOOLBAR-ICON = '@4B@'.  " 图标名称
+    LS_TOOLBAR-QUICKINFO = '全选'.   " 图标的提示信息
+    LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+    LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+    LS_TOOLBAR-TEXT = '全选'.       " 按钮上显示的文本
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    CLEAR: LS_TOOLBAR.
+    LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+    LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+    LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+    LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+    LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+    LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+ENDCLASS.
+DATA:LCL_EVENT_RECEIVER_JSXD TYPE REF TO ALV_EVENT,
+     LCL_EVENT_RECEIVER_JGMX TYPE REF TO ALV_EVENT,
+     LCL_EVENT_RECEIVER_PCD  TYPE REF TO ALV_EVENT,
+     LCL_EVENT_RECEIVER_CK   TYPE REF TO ALV_EVENT.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_DATA_CHANGED_JSXD  USING PV_DATA_CHANGED TYPE REF TO CL_ALV_CHANGED_DATA_PROTOCOL.
+  DATA:LT_DATA TYPE  LVC_T_MODI,
+       LS_DATA LIKE LINE OF LT_DATA.
+
+*  CLEAR:gv_stop."流程控制标识
+
+  LT_DATA = PV_DATA_CHANGED->MT_MOD_CELLS.
+
+  LOOP AT LT_DATA INTO LS_DATA.
+*    IF ls_data-fieldname = 'ZBCJHSL'.
+*      CLEAR:lv_zbcjhsl.
+*      CALL METHOD pv_data_changed->get_cell_value "获取单元格中的值
+*        EXPORTING
+*          i_row_id    = ls_data-row_id "行号
+*          i_fieldname = 'ZBCJHSL' "要获取的列的列名
+*        IMPORTING
+*          e_value     = lv_zbcjhsl. "获取到的单元格中的值
+*
+**       ...处理逻辑
+*
+*    ENDIF.
+
+  ENDLOOP.
+  PERFORM FRM_REFRESH_ALV_JSXD.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form frm_double_click
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM FRM_DOUBLE_CLICK_JSXD  USING    P_E_ROW
+                                P_E_COLUMN
+                                P_ES_ROW_NO.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM FRM_ALV_ON_F4_JSXD  USING    P_E_FIELDNAME
+                             P_E_FIELDVALUE
+                             P_ES_ROW_NO
+                             P_ER_EVENT_DATA
+                             P_E_DISPLAY.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_USER_COMMAND_JSXD  USING    P_E_UCOMM.
+  DATA:BEGIN OF IT_TABIX OCCURS 0,
+         TABIX TYPE SY-TABIX,
+       END OF IT_TABIX.
+*筛选后全选问题-IT_FILTER中存放被隐藏的数据
+  CLEAR:IT_TABIX[],IT_FILTER.
+  CALL METHOD ALV_GRID_JSXD->GET_FILTERED_ENTRIES
+    IMPORTING
+      ET_FILTERED_ENTRIES = IT_FILTER.
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      IF IT_FILTER IS INITIAL.
+        LOOP AT IT_JSXD.
+          IT_JSXD-CHBOX = 'X'.
+          MODIFY IT_JSXD TRANSPORTING CHBOX.
+        ENDLOOP.
+      ELSE.
+        LOOP AT IT_FILTER ASSIGNING <WA>.
+          CLEAR:IT_TABIX.
+          IT_TABIX-TABIX = <WA>.
+          APPEND IT_TABIX.
+        ENDLOOP.
+        SORT IT_TABIX BY TABIX.
+        LOOP AT IT_JSXD.
+          TABIX = SY-TABIX.
+          READ TABLE IT_TABIX WITH KEY TABIX = TABIX BINARY SEARCH.
+          IF SY-SUBRC NE 0.
+            IT_JSXD-CHBOX = 'X'.
+            MODIFY IT_JSXD TRANSPORTING CHBOX.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    WHEN 'SAL'.
+      IF IT_FILTER IS INITIAL.
+        LOOP AT IT_JSXD.
+          IT_JSXD-CHBOX = ''.
+          MODIFY IT_JSXD TRANSPORTING CHBOX.
+        ENDLOOP.
+      ELSE.
+        LOOP AT IT_FILTER ASSIGNING <WA>.
+          CLEAR:IT_TABIX.
+          IT_TABIX-TABIX = <WA>.
+          APPEND IT_TABIX.
+        ENDLOOP.
+        SORT IT_TABIX BY TABIX.
+        LOOP AT IT_JSXD.
+          TABIX = SY-TABIX.
+          READ TABLE IT_TABIX WITH KEY TABIX = TABIX BINARY SEARCH.
+          IF SY-SUBRC NE 0.
+            IT_JSXD-CHBOX = ''.
+            MODIFY IT_JSXD TRANSPORTING CHBOX.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM HANDLE_HOTSPOT_CLICK_JSXD  USING    P_E_ROW_ID
+                                    P_E_COLUMN_ID
+                                    P_ES_ROW_NO.
+  DATA:WA LIKE LINE OF IT_JSXD.
+  FIELD-SYMBOLS:<FSE> TYPE ANY,
+                <WAE> TYPE ANY.
+  CONDENSE P_E_ROW_ID     NO-GAPS.
+  CONDENSE P_E_COLUMN_ID  NO-GAPS.
+  READ TABLE IT_JSXD ASSIGNING <WAE> INDEX P_E_ROW_ID.
+  ASSIGN COMPONENT P_E_COLUMN_ID OF STRUCTURE <WAE> TO <FSE>.
+  CHECK SY-SUBRC = 0.
+  IF <FSE> = 'X'.
+    <FSE> = ''.
+  ELSE.
+    <FSE> = 'X'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_TOOLBAR_JSXD  USING    P_E_OBJECT TYPE REF TO CL_ALV_EVENT_TOOLBAR_SET
+                                  P_E_INTERACTIVE.
+  DATA: LS_TOOLBAR TYPE STB_BUTTON.
+  CLEAR: LS_TOOLBAR.
+
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'ALL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4B@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_refresh_alv
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FRM_REFRESH_ALV_JSXD .
+  DATA: LT_CELLTAB TYPE LVC_T_STYL,
+        LS_CELLTAB TYPE LVC_S_STYL,
+        LS_STABLE  TYPE LVC_S_STBL.
+
+  LS_STABLE-ROW = 'X'.  "固定行
+  LS_STABLE-COL = 'X'.  "固定列
+
+  CHECK ALV_GRID_JSXD IS NOT INITIAL.
+
+  CALL METHOD ALV_GRID_JSXD->REFRESH_TABLE_DISPLAY
+    EXPORTING
+      IS_STABLE = LS_STABLE
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      FINISHED  = 1
+      OTHERS    = 2.
+
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+
+**********************************************************************
+" 加工明细事件开始 by kkw 12.12.2022 10:08:15
+**********************************************************************
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_DATA_CHANGED_JGMX  USING    P_ER_DATA_CHANGED.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM FRM_DOUBLE_CLICK_JGMX  USING    P_E_ROW
+                                     P_E_COLUMN
+                                     P_ES_ROW_NO.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM FRM_ALV_ON_F4_JGMX  USING    P_E_FIELDNAME
+                                  P_E_FIELDVALUE
+                                  P_ES_ROW_NO
+                                  P_ER_EVENT_DATA
+                                  P_E_DISPLAY.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_USER_COMMAND_JGMX  USING    P_E_UCOMM.
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      LOOP AT IT_JGMX.
+        IT_JGMX-CHBOX = 'X'.
+        MODIFY IT_JGMX TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT IT_JGMX.
+        IT_JGMX-CHBOX = ''.
+        MODIFY IT_JGMX TRANSPORTING CHBOX.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM HANDLE_HOTSPOT_CLICK_JGMX  USING    P_E_ROW_ID
+                                         P_E_COLUMN_ID
+                                         P_ES_ROW_NO.
+  DATA:WA LIKE LINE OF IT_JGMX.
+  FIELD-SYMBOLS:<FSE> TYPE ANY,
+                <WAE> TYPE ANY.
+  CONDENSE P_E_ROW_ID     NO-GAPS.
+  CONDENSE P_E_COLUMN_ID  NO-GAPS.
+  READ TABLE IT_JGMX ASSIGNING <WAE> INDEX P_E_ROW_ID.
+  ASSIGN COMPONENT P_E_COLUMN_ID OF STRUCTURE <WAE> TO <FSE>.
+  CHECK SY-SUBRC = 0.
+  IF <FSE> = 'X'.
+    <FSE> = ''.
+  ELSE.
+    <FSE> = 'X'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_TOOLBAR_JGMX  USING    P_E_OBJECT TYPE REF TO CL_ALV_EVENT_TOOLBAR_SET
+                                  P_E_INTERACTIVE.
+  DATA: LS_TOOLBAR TYPE STB_BUTTON.
+  CLEAR: LS_TOOLBAR.
+
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'ALL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4B@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+ENDFORM.
+**********************************************************************
+" 加工明细事件结束 by kkw 12.12.2022 10:09:52
+**********************************************************************
+
+FORM FRM_REFRESH_ALV_JGMX .
+  DATA: LT_CELLTAB TYPE LVC_T_STYL,
+        LS_CELLTAB TYPE LVC_S_STYL,
+        LS_STABLE  TYPE LVC_S_STBL.
+
+  LS_STABLE-ROW = 'X'.  "固定行
+  LS_STABLE-COL = 'X'.  "固定列
+
+*  CHECK ALV_GRID_JSXD IS NOT INITIAL.
+
+  CALL METHOD ALV_GRID_JGMX->REFRESH_TABLE_DISPLAY
+    EXPORTING
+      IS_STABLE = LS_STABLE
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      FINISHED  = 1
+      OTHERS    = 2.
+
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+**********************************************************************
+" 排产单事件开始 by kkw 12.12.2022 11:29:13
+**********************************************************************
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_DATA_CHANGED_PCD  USING    P_ER_DATA_CHANGED TYPE REF TO CL_ALV_CHANGED_DATA_PROTOCOL.
+  DATA:MOD_DATA    TYPE LVC_T_MODI,
+       WA_MOD_DATA TYPE LVC_S_MODI.
+  DATA:C_FLAG TYPE CHAR1.
+  CLEAR:MOD_DATA,WA_MOD_DATA.
+  MOD_DATA = P_ER_DATA_CHANGED->MT_MOD_CELLS.
+  LOOP AT MOD_DATA INTO WA_MOD_DATA.
+    READ TABLE IT_PCD INDEX WA_MOD_DATA-ROW_ID.
+    CHECK SY-SUBRC = 0.
+    CASE WA_MOD_DATA-FIELDNAME.
+      WHEN 'ZKS_BCPC'.
+        ASSIGN COMPONENT WA_MOD_DATA-FIELDNAME OF STRUCTURE IT_PCD TO FIELD-SYMBOL(<FS>).
+        IF SY-SUBRC EQ 0.
+          PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+          <FS> = WA_MOD_DATA-VALUE.
+          MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID TRANSPORTING ZKS_BCPC.
+        ENDIF.
+        IF WA_GGZD-ZZLJSFS = 'Z型钢' OR WA_GGZD-ZZLJSFS = 'C型钢'.
+          IT_PCD-ZPCSL = IT_PCD-ZCD * '7.85' * IT_PCD-ZBCKD * IT_PCD-ZZWHD / 1000000  * WA_MOD_DATA-VALUE.
+        ELSE.
+          IT_PCD-ZPCSL = IT_PCD-ZCD * IT_PCD-ZXISHU / 1000  * WA_MOD_DATA-VALUE.
+        ENDIF.
+        IT_PCD-ZJSSL = IT_PCD-ZCD * IT_PCD-ZXISHU / 1000  * WA_MOD_DATA-VALUE.
+        MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID.
+      WHEN 'ZBCKD' OR 'ZCD' OR 'ZKS' OR 'ZYF' OR 'ZZHANKUAN' OR 'ZZS'
+         OR 'ZCDTX' OR 'ZYF' OR 'ZXISHU'.
+        ASSIGN COMPONENT WA_MOD_DATA-FIELDNAME OF STRUCTURE IT_PCD TO <FS>.
+        IF SY-SUBRC EQ 0.
+          PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+          <FS> = WA_MOD_DATA-VALUE.
+          MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID.
+          CASE WA_205-ZPCLX.
+            WHEN 'WHT'.
+              CASE WA_MOD_DATA-FIELDNAME.
+                WHEN 'ZCD'.
+                  IT_PCD-ZPCSL = <FS> * IT_PCD-ZKS * IT_PCD-ZXISHU..
+                WHEN 'ZBCKD'.
+                WHEN 'ZKS'.
+                  IT_PCD-ZPCSL = IT_PCD-ZCD * <FS> * IT_PCD-ZXISHU..
+                WHEN 'ZXISHU'.
+                  IT_PCD-ZPCSL = IT_PCD-ZCD * IT_PCD-ZKS * <FS>..
+              ENDCASE.
+            WHEN OTHERS.
+              CASE GCBS.
+                WHEN 'A'.
+                  CASE WA_MOD_DATA-FIELDNAME.
+                    WHEN 'ZXISHU'.
+                      IT_PCD-ZJSSL1 = <FS> * IT_PCD-ZMS.
+                      IT_PCD-JE = IT_PCD-ZPR0 * IT_PCD-ZJSSL1.
+                      IT_PCD-ZPINGFANGSHU = <FS> * IT_PCD-ZMS.
+                    WHEN 'ZCD'.
+                      PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+                      PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE C_FLAG.
+                      IF C_FLAG NE 'E'.
+                        CASE MCLX.
+                          WHEN 'G' OR 'E' OR 'F'.
+                            IT_PCD-ZMS = WA_MOD_DATA-VALUE * IT_PCD-ZYYKS.
+                            CLEAR:MARA.
+                            SELECT SINGLE *
+                              FROM MARA
+                              WHERE MATNR = WA_GGZD-MATNR.
+                            CASE MARA-MATKL.
+                              WHEN 'B0106'.
+                                CLEAR:ZHD,ZYCZK,JSSL.
+                                READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                              ATNAM = 'ZHD'.
+                                IF SY-SUBRC EQ 0.
+                                  ZHD = OUTTAB001-ATWRT.
+                                ENDIF.
+                                READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                              ATNAM = 'ZYCZK'.
+                                IF SY-SUBRC EQ 0.
+                                  ZYCZK = OUTTAB001-ATWRT.
+                                ENDIF.
+                                JSSL = IT_PCD-ZCD * '7.85' * ZYCZK * ZHD / 1000000.
+                                IT_PCD-ZJSSL1 = IT_PCD-ZYYKS * JSSL.
+                              WHEN OTHERS.
+                                IT_PCD-ZJSSL1 = IT_PCD-ZXISHU * IT_PCD-ZMS.
+                            ENDCASE.
+                            IT_PCD-JE = IT_PCD-ZDANJ * IT_PCD-ZJSSL1.
+                            IT_PCD-ZPINGFANGSHU = IT_PCD-ZMS * IT_PCD-ZXISHU.
+                        ENDCASE.
+                      ENDIF.
+                  ENDCASE.
+              ENDCASE.
+              IT_PCD-ZJSSL = IT_PCD-ZJSSL1.
+              IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+              PERFORM DELQFW(ZPUBFORM) CHANGING IT_PCD-ZJSSL.
+          ENDCASE.
+        ENDIF.
+        MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID.
+        CALL METHOD CL_GUI_CFW=>SET_NEW_OK_CODE
+          EXPORTING
+            NEW_CODE = 'PAI'.
+      WHEN 'ZYYKS'.
+*引用块数变化后数量变化
+        PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+        PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE C_FLAG.
+        IF C_FLAG NE 'E'.
+          CASE GCBS.
+            WHEN 'A'.
+              IT_PCD-ZKS = WA_MOD_DATA-VALUE.
+              IT_PCD-ZMS = WA_MOD_DATA-VALUE * IT_PCD-ZCD.
+              IT_PCD-ZJSSL1 =  IT_PCD-ZXISHU * IT_PCD-ZMS.
+              IT_PCD-ZJSSL = IT_PCD-ZJSSL1.
+              IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+              IT_PCD-JE = IT_PCD-ZJSSL1 * IT_PCD-ZPR0.
+              PERFORM DELQFW(ZPUBFORM) CHANGING IT_PCD-ZJSSL.
+              CLEAR:MARA.
+              SELECT SINGLE *
+                FROM MARA
+                WHERE MATNR = WA_GGZD-MATNR.
+              CASE MARA-MATKL.
+                WHEN 'B0106'.
+                  CLEAR:ZHD,ZYCZK,JSSL.
+                  READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                ATNAM = 'ZHD'.
+                  IF SY-SUBRC EQ 0.
+                    ZHD = OUTTAB001-ATWRT.
+                  ENDIF.
+                  READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                ATNAM = 'ZYCZK'.
+                  IF SY-SUBRC EQ 0.
+                    ZYCZK = OUTTAB001-ATWRT.
+                  ENDIF.
+                  JSSL = IT_PCD-ZCD * '7.85' * ZYCZK * ZHD / 1000000.
+                  IT_PCD-ZJSSL1 = WA_MOD_DATA-VALUE * JSSL.
+                  IT_PCD-ZJSSL = IT_PCD-ZJSSL1.
+                  IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+                  IT_PCD-JE = IT_PCD-ZJSSL1 * IT_PCD-ZPR0.
+                  PERFORM DELQFW(ZPUBFORM) CHANGING IT_PCD-ZJSSL.
+              ENDCASE.
+              MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID.
+          ENDCASE.
+          CALL METHOD CL_GUI_CFW=>SET_NEW_OK_CODE
+            EXPORTING
+              NEW_CODE = 'ZYYKSCHG'.
+        ENDIF.
+      WHEN 'ZPR0'."折弯件单价的变更
+        IF MCLX = 'F'.
+          PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+          PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE C_FLAG.
+          IF C_FLAG NE 'E'.
+            IT_PCD-ZDANJ = WA_MOD_DATA-VALUE.
+            IT_PCD-JE = IT_PCD-ZDANJ * IT_PCD-ZJSSL1.
+            MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID.
+*相同编号的都更改
+            LOOP AT IT_PCD INTO DATA(WA_PCD) WHERE ZBIANHAO = IT_PCD-ZBIANHAO.
+              WA_PCD-ZPR0 = IT_PCD-ZDANJ.
+              WA_PCD-ZDANJ = IT_PCD-ZDANJ.
+              WA_PCD-JE = WA_PCD-ZDANJ * WA_PCD-ZJSSL1.
+              MODIFY IT_PCD FROM WA_PCD.
+            ENDLOOP.
+          ENDIF.
+        ENDIF.
+      WHEN 'ZMLJ'.
+        PERFORM DELQFW(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE.
+        PERFORM CHECKMENGE(ZPUBFORM) CHANGING WA_MOD_DATA-VALUE C_FLAG.
+        IF C_FLAG NE 'E'.
+          IF GCBS = 'A'.
+            IF WA_MOD_DATA-VALUE LT 0.
+              CLEAR:WA_CELLCOLOR.
+              WA_CELLCOLOR-FNAME = 'ZMLJ'.
+              WA_CELLCOLOR-COLOR-COL = '6'.
+              WA_CELLCOLOR-COLOR-INT = '1'.
+              APPEND WA_CELLCOLOR TO IT_PCD-CELLCOLOR.
+            ELSE.
+              DELETE IT_PCD-CELLCOLOR WHERE FNAME = 'ZMLJ'.
+            ENDIF.
+            MODIFY IT_PCD  INDEX WA_MOD_DATA-ROW_ID.
+          ENDIF.
+        ENDIF.
+    ENDCASE.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM FRM_DOUBLE_CLICK_PCD  USING    P_E_ROW
+                                    P_E_COLUMN
+                                    P_ES_ROW_NO.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM FRM_ALV_ON_F4_PCD  USING    P_E_FIELDNAME
+                                 P_E_FIELDVALUE
+                                 P_ES_ROW_NO
+                                 P_ER_EVENT_DATA
+                                 P_E_DISPLAY.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_USER_COMMAND_PCD  USING    P_E_UCOMM.
+  CLEAR:FIELDS,FIELDS[].
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      LOOP AT IT_PCD.
+        IT_PCD-CHBOX = 'X'.
+        MODIFY IT_PCD TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT IT_PCD.
+        IT_PCD-CHBOX = ''.
+        MODIFY IT_PCD TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'DEL'.
+      READ TABLE IT_PCD WITH KEY CHBOX  = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE S022 DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      LOOP AT IT_PCD WHERE CHBOX = 'X'.
+        SELECT SINGLE COUNT(*)
+          FROM ZTPP_205A
+          WHERE ZPCDH = WA_GGZD-ZPCDH
+          AND   ZPCDHH = IT_PCD-ZPCDHH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-DELFLG = 'X'.
+          MODIFY IT_PCD TRANSPORTING DELFLG.
+        ELSE.
+          DELETE IT_PCD.
+        ENDIF.
+      ENDLOOP.
+      CALL METHOD CL_GUI_CFW=>SET_NEW_OK_CODE
+        EXPORTING
+          NEW_CODE = 'PAI'.
+    WHEN 'ADD'.
+      PERFORM ADD.
+    WHEN 'FILL1'.
+      PERFORM FILL1.
+    WHEN 'FILL2'.
+      PERFORM FILL2.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM HANDLE_HOTSPOT_CLICK_PCD  USING    P_E_ROW_ID
+                                        P_E_COLUMN_ID
+                                        P_ES_ROW_NO.
+  DATA:WA LIKE LINE OF IT_PCD.
+  FIELD-SYMBOLS:<FSE> TYPE ANY,
+                <WAE> TYPE ANY.
+  CONDENSE P_E_ROW_ID     NO-GAPS.
+  CONDENSE P_E_COLUMN_ID  NO-GAPS.
+  READ TABLE IT_PCD ASSIGNING <WAE> INDEX P_E_ROW_ID.
+  ASSIGN COMPONENT P_E_COLUMN_ID OF STRUCTURE <WAE> TO <FSE>.
+  CHECK SY-SUBRC = 0.
+  IF <FSE> = 'X'.
+    <FSE> = ''.
+  ELSE.
+    <FSE> = 'X'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_TOOLBAR_PCD  USING    P_E_OBJECT TYPE REF TO CL_ALV_EVENT_TOOLBAR_SET
+                                      P_E_INTERACTIVE.
+  DATA: LS_TOOLBAR TYPE STB_BUTTON,
+        DISABLED   TYPE CHAR1.
+  IF P_SUBMIT = 'X'.
+    DISABLED = 'X'.
+  ELSE.
+    DISABLED = ''.
+  ENDIF.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+
+  CLEAR LS_TOOLBAR.
+  LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'ALL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4B@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CLEAR: LS_TOOLBAR.
+  LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+  LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+  LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+  LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+  LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+  LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+  APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  CASE SY-TCODE.
+    WHEN TCODE2 OR TCODE3.
+    WHEN OTHERS.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-FUNCTION = 'DEL'.    " 功能码
+      LS_TOOLBAR-ICON = '@18@'.  " 图标名称
+      LS_TOOLBAR-QUICKINFO = '删除明细'.   " 图标的提示信息
+      LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+      LS_TOOLBAR-DISABLED = DISABLED.        " X表示灰色，不可用
+      LS_TOOLBAR-TEXT = '删除明细'.       " 按钮上显示的文本
+      APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+  ENDCASE.
+
+  CASE SY-TCODE.
+    WHEN TCODE1 OR TCODE4 OR
+       TCODE4A OR TCODE5.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-FUNCTION = 'ADD'.    " 功能码
+      LS_TOOLBAR-ICON = '@17@'.  " 图标名称
+      LS_TOOLBAR-QUICKINFO = '添加行'.   " 图标的提示信息
+      LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+      LS_TOOLBAR-DISABLED = DISABLED.        " X表示灰色，不可用
+      LS_TOOLBAR-TEXT = '添加行'.       " 按钮上显示的文本
+      APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+      APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+      CASE WA_205-ZPCLX.
+        WHEN 'WHT'.
+        WHEN OTHERS.
+          CLEAR: LS_TOOLBAR.
+          LS_TOOLBAR-FUNCTION = 'FILL1'.    " 功能码
+          LS_TOOLBAR-ICON = '@HB@'.  " 图标名称
+          LS_TOOLBAR-QUICKINFO = '批量填充运费'.   " 图标的提示信息
+          LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+          LS_TOOLBAR-DISABLED = DISABLED.        " X表示灰色，不可用
+          LS_TOOLBAR-TEXT = '批量填充运费'.       " 按钮上显示的文本
+          APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+      ENDCASE.
+    WHEN TCODE2.
+      CASE WA_205-ZPCLX.
+        WHEN 'WHT'.
+        WHEN OTHERS.
+          CLEAR: LS_TOOLBAR.
+          LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+          APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+          CLEAR: LS_TOOLBAR.
+          LS_TOOLBAR-FUNCTION = 'FILL2'.    " 功能码
+          LS_TOOLBAR-ICON = '@HB@'.  " 图标名称
+          LS_TOOLBAR-QUICKINFO = '批量填充价格'.   " 图标的提示信息
+          LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+          LS_TOOLBAR-DISABLED = DISABLED.        " X表示灰色，不可用
+          LS_TOOLBAR-TEXT = '批量填充价格'.       " 按钮上显示的文本
+          APPEND LS_TOOLBAR TO P_E_OBJECT->MT_TOOLBAR.
+      ENDCASE.
+
+  ENDCASE.
+ENDFORM.
+**********************************************************************
+" 排产单事件结束 by kkw 12.12.2022 13:14:22
+**********************************************************************
+FORM FRM_REFRESH_ALV_PCD .
+  DATA: LT_CELLTAB TYPE LVC_T_STYL,
+        LS_CELLTAB TYPE LVC_S_STYL,
+        LS_STABLE  TYPE LVC_S_STBL.
+
+  LS_STABLE-ROW = 'X'.  "固定行
+  LS_STABLE-COL = 'X'.  "固定列
+
+  CHECK ALV_GRID_PCD IS NOT INITIAL.
+
+  CALL METHOD ALV_GRID_PCD->REFRESH_TABLE_DISPLAY
+    EXPORTING
+      IS_STABLE = LS_STABLE
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      FINISHED  = 1
+      OTHERS    = 2.
+
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.

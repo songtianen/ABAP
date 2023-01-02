@@ -1,0 +1,55 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD206_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZMX_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zmx_con_modify INPUT.
+  MODIFY it_232
+    INDEX zmx_con-current_line.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZMX_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zmx_con_mark INPUT.
+  DATA: g_ZMX_CON_wa2 LIKE LINE OF it_232.
+  IF zmx_con-line_sel_mode = 1
+  AND it_232-sel = 'X'.
+    LOOP AT it_232 INTO g_ZMX_CON_wa2
+      WHERE sel = 'X'.
+      g_ZMX_CON_wa2-sel = ''.
+      MODIFY it_232
+        FROM g_ZMX_CON_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_232
+    INDEX zmx_con-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZMX_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zmx_con_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZMX_CON'
+                              'IT_232'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+DATA:save_ok LIKE sy-ucomm.
+MODULE user_command_0900 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+  CLEAR:sy-ucomm.
+ENDMODULE.

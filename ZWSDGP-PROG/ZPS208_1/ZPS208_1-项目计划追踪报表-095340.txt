@@ -1,0 +1,565 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS208_1
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps208_1.
+TYPE-POOLS:shlp.
+TABLES: sscrfields.
+*&SPWizard: Data incl. inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zps208_1_top .
+*&SPWizard: Include inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+
+DATA: BEGIN OF item  OCCURS 0,
+        sel,
+        pspid TYPE ps_pspid, "项目编码
+        post1 TYPE ps_post1, "项目描述
+        kunnr TYPE kunnr, "客户编码
+        name1 TYPE name1_gp, "客户名称
+        zdtbh TYPE z1_zdtbh, "单体编号
+        zhtlx TYPE ztps013a-zhtlx, "合同类型
+        zhtje TYPE ztps013a-zhtje, "合同金额
+        zhtmj TYPE ztps013a-zhtmj, "合同面积
+        zwyzr TYPE ztps013a-zwyzr, "工期违约责任
+        zhtkg TYPE sy-datum, "合同开工日期
+        zhtwg TYPE sy-datum, "合同完工日期
+        zgqts TYPE ztps013a-zgqts, "工期天数
+        zsjkg TYPE sy-datum, "实际开工日期
+        zyqwg TYPE sy-datum, "要求完工日期
+        zyjwg TYPE sy-datum, "预计完工日期
+        zsjwg TYPE sy-datum, "实际完工日期
+        zsjts TYPE ztps013a-zsjts, "实际天数
+      END OF item.
+DATA: BEGIN OF it_upload OCCURS 1 ,
+        zdtbh TYPE ztps013b-zdtbh,
+        zrwbh TYPE ztps013b-zrwbh,
+        zrwmc TYPE ztps013b-zrwmc,
+        zcp   TYPE ztps013b-zcp,
+        zcpbh TYPE ztps013b-zcpbh,
+        zysl  TYPE ztps013b-zysl,
+        yszje TYPE ztps013b-yszje,
+        ysl   TYPE ztps013b-ysl,
+        zdw   TYPE ztps013b-zdw,
+        zbgl  TYPE ztps013b-zbgl,
+        zbbh  TYPE ztps013b-zbbh,
+        zjhks TYPE ztps013b-zjhks,
+        zjhwc TYPE ztps013b-zjhwc,
+        zrwbm TYPE ztps013b-zrwbm,
+        zrwr  TYPE ztps013b-zrwr,
+        zdjs  TYPE ztps013b-zdjs,
+        zyj   TYPE ztps013b-zyj,
+        zsjks TYPE ztps013b-zsjks,
+        zsjwc TYPE ztps013b-zsjwc,
+        zkspl TYPE ztps013b-zkspl,
+        zjspl TYPE ztps013b-zjspl,
+        zsjl  TYPE ztps013b-zsjl,
+        zjesj TYPE ztps013b-zjesj,
+        zwcbl TYPE ztps013b-zwcbl,
+        zplyy TYPE ztps013b-zplyy,
+        zrr   TYPE ztps013b-zrr,
+        zrbm  TYPE ztps013b-zrbm,
+        zbz   TYPE ztps013b-zbz,
+        sel,
+      END OF it_upload.
+DATA: fieldcat  TYPE slis_t_fieldcat_alv,
+      wa_upload LIKE it_upload,
+      zboitem   LIKE STANDARD TABLE OF it_upload WITH HEADER LINE,
+      functxt   TYPE smp_dyntxt.
+DATA: go_flct TYPE lvc_t_fcat WITH HEADER LINE,
+      variant TYPE disvariant,
+      slayout TYPE lvc_s_layo,
+      go_grid TYPE REF TO cl_gui_alv_grid,
+      go_cont TYPE REF TO cl_gui_docking_container.
+
+DATA: it_events TYPE slis_t_event.
+DATA: ls_ysl   TYPE ztps013b-ysl,
+      ls_zyscb TYPE ztps013b-zyscb,
+      ls_zdw   TYPE ztps013b-zdw.
+CLASS lcl_event_receiver DEFINITION DEFERRED .
+DATA: event_receiver TYPE REF TO lcl_event_receiver.
+DATA: gt_exclude TYPE ui_functions.
+DATA: gs_stable TYPE lvc_s_stbl.
+
+DATA: ok_code LIKE sy-ucomm,
+      save_ok LIKE sy-ucomm.
+CLASS lcl_event_receiver DEFINITION.
+  PUBLIC SECTION.
+    METHODS handle_double_click
+      FOR EVENT double_click OF cl_gui_alv_grid
+      IMPORTING e_row e_column es_row_no.
+
+ENDCLASS.
+CLASS lcl_event_receiver IMPLEMENTATION.
+  METHOD handle_double_click.
+    PERFORM athdouble_click USING e_row e_column es_row_no.
+  ENDMETHOD.                    "handle_double_click
+ENDCLASS.
+
+FORM athdouble_click  USING p_e_row TYPE lvc_s_row p_e_column p_es_row_no.
+  CLEAR: it_upload, it_upload[], item.
+  CHECK p_e_row-index IS NOT INITIAL.
+  READ TABLE item INDEX p_e_row-index.
+  LOOP AT zboitem WHERE zdtbh = item-zdtbh.
+    MOVE-CORRESPONDING zboitem TO it_upload.
+    APPEND it_upload.
+  ENDLOOP.
+  CALL METHOD cl_gui_cfw=>set_new_ok_code
+    EXPORTING
+      new_code = 'ITEMCHG'.
+  gs_stable-row = 'X'." 基于行的稳定刷新
+  gs_stable-col = 'X'." 基于列稳定刷新
+  CALL METHOD go_grid->refresh_table_display
+    EXPORTING
+      is_stable = gs_stable.
+ENDFORM.
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t1.
+  PARAMETERS:
+    p_pspid TYPE ps_pspid,
+    p_kunnr TYPE kunnr,
+    p_zhtlx TYPE char20 MODIF ID bl2,
+    p_zhtje TYPE char20 MODIF ID bl2,
+    p_zhtmj TYPE char20 MODIF ID bl2,
+    p_zwyzr TYPE char20 MODIF ID bl2,
+    p_zhtkg TYPE sy-datum MODIF ID bl2,
+    p_zhtwg TYPE sy-datum MODIF ID bl2,
+    p_zgqts TYPE char20 MODIF ID bl2,
+    p_zsjkg TYPE sy-datum MODIF ID bl2,
+    p_zyqwg TYPE sy-datum MODIF ID bl2,
+    p_zyjwg TYPE sy-datum MODIF ID bl2,
+    p_zsjwg TYPE sy-datum MODIF ID bl2,
+    "p_zsjts TYPE char20 MODIF ID bl2,
+    p_zrwbm TYPE z1_zrwbh MODIF ID bl3,
+    p_zrwr  TYPE z1_zrwr MODIF ID bl3.
+SELECTION-SCREEN END OF BLOCK blk1.
+SELECTION-SCREEN BEGIN OF BLOCK blk3 WITH FRAME TITLE t3.
+  PARAMETERS: p1 RADIOBUTTON GROUP grd1 USER-COMMAND singleclick DEFAULT 'X',
+              p2 RADIOBUTTON GROUP grd1.
+SELECTION-SCREEN END OF BLOCK blk3.
+SELECTION-SCREEN FUNCTION KEY :1.
+
+INITIALIZATION.
+  functxt = '@14@导出模板'.
+  sscrfields-functxt_01 = functxt.
+  t1 = '项目基本数据'.
+  %_P_kunnr_%_APP_%-text = '客户编码'.
+  %_P_pspid_%_APP_%-text = '项目编码'.
+  %_P_zhtlx_%_APP_%-text = '合同类型'.
+  %_P_zhtje_%_APP_%-text = '合同金额'.
+  %_P_zhtmj_%_APP_%-text = '合同面积'.
+  %_P_zwyzr_%_APP_%-text = '违约责任'.
+  %_P_zhtkg_%_APP_%-text = '合同约定开工日期'.
+  %_P_zhtwg_%_APP_%-text = '合同约定完工日期'.
+  %_P_zgqts_%_APP_%-text = '工期总天数'.
+  %_P_zsjkg_%_APP_%-text = '实际开工日期'.
+  %_P_zyqwg_%_APP_%-text = '要求完工日期'.
+  %_P_zyjwg_%_APP_%-text = '预计完工日期'.
+  %_P_zsjwg_%_APP_%-text = '实际完工日期'.
+  "%_P_zsjts_%_APP_%-text = '累计执行天数'.
+  %_p_zrwbm_%_APP_%-text = '任务部门'.
+  %_p_zrwr_%_APP_%-text = '任务人'.
+  %_p1_%_app_%-text = '导入数据'.
+  %_p2_%_app_%-text = '查询数据'.
+
+
+AT SELECTION-SCREEN.
+  CASE  sscrfields-ucomm.
+    WHEN 'FC01'.
+      REFRESH fieldcat.
+      PERFORM init_fieldcat(zpubform) TABLES fieldcat
+       USING :'' '单体' '' '' '' '',
+             '' '任务编码' '' '' '' '',
+             '' '任务名称' '' '' '' '',
+             '' '产品' '' '' '' '',
+             '' '产品编号' '' '' '' '',
+             '' '总预算量' '' '' '' '',
+             '' '预算总金额' '' '' '' '',
+             '' '预算量(计划)' '' '' '' '',
+             '' '单位' '' '' '' '',
+             '' '变更量' '' '' '' '',
+             '' '版本号' '' '' '' '',
+             '' '计划开始日期' '' '' '' '',
+             '' '计划完成日期' '' '' '' '',
+             '' '任务部门' '' '' '' '',
+             '' '任务人' '' '' '' '',
+             '' '距计划完成剩余天数' '' '' '' '',
+             '' '预警(提前3天预警)' '' '' '' '',
+             '' '实际开始日期' '' '' '' '',
+             '' '实际完成日期' '' '' '' '',
+             '' '开始偏离率' '' '' '' '',
+             '' '结束偏离率' '' '' '' '',
+             '' '实际量' '' '' '' '',
+             '' '实际总金额' '' '' '' '',
+             '' '实际完成比例' '' '' '' '',
+             '' '偏离原因' '' '' '' '',
+             '' '责任人' '' '' '' '',
+             '' '责任部门' '' '' '' '',
+             '' '备注' '' '' '' ''.
+      PERFORM itabstructoclip(zpubform) USING fieldcat '' ''.
+  ENDCASE.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN INTO DATA(screen_wa).
+    IF p1 = 'X' AND screen_wa-group1 = 'BL3'.
+      screen_wa-active = '0'.
+    ENDIF.
+    IF  p2 = 'X'  AND screen_wa-group1 = 'BL2'.
+      screen_wa-active = '0'.
+    ENDIF.
+    MODIFY SCREEN FROM screen_wa.
+  ENDLOOP.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_kunnr.
+  PERFORM f4_p_pspid.
+
+
+START-OF-SELECTION.
+  IF p1 = 'X'.
+    IF p_kunnr IS INITIAL
+       OR p_pspid IS INITIAL.
+      MESSAGE s000(oo) WITH  '项目编码、客户编码必输' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+    PERFORM cliptoitab(zpubform) TABLES it_upload.
+    CLEAR: zboitem, zboitem[].
+    LOOP AT it_upload.
+      item-pspid = p_pspid.
+      SELECT SINGLE post1 INTO item-post1
+      FROM proj WHERE pspid = p_pspid.
+      item-kunnr = p_kunnr.
+      SELECT SINGLE name1 INTO item-name1
+      FROM kna1 WHERE kunnr = item-kunnr.
+      item-zhtlx = P_zhtlx.
+      item-zhtje = p_zhtje.
+      item-zwyzr = p_zwyzr.
+      item-zhtkg = p_zhtkg.
+      item-zhtwg = p_zhtwg.
+      item-zgqts = p_zgqts.
+      item-zsjkg = p_zsjkg.
+      item-zyqwg = p_zyqwg.
+      item-zyjwg = p_zyjwg.
+      item-zsjwg = p_zsjwg.
+      "item-zsjts = p_zsjts.
+      item-zdtbh = it_upload-zdtbh.
+      COLLECT item.
+      it_upload-zdjs = it_upload-zjhwc - sy-datum.
+      IF it_upload-zdjs > 3.
+        it_upload-zyj = '正常'.
+      ELSEIF   it_upload-zdjs >= 0 AND it_upload-zdjs <= 3.
+        it_upload-zyj = '预警'.
+      ELSE.
+        it_upload-zyj = '延迟'.
+      ENDIF.
+      IF it_upload-zrwbh = 'R2'."R1的日期是手工填写的
+        SELECT
+        vbap~vbeln,
+        vbap~posnr,
+        vbap~erdat
+        FROM vbap
+        INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+        INNER JOIN proj ON prps~psphi = proj~pspnr
+        WHERE proj~pspid = @p_pspid
+        AND prps~stufe = '2'
+        ORDER BY vbap~vbeln, vbap~erdat
+        INTO TABLE @DATA(r2_posid)
+        UP TO 1 ROWS.
+        IF sy-subrc = 0.
+          READ TABLE r2_posid INTO DATA(wr2_pspid) INDEX 1.
+          it_upload-zsjks = wr2_pspid-erdat.
+          CLEAR wr2_pspid.
+        ENDIF.
+        CLEAR: r2_posid.
+        SELECT
+        vbap~vbeln,
+        vbap~posnr,
+        vbap~erdat
+        FROM vbap
+        INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+        INNER JOIN proj ON prps~psphi = proj~pspnr
+        WHERE proj~pspid = @p_pspid
+        AND prps~stufe = '2'
+        ORDER BY vbap~vbeln, vbap~erdat DESCENDING
+        INTO TABLE @r2_posid
+        UP TO 1 ROWS.
+        IF sy-subrc = 0.
+          READ TABLE r2_posid INTO wr2_pspid INDEX 1.
+          it_upload-zsjwc = wr2_pspid-erdat.
+          CLEAR wr2_pspid.
+        ENDIF.
+        SELECT
+          SUM( kwmeng ) AS menge
+          FROM vbap
+          INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+          INNER JOIN proj ON prps~psphi = proj~pspnr
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+        INTO @it_upload-zsjl.
+      ELSEIF it_upload-zrwbh = 'R3'.
+        SELECT
+          eket~ebeln,
+          eket~ebelp,
+          eket~eindt
+          FROM eket
+          INNER JOIN ekkn ON ekkn~ebeln = eket~ebeln AND ekkn~ebelp = eket~ebelp
+          INNER JOIN prps ON prps~pspnr = ekkn~ps_psp_pnr
+          INNER JOIN proj ON prps~psphi = proj~pspnr
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+          ORDER BY eket~ebeln, eket~eindt
+          INTO TABLE @DATA(r3_posid)
+        UP TO 1 ROWS.
+        IF sy-subrc = 0.
+          READ TABLE r3_posid INTO DATA(wr3_pspid) INDEX 1.
+          it_upload-zsjks = wr3_pspid-eindt.
+          CLEAR wr3_pspid.
+        ENDIF.
+        CLEAR r3_posid.
+        SELECT
+          eket~ebeln,
+          eket~ebelp,
+          eket~eindt
+          FROM eket
+          INNER JOIN ekkn ON ekkn~ebeln = eket~ebeln AND ekkn~ebelp = eket~ebelp
+          INNER JOIN prps ON prps~pspnr = ekkn~ps_psp_pnr
+          INNER JOIN proj ON prps~psphi = proj~pspnr
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+          ORDER BY eket~ebeln, eket~eindt DESCENDING
+          INTO TABLE @r3_posid
+        UP TO 1 ROWS.
+        IF sy-subrc = 0.
+          READ TABLE r3_posid INTO wr3_pspid INDEX 1.
+          it_upload-zsjwc = wr3_pspid-eindt.
+          CLEAR wr3_pspid.
+        ENDIF.
+        SELECT
+          SUM( ekkn~menge ) AS menge
+          FROM ekkn
+          INNER JOIN prps ON prps~pspnr = ekkn~ps_psp_pnr
+          INNER JOIN proj ON prps~psphi = proj~pspnr
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = 2
+        INTO @it_upload-zsjl.
+      ELSEIF it_upload-zrwbh = 'R4'.
+        SELECT
+          afko~aufnr,
+          afko~gstri,
+          afko~getri,
+          afko~gamng
+          FROM afko
+          INNER JOIN afpo ON afpo~aufnr = afko~aufnr
+          INNER JOIN prps ON prps~pspnr = afpo~projn
+          INNER JOIN proj ON proj~pspnr = prps~psphi
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+          ORDER BY afko~aufnr, afko~gstri
+          INTO TABLE @DATA(r4_posid)
+        UP TO 1 ROWS.
+        IF sy-subrc = 0.
+          READ TABLE r4_posid INTO DATA(wr4_posid) INDEX 1.
+          it_upload-zsjks = wr4_posid-gstri.
+          it_upload-zsjl = wr4_posid-gamng.
+          CLEAR wr4_posid.
+        ENDIF.
+        CLEAR: r4_posid.
+        SELECT
+          afko~aufnr,
+          afko~getri
+          FROM afko
+          INNER JOIN afpo ON afpo~aufnr = afko~aufnr
+          INNER JOIN prps ON prps~pspnr = afpo~projn
+          INNER JOIN proj ON proj~pspnr = prps~psphi
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+          ORDER BY afko~aufnr, afko~getri DESCENDING
+          INTO TABLE @DATA(r4_posid_1)
+        UP TO 1 ROWS.
+        READ TABLE r4_posid_1 INTO DATA(wr4_posid_1) INDEX 1.
+        IF sy-subrc = 0.
+          it_upload-zsjwc = wr4_posid_1-getri.
+          CLEAR: wr4_posid_1.
+        ENDIF.
+        SELECT
+        SUM( afko~gamng ) AS menge
+        FROM afko
+        INNER JOIN afpo ON afpo~aufnr = afko~aufnr
+        INNER JOIN prps ON prps~pspnr = afpo~projn
+        INNER JOIN proj ON proj~pspnr = prps~psphi
+        WHERE proj~pspid = @p_pspid
+        AND prps~stufe = '2'
+        INTO @it_upload-zsjl.
+      ELSEIF it_upload-zrwbh = 'R5'.
+        SELECT
+          lips~vgbel,
+          lips~vgpos,
+          lips~erdat
+          FROM lips
+          INNER JOIN vbap ON vbap~vbeln = lips~vgbel AND vbap~posnr = lips~vgpos
+          INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+          INNER JOIN proj ON proj~pspnr = prps~psphi
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+          ORDER BY lips~vgbel, lips~erdat
+        INTO TABLE @DATA(r5_pspid).
+        IF sy-subrc = 0.
+          READ TABLE r5_pspid INTO DATA(wr5_pspid) INDEX 1.
+          it_upload-zsjks = wr5_pspid-erdat.
+          CLEAR wr5_pspid.
+        ENDIF.
+        SELECT
+        lips~vgbel,
+        lips~vgpos,
+        lips~erdat
+        FROM lips
+        INNER JOIN vbap ON vbap~vbeln = lips~vgbel AND vbap~posnr = lips~vgpos
+        INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+        INNER JOIN proj ON proj~pspnr = prps~psphi
+        WHERE proj~pspid = @p_pspid
+        AND prps~stufe = '2'
+        ORDER BY lips~vgbel, lips~erdat DESCENDING
+        INTO TABLE @r5_pspid.
+        IF sy-subrc = 0.
+          READ TABLE r5_pspid INTO wr5_pspid INDEX 1.
+          it_upload-zsjwc = wr5_pspid-erdat.
+          CLEAR wr5_pspid.
+        ENDIF.
+        SELECT
+          SUM( lfimg ) AS menge
+          FROM lips
+          INNER JOIN vbap ON vbap~vbeln = lips~vgbel AND vbap~posnr = lips~vgpos
+          INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+          INNER JOIN proj ON proj~pspnr = prps~psphi
+          WHERE proj~pspid = @p_pspid
+          AND prps~stufe = '2'
+        INTO @it_upload-zsjl.
+      ELSEIF it_upload-zrwbh = 'R6'. " R7条件单独处理
+        SELECT SINGLE
+          zrbrq  INTO it_upload-zsjks
+          FROM ztps012a
+        WHERE pspid = p_pspid.
+        it_upload-zsjwc = it_upload-zsjks.
+        SELECT SINGLE
+         zjrsjwcgzl
+          INTO it_upload-zsjl
+          FROM ztps012b
+          INNER JOIN ztps012a ON ztps012b~zdtxh = ztps012a~zdtxh
+        WHERE ztps012a~pspid = p_pspid.
+      ENDIF.
+      "开始偏心率
+      it_upload-zkspl = ( it_upload-zsjks - it_upload-zjhks ) * 100.
+      "结束偏心率
+      it_upload-zjspl = ( it_upload-zsjwc - it_upload-zjhwc ) * 100.
+      "实际完成比例
+      IF it_upload-zysl <> 0.
+        it_upload-zwcbl = ( it_upload-zsjl - it_upload-zysl ) / it_upload-zysl.
+        IF it_upload-zrwbh = 'R2' OR it_upload-zrwbh = 'R4' OR it_upload-zrwbh = 'R5'.
+          it_upload-zjesj = ( it_upload-yszje / it_upload-zysl ) * it_upload-zsjl.
+        ENDIF.
+        IF it_upload-zrwbh = 'R3'.
+          SELECT
+            SUM( brtwr )
+            FROM ekpo
+            INNER JOIN ekkn ON ekpo~ebeln = ekkn~ebeln AND ekpo~ebelp = ekkn~ebelp
+            INNER JOIN prps ON ekkn~ps_psp_pnr = prps~pspnr
+            INNER JOIN proj ON proj~pspnr = prps~psphi
+            WHERE proj~pspid = @p_pspid
+            AND prps~stufe = '2'
+          INTO @it_upload-zjesj.
+        ENDIF.
+      ENDIF.
+
+      MOVE-CORRESPONDING it_upload TO zboitem.
+      APPEND zboitem.
+      CLEAR: item, it_upload, zboitem.
+    ENDLOOP.
+    CLEAR: it_upload, it_upload[].
+    SELECT
+      zdjbh,
+      zdate,
+      dmbtr
+      FROM ztfi_splitcont
+      INNER JOIN prps ON prps~posid = ztfi_splitcont~pspid
+      INNER JOIN proj ON prps~psphi = proj~pspnr
+      WHERE proj~pspid = @p_pspid
+      AND prps~stufe = '2'
+    INTO TABLE @DATA(cont).
+    SORT cont BY zdjbh .
+
+  ELSEIF p2 = 'X'.
+    PERFORM getdata.
+  ENDIF.
+  CALL SCREEN 100.
+
+  INCLUDE zps208_1_pbo .
+  INCLUDE zps208_1_pai .
+
+FORM getdata.
+  CLEAR: item, item[], zboitem, zboitem[].
+  SELECT
+    *
+    INTO CORRESPONDING FIELDS OF TABLE item
+    FROM ztps013a
+  WHERE pspid = p_pspid.
+
+  IF item[] IS NOT INITIAL.
+    LOOP AT item.
+      SELECT
+      SINGLE
+      pspid,
+      zdtbh,
+      zrwbh,
+      zcpbh,
+      MAX( zbbh ) AS zbbh
+      FROM ztps013b
+      INTO  CORRESPONDING FIELDS OF @zboitem
+      WHERE pspid = @item-pspid
+      AND zdtbh = @item-zdtbh
+      GROUP BY pspid, zdtbh, zrwbh, zcpbh.
+      APPEND zboitem.
+      CLEAR: zboitem.
+    ENDLOOP.
+    LOOP AT zboitem.
+      SELECT SINGLE
+        *
+        INTO CORRESPONDING FIELDS OF zboitem
+        FROM ztps013b
+        WHERE pspid = p_pspid
+        AND zdtbh = zboitem-zdtbh
+        AND zrwbh = zboitem-zrwbh
+        AND zcpbh = zboitem-zcpbh
+      AND zbbh = zboitem-zbbh.
+      IF sy-subrc = 0.
+        MODIFY zboitem.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+
+FORM f4_p_pspid.
+  SELECT
+    ztps010a~kunnr,
+    kna1~name1,
+    ztps010a~pspid
+    INTO TABLE @DATA(lt_kunnr)
+    FROM ztps010a
+    INNER JOIN kna1 ON kna1~kunnr = ztps010a~kunnr
+  WHERE pspid = @p_pspid.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'KUNNR'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'P_KUNNR'
+      value_org        = 'S'
+      callback_program = sy-repid
+      "callback_form    = 'CB_FORM'
+      display          = 'F'   " <– Force
+    TABLES
+      value_tab        = lt_kunnr
+      "return_tab       = return_tab
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+
+ENDFORM.

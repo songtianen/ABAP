@@ -1,0 +1,891 @@
+*&---------------------------------------------------------------------*
+*& Report ZRPP202
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZRPP202.
+
+TYPE-POOLS: SLIS.
+TABLES: SSCRFIELDS,DFIES,MARA,MAST.
+DATA: FLDCT TYPE LVC_T_FCAT WITH HEADER LINE,
+      SLAYT TYPE LVC_S_LAYO,
+      TITLE TYPE LVC_TITLE,
+      VARNT LIKE DISVARIANT,
+      REPID LIKE SY-REPID,
+      SUBRC TYPE SY-SUBRC.
+DATA: IT_CLIP TYPE TABLE OF CHAR2048 WITH HEADER LINE.
+DATA: BEGIN OF IT_UPLOAD OCCURS 0,
+        NUM   TYPE CHAR30,
+        MATNR LIKE MAST-MATNR, "物料编码
+        STLAN LIKE MAST-STLAN, "BOM用途
+        BMENG LIKE STKO-BMENG, "基本数量
+        ZTEXT LIKE STZU-ZTEXT, "BOM文本
+        STKTX LIKE STKO-STKTX, "可选文本
+        POSNR LIKE STPO-POSNR, "行项目号
+        POSTP LIKE STPO-POSTP, "项目类型
+        IDNRK LIKE STPO-IDNRK, "物料代码
+        MENGE LIKE STPO-MENGE, "数量
+        MEINS	TYPE MEINS, "使用可能性
+*        SANKA LIKE STPO-SANKA, "成本核算相关标识
+*        POTX1 LIKE STPO-POTX1, "项目文本一
+*        POTX2 LIKE STPO-POTX2, "项目文本二
+*        SORTF LIKE STPO-SORTF, "排序字符串
+*        ALPGR  LIKE STPO-ALPGR, "替代项目组
+*        ALPRF  LIKE STPO-ALPRF, "优先级
+*        ALPST  LIKE STPO-ALPST, "策略
+*        EWAHR  LIKE STPO-EWAHR, "使用可能性
+      END OF IT_UPLOAD.
+
+DATA: BEGIN OF ITAB OCCURS 0,
+        NUM   TYPE CHAR30,
+        MATNR LIKE MAST-MATNR, "物料编码
+        STLAN LIKE MAST-STLAN, "BOM用途
+        BMENG LIKE STKO-BMENG, "基本数量
+        ZTEXT LIKE STZU-ZTEXT, "BOM文本
+        STKTX LIKE STKO-STKTX, "可选文本
+        POSNR LIKE STPO-POSNR, "行项目号
+        POSTP LIKE STPO-POSTP, "项目类型
+        IDNRK LIKE STPO-IDNRK, "物料代码
+        MENGE LIKE STPO-MENGE, "数量
+        MEINS	LIKE MARA-MEINS, "使用可能性
+*        SANKA LIKE STPO-SANKA, "成本核算相关标识
+*        POTX1 LIKE STPO-POTX1, "项目文本一
+*        POTX2 LIKE STPO-POTX2, "项目文本二
+*        SORTF LIKE STPO-SORTF, "排序字符串
+*        ALPGR  LIKE STPO-ALPGR, "替代项目组
+*        ALPRF  LIKE STPO-ALPRF, "优先级
+*        ALPST  LIKE STPO-ALPST, "策略
+*        EWAHR  LIKE STPO-EWAHR, "使用可能性
+        RTYPE TYPE BAPI_MTYPE,
+        RTMSG TYPE BAPI_MSG,
+      END OF ITAB.
+DATA:BEGIN OF IT_MATNR OCCURS 0,
+       NUM   TYPE CHAR30,
+       MATNR TYPE MATNR,
+     END OF IT_MATNR.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK B1 WITH FRAME TITLE T01.
+  PARAMETERS P_WERKS LIKE MAST-WERKS OBLIGATORY MEMORY ID WRK.
+SELECTION-SCREEN END OF BLOCK B1.
+
+SELECTION-SCREEN BEGIN OF BLOCK B2 WITH FRAME TITLE T02.
+  PARAMETERS PR_1 RADIOBUTTON GROUP TYP USER-COMMAND SELE DEFAULT 'X'.
+  PARAMETERS PR_2 RADIOBUTTON GROUP TYP.
+  PARAMETERS FILESTR TYPE STRING OBLIGATORY DEFAULT 'c:\ZBOM.txt' MODIF ID F .
+SELECTION-SCREEN END OF BLOCK B2.
+SELECTION-SCREEN FUNCTION KEY 1.
+
+INITIALIZATION.
+  PERFORM FILL_FCAT USING :  'NUM'  ''  ''  '序号',
+                            'MATNR'  'MAST'  'MATNR'  '物料编码'(F01),
+                            'STLAN'  'MAST'  'STLAN'  'BOM用途'(F02),
+                            'BMENG'  'STKO'  'BMENG'  '基本数量'(F04),
+                            'ZTEXT'  'STZU'  'ZTEXT'  'BOM文本'(F05),
+                            'STKTX'  'STKO'  'STKTX'  '可选文本'(F06),
+                            'POSNR'  'STPO'  'POSNR'  '行项目号'(F07),
+                            'POSTP'  'STPO'  'POSTP'  '项目类型'(F08),
+                            'IDNRK'  'STPO'  'IDNRK'  '组件'(F09),
+                            'MENGE'  'STPO'  'MENGE'  '组件数量'(F10),
+                            'MEINS'  'MARA'  'MEINS'  '单位',
+*                            'SANKA'  'STPO'  'SANKA'  '成本核算标识',
+*                            'POTX1'  'STPO'  'POTX1'  '项目文本1'(F12),
+*                            'POTX2'  'STPO'  'POTX2'  '项目文本2'(F13),
+*                            'SORTF'  'STPO'  'SORTF'  '排序字符串'(F14),
+*                            'ALPGR'  'STPO'  'ALPGR'  '替代项目组',
+*                            'ALPRF'  'STPO'  'ALPRF'  '优先级  ',
+*                            'ALPST'  'STPO'  'ALPST'  '策略   ',
+*                            'EWAHR'  'STPO'  'EWAHR'  '使用可能性',
+                            'RTYPE'  'BAPIRET2' 'BAPI_MTYPE'   '处理结果'(F15),
+                            'RTMSG'  'BAPIRET2' 'MESSAGE'      '处理返回消息'(F16).
+
+AT SELECTION-SCREEN OUTPUT.
+  T01 = '创建BOM数据'(T01).
+  T02 = '数据输入选项'(T02).
+  SSCRFIELDS-FUNCTXT_01   = '导出模板结构'(T03).
+  %_P_WERKS_%_APP_%-TEXT  = '工厂'(T04).
+  %_PR_1_%_APP_%-TEXT     = '数据来自剪贴板(不要复制标题)'(T05).
+  %_PR_2_%_APP_%-TEXT     = '数据来自文本文件'(T06).
+  %_FILESTR_%_APP_%-TEXT  = '文本文件(不要标题行)'(T07).
+
+  LOOP AT SCREEN.
+    IF PR_2 <> 'X' AND SCREEN-NAME CS 'FILESTR'.
+      SCREEN-ACTIVE = '0'.
+    ENDIF.
+
+    MODIFY SCREEN.
+  ENDLOOP.
+
+AT SELECTION-SCREEN . "PAI
+  CASE SSCRFIELDS-UCOMM.
+    WHEN 'FC01'.
+      CLEAR:IT_CLIP, IT_CLIP[].
+      LOOP AT FLDCT WHERE FIELDNAME <> 'RTYPE' AND FIELDNAME <> 'RTMSG'.
+        IF FLDCT-COLTEXT = ''.
+          CALL 'C_DD_READ_FIELD'
+            ID 'TYPE'      FIELD 'T'
+            ID 'TABNAME'   FIELD FLDCT-REF_TABLE
+            ID 'FIELDNAME' FIELD FLDCT-REF_FIELD
+            ID 'LANGUAGE'  FIELD SY-LANGU.
+        ELSE.
+          DFIES-FIELDTEXT = FLDCT-COLTEXT.
+        ENDIF.
+        CONCATENATE IT_CLIP CL_ABAP_CHAR_UTILITIES=>HORIZONTAL_TAB DFIES-FIELDTEXT INTO IT_CLIP.
+      ENDLOOP.
+      SHIFT IT_CLIP.
+      APPEND IT_CLIP.
+
+      CALL METHOD CL_GUI_FRONTEND_SERVICES=>CLIPBOARD_EXPORT
+        IMPORTING
+          DATA                 = IT_CLIP[]
+        CHANGING
+          RC                   = SUBRC
+        EXCEPTIONS
+          CNTL_ERROR           = 1
+          ERROR_NO_GUI         = 2
+          NOT_SUPPORTED_BY_GUI = 3
+          OTHERS               = 4.
+      IF SY-SUBRC = 0.
+        MESSAGE S000(OO) WITH '已经把表头复制到剪贴板,可以打开一个Excel文件然后粘贴'(M01).
+      ELSE.
+        MESSAGE E000(OO) WITH '复制到剪贴板失败'(M02).
+      ENDIF.
+  ENDCASE.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR FILESTR .
+  DATA: RC         TYPE I,
+        FILE_TABLE TYPE FILETABLE WITH HEADER LINE.
+  CALL METHOD CL_GUI_FRONTEND_SERVICES=>FILE_OPEN_DIALOG
+    EXPORTING
+      FILE_FILTER             = '*.TXT|*.TXT||'
+      MULTISELECTION          = ''
+    CHANGING
+      FILE_TABLE              = FILE_TABLE[]
+      RC                      = RC
+    EXCEPTIONS
+      FILE_OPEN_DIALOG_FAILED = 1
+      CNTL_ERROR              = 2
+      ERROR_NO_GUI            = 3
+      NOT_SUPPORTED_BY_GUI    = 4
+      OTHERS                  = 5.
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ELSE.
+    READ TABLE FILE_TABLE INDEX 1.
+    FILESTR = FILE_TABLE.
+  ENDIF.
+
+START-OF-SELECTION.
+  PERFORM SAVELOG(ZREPLOG) USING SY-REPID '' IF FOUND.
+  PERFORM GETDATA.
+  PERFORM OUTDATA.
+
+*&---------------------------------------------------------------------*
+*&      Form  getdata
+*&---------------------------------------------------------------------*
+FORM GETDATA.
+  IF PR_1 = 'X'.
+    PERFORM CLIPTOITAB TABLES IT_UPLOAD.
+  ELSE.
+    CALL FUNCTION 'GUI_UPLOAD'
+      EXPORTING
+        FILENAME            = FILESTR "如有乱码,把文本文件存为UTF-8格式
+        FILETYPE            = 'ASC'
+        HAS_FIELD_SEPARATOR = 'X'
+      TABLES
+        DATA_TAB            = IT_UPLOAD
+      EXCEPTIONS
+        OTHERS              = 1.
+    IF SY-SUBRC = 1.
+      MESSAGE E000(OO) WITH '文件打开错误'(M03).
+    ENDIF.
+  ENDIF.
+
+  IF IT_UPLOAD[] IS INITIAL.
+    MESSAGE S000(OO) WITH '无数据'(M04).
+    STOP.
+  ENDIF.
+
+  ITAB[] = IT_UPLOAD[].
+  LOOP AT ITAB.
+    PERFORM MATN1_INPUT CHANGING ITAB-MATNR.
+    PERFORM TRANSUNIT_TO_INSIDE(ZPUBFORM) CHANGING ITAB-MEINS.
+    MODIFY ITAB.
+*    SELECT SINGLE * FROM MAST
+*      WHERE MATNR = ITAB-MATNR AND
+*            WERKS = P_WERKS    AND
+*            STLAN = ITAB-STLAN.
+*    IF SY-SUBRC = 0.
+*      ITAB-RTYPE = 'E'.
+*      ITAB-RTMSG = '物料BOM已存在'.
+*      MODIFY ITAB.
+*    ENDIF.
+  ENDLOOP.
+ENDFORM.                    "getdata
+
+*&---------------------------------------------------------------------*
+*&      Form  outdata
+*&---------------------------------------------------------------------*
+FORM OUTDATA.
+  DATA LINES(10).
+
+  SLAYT-ZEBRA             = 'X'.
+  SLAYT-CWIDTH_OPT        = 'X'.
+  REPID = SY-REPID.
+  VARNT-REPORT = SY-REPID.
+  VARNT-HANDLE = 1.
+
+  LINES = LINES( ITAB ).
+  CONCATENATE '上载数据条数：'(M11) LINES INTO TITLE SEPARATED BY SPACE.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY_LVC'
+    EXPORTING
+      IT_FIELDCAT_LVC          = FLDCT[]
+      I_SAVE                   = 'A'
+      I_GRID_TITLE             = TITLE
+      IS_VARIANT               = VARNT
+      IS_LAYOUT_LVC            = SLAYT
+      I_CALLBACK_PROGRAM       = REPID
+      I_CALLBACK_USER_COMMAND  = 'USER_COMMAND'
+      I_CALLBACK_PF_STATUS_SET = 'SET_STATUS'
+    TABLES
+      T_OUTTAB                 = ITAB
+    EXCEPTIONS
+      PROGRAM_ERROR            = 1
+      OTHERS                   = 2.
+ENDFORM.                    "outdata
+
+*&--------------------------------------------------------------------*
+*&      Form  set_status
+*&--------------------------------------------------------------------*
+FORM SET_STATUS USING RT_EXTAB TYPE SLIS_T_EXTAB.
+  SET PF-STATUS 'STANDARD' EXCLUDING RT_EXTAB .
+ENDFORM.                    "set_status
+
+*----------------------------------------------------------------------*
+*  剪贴板数据到内表，根据指定符号分割
+*  如果有数据类型错误，比如内表是数值型但是剪贴板里面是字母，则弹出W消息，并忽略这个错误
+*----------------------------------------------------------------------*
+FORM CLIPTOITAB TABLES ITAB.
+  CONSTANTS: SEPARATOR TYPE C VALUE CL_ABAP_CHAR_UTILITIES=>HORIZONTAL_TAB.  "根据指定符号分割
+  DATA: LT_CLIP TYPE TABLE OF CHAR2048 WITH HEADER LINE,
+        LT_FLD  TYPE TABLE OF CHAR2048 WITH HEADER LINE,
+        LT_REP  TYPE TABLE OF CHAR10 WITH HEADER LINE . "要替换为空的符号
+  DATA: CXROOT TYPE REF TO CX_ROOT,
+        EXCMSG TYPE        STRING.
+  DATA: TABIX TYPE SY-TABIX,
+        MOD   TYPE I.
+
+  FIELD-SYMBOLS: <FS_FLD> ,
+                 <FS_TAB> .
+
+  ASSIGN ITAB TO <FS_TAB> .
+
+  CALL METHOD CL_GUI_FRONTEND_SERVICES=>CLIPBOARD_IMPORT
+    IMPORTING
+      DATA                 = LT_CLIP[]
+    EXCEPTIONS
+      CNTL_ERROR           = 1
+      ERROR_NO_GUI         = 2
+      NOT_SUPPORTED_BY_GUI = 3
+      OTHERS               = 4.
+  IF SY-SUBRC <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+      WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4  .
+  ENDIF.
+  CALL METHOD CL_GUI_CFW=>FLUSH .
+
+  LOOP AT LT_CLIP.
+    CLEAR: TABIX,LT_FLD[].
+    SPLIT LT_CLIP AT SEPARATOR INTO TABLE LT_FLD.
+    LOOP AT LT_FLD.
+      TABIX = TABIX + 1.
+      ASSIGN COMPONENT TABIX OF STRUCTURE <FS_TAB> TO <FS_FLD>.
+      CHECK SY-SUBRC = 0.
+      TRY .
+          LOOP AT LT_REP.
+            REPLACE ALL OCCURRENCES OF LT_REP IN LT_FLD WITH ''.
+          ENDLOOP.
+          <FS_FLD> = LT_FLD.
+        CATCH  CX_ROOT INTO CXROOT.
+          EXCMSG = CXROOT->GET_TEXT( ).
+      ENDTRY.
+    ENDLOOP.
+    APPEND ITAB .
+    CLEAR ITAB.
+  ENDLOOP.
+  IF EXCMSG IS NOT INITIAL.
+    MESSAGE S000(OO) WITH '数据转换有错误发生，已经忽略'(M05) DISPLAY LIKE 'W'.
+  ENDIF.
+ENDFORM.                    "cliptoitab
+
+*&---------------------------------------------------------------------*
+*&      Form  fill_fcat
+*&---------------------------------------------------------------------*
+FORM FILL_FCAT USING FLDNAME REFTAB REFFLD COLTEXT.
+  FLDCT-FIELDNAME = FLDNAME.
+  FLDCT-REF_TABLE = REFTAB.
+  FLDCT-REF_FIELD = REFFLD.
+  FLDCT-COLTEXT = COLTEXT.
+  APPEND FLDCT.
+  CLEAR FLDCT.
+ENDFORM.                    "fill_fcat
+
+*&--------------------------------------------------------------------*
+*&      Form  user_command
+*&--------------------------------------------------------------------*
+FORM USER_COMMAND USING R_UCOMM LIKE SY-UCOMM
+                        RS_SELFLD TYPE SLIS_SELFIELD.
+  CASE R_UCOMM.
+    WHEN '&IC1'.
+      READ TABLE ITAB INDEX RS_SELFLD-TABINDEX.
+    WHEN 'TOCLIP'.
+      PERFORM ITABTOCLIP_ALV TABLES ITAB USING 'X'.
+    WHEN 'UPLOAD'.
+      PERFORM SAVE.
+  ENDCASE.
+
+  RS_SELFLD-ROW_STABLE = 'X'.
+  RS_SELFLD-COL_STABLE = 'X'.
+  RS_SELFLD-REFRESH = 'X'.  "自动刷新
+ENDFORM.                    "user_command
+
+*&---------------------------------------------------------------------*
+*&      Form  itabtoclip_alv
+*&---------------------------------------------------------------------*
+FORM ITABTOCLIP_ALV TABLES ITAB USING WITHHEADER.
+  DATA: FLDCAT  TYPE SLIS_T_FIELDCAT_ALV WITH HEADER LINE,
+        MARKED  TYPE SLIS_T_FIELDCAT_ALV WITH HEADER LINE,
+        ENTRIES TYPE SLIS_T_FILTERED_ENTRIES WITH HEADER LINE.
+  DATA: CHARC TYPE CHAR256,
+        FTYPE .
+  DATA: HTAB TYPE C VALUE CL_ABAP_CHAR_UTILITIES=>HORIZONTAL_TAB .
+  DATA: LT_CLIP TYPE TABLE OF CHAR2048 WITH HEADER LINE .
+  FIELD-SYMBOLS <FS_FLD>.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_LAYOUT_INFO_GET'
+    IMPORTING
+      ET_FIELDCAT         = FLDCAT[]
+      ET_MARKED_COLUMNS   = MARKED[]
+      ET_FILTERED_ENTRIES = ENTRIES[]
+    EXCEPTIONS
+      NO_INFOS            = 1
+      PROGRAM_ERROR       = 2
+      OTHERS              = 3.
+  IF MARKED[] IS INITIAL.
+    MARKED[] = FLDCAT[].
+    DELETE MARKED WHERE NO_OUT = 'X'.
+  ENDIF.
+  SORT ENTRIES.
+
+  CHECK MARKED[] IS NOT INITIAL.
+  CHECK ITAB[] IS NOT INITIAL.
+
+  IF WITHHEADER IS NOT INITIAL.
+    LOOP AT MARKED.
+      CONCATENATE LT_CLIP HTAB MARKED-SELTEXT_L INTO LT_CLIP.
+    ENDLOOP.
+    IF SY-SUBRC = 0.
+      SHIFT LT_CLIP.
+      APPEND LT_CLIP.
+    ENDIF.
+  ENDIF.
+
+  LOOP AT ITAB.
+    READ TABLE ENTRIES WITH KEY TABLE_LINE = SY-TABIX BINARY SEARCH.
+    CHECK SY-SUBRC <> 0 .
+
+    CLEAR LT_CLIP.
+    LOOP AT MARKED.
+      ASSIGN COMPONENT MARKED-FIELDNAME OF STRUCTURE ITAB TO <FS_FLD>.
+      CHECK SY-SUBRC = 0.
+
+      DESCRIBE FIELD <FS_FLD> TYPE FTYPE.
+      CASE FTYPE.
+        WHEN 'I' OR 'P' OR 'F' OR 'a' OR 'e'.
+          CHARC = ABS( <FS_FLD> ).
+          CONDENSE CHARC NO-GAPS.
+          IF <FS_FLD> < 0.
+            CONCATENATE '-' CHARC INTO CHARC.
+          ENDIF.
+        WHEN 'D' OR 'T'.
+          IF <FS_FLD> IS INITIAL .
+            CHARC = ''.
+          ELSE.
+            WRITE <FS_FLD> TO CHARC .
+          ENDIF.
+        WHEN OTHERS.
+          WRITE <FS_FLD> TO CHARC .
+      ENDCASE.
+      CONCATENATE LT_CLIP HTAB CHARC INTO LT_CLIP.
+    ENDLOOP.
+    SHIFT LT_CLIP.
+    APPEND LT_CLIP.
+  ENDLOOP.
+
+  CHECK LT_CLIP[] IS NOT INITIAL.
+  CALL FUNCTION 'CLPB_EXPORT'
+    TABLES
+      DATA_TAB   = LT_CLIP
+    EXCEPTIONS
+      CLPB_ERROR = 01.
+  IF SY-SUBRC = 0.
+    MESSAGE S000(OO) WITH '已经导出到剪贴板'(M06).
+  ELSE.
+    MESSAGE E000(OO) WITH '导出到剪贴板错误'(M07).
+  ENDIF.
+ENDFORM.                    "itabtoclip_alv
+
+*&---------------------------------------------------------------------*
+*&      Form  save
+*&---------------------------------------------------------------------*
+FORM SAVE.
+  DATA: LT_BOMGROUP TYPE TABLE OF BAPI1080_BGR_C WITH HEADER LINE,
+        LT_VARIANTS TYPE TABLE OF BAPI1080_BOM_C WITH HEADER LINE,
+        LT_ITEMS    TYPE TABLE OF BAPI1080_ITM_C WITH HEADER LINE,
+        LT_MATREL   TYPE TABLE OF BAPI1080_MBM_C WITH HEADER LINE,
+        LT_ITEMAS   TYPE TABLE OF BAPI1080_REL_ITM_BOM_C WITH HEADER LINE,
+        LT_TEXT     TYPE TABLE OF BAPI1080_TXT_C WITH HEADER LINE,
+        LT_RETN     TYPE TABLE OF BAPIRET2 WITH HEADER LINE,
+        RETURN      TYPE TABLE OF BAPIRET2 WITH HEADER LINE,
+        T_STPO      TYPE TABLE OF STPO_API03 WITH HEADER LINE.
+  DATA: BEGIN OF LT_STKO OCCURS 0,
+          MATNR LIKE MAST-MATNR, "物料编码
+          STLAN LIKE MAST-STLAN, "BOM用途
+          ZTEXT LIKE STZU-ZTEXT, "BOM文本
+          STKTX LIKE STKO-STKTX, "可选文本
+          BMENG LIKE STKO-BMENG, "基本数量
+        END OF LT_STKO.
+  DATA:WA_ZSENH_001  TYPE ZSENH_001,
+       WA_ZSENH_001A TYPE ZSENH_001,
+       L_STLAL       TYPE NUMC2.
+  DATA:WA_BOM TYPE CSAP_MBOM,
+       I_STKO TYPE STKO_API01,
+       O_STKO TYPE STKO_API02.
+  DATA:WA_ITAB LIKE LINE OF ITAB.
+  CLEAR:IT_MATNR[], LT_STKO[].
+  LOOP AT ITAB WHERE RTYPE = ''.
+    CLEAR:IT_MATNR.
+    IT_MATNR-MATNR = ITAB-MATNR.
+    IT_MATNR-NUM = ITAB-NUM.
+    COLLECT IT_MATNR.
+*    READ TABLE LT_STKO WITH KEY MATNR = ITAB-MATNR
+*                                STLAN = ITAB-STLAN
+*                                BINARY SEARCH.
+*    IF SY-SUBRC = 0.
+*    ELSE.
+*      MOVE-CORRESPONDING ITAB TO LT_STKO.
+*      INSERT LT_STKO INDEX SY-TABIX.
+*    ENDIF.
+  ENDLOOP.
+  LOOP AT IT_MATNR.
+    CLEAR: LT_BOMGROUP[],LT_VARIANTS[],LT_MATREL[],LT_RETN[].
+    CLEAR: LT_ITEMS[],LT_ITEMAS[],WA_BOM,WA_ITAB,T_STPO[].
+    READ TABLE ITAB INTO WA_ITAB WITH KEY NUM = IT_MATNR-NUM
+                                          MATNR = IT_MATNR-MATNR.
+    SELECT SINGLE MAX( STLAL )
+      INTO @DATA(L_STLAL2)
+      FROM MAST
+      WHERE WERKS = @P_WERKS
+      AND   MATNR = @WA_ITAB-MATNR.
+    L_STLAL = L_STLAL2 + 1.
+    PERFORM ADDZERO(ZPUBFORM) CHANGING L_STLAL.
+    WA_BOM-STLAL = L_STLAL.
+    WA_BOM-MATNR = WA_ITAB-MATNR.
+    WA_BOM-WERKS = P_WERKS.
+    WA_BOM-STLAN = WA_ITAB-STLAN.
+    WA_BOM-DATUV = SY-DATUM.
+
+    I_STKO-BASE_QUAN = WA_ITAB-BMENG.
+    I_STKO-BOM_TEXT = WA_ITAB-ZTEXT.   "
+    I_STKO-ALT_TEXT = WA_ITAB-STKTX.    "
+    LOOP AT ITAB WHERE NUM = IT_MATNR-NUM
+                         AND MATNR = IT_MATNR-MATNR.
+      CLEAR:T_STPO.
+      T_STPO-ITEM_NO    = ITAB-POSNR.
+      T_STPO-ITEM_CATEG = ITAB-POSTP.
+      T_STPO-COMPONENT  = ITAB-IDNRK.
+      T_STPO-COMP_QTY   = ITAB-MENGE.
+      T_STPO-COMP_UNIT   = ITAB-MEINS.
+      CASE ITAB-MEINS.
+        WHEN 'ZH'.
+        T_STPO-COMP_UNIT   = '张'.
+      ENDCASE.
+      APPEND T_STPO.
+    ENDLOOP.
+    SORT T_STPO BY ITEM_NO.
+
+*    LT_BOMGROUP-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*    LT_BOMGROUP-OBJECT_TYPE      = 'BGR'.
+*    LT_BOMGROUP-OBJECT_ID        = 'BGR01'.
+*    LT_BOMGROUP-BOM_USAGE        = WA_ITAB-STLAN.
+*    LT_BOMGROUP-CREATED_IN_PLANT = P_WERKS.
+*    LT_BOMGROUP-LTXT_LANG        = SY-LANGU.
+*    LT_BOMGROUP-TECHNICAL_TYPE   = ' '.
+*    LT_BOMGROUP-BOM_TEXT         = WA_ITAB-ZTEXT.
+*    APPEND LT_BOMGROUP.
+*
+*    CLEAR LT_VARIANTS.
+*    LT_VARIANTS-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*    LT_VARIANTS-OBJECT_TYPE      = 'BOM'.
+*    LT_VARIANTS-OBJECT_ID        = 'BOM01'.
+**    LT_VARIANTS-ALTERNATIVE_BOM  = '01'.
+*    LT_VARIANTS-ALTERNATIVE_BOM  = L_STLAL.
+*    LT_VARIANTS-BOM_STATUS       = '01'.
+*    LT_VARIANTS-ALT_TEXT         = WA_ITAB-STKTX.
+*    LT_VARIANTS-BASE_QTY         = WA_ITAB-BMENG.
+*    LT_VARIANTS-VALID_FROM_DATE  = SY-DATUM.
+*    LT_VARIANTS-FUNCTION         = 'NEW'.
+*    APPEND LT_VARIANTS.
+*
+*    CLEAR LT_MATREL.
+*    LT_MATREL-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*    LT_MATREL-MATERIAL           = WA_ITAB-MATNR.
+*    LT_MATREL-PLANT              = P_WERKS.
+*    LT_MATREL-BOM_USAGE          = WA_ITAB-STLAN.
+*    LT_MATREL-ALTERNATIVE_BOM    = '01'.
+*    APPEND LT_MATREL.
+
+*    LOOP AT ITAB WHERE NUM = IT_MATNR-NUM AND
+*                       MATNR = IT_MATNR-MATNR AND
+*                       RTYPE = '' .
+*
+*      READ TABLE LT_ITEMS WITH KEY OBJECT_ID = ITAB-POSNR.
+*      CHECK SY-SUBRC <> 0.  "如果有重复的行项目号，自动删除而不报错，注意！！
+*
+*      PERFORM MATN1_INPUT CHANGING ITAB-IDNRK.
+*      SELECT SINGLE * FROM MARA WHERE MATNR = ITAB-IDNRK.
+*
+*      LT_ITEMS-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*      LT_ITEMS-OBJECT_TYPE       = 'ITM'.
+*      LT_ITEMS-OBJECT_ID         = ITAB-POSNR.
+*      LT_ITEMS-ITEM_NO           = ITAB-POSNR.
+*      LT_ITEMS-ITEM_CAT          = ITAB-POSTP.
+*      LT_ITEMS-COMPONENT         = ITAB-IDNRK.
+*      LT_ITEMS-COMP_QTY          = ITAB-MENGE * ITAB-BMENG.
+*      LT_ITEMS-COMP_UNIT          = ITAB-MEINS.
+*      LT_ITEMS-VALID_FROM_DATE   = SY-DATUM.
+*      LT_ITEMS-LTXT_LANG         = SY-LANGU.
+*      LT_ITEMS-SORT_STRING       = ITAB-SORTF.
+*      LT_ITEMS-ITEM_TEXT1        = ITAB-POTX1.
+*      LT_ITEMS-ITEM_TEXT2        = ITAB-POTX2.
+*      LT_ITEMS-ALT_ITEM_STRATEGY = ITAB-ALPST.
+*      LT_ITEMS-ALT_ITEM_PRIO     = ITAB-ALPRF.
+*      LT_ITEMS-ALT_ITEM_GROUP    = ITAB-ALPGR.
+*      LT_ITEMS-USAGE_PROB        = ITAB-EWAHR.
+*      APPEND LT_ITEMS.
+*      CLEAR LT_ITEMS.
+*
+*      LT_ITEMAS-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*      LT_ITEMAS-SUB_OBJECT_TYPE    = 'ITM'.
+*      LT_ITEMAS-SUB_OBJECT_ID      = ITAB-POSNR.
+*      LT_ITEMAS-SUPER_OBJECT_TYPE  = 'BOM'.
+*      LT_ITEMAS-SUPER_OBJECT_ID    = 'BOM01'.
+*      LT_ITEMAS-VALID_FROM_DATE    = SY-DATUM.
+*      LT_ITEMAS-FUNCTION           = 'NEW'.
+*      APPEND LT_ITEMAS.
+*      CLEAR LT_ITEMAS.
+*    ENDLOOP.
+
+    PERFORM MESS_RETN TABLES RETURN
+                      USING '物料'(M08) LT_STKO-MATNR '创建BOM'(M09) ''.
+    CLEAR:WA_ZSENH_001,WA_ZSENH_001A.
+    WA_ZSENH_001-DZBS = 'MEMOXMD_CREATEBOM'.
+    WA_ZSENH_001-FLAG = 'X'.
+    SET UPDATE TASK LOCAL.
+    EXPORT MEMOWA = WA_ZSENH_001 TO MEMORY ID 'MEMOXMD_CREATEBOM'.
+
+
+    SET UPDATE TASK LOCAL.
+    CALL FUNCTION 'CSAP_MAT_BOM_MAINTAIN'
+      EXPORTING
+        MATERIAL           = WA_BOM-MATNR
+        PLANT              = WA_BOM-WERKS
+        BOM_USAGE          = WA_BOM-STLAN
+        ALTERNATIVE        = WA_BOM-STLAL
+        VALID_FROM         = WA_BOM-DATUV
+        I_STKO             = I_STKO
+        FL_BOM_CREATE      = 'X'
+        FL_NEW_ITEM        = 'X'
+        FL_COMPLETE        = 'X'
+        FL_COMMIT_AND_WAIT = 'X'
+        FL_DEFAULT_VALUES  = 'X'
+        "成本核算标识等默认字段的清空可以用FL_DEFAULT_VALUES这个参数
+        "但是担心取消这个参数，本来应该带默认值的其他字段被影响，
+        "而程序中又难以找全所有字段默认值，故使用内存传值增强
+      IMPORTING
+        O_STKO             = O_STKO
+      TABLES
+        T_STPO             = T_STPO
+      EXCEPTIONS
+        ERROR_MESSAGE      = 1
+        ERROR              = 2
+        OTHERS             = 3.
+    IF SY-SUBRC NE 0.
+      ITAB-RTYPE = 'E'.
+      ITAB-RTMSG = LT_RETN-MESSAGE.
+      PERFORM MSGTOTEXT(ZPUBFORM) USING '' '' '' '' '' ''
+            CHANGING ITAB-RTMSG .
+      ROLLBACK WORK.
+    ELSE.
+      COMMIT WORK AND WAIT.
+      ITAB-RTYPE = 'S'.
+      ITAB-RTMSG = '成功'(M10).
+    ENDIF.
+    MODIFY ITAB TRANSPORTING RTYPE RTMSG
+                WHERE MATNR = IT_MATNR-MATNR AND
+                      NUM = IT_MATNR-NUM .
+*    SET UPDATE TASK LOCAL.
+*    CALL FUNCTION 'BAPI_MATERIAL_BOM_GROUP_CREATE'
+*      EXPORTING
+*        ALL_ERROR         = 'X'
+*      TABLES
+*        BOMGROUP          = LT_BOMGROUP
+*        VARIANTS          = LT_VARIANTS
+*        ITEMS             = LT_ITEMS
+*        MATERIALRELATIONS = LT_MATREL
+*        ITEMASSIGNMENTS   = LT_ITEMAS
+*        RETURN            = LT_RETN.
+*    APPEND LINES OF LT_RETN TO RETURN.
+*    LOOP AT LT_RETN  WHERE TYPE CA 'AEX'.
+*      EXIT.
+*    ENDLOOP.
+*    IF SY-SUBRC = 0.
+*      ITAB-RTYPE = 'E'.
+*      ITAB-RTMSG = LT_RETN-MESSAGE.
+*    ELSE.
+*      COMMIT WORK AND WAIT.
+*      ITAB-RTYPE = 'S'.
+*      ITAB-RTMSG = '成功'(M10).
+*    ENDIF.
+*    MODIFY ITAB TRANSPORTING RTYPE RTMSG
+*                WHERE MATNR = LT_STKO-MATNR AND
+*                      STLAN = LT_STKO-STLAN .
+  ENDLOOP.
+
+*  CALL FUNCTION 'SUSR_DISPLAY_LOG'
+*    EXPORTING
+*      DISPLAY_IN_POPUP = 'X'
+*    TABLES
+*      IT_LOG_BAPIRET2  = RETURN
+*    EXCEPTIONS
+*      PARAMETER_ERROR  = 1
+*      OTHERS           = 2.
+  EXIT.
+
+
+*  LOOP AT LT_STKO.
+*    CLEAR: LT_BOMGROUP[],LT_VARIANTS[],LT_MATREL[],LT_RETN[].
+*    CLEAR: LT_ITEMS[],LT_ITEMAS[],WA_BOM.
+*    SELECT SINGLE MAX( STLAL )
+*      INTO @DATA(L_STLAL1)
+*      FROM MAST
+*      WHERE WERKS = @P_WERKS
+*      AND   MATNR = @LT_STKO-MATNR.
+*    L_STLAL = L_STLAL1 + 1.
+*    PERFORM ADDZERO(ZPUBFORM) CHANGING L_STLAL.
+**    WA_BOM-MATNR = LT_STKO-MATNR.
+**    WA_BOM-WERKS = P_WERKS.
+**    WA_BOM-STLAN = ITAB-STLAN.
+**    WA_BOM-DATUV = SY-DATUM.
+*
+*    LT_BOMGROUP-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*    LT_BOMGROUP-OBJECT_TYPE      = 'BGR'.
+*    LT_BOMGROUP-OBJECT_ID        = 'BGR01'.
+*    LT_BOMGROUP-BOM_USAGE        = LT_STKO-STLAN.
+*    LT_BOMGROUP-CREATED_IN_PLANT = P_WERKS.
+*    LT_BOMGROUP-LTXT_LANG        = SY-LANGU.
+*    LT_BOMGROUP-TECHNICAL_TYPE   = ' '.
+*    LT_BOMGROUP-BOM_TEXT         = LT_STKO-ZTEXT.
+*    APPEND LT_BOMGROUP.
+*
+*    CLEAR LT_VARIANTS.
+*    LT_VARIANTS-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*    LT_VARIANTS-OBJECT_TYPE      = 'BOM'.
+*    LT_VARIANTS-OBJECT_ID        = 'BOM01'.
+**    LT_VARIANTS-ALTERNATIVE_BOM  = '01'.
+*    LT_VARIANTS-ALTERNATIVE_BOM  = L_STLAL.
+*    LT_VARIANTS-BOM_STATUS       = '01'.
+*    LT_VARIANTS-ALT_TEXT         = LT_STKO-STKTX.
+*    LT_VARIANTS-BASE_QTY         = LT_STKO-BMENG.
+*    LT_VARIANTS-VALID_FROM_DATE  = SY-DATUM.
+*    LT_VARIANTS-FUNCTION         = 'NEW'.
+*    APPEND LT_VARIANTS.
+*
+*    CLEAR LT_MATREL.
+*    LT_MATREL-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*    LT_MATREL-MATERIAL           = LT_STKO-MATNR.
+*    LT_MATREL-PLANT              = P_WERKS.
+*    LT_MATREL-BOM_USAGE          = LT_STKO-STLAN.
+*    LT_MATREL-ALTERNATIVE_BOM    = '01'.
+*    APPEND LT_MATREL.
+*
+*    LOOP AT ITAB WHERE MATNR = LT_STKO-MATNR AND
+*                       STLAN = LT_STKO-STLAN AND
+*                       RTYPE = '' .
+*
+*      READ TABLE LT_ITEMS WITH KEY OBJECT_ID = ITAB-POSNR.
+*      CHECK SY-SUBRC <> 0.  "如果有重复的行项目号，自动删除而不报错，注意！！
+*
+*      PERFORM MATN1_INPUT CHANGING ITAB-IDNRK.
+*      SELECT SINGLE * FROM MARA WHERE MATNR = ITAB-IDNRK.
+*
+*      LT_ITEMS-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*      LT_ITEMS-OBJECT_TYPE       = 'ITM'.
+*      LT_ITEMS-OBJECT_ID         = ITAB-POSNR.
+*      LT_ITEMS-ITEM_NO           = ITAB-POSNR.
+*      LT_ITEMS-ITEM_CAT          = ITAB-POSTP.
+*      LT_ITEMS-COMPONENT         = ITAB-IDNRK.
+*      LT_ITEMS-COMP_QTY          = ITAB-MENGE * ITAB-BMENG.
+*      LT_ITEMS-COMP_UNIT          = ITAB-MEINS.
+*      LT_ITEMS-VALID_FROM_DATE   = SY-DATUM.
+*      LT_ITEMS-LTXT_LANG         = SY-LANGU.
+*      LT_ITEMS-SORT_STRING       = ITAB-SORTF.
+*      LT_ITEMS-ITEM_TEXT1        = ITAB-POTX1.
+*      LT_ITEMS-ITEM_TEXT2        = ITAB-POTX2.
+*      LT_ITEMS-ALT_ITEM_STRATEGY = ITAB-ALPST.
+*      LT_ITEMS-ALT_ITEM_PRIO     = ITAB-ALPRF.
+*      LT_ITEMS-ALT_ITEM_GROUP    = ITAB-ALPGR.
+*      LT_ITEMS-USAGE_PROB        = ITAB-EWAHR.
+*      APPEND LT_ITEMS.
+*      CLEAR LT_ITEMS.
+*
+*      LT_ITEMAS-BOM_GROUP_IDENTIFICATION = 'BOM_GRP'.
+*      LT_ITEMAS-SUB_OBJECT_TYPE    = 'ITM'.
+*      LT_ITEMAS-SUB_OBJECT_ID      = ITAB-POSNR.
+*      LT_ITEMAS-SUPER_OBJECT_TYPE  = 'BOM'.
+*      LT_ITEMAS-SUPER_OBJECT_ID    = 'BOM01'.
+*      LT_ITEMAS-VALID_FROM_DATE    = SY-DATUM.
+*      LT_ITEMAS-FUNCTION           = 'NEW'.
+*      APPEND LT_ITEMAS.
+*      CLEAR LT_ITEMAS.
+*    ENDLOOP.
+
+*    PERFORM MESS_RETN TABLES RETURN
+*                      USING '物料'(M08) LT_STKO-MATNR '创建BOM'(M09) ''.
+*    CLEAR:WA_ZSENH_001,WA_ZSENH_001A.
+*    WA_ZSENH_001-DZBS = 'MEMOXMD_CREATEBOM'.
+*    WA_ZSENH_001-FLAG = 'X'.
+*    SET UPDATE TASK LOCAL.
+*    EXPORT MEMOWA = WA_ZSENH_001 TO MEMORY ID 'MEMOXMD_CREATEBOM'.
+
+
+*    SET UPDATE TASK LOCAL.
+*    CALL FUNCTION 'CSAP_MAT_BOM_MAINTAIN'
+*      EXPORTING
+*        MATERIAL           = WA_BOM-MATNR
+*        PLANT              = WA_BOM-WERKS
+*        BOM_USAGE          = WA_BOM-STLAN
+*        ALTERNATIVE        = WA_BOM-STLAL
+*        VALID_FROM         = WA_BOM-DATUV
+*        I_STKO             = I_STKO
+*        FL_BOM_CREATE      = 'X'
+*        FL_NEW_ITEM        = 'X'
+*        FL_COMPLETE        = 'X'
+*        FL_COMMIT_AND_WAIT = 'X'
+*        FL_DEFAULT_VALUES  = 'X'
+*        "成本核算标识等默认字段的清空可以用FL_DEFAULT_VALUES这个参数
+*        "但是担心取消这个参数，本来应该带默认值的其他字段被影响，
+*        "而程序中又难以找全所有字段默认值，故使用内存传值增强
+*      IMPORTING
+*        O_STKO             = O_STKO
+*      TABLES
+*        T_STPO             = T_STPO
+*      EXCEPTIONS
+*        ERROR_MESSAGE      = 1
+*        ERROR              = 2
+*        OTHERS             = 3.
+*    IF SY-SUBRC NE 0.
+*      ITAB-RTYPE = 'E'.
+*      ITAB-RTMSG = LT_RETN-MESSAGE.
+*      PERFORM MSGTOTEXT(ZPUBFORM) USING '' '' '' '' '' ''
+*            CHANGING ITAB-RTMSG .
+*      ROLLBACK WORK.
+*    ELSE.
+*      COMMIT WORK AND WAIT.
+*      ITAB-RTYPE = 'S'.
+*      ITAB-RTMSG = '成功'(M10).
+*    ENDIF.
+*    MODIFY ITAB TRANSPORTING RTYPE RTMSG
+*                WHERE MATNR = LT_STKO-MATNR AND
+*                      STLAN = LT_STKO-STLAN .
+*    SET UPDATE TASK LOCAL.
+*    CALL FUNCTION 'BAPI_MATERIAL_BOM_GROUP_CREATE'
+*      EXPORTING
+*        ALL_ERROR         = 'X'
+*      TABLES
+*        BOMGROUP          = LT_BOMGROUP
+*        VARIANTS          = LT_VARIANTS
+*        ITEMS             = LT_ITEMS
+*        MATERIALRELATIONS = LT_MATREL
+*        ITEMASSIGNMENTS   = LT_ITEMAS
+*        RETURN            = LT_RETN.
+*    APPEND LINES OF LT_RETN TO RETURN.
+*    LOOP AT LT_RETN  WHERE TYPE CA 'AEX'.
+*      EXIT.
+*    ENDLOOP.
+*    IF SY-SUBRC = 0.
+*      ITAB-RTYPE = 'E'.
+*      ITAB-RTMSG = LT_RETN-MESSAGE.
+*    ELSE.
+*      COMMIT WORK AND WAIT.
+*      ITAB-RTYPE = 'S'.
+*      ITAB-RTMSG = '成功'(M10).
+*    ENDIF.
+*    MODIFY ITAB TRANSPORTING RTYPE RTMSG
+*                WHERE MATNR = LT_STKO-MATNR AND
+*                      STLAN = LT_STKO-STLAN .
+*  ENDLOOP.
+*
+*  CALL FUNCTION 'SUSR_DISPLAY_LOG'
+*    EXPORTING
+*      DISPLAY_IN_POPUP = 'X'
+*    TABLES
+*      IT_LOG_BAPIRET2  = RETURN
+*    EXCEPTIONS
+*      PARAMETER_ERROR  = 1
+*      OTHERS           = 2.
+
+ENDFORM.                    "save
+
+*&---------------------------------------------------------------------*
+*&      Form  matn1_input
+*&---------------------------------------------------------------------*
+FORM MATN1_INPUT CHANGING MATNR.
+  CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+    EXPORTING
+      INPUT        = MATNR
+    IMPORTING
+      OUTPUT       = MATNR
+    EXCEPTIONS
+      LENGTH_ERROR = 1
+      OTHERS       = 2.
+ENDFORM.                    "alpha_input
+
+*&---------------------------------------------------------------------*
+*&      Form  ALPHA_INPUT
+*&---------------------------------------------------------------------*
+FORM ALPHA_INPUT CHANGING FIELD.
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+    EXPORTING
+      INPUT  = FIELD
+    IMPORTING
+      OUTPUT = FIELD.
+ENDFORM.                    "ALPHA_INPUT
+
+*&---------------------------------------------------------------------*
+*&      Form  mess_retn
+*&---------------------------------------------------------------------*
+FORM MESS_RETN TABLES RETURN STRUCTURE BAPIRET2 USING MS1 MS2 MS3 MS4 .
+  DATA: WA_RETN TYPE BAPIRET2,
+        UT      LIKE SY-UZEIT.
+
+  GET TIME FIELD UT.
+  WA_RETN-TYPE = 'I'.
+  WA_RETN-ID   = 'OO'.
+  WA_RETN-NUMBER = '000'.
+  CONCATENATE MS1 MS2 MS3 MS4 `  `  UT+0(2) ':' UT+2(2) ':' UT+4(2)
+      INTO WA_RETN-MESSAGE_V1.
+  APPEND WA_RETN TO RETURN.
+ENDFORM.                    "fill_retn_memo

@@ -1,0 +1,4 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRFI202B	ZSFMS_FIPOST	创建会计凭证结构	结构				
+ZRFI202B	ZTFI205	费用管理科目科目对照表	透明表				
+ZRFI202B	ZTFIRD_MATPOST	研发费用调整	透明表				

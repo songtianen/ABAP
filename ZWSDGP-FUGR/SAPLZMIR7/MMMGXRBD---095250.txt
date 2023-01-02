@@ -1,0 +1,108 @@
+************************************************************
+* Include MMMGXRBD - Zus#tzliches Vorlagehandling Before
+*  > f¨¹r Dialog mit REFTAB - Handling
+************************************************************
+* Include generiert am :         31.08.95
+
+* ----------------------------------------------------------
+FORM ZUSREF_VORSCHLAGEN_BEFORE_D.
+* ----------------------------------------------------------
+
+LOOP AT SUB_PTAB.
+  CASE SUB_PTAB-TBNAM.
+    WHEN T_MARA.
+      IF SUB_STATUS CA STATUS_E AND             "neu zu 4.0A   BE/310797
+         STATUS_E NA SUB_PTAB-BISTSTAT.         "note 572580
+        REFTAB-RFTYP =  RFTYP_BEFORE.
+        REFTAB-TBNAM = T_MARA.
+        REFTAB-STATM = STATUS_E.
+        READ TABLE REFTAB WITH KEY REFTAB BINARY SEARCH.
+        IF SY-SUBRC NE 0.
+          INSERT REFTAB INDEX SY-TABIX.
+          CALL FUNCTION 'MARA_E_ADD_REFERENCE_BEFORE   '
+             EXPORTING
+                   WMARA  = MARA
+                   KZRFB  = KZRFB
+                   WRMMG1 = RMMG1
+                   WRMMG2 = RMMG2
+                   REF_MATNR = REF_MATNR
+             IMPORTING
+                   WMARA  = MARA
+.
+        ENDIF.
+      ENDIF.
+*     deakt zu 3.0D da GEWEI = 'KG' jetzt im .._AFTER gesetzt wird  /ch
+*     (die Gewichte werden ggf. ja auch vom Vorlagematerial ¨¹bernommen)
+*     IF SUB_STATUS CA STATUS_V.
+*       REFTAB-RFTYP =  RFTYP_BEFORE.
+*       REFTAB-TBNAM = T_MARA.
+*       REFTAB-STATM = STATUS_V.
+*       READ TABLE REFTAB WITH KEY REFTAB BINARY SEARCH.
+*       IF SY-SUBRC NE 0.
+*         INSERT REFTAB INDEX SY-TABIX.
+*         CALL FUNCTION 'MARA_V_ADD_REFERENCE_BEFORE   '
+*            EXPORTING
+*                  WMARA  = MARA
+*                  KZRFB  = KZRFB
+*                  WRMMG1 = RMMG1
+*                  REF_MATNR = REF_MATNR
+*            IMPORTING
+*                  WMARA  = MARA
+*
+*       ENDIF.
+*     ENDIF.
+    WHEN T_MARC.
+      IF ( SUB_STATUS CA STATUS_D OR
+           NOT RMMG1-DISPR IS INITIAL )                     "note 772644
+           AND STATUS_D NA SUB_PTAB-BISTSTAT.               "note 572580
+          CALL FUNCTION 'MARC_D_ADD_REFERENCE_BEFORE   '
+             EXPORTING
+                   WMARC  = MARC
+                   FLG_MDIP_MOVE = RMMG2-MDIP_MOVE
+                   WPTAB       = SUB_PTAB
+                   FLG_UEBERNAHME = FLG_UEBERNAHME
+                   WMPGD          = MPGD
+                   FLG_PRUEFDUNKEL = FLG_PRUEFDUNKEL
+                   WT130M         = T130M
+                   NEUFLAG        = NEUFLAG
+                   P_MARA_KZKFG   = RMMG2-KZKFG
+                   P_MPOP_PROPR   = MPOP-PROPR
+                   KZRFB  = KZRFB
+                   WRMMG1 = RMMG1
+                   WRMMG2 = RMMG2                                       " n_2307549
+                   REF_MATNR = REF_MATNR
+                   MTART_BESKZ = RMMG2-BESKZ    "cfo/31.01.97
+                   iv_mara_matfi   = mara-matfi "TF 4.6C Materialf.
+             IMPORTING
+                   WMARC  = MARC
+                   WMPGD         = MPGD
+                   FLG_MDIP_MOVE = RMMG2-MDIP_MOVE
+             TABLES
+                  FAUSWTAB      = FAUSWTAB
+                  FAUSWTAB_SOND = FAUSWTAB_SOND
+.
+      ENDIF.
+    WHEN T_MPOP.
+      IF SUB_STATUS CA STATUS_P AND
+         STATUS_P NA SUB_PTAB-BISTSTAT.                     "note 572580
+        REFTAB-RFTYP =  RFTYP_BEFORE.
+        REFTAB-TBNAM = T_MPOP.
+        REFTAB-STATM = STATUS_P.
+        READ TABLE REFTAB WITH KEY REFTAB BINARY SEARCH.
+        IF SY-SUBRC NE 0.
+          INSERT REFTAB INDEX SY-TABIX.
+          CALL FUNCTION 'MPOP_P_ADD_REFERENCE_BEFORE   '
+             EXPORTING
+                   WMPOP  = MPOP
+                   KZRFB  = KZRFB
+                   WRMMG1 = RMMG1
+                   REF_MATNR = REF_MATNR
+             IMPORTING
+                   WMPOP  = MPOP
+.
+        ENDIF.
+      ENDIF.
+  ENDCASE.
+ENDLOOP.
+
+ENDFORM.

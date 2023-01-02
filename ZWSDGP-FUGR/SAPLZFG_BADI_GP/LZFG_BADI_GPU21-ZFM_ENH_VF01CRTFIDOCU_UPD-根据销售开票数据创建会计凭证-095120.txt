@@ -1,0 +1,24 @@
+FUNCTION ZFM_ENH_VF01CRTFIDOCU_UPD.
+*"----------------------------------------------------------------------
+*"*"更新函数模块：
+*"
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(I_VBRK) TYPE  VBRK OPTIONAL
+*"     VALUE(I_BKPF) TYPE  BKPF OPTIONAL
+*"     VALUE(CX) TYPE  ZE_CXBS OPTIONAL
+*"  TABLES
+*"      T_VBRP STRUCTURE  VBRP OPTIONAL
+*"      T_BSEG STRUCTURE  BSEG OPTIONAL
+*"----------------------------------------------------------------------
+  CALL FUNCTION 'ZFM_ENH_VF01CRTFIDOCU' IN BACKGROUND TASK
+    AS SEPARATE UNIT
+    EXPORTING
+      I_VBRK = I_VBRK
+      I_BKPF = I_BKPF
+      CX     = CX
+    TABLES
+      T_VBRP = T_VBRP
+      T_BSEG = T_BSEG.
+
+ENDFUNCTION.

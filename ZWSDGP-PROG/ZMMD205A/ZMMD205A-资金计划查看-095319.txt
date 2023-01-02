@@ -1,0 +1,498 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD205A
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd205a MESSAGE-ID zgp_msg.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields,fagl_segmt,t001,cped_perioddtin_migr,ztmm233.
+DATA: fldct TYPE slis_t_fieldcat_alv,
+      slayt TYPE slis_layout_alv,
+      varnt LIKE disvariant,
+      repid LIKE sy-repid,
+      tabix LIKE sy-tabix.
+DATA:rdate TYPE RANGE OF char6 WITH HEADER LINE.
+DATA:BEGIN OF itab OCCURS 0,
+       zyf              TYPE ztmm233-zyf,
+       bukrs            TYPE ztmm233-bukrs,
+       butxt            TYPE ztmm233-butxt,
+       zkhzt            TYPE ztmm233-zkhzt,
+       zbm              TYPE ztmm233-zbm,
+       zywy             TYPE ztmm233-zywy,
+       zyccdfke_hz      TYPE ztmm233-zycfke, "预测承兑付款额
+       ztfi_pyrehd_cdhz TYPE ztfi_pyrehd-dmbtr_pln, "实际承兑付款额
+       zycdhfke_hz      TYPE ztmm233-zydfke, "预测电汇付款额
+       ztfi_pyrehd_dhhz TYPE ztfi_pyrehd-dmbtr_pln, "实际承电汇款额
+       zycfkeze         TYPE ztmm233-zycfke, "预测付款总额
+       zsjfkze          TYPE ztfi_pyrehd-dmbtr_pln, "实际付款总额
+       zsjycfkce        TYPE ztmm233-zycfke, "实际预测付款差额
+       zyccdske_hz      TYPE ztmm233-zycfke, "预测承兑收款额
+       zycdhske_hz      TYPE ztmm233-zydfke, "预测电汇收款额
+       zycskeze         TYPE ztmm233-zycfke, "预测收款总额
+       zycsfcj          TYPE ztmm233-zycfke, "预测收付差额
+       select,
+     END OF itab.
+DATA: i TYPE i.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:s_buper FOR cped_perioddtin_migr-sourcerout MODIF ID m1,
+                 s_bukrs FOR t001-bukrs MODIF ID m1,
+                 s_name FOR fagl_segmt-name MODIF ID m1.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:p_gs   RADIOBUTTON GROUP grd2 USER-COMMAND singleclick DEFAULT 'X',
+             p_khzt RADIOBUTTON GROUP grd2,
+             p_fkjh RADIOBUTTON GROUP grd2,
+             p_skjh RADIOBUTTON GROUP grd2.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+  %_s_buper_%_app_%-text = '月份'.
+  %_s_bukrs_%_app_%-text = '公司名称'.
+  %_s_name_%_app_%-text = '考核主体'.
+
+
+  t02 = '功能选择'.
+  %_p_gs_%_app_%-text   = '公司资金计划查询'.
+  %_p_khzt_%_app_%-text = '考核主体资金计划查询'.
+  %_p_fkjh_%_app_%-text = '付款计划执行情况分析'.
+  %_p_skjh_%_app_%-text = '收款计划执行情况分析'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_buper-low.
+  PERFORM frm_month_f4.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_buper-high.
+  PERFORM frm_month_f4.
+
+AT SELECTION-SCREEN.
+
+AT SELECTION-SCREEN OUTPUT.
+
+START-OF-SELECTION.
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  PERFORM getdata.
+  PERFORM alvshow.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  DATA:BEGIN OF it_bukrs OCCURS 0,
+         bukrs TYPE bukrs,
+       END OF it_bukrs.
+  DATA:BEGIN OF it_khzt OCCURS 0,
+         segment TYPE ztfi_pyrehd-segment,
+       END OF it_khzt.
+  DATA:BEGIN OF it_bm OCCURS 0,
+         zoauser TYPE ztfi_pyrehd-zoauser,
+       END OF it_bm.
+  REFRESH:itab,it_bukrs,it_khzt,it_bm.
+  SELECT *
+    INTO TABLE @DATA(lt_233)
+    FROM ztmm233
+    WHERE zyf IN @s_buper
+    AND bukrs IN @s_bukrs
+    AND zkhzt IN @s_name.
+  "分组数据预处理
+  LOOP AT lt_233 INTO DATA(lw_233).
+    CLEAR:it_bukrs,it_khzt,it_bm.
+    it_bukrs-bukrs = lw_233-bukrs.
+    it_khzt-segment = lw_233-zkhzt.
+    it_bm-zoauser = lw_233-zywy.
+    COLLECT:it_bukrs,it_khzt,it_bm.
+
+    IF p_gs = 'X'.
+      lw_233-zkhzt = ''.
+      lw_233-zbm = ''.
+      lw_233-zywy = ''.
+    ENDIF.
+    IF p_khzt = 'X'.
+      lw_233-bukrs = ''.
+      lw_233-butxt = ''.
+      lw_233-zbm = ''.
+      lw_233-zywy = ''.
+    ENDIF.
+    IF p_fkjh = 'X' OR p_skjh = 'X'.
+      lw_233-zkhzt = ''.
+      lw_233-bukrs = ''.
+      lw_233-butxt = ''.
+    ENDIF.
+    MODIFY lt_233 FROM lw_233.
+  ENDLOOP.
+
+  LOOP AT lt_233 INTO lw_233 GROUP BY ( zyf = lw_233-zyf zlx = lw_233-zlx
+                                             bukrs = lw_233-bukrs butxt = lw_233-butxt
+                                             zkhzt = lw_233-zkhzt
+                                             zbm   = lw_233-zbm zywy = lw_233-zywy
+                                             size  = GROUP SIZE
+                                             index = GROUP INDEX  )
+    ASCENDING    ASSIGNING FIELD-SYMBOL(<group>).
+    CLEAR itab.
+    LOOP AT GROUP <group> ASSIGNING FIELD-SYMBOL(<ls_member>).
+      IF <ls_member>-zlx = 'FKJH'.
+        itab-zyccdfke_hz = itab-zyccdfke_hz + <ls_member>-zycfke."预测承兑付款额
+        itab-zycdhfke_hz = itab-zycdhfke_hz + <ls_member>-zydfke."预测电汇付款额
+      ELSEIF <ls_member>-zlx = 'SKJH'.
+        itab-zycdhske_hz = itab-zycdhske_hz + <ls_member>-zycfke."预测电汇收款额
+        itab-zyccdske_hz = itab-zyccdske_hz + <ls_member>-zydfke."预测承兑收款额
+      ENDIF.
+
+    ENDLOOP.
+    itab-zycfkeze = itab-zyccdfke_hz + itab-zycdhfke_hz."预测付款总额
+    itab-zycskeze = itab-zycdhske_hz + itab-zyccdske_hz."预测收款总额
+    itab-zycsfcj = itab-zycskeze - itab-zycfkeze. "预测收付差额
+    itab-zyf = <group>-zyf.
+    itab-butxt = <group>-butxt.
+    itab-zkhzt = <group>-zkhzt.
+    itab-zbm = <group>-zbm.
+    itab-zywy = <group>-zywy.
+    APPEND itab.
+  ENDLOOP.
+  "获取ztfi_pyrehd相关数据
+  IF p_gs = 'X' AND it_bukrs[] IS NOT INITIAL.
+    SELECT
+      z~zpldat,
+      z~bukrs,
+      z~paytype,
+      z~dmbtr_pln
+      INTO TABLE @DATA(lt_fi_bukrs)
+      FROM ztfi_pyrehd AS z
+      FOR ALL ENTRIES IN @it_bukrs
+      WHERE z~bukrs = @it_bukrs-bukrs
+      AND z~paytype IN ( 'V','E','T' )
+      AND z~zprstus = '20'
+      AND zpycat IN ( 'K1','K2','K3' )
+      .
+    SORT lt_fi_bukrs BY zpldat bukrs paytype.
+  ENDIF.
+
+  IF p_khzt = 'X' AND it_khzt[] IS NOT INITIAL.
+    SELECT
+      z~zpldat,
+      z~segment,
+      z~paytype,
+      z~dmbtr_pln
+      INTO TABLE @DATA(lt_fi_khzt)
+      FROM ztfi_pyrehd AS z
+      FOR ALL ENTRIES IN @it_khzt
+      WHERE z~segment = @it_khzt-segment
+      AND z~paytype IN ( 'V','E','T' )
+      AND z~zprstus = '20'
+      AND zpycat IN ( 'K1','K2','K3' )
+      .
+    SORT lt_fi_khzt BY zpldat segment paytype.
+  ENDIF.
+
+  IF ( p_fkjh = 'X' OR p_skjh = 'X' ) AND it_bm[] IS NOT INITIAL.
+    SELECT
+      z~zpldat,
+      z~zoauser,
+      z~paytype,
+      z~dmbtr_pln
+      INTO TABLE @DATA(lt_fi_bm)
+      FROM ztfi_pyrehd AS z
+      FOR ALL ENTRIES IN @it_bm
+      WHERE z~zoauser = @it_bm-zoauser
+      AND z~paytype IN ( 'V','E','T' )
+      AND z~zprstus NOT IN ( '20','90','99' )
+      AND zpycat IN ( 'K1','K2','K3' )
+      .
+    SORT lt_fi_bm BY zpldat zoauser paytype.
+  ENDIF.
+  CLEAR i.
+  i = 1.
+  IF p_gs = 'X'.
+    SORT itab BY zyf bukrs.
+    LOOP AT itab.
+      LOOP AT lt_fi_bukrs INTO DATA(lw_fi_bukrs) FROM i.
+        IF lw_fi_bukrs-zpldat+0(4) && '.' && lw_fi_bukrs-zpldat+4(2) = itab-zyf AND lw_fi_bukrs-bukrs = itab-bukrs.
+          IF lw_fi_bukrs-paytype = 'V'.
+            itab-ztfi_pyrehd_cdhz = itab-ztfi_pyrehd_cdhz + lw_fi_bukrs-dmbtr_pln. "实际承兑付款额
+          ELSEIF lw_fi_bukrs-paytype = 'E' OR lw_fi_bukrs-paytype = 'T' .
+            itab-ztfi_pyrehd_dhhz = itab-ztfi_pyrehd_dhhz + lw_fi_bukrs-dmbtr_pln. "实际承电汇款额
+          ENDIF.
+        ELSE.
+          i = sy-tabix.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      itab-zsjfkze = itab-ztfi_pyrehd_cdhz + itab-ztfi_pyrehd_dhhz. "实际付款总额
+      itab-zsjycfkce = itab-zsjfkze - itab-zycfkeze. "实际预测付款差额
+      MODIFY itab.
+    ENDLOOP.
+  ENDIF.
+
+  IF p_skjh = 'X' OR p_fkjh = 'X'.
+    SORT itab BY zyf zywy.
+    LOOP AT itab.
+      LOOP AT lt_fi_bm INTO DATA(lw_fi_bm) FROM i.
+        IF lw_fi_bm-zpldat+0(4) && '.' && lw_fi_bm-zpldat+4(2) = itab-zyf AND lw_fi_bm-zoauser = itab-zywy.
+          IF lw_fi_bm-paytype = 'V'.
+            itab-ztfi_pyrehd_cdhz = itab-ztfi_pyrehd_cdhz + lw_fi_bm-dmbtr_pln. "实际承兑付款额
+          ELSEIF lw_fi_bm-paytype = 'E' OR lw_fi_bm-paytype = 'T' .
+            itab-ztfi_pyrehd_dhhz = itab-ztfi_pyrehd_dhhz + lw_fi_bm-dmbtr_pln. "实际承电汇款额
+          ENDIF.
+        ELSE.
+          i = sy-tabix.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      itab-zsjfkze = itab-ztfi_pyrehd_cdhz + itab-ztfi_pyrehd_dhhz. "实际付款总额
+      itab-zsjycfkce = itab-zsjfkze - itab-zycfkeze. "实际预测付款差额
+      MODIFY itab.
+    ENDLOOP.
+  ENDIF.
+
+  IF p_khzt = 'X'.
+    SORT itab BY zyf zkhzt.
+    LOOP AT itab.
+      LOOP AT lt_fi_khzt INTO DATA(lw_fi_khzt) FROM i.
+        IF lw_fi_khzt-zpldat+0(4) && '.' && lw_fi_khzt-zpldat+4(2) = itab-zyf AND lw_fi_khzt-segment = itab-zywy.
+          IF lw_fi_khzt-paytype = 'V'.
+            itab-ztfi_pyrehd_cdhz = itab-ztfi_pyrehd_cdhz + lw_fi_khzt-dmbtr_pln. "实际承兑付款额
+          ELSEIF lw_fi_bm-paytype = 'E' OR lw_fi_bm-paytype = 'T' .
+            itab-ztfi_pyrehd_dhhz = itab-ztfi_pyrehd_dhhz + lw_fi_khzt-dmbtr_pln. "实际承电汇款额
+          ENDIF.
+        ELSE.
+          i = sy-tabix.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      itab-zsjfkze = itab-ztfi_pyrehd_cdhz + itab-ztfi_pyrehd_dhhz. "实际付款总额
+      itab-zsjycfkce = itab-zsjfkze - itab-zycfkeze. "实际预测付款差额
+      MODIFY itab.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1.
+
+  PERFORM catlg_set TABLES fldct USING:
+'ZYF             '       'ZTMM233    '      'ZYF      '      '月份            '.
+
+  IF p_gs = 'X'.
+    PERFORM catlg_set TABLES fldct USING:
+'BUTXT           '       'ZTMM233    '      'BUTXT    '      '公司            '.
+  ENDIF.
+  IF p_khzt = 'X'.
+    PERFORM catlg_set TABLES fldct USING:
+ 'ZKHZT           '       'ZTMM233    '      'ZKHZT    '      '考核主体        '.
+  ENDIF.
+  IF p_fkjh = 'X' OR p_skjh = 'X'.
+    PERFORM catlg_set TABLES fldct USING:
+'ZBM             '       'ZTMM233    '      'ZBM      '      '部门            '.
+  ENDIF.
+  PERFORM catlg_set TABLES fldct USING:
+'ZYCCDFKE_HZ     '       'ZTMM233    '      'ZYCFKE   '      '预测承兑付款额  ',
+'ZTFI_PYREHD_CDHZ'       'ZTFI_PYREHD'      'DMBTR_PLN'      '实际承兑付款额  ',
+'ZYCDHFKE_HZ     '       'ZTMM233    '      'ZYDFKE   '      '预测电汇付款额  ',
+'ZTFI_PYREHD_DHHZ'       'ZTFI_PYREHD'      'DMBTR_PLN'      '实际承电汇款额  ',
+'ZYCFKEZE        '       'ZTMM233    '      'ZYCFKE   '      '预测付款总额    ',
+'ZSJFKZE         '       'ZTFI_PYREHD'      'DMBTR_PLN'      '实际付款总额    ',
+'ZSJYCFKCE       '       'ZTMM233    '      'ZYCFKE   '      '实际预测付款差额',
+'ZYCCDSKE_HZ     '       'ZTMM233    '      'ZYCFKE   '      '预测承兑收款额  ',
+'ZYCDHSKE_HZ     '       'ZTMM233    '      'ZYDFKE   '      '预测电汇收款额  ',
+'ZYCSKEZE        '       'ZTMM233    '      'ZYCFKE   '      '预测收款总额    ',
+'ZYCSFCJ         '       'ZTMM233    '      'ZYCFKE   '      '预测收付差额    '.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = itab[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN OTHERS.
+  ENDCASE.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+  SET TITLEBAR 'TIT1000' WITH '资金计划查看'.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF itab.
+  DATA:filename TYPE string.
+  DATA pdfxstring TYPE xstring.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+
+        WHEN OTHERS.
+      ENDCASE.
+
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+
+
+
+
+
+
+FORM frm_month_f4 .
+  DATA: BEGIN OF mf_dynpfields OCCURS 1.
+          INCLUDE STRUCTURE dynpread.
+  DATA: END   OF mf_dynpfields.
+  DATA: mf_returncode LIKE sy-subrc,
+        mf_monat      LIKE isellist-month,
+        mf_hlp_repid  LIKE sy-repid.
+
+  GET CURSOR FIELD mf_dynpfields-fieldname.
+  APPEND mf_dynpfields.
+  mf_hlp_repid = sy-repid.
+
+  DO 2 TIMES.
+    CALL FUNCTION 'DYNP_VALUES_READ'
+      EXPORTING
+        dyname               = mf_hlp_repid
+        dynumb               = sy-dynnr
+      TABLES
+        dynpfields           = mf_dynpfields
+      EXCEPTIONS
+        invalid_abapworkarea = 01
+        invalid_dynprofield  = 02
+        invalid_dynproname   = 03
+        invalid_dynpronummer = 04
+        invalid_request      = 05
+        no_fielddescription  = 06
+        undefind_error       = 07.
+
+    IF sy-subrc = 3.
+      mf_hlp_repid = 'SAPLALDB'.
+    ELSE.
+      READ TABLE mf_dynpfields INDEX 1.
+      TRANSLATE mf_dynpfields-fieldvalue USING '_ '.
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+  IF sy-subrc = 0.
+    CALL FUNCTION 'CONVERSION_EXIT_PERI_INPUT'
+      EXPORTING
+        input         = mf_dynpfields-fieldvalue
+      IMPORTING
+        output        = mf_monat
+      EXCEPTIONS
+        error_message = 1.
+
+    IF mf_monat IS INITIAL.
+      mf_monat = sy-datlo(6).
+    ENDIF.
+
+    CALL FUNCTION 'POPUP_TO_SELECT_MONTH'
+      EXPORTING
+        actual_month               = mf_monat
+      IMPORTING
+        selected_month             = mf_monat
+        return_code                = mf_returncode
+      EXCEPTIONS
+        factory_calendar_not_found = 01
+        holiday_calendar_not_found = 02
+        month_not_found            = 03.
+
+    IF sy-subrc = 0 AND mf_returncode = 0.
+      CALL FUNCTION 'CONVERSION_EXIT_PERI_OUTPUT'
+        EXPORTING
+          input  = mf_monat
+        IMPORTING
+          output = mf_dynpfields-fieldvalue.
+      COLLECT mf_dynpfields.
+      CALL FUNCTION 'DYNP_VALUES_UPDATE'
+        EXPORTING
+          dyname               = mf_hlp_repid
+          dynumb               = sy-dynnr
+        TABLES
+          dynpfields           = mf_dynpfields
+        EXCEPTIONS
+          invalid_abapworkarea = 01
+          invalid_dynprofield  = 02
+          invalid_dynproname   = 03
+          invalid_dynpronummer = 04
+          invalid_request      = 05
+          no_fielddescription  = 06
+          undefind_error       = 07.
+    ENDIF.
+  ENDIF.
+ENDFORM.

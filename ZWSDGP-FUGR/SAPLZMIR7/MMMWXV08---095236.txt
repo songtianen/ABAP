@@ -1,0 +1,5 @@
+***INCLUDE MMMWXV08.
+*---- Richtungsflags ------------------------------------------------
+
+CONSTANTS : MOVE_AKT_TO_DB LIKE T130F-KZREF VALUE 'X',
+            MOVE_DB_TO_AKT LIKE T130F-KZREF VALUE ' '.

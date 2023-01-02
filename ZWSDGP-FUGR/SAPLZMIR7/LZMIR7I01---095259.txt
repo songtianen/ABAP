@@ -1,0 +1,31 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZMIR7I01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  RECEIVE_ACTUAL_DATA  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE receive_actual_data INPUT.
+**  object created  ?
+  CHECK NOT o_badi_fdcb_subbas04 IS INITIAL.
+
+* get data from main screen
+  CALL METHOD o_badi_fdcb_subbas04->get_data_from_screen_object
+    IMPORTING
+      ex_invfo = invfo.
+  rbkp-zce = invfo-zce.
+  rbkp-zfpno = invfo-zfpno.
+
+ENDMODULE.
+
+MODULE user_command_9001 INPUT.
+  CHECK NOT o_badi_fdcb_subbas04 IS INITIAL.
+  "BREAK basis1.
+* put data to main screen
+  CALL METHOD o_badi_fdcb_subbas04->put_data_to_screen_object
+    EXPORTING
+      im_invfo = invfo.
+   invfo-zce = rbkp-zce .
+   invfo-zfpno = rbkp-zfpno.
+ENDMODULE.

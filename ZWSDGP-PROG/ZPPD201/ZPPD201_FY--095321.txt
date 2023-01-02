@@ -1,0 +1,330 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_FY
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: FUNCTION CODES FOR TABSTRIP 'ZPCD_FY'
+CONSTANTS: BEGIN OF c_zpcd_fy,
+             tab1 LIKE sy-ucomm VALUE 'ZPCD_FY_FC1',
+             tab2 LIKE sy-ucomm VALUE 'ZPCD_FY_FC2',
+             tab3 LIKE sy-ucomm VALUE 'ZPCD_FY_FC3',
+           END OF c_zpcd_fy.
+*&SPWIZARD: DATA FOR TABSTRIP 'ZPCD_FY'
+CONTROLS:  zpcd_fy TYPE TABSTRIP.
+DATA: BEGIN OF g_zpcd_fy,
+        subscreen   LIKE sy-dynnr,
+        prog        LIKE sy-repid VALUE 'ZPPD201',
+        pressed_tab LIKE sy-ucomm VALUE c_zpcd_fy-tab1,
+      END OF g_zpcd_fy.
+DATA:      ok_code LIKE sy-ucomm.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0900 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0900 OUTPUT.
+  SET PF-STATUS 'STA900'.
+  SET TITLEBAR 'TIT900' WITH '排产单维护'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module EDITCONTAINER OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE editcontainer OUTPUT.
+  PERFORM editcontainer."长文本
+  PERFORM wlcms."物料长描述
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form editcontainer
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+*DATA:go_editor                TYPE REF TO cl_gui_textedit,
+*     go_editor_container      TYPE REF TO cl_gui_custom_container,
+*     go_editorwlcms           TYPE REF TO cl_gui_textedit,
+*     go_editor_containerwlcms TYPE REF TO cl_gui_custom_container,
+*     BEGIN OF texttable OCCURS 0,
+*       text TYPE char255,
+*     END OF texttable.
+*FORM editcontainer .
+*  IF go_editor_container IS INITIAL.
+*    CREATE OBJECT go_editor_container
+*      EXPORTING
+*        container_name              = 'CONT1'
+*      EXCEPTIONS
+*        cntl_error                  = 1
+*        cntl_system_error           = 2
+*        create_error                = 3
+*        lifetime_error              = 4
+*        lifetime_dynpro_dynpro_link = 5.
+*
+*    CREATE OBJECT go_editor
+*      EXPORTING
+*        parent                     = go_editor_container
+*        wordwrap_mode              = cl_gui_textedit=>wordwrap_at_fixed_position
+*        wordwrap_position          = '100'
+*        wordwrap_to_linebreak_mode = cl_gui_textedit=>true.
+*  ENDIF.
+*  CALL METHOD go_editor->set_toolbar_mode
+*    EXPORTING
+*      toolbar_mode = 0.
+**  CASE sy-tcode.
+**    WHEN tcode1.
+**      CASE 'X'.
+**        WHEN p1_x OR p2_x.
+**        WHEN OTHERS.
+**          CALL METHOD go_editor->set_readonly_mode
+**            EXPORTING
+**              readonly_mode = 1.
+**      ENDCASE.
+**    WHEN OTHERS.
+**      CALL METHOD go_editor->set_readonly_mode
+**        EXPORTING
+**          readonly_mode = 1.
+**  ENDCASE.
+*
+*
+*  CALL METHOD go_editor->set_statusbar_mode
+*    EXPORTING
+*      statusbar_mode = 0.
+*
+**  PERFORM clear_text.
+*  cl_gui_control=>set_focus( go_editor ).
+*ENDFORM.
+*FORM clear_text.
+**  REFRESH:TEXTTABLE.
+*  CALL METHOD go_editor->set_text_as_stream
+*    EXPORTING
+*      text            = texttable[]
+*    EXCEPTIONS
+*      error_dp        = 1
+*      error_dp_create = 2
+*      OTHERS          = 3.
+*  CALL METHOD cl_gui_cfw=>flush.
+*ENDFORM.
+*
+*FORM wlcms .
+*  IF go_editor_containerwlcms IS INITIAL.
+*    CREATE OBJECT go_editor_containerwlcms
+*      EXPORTING
+*        container_name              = 'WLCMS'
+*      EXCEPTIONS
+*        cntl_error                  = 1
+*        cntl_system_error           = 2
+*        create_error                = 3
+*        lifetime_error              = 4
+*        lifetime_dynpro_dynpro_link = 5.
+*
+*    CREATE OBJECT go_editorwlcms
+*      EXPORTING
+*        parent                     = go_editor_containerwlcms
+*        wordwrap_mode              = cl_gui_textedit=>wordwrap_at_fixed_position
+*        wordwrap_position          = '100'
+*        wordwrap_to_linebreak_mode = cl_gui_textedit=>true.
+*  ENDIF.
+*  CALL METHOD go_editorwlcms->set_toolbar_mode
+*    EXPORTING
+*      toolbar_mode = 0.
+*
+*  CALL METHOD go_editorwlcms->set_readonly_mode
+*    EXPORTING
+*      readonly_mode = 1.
+*
+*
+*
+*  CALL METHOD go_editorwlcms->set_statusbar_mode
+*    EXPORTING
+*      statusbar_mode = 0.
+*
+**  PERFORM clear_text.
+*  cl_gui_control=>set_focus( go_editorwlcms ).
+*  PERFORM disp_longtex.
+*ENDFORM.
+DATA: lines    TYPE STANDARD TABLE OF tline,
+      it_line  TYPE TABLE OF line,
+      it_line1 TYPE TABLE OF line,
+      header   LIKE thead.
+DATA: container1 TYPE REF TO cl_gui_custom_container,
+      editor1    TYPE REF TO cl_gui_textedit,
+      container2 TYPE REF TO cl_gui_custom_container,
+      editor2    TYPE REF TO cl_gui_textedit.
+*&---------------------------------------------------------------------*
+*& Form editcontainer
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM editcontainer .
+  IF container1 IS INITIAL.
+    CREATE OBJECT:container1 EXPORTING container_name = 'CONT1',
+                  editor1    EXPORTING parent = container1.
+    CALL METHOD editor1->set_statusbar_mode
+      EXPORTING
+        statusbar_mode = 0.
+
+    CALL METHOD editor1->set_toolbar_mode
+      EXPORTING
+        toolbar_mode = 0.
+  ENDIF.
+  CALL METHOD editor1->set_text_as_stream
+    EXPORTING
+      text = it_line1.
+*  PERFORM disp_longtext.
+*  PERFORM save_longtext.
+*  PERFORM del_longtext.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form wlcms
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM wlcms .
+  IF container2 IS INITIAL.
+    CREATE OBJECT:container2 EXPORTING container_name = 'WLCMS',
+                  editor2    EXPORTING parent = container2.
+    CALL METHOD editor2->set_statusbar_mode
+      EXPORTING
+        statusbar_mode = 0.
+
+    CALL METHOD editor2->set_toolbar_mode
+      EXPORTING
+        toolbar_mode = 0.
+  ENDIF.
+  CALL METHOD editor2->set_readonly_mode
+    EXPORTING
+      readonly_mode = 1.
+  CALL METHOD editor2->set_text_as_stream
+    EXPORTING
+      text = it_line.
+  PERFORM disp_longtext.
+*  PERFORM save_longtext.
+*  PERFORM del_longtext.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form disp_longtext
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM disp_longtext .
+*  TDOBJECT=MATERIAL  TDNAME=物料编码 TDID=GRUN TDSPRAS=1
+  header-tdobject  = 'MATERIAL'.     "object
+  header-tdname    = it_pcd-matnr.
+  header-tdid      = 'GRUN'.
+  header-tdspras   = sy-langu.
+  CALL FUNCTION 'READ_TEXT'
+    EXPORTING
+      id                      = header-tdid
+      language                = sy-langu
+      name                    = header-tdname
+      object                  = header-tdobject
+    TABLES
+      lines                   = lines
+    EXCEPTIONS
+      id                      = 1
+      language                = 2
+      name                    = 3
+      not_found               = 4
+      object                  = 5
+      reference_check         = 6
+      wrong_access_to_archive = 7
+      OTHERS                  = 8.
+  CALL FUNCTION 'CONVERT_ITF_TO_STREAM_TEXT'
+    EXPORTING
+      language    = sy-langu
+    TABLES
+      itf_text    = lines
+      text_stream = it_line.
+  CALL METHOD editor2->set_statusbar_mode
+    EXPORTING
+      statusbar_mode = 0.
+  CALL METHOD editor2->set_toolbar_mode
+    EXPORTING
+      toolbar_mode = 0.
+  CALL METHOD editor2->set_text_as_stream
+    EXPORTING
+      text = it_line.
+  CALL METHOD editor2->set_readonly_mode
+    EXPORTING
+      readonly_mode = '1'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form save_longtext
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM save_longtext .
+  REFRESH it_line.
+  CALL METHOD editor2->get_text_as_stream
+    IMPORTING
+      text = it_line.
+*--长文本保存
+  header-tdobject  = 'MATERIAL'.     "object
+  header-tdname    = it_pcd-matnr.
+  header-tdid      = 'GRUN'.
+  header-tdspras   = sy-langu.
+  CALL FUNCTION 'CONVERT_STREAM_TO_ITF_TEXT'
+    EXPORTING
+      language    = sy-langu
+    TABLES
+      text_stream = it_line
+      itf_text    = lines.
+  CALL FUNCTION 'SAVE_TEXT'
+    EXPORTING
+      header          = header
+      savemode_direct = 'X'
+    TABLES
+      lines           = lines
+    EXCEPTIONS
+      id              = 1
+      language        = 2
+      name            = 3
+      object          = 4
+      OTHERS          = 5.
+  CLEAR header.
+  REFRESH lines.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form del_longtext
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM del_longtext .
+  header-tdobject  = 'Z_TEST01'.     "object
+  header-tdname    = '001'.
+  header-tdid      = 'LTXT'.
+  header-tdspras   = sy-langu.
+  CALL FUNCTION 'DELETE_TEXT'
+    EXPORTING
+      id       = header-tdid
+      language = sy-langu
+      name     = header-tdname
+      object   = header-tdobject
+*     SAVEMODE_DIRECT       = ' '
+*     TEXTMEMORY_ONLY       = ' '
+*     LOCAL_CAT             = ' '
+*   EXCEPTIONS
+*     NOT_FOUND             = 1
+*     OTHERS   = 2
+    .
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.

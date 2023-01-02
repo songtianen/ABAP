@@ -1,0 +1,6 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZFG_CRM_GP	ZFMDATA	请不要做任何更改!!不要激活!!	透明表				
+ZFG_CRM_GP	ZFMDATACFG	ZILOG参数	透明表				
+ZFG_CRM_GP	ZTPS001A	公司工厂利润中心对应表	透明表				
+ZFG_CRM_GP	ZTPS002A	项目参数文件与项目类型对应表	透明表				
+ZFG_CRM_GP	ZTPS010A	CRM项目信息记录表	透明表				

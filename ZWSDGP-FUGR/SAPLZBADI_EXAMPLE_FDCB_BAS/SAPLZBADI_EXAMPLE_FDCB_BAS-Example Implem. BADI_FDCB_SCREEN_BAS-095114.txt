@@ -1,0 +1,18 @@
+*******************************************************************
+*   System-defined Include-files.                                 *
+*******************************************************************
+  INCLUDE LZBADI_EXAMPLE_FDCB_BASTOP.         " Global Data
+  INCLUDE LZBADI_EXAMPLE_FDCB_BASUXX.         " Function Modules
+
+*******************************************************************
+*   User-defined Include-files (if necessary).                    *
+*******************************************************************
+* INCLUDE LBADI_EXAMPLE_FDCB_BASF...         " Subprograms
+* INCLUDE LBADI_EXAMPLE_FDCB_BASO...         " PBO-Modules
+* INCLUDE LBADI_EXAMPLE_FDCB_BASI...         " PAI-Modules
+
+INCLUDE LZBADI_EXAMPLE_FDCB_BASO01.
+*INCLUDE LBADI_EXAMPLE_FDCB_BASO01.
+
+INCLUDE LZBADI_EXAMPLE_FDCB_BASI01.
+*INCLUDE LBADI_EXAMPLE_FDCB_BASI01.

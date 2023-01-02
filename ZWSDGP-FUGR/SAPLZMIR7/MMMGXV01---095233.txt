@@ -1,0 +1,33 @@
+************************************************************************
+* Include MMMGXV01 f¨¹r Festwerte
+* -  Aktivit#tstypen
+************************************************************************
+
+* ch zu 4.5B DATA durch CONSTANTS ersetzt
+*    -> weniger Hauptspeicher (da nicht mehr pro Benutzer)
+*    -> etwas bessere Performance
+
+*----- Aktivit#tstypen ------------------------------------------------
+CONSTANTS:
+        AKTYPH LIKE T130M-AKTYP VALUE 'H', "Hinzufuegen
+        AKTYPV LIKE T130M-AKTYP VALUE 'V', "Veraendern
+        AKTYPA LIKE T130M-AKTYP VALUE 'A', "Anzeigen
+        AKTYPL LIKE T130M-AKTYP VALUE 'L', "Setzen L#schvormerkung
+        AKTYPR LIKE T130M-AKTYP VALUE 'R', "Referenz f¨¹r Kurztexte
+        AKTYPZ LIKE T130M-AKTYP VALUE 'Z', "Anzeigen alten/neuen Stand
+        AKTYPP LIKE T130M-AKTYP VALUE 'P', "gepl. #nderung HBK11K094941
+        AKTYPM LIKE T130M-AKTYP VALUE 'M', "#ndern Materialart
+        AKTYPN LIKE T130M-AKTYP VALUE 'N', "Neuanlegen Material
+        AKTYPC LIKE T130M-AKTYP VALUE 'C', "Pflegen Material
+
+*-> Neuanlge mit Vorlage Stati
+        AKTYPNW LIKE T130M-AKTYP VALUE 'W', "Anlage mit Vorlage WerkDiBe
+        AKTYPND LIKE T130M-AKTYP VALUE 'D', "Anlage mit Vorlage DiBe
+
+*------- neu zu 3.0F /Rt1.2: Berechtigung f¨¹r zentrale Daten
+        MANBR1 LIKE RMMG2-MANBR VALUE '1',  "Nur anzeigen
+        MANBR2 LIKE RMMG2-MANBR VALUE '2',  "Ausblenden
+
+*mk/3.0F Verarbeitungsschl¨¹ssel f¨¹r #nderungsdienst etc.
+       VERAR_PL LIKE T130M-VERAR VALUE 'PL',
+       VERAR_AD LIKE T130M-VERAR VALUE 'AD'. "Anzeigen Stichtag

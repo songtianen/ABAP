@@ -1,0 +1,11 @@
+*&---------------------------------------------------------------------*
+*& °üº¬               ZXCOZU01
+*&---------------------------------------------------------------------*
+CALL FUNCTION 'ZFM_ENH_PS_CHGPR'
+  EXPORTING
+    CAUFVD_IMP        = CAUFVD_IMP
+    AFVGD_IMP         = AFVGD_IMP
+    EBAN_IMP          = EBAN_IMP
+    EBKN_IMP          = EBKN_IMP
+  CHANGING
+    EBAN_ORD_CUST_CHG = EBAN_ORD_CUST_CHG.

@@ -1,0 +1,102 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZDBDWH_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zdbdwh_con_modify INPUT.
+  MODIFY it_221
+    INDEX zdbdwh_con-current_line.
+  PERFORM update_zzl.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZDBDWH_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zdbdwh_con_mark INPUT.
+  DATA: g_ZDBDWH_CON_wa2 LIKE LINE OF it_221.
+  IF zdbdwh_con-line_sel_mode = 1
+  AND it_221-sel = 'X'.
+    LOOP AT it_221 INTO g_ZDBDWH_CON_wa2
+      WHERE sel = 'X'.
+      g_ZDBDWH_CON_wa2-sel = ''.
+      MODIFY it_221
+        FROM g_ZDBDWH_CON_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_221
+    INDEX zdbdwh_con-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZDBDWH_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zdbdwh_con_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZDBDWH_CON'
+                              'IT_221'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  UPD_ZDBSL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE upd_zdbsl INPUT.
+  CLEAR it_221-zdbsl.
+  IF it_221-kbetr NE 0.
+    it_221-zdbsl = it_221-zdbsl_in / it_221-kbetr.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  CLE_SL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE cle_sl INPUT.
+  CLEAR: it_221-zdbsl_in,it_221-zdbsl.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form update_zzl
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM update_zzl .
+  DATA zzl TYPE ztmm220-zzl.
+  CLEAR zzl.
+  LOOP AT it_221 INTO DATA(lw_221) .
+    zzl = zzl + lw_221-zdbsl_in.
+  ENDLOOP.
+  wa_220-zzl = zzl.
+  wa_220-zzz = zzl.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0600  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0600 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'SAVE'.
+      LEAVE TO SCREEN 0.
+*    WHEN 'SAVE'.
+*      IF p_zdblx = 'GYSHC'.
+*        gv_scr500 = '0800'.
+*      ELSE .
+*        gv_scr500 = '0900'.
+*      ENDIF.
+    WHEN 'QX'.
+      CLEAR: zdbsl_in,meins_in.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.

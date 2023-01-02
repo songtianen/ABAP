@@ -1,0 +1,210 @@
+FUNCTION zfm_gp_mm_wms_synccontract.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     REFERENCE(P_OUTPUT) TYPE  STRING
+*"     REFERENCE(P_STATUS) TYPE  I
+*"     REFERENCE(P_RESULT) TYPE  STRING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_226
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MM_WMS_SYNCCONTRACT'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  TYPES: BEGIN OF t_DETAIL_LIST2,
+           id                   TYPE i,
+           target_contract_no   TYPE string,
+           target_contract_name TYPE string,
+           target_project_no    TYPE string,
+           target_project_name  TYPE string,
+           origin_contract_no   TYPE char15,
+           origin_contract_name TYPE string,
+           origin_project_no    TYPE char15,
+           origin_project_name  TYPE string,
+           warehouse            TYPE i,
+           warehouse_name       TYPE string,
+           work_shop            TYPE string,
+           product_code         TYPE string,
+           package_no           TYPE string,
+           blocks               TYPE string,
+           qty                  TYPE string,
+           unit                 TYPE string,
+           reel_no              TYPE string,
+           batch_no             TYPE string,
+         END OF t_DETAIL_LIST2.
+  TYPES: tt_DETAIL_LIST2 TYPE STANDARD TABLE OF t_DETAIL_LIST2 WITH DEFAULT KEY.
+  TYPES: BEGIN OF t_JSON1,
+           code              TYPE string,
+           customer_code     TYPE string,
+           organization      TYPE i,
+           organization_name TYPE string,
+           single            TYPE string,
+           single_date_time  TYPE string,
+           remark            TYPE string,
+           detail_list       TYPE tt_DETAIL_LIST2,
+         END OF t_JSON1.
+  TYPES: BEGIN OF t_JSON2,
+           id         TYPE string,
+           error_code TYPE string,
+           status     TYPE string,
+           msg        TYPE string,
+           pdf_url    TYPE string,
+           print_url  TYPE string,
+         END OF t_JSON2.
+
+  DATA:itab      TYPE t_JSON1,
+       itab_de   TYPE TABLE OF t_DETAIL_LIST2 WITH HEADER LINE,
+       itre      TYPE t_JSON2,
+       wmsurl    TYPE string,
+       wmsmsg    TYPE string,
+       wmssta    TYPE i,
+       wmsstr_re TYPE string.
+  DATA:output TYPE char8,
+       input  TYPE char24.
+  DATA: ref_descr TYPE REF TO cl_abap_structdescr.
+  CLEAR:itab,itre,itab_de[].
+  CHECK in_tab[] IS NOT INITIAL.
+  "库存地点和工厂映射
+  SELECT * INTO TABLE @DATA(lt_zsap2wms) FROM  zsap2wms.
+  LOOP AT in_tab.
+    CLEAR itab_de.
+    itab_de-id                     = in_tab-zdhhh.
+    itab_de-target_contract_name     = in_tab-zxsddh.
+    IF in_tab-zxshthh = '000000'.
+      itab_de-target_contract_no   = ''.
+    ELSE.
+      itab_de-target_contract_no   = |{ in_tab-zxshthh ALPHA = OUT }|.
+    ENDIF.
+*    SHIFT itab_de-target_contract_name LEFT DELETING LEADING '0'.
+    CLEAR output.
+    input = in_tab-zxxmh.
+    CALL FUNCTION 'CONVERSION_EXIT_ABPSP_INPUT'
+      EXPORTING
+        input     = input
+      IMPORTING
+        output    = output
+      EXCEPTIONS
+        not_found = 1
+        OTHERS    = 2.
+    PERFORM delzero(zpubform) CHANGING output.
+    IF output NE 0.
+      itab_de-target_project_no = output.
+    ENDIF.
+    itab_de-target_project_name = in_tab-zxxmmc.
+*    ITAB_DE-TARGET_PROJECT_NO      = IN_TAB-ZXXMH.
+    itab_de-origin_contract_no     = in_tab-zyxshtmc.
+    SHIFT itab_de-origin_contract_no LEFT DELETING LEADING '0'.
+    itab_de-origin_contract_name   = in_tab-zyxsht.
+    CLEAR output.
+    input = in_tab-zyxmh.
+    CALL FUNCTION 'CONVERSION_EXIT_ABPSP_INPUT'
+      EXPORTING
+        input     = input
+      IMPORTING
+        output    = output
+      EXCEPTIONS
+        not_found = 1
+        OTHERS    = 2.
+    PERFORM delzero(zpubform) CHANGING output.
+    IF output NE 0.
+      itab_de-origin_project_no = output.
+    ENDIF.
+    SHIFT itab_de-origin_project_no LEFT DELETING LEADING '0'.
+*    ITAB_DE-ORIGIN_PROJECT_NO      = IN_TAB-ZYXMH.
+    itab_de-origin_project_name    = in_tab-zyxmmc.
+*   itab_de-warehouse              = in_tab-.
+*   itab_de-warehouse_name         = in_tab-.
+    itab_de-work_shop              = in_tab-zcj.
+    itab_de-product_code           = in_tab-matnr.
+    itab_de-package_no             = in_tab-zbaohao.
+    itab_de-blocks                 = in_tab-zkuaishu.
+    CONDENSE itab_de-blocks NO-GAPS.
+    itab_de-qty                    = in_tab-zsl.
+    CONDENSE itab_de-qty NO-GAPS.
+    itab_de-unit                   = in_tab-meins.
+    itab_de-reel_no                = in_tab-zjh.
+    itab_de-batch_no               = in_tab-charg.
+    READ TABLE lt_zsap2wms INTO DATA(lw_zsap2wms) WITH KEY werks = in_tab-werks lgort = in_tab-lgort."映射值为空暂不考虑
+    IF sy-subrc EQ 0.
+      itab_de-warehouse              = lw_zsap2wms-erplgort.
+      itab_de-warehouse_name         = lw_zsap2wms-erpjg.
+    ENDIF.
+    APPEND itab_de.
+  ENDLOOP.
+  READ TABLE in_tab INDEX 1.
+  READ TABLE lt_zsap2wms INTO lw_zsap2wms WITH KEY werks = in_tab-werks lgort = in_tab-lgort."映射值为空暂不考虑
+  IF sy-subrc EQ 0.
+    itab-organization        = lw_zsap2wms-erpjg.
+    itab-organization_name   = lw_zsap2wms-erpjgms.
+  ELSE.
+    DATA(msg3) = '工厂' && in_tab-werks && '库存地' && in_tab-lgort && '没有映射关系'.
+    fillmsg 'E' msg3 'X' 'X'.
+  ENDIF.
+  itab-code                = in_tab-zdh.
+  itab-customer_code       = in_tab-kunnr.
+*  itab-organization        = ''.
+*  itab-organization_name   = ''.
+  itab-single              = in_tab-zsdr.
+  itab-single_date_time    = in_tab-zgxsj+0(4) && '-' && in_tab-zgxsj+4(2) && '-' && in_tab-zgxsj+6(2).
+  itab-remark              = in_tab-zbz.
+  itab-detail_list = itab_de[].
+
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_MM_WMS_SYNCCONTRACT' CHANGING wmsurl.
+  CHECK wmsurl IS NOT INITIAL.
+  DATA(wmsstr) = /ui2/cl_json=>serialize( data = itab  compress = abap_false pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+  p_output = wmsstr.
+
+*调用函数HTTP
+
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING wmsurl.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = wmsstr
+      url       = wmsurl
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = wmsstr_re "返回JSON报文
+      rtmsg     = wmsmsg "消息
+      status    = wmssta "HTTP状态
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+*{
+*    "id": null,
+*    "errorCode": "",
+*    "status": "success",
+*    "msg": "操作成功！",
+*    "pdfUrl": null,
+*    "printUrl": null
+*}
+
+*{
+*    "id": null,
+*    "errorCode": "",
+*    "status": "fail",
+*    "msg": "入库单开始收货，不允许修改！",
+*    "pdfUrl": null,
+*    "printUrl": null
+*}
+
+  /ui2/cl_json=>deserialize( EXPORTING json = wmsstr_re pretty_name = /ui2/cl_json=>pretty_mode-camel_case CHANGING data = itre ).
+
+  p_status = wmssta.
+  p_result = wmsstr_re.
+
+  rtype = itre-status.
+  rtmsg = itre-msg.
+
+
+
+
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

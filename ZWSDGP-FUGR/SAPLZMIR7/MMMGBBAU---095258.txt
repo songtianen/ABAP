@@ -1,0 +1,273 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGBBAU                                                  *
+* Allgemeine Deklarationen, die nur f¨¹r Bildbausteinprogramme ben#tigt
+* werden
+* Achtung: evtl. noch nicht vollst#ndig, siehe MMMGTRBB
+*----------------------------------------------------------------------*
+TABLES: t006,                          "Mengeneinheit
+        t006a, *t006a,                 "Mengeneinheit
+        t023,                          "Warengruppe
+        t023t,                         "Bezeichnung Warengruppe
+        tspat,                         "Text zur Sparte
+        t405,                          "Einkaufswerteschluessel
+        t438t,                         "Dispobezeichnungen
+* AHE: 15.03.98 - A (4.0c)
+        t438w,                "Bezeichnung Bedarfsvorlauf-Periodenprofil
+* AHE: 15.03.98 - E
+
+* AHE: 30.06.98 - A (4.0c)
+        tco48t,                        "Bezeichnung #nderungsprofil
+* AHE: 30.06.98 - E
+
+* AHE: 11.05.98 - A (4.0c)
+        tmfpft,                        "Bezeichnung Verteilungsprofil
+        tco47t,                        "Bezeichnung #nderungsprofil
+        tcscp_comp_lvlt,               "Bezeichnung Fertigstellungsgrad
+* AHE: 11.05.98 - E
+        t439t,                         "Losgr##enbezeichnung
+        t461x,                         "Strategiegruppenbezeichnung
+        t352b_t,                       "Texte f¨¹r Berichtsschema
+        tq02t,                         "QS-Systembeschreibung
+        tq05t,                         "Texte zum Zeugnistyp
+        tq08t,                         "Texte zu QM-Beschaffungsschl¨¹sse
+        tc23t,                         "Texte Planverwendung
+        tcf13, *tcf13,                 "Texte FHM Gruppierungsschl¨¹ssel
+        tcf11,                         "Texte FHM Steuerschl¨¹ssel
+        t435t,                         "Texte Vorlagenschl¨¹ssel
+        tc25t, *tc25t,                 "Texte Formelschl¨¹ssel
+        tca55, *tca55,                 "Texte Bezugstermine
+        t005t,                         "Texte L#nder
+        t005u,                         "Texte Regionen
+        tvsmt,                         "Texte Statistikgruppe
+        tvbot,                         "Texte Bonusgruppe
+        tvkmt,                         "Texte Kontierungsgruppe
+        tvprt,                         "Texte Provisionsgruppe
+        t178t,                         "Texte Konditionsgruppe
+        t179t,                         "Texte Produkthierarchie
+        tlgrt,                         "Texte Ladegruppe
+        ttgrt,                         "Texte Transportgruppe
+        tptmt,                         "Texte Positionstypengruppe
+        tmvft,                         "Texte Verf¨¹gbarkeitsgruppe
+        tvfmt,                         "Texte Exportgruppe
+        v_kna1wett,                    "Wettbewerber
+        t604t,                         "Texte Statistische Warennummer
+        t604n,                         "Texte Steuerungscode
+        t609gp,                        "Texte GP-Nummer
+        t610ct,                        "Texte CAS-Nummer
+        t618gt,                        "Texte MO-Warengruppe
+        t618mt,                        "Texte MO-Warenlistennummer
+        t438a,                         "Dispomerkmal
+        t439a,                         "Dispositionslosgr##e
+        t024a,                         "Planergruppe
+        t024f,                         "FErtigungssteuerer
+        tco43t,                        "Fertigungssteuerungsprofil
+        tspa,                          "Sparten
+        twcpt,                         "Bezeichnung Couponprofil
+        rmmg3,                         "Werksbestandsfelder
+        tiuid_type_t.                  "IUID-Felder >>>>> EHP603-IUID <<<<<
+
+* Sonstige Strukturen
+DATA: kz_field_initial,                "Kz. Feldinhalt initial
+      sub_zaehler LIKE sy-tabix,       "Z#hler f¨¹r Subscreens
+      sub_status  LIKE t130m-pstat,    "Subscreen-Status gem## AKTVST
+      kz_status_abw LIKE t130f-kzref,  "Feldstatus abw. von Bildstatus
+      fname_abw     LIKE t130f-fname,  "Feldname mit abw. Feldstatus
+* FLGXCHAR_CHPF LIKE MARC-XCHAR,  "XCHAR an XCHPF anpassen   "BE/071196
+      flg_cad_aktiv.                   "Kz. CAD aktiv
+* ausgeblendete Felder mit zugegeordneten Bezeichnungen
+DATA: BEGIN OF feldbeztab OCCURS 0.
+        INCLUDE STRUCTURE mfeldbez.
+DATA: END OF feldbeztab.
+* note 1611251: extend the logic also for SCREEN-GROUP2
+DATA: BEGIN OF feldbeztab2 OCCURS 0.
+        INCLUDE STRUCTURE mfeldbez.
+DATA: END OF feldbeztab2.
+
+* AHE: 07.05.98 - A (4.0c)
+* wegen Text zu Feld MARA-MTPOS_MARA, der genau wie der Text zu
+* MVKE-MTPOS auf einem Bild liegen kann und jeweils aus TPTMT-BEZEI
+* kommen mu#
+DATA: tptmt_bezei_mara LIKE tptmt-bezei.
+* AHE: 07.05.98 - E
+
+*JH/17.03.99/KPr127600 (Anfang)
+* Kundeneigene Felder f¨¹r die MAKT werden im Dialog noch nicht richtig
+* von der SKTEXT in die KTEXT ¨¹bertragen -> anstatt MOVEs f¨¹r die
+* einzelnen Felder sollte mit einem MOVE-CORRESPONDING gearbeitet
+* werden, wobei ¨¹ber die Zwischenstruktur HMAKT gegangen wird, damit
+* nur die eigentlichen MAKT-Felder von der SKTEXT in die KTEXT
+* ¨¹bernommen werden und nicht die Steuerungsflags.
+DATA: hmakt LIKE makt.
+*JH/17.03.99/KPr127600 (Ende)
+
+*--Datenstrukturen f¨¹r Dokumentanzeige ------------------------
+INCLUDE simagecontrolclassdef.
+INCLUDE simagecontrolclassimpl.
+DATA: html_control_1 TYPE cntl_handle, " HTML control Referenz
+      url(255) TYPE c,                 " URL f¨¹r image screen
+      b_init TYPE c,                   " Bild initialisiert
+      filep LIKE draw-filep,           " Original
+      image_control_1 TYPE REF TO c_image_control,  " Image cont. Ref.
+      original_number,                 " Original Nr.
+      l_storage(11) TYPE c.            " Speicherort
+
+* Datenstrukturen f¨¹r Klassifizierungs-Subscreen
+DATA: sub_prog_cl LIKE rs37a-dynprog,  "Klassifizierungs-
+      sub_dynp_cl LIKE feld-dynnr   ,  "subscreen
+      init_clo0,                       "Kz: Init Fgr CL00 durchgef.
+      clo0_is_open,                    "Kz: Klassif. wurde durchgef.
+      object_clo0 LIKE rmclf-objek,    "Material, das klassif. wird
+      datum_clo0  LIKE sy-datum.       "#ndeungsdatum
+DATA:   cl_status,
+        tabelle       LIKE tcla-obtab,
+        ptable        LIKE tclao-obtab,
+        material      LIKE rmclf-objek,
+        ref_material  LIKE rmclf-objek,
+        ref_all_type  LIKE sy-marky,
+        klassenart    LIKE rmclf-klart,
+        arttext       LIKE rmclf-artxt.
+
+* Dokumente im Subscreen
+DATA: sub_prog_docu LIKE dcobjdef-name,
+      sub_dynp_docu LIKE sy-dynnr,
+      docu_not_first,
+      docu_opcode,
+      ls_drad LIKE drad, drad_ref LIKE drad.
+
+"note 2166149
+DATA: gv_drad_old_objky TYPE drad-objky.
+
+* Deklarationen Wiederholtabellen
+INCLUDE mmmgktex.       "Spezielle Deklarationen Kurztexte
+INCLUDE mmmgsteu.                      "Spezielle Deklarationen Steuern
+INCLUDE mmmgvbrw.       "Spezielle Deklarationen Verbrauchswerte
+INCLUDE mmmgvepr.       "Gemeinsame Dekationen Verbr#uche/Progwerte
+INCLUDE mmmgpgnw.       "Spezielle Deklarationen Prognosewerte
+INCLUDE mmmgmein.       "Spezielle Deklarationen Mengeneinheiten
+INCLUDE mmmgmean.                      "Spezielle Deklarationen EAN
+
+* note 329079
+DATA processflag VALUE ' '.
+
+*TEXTEDIT-Control TF 4.6A
+
+FIELD-SYMBOLS: <editor_obj> TYPE REF TO cl_gui_textedit.
+
+
+FIELD-SYMBOLS: <textedit_custom_container> TYPE
+               REF TO cl_gui_custom_container.
+
+CLASS cl_gui_cfw DEFINITION LOAD.
+
+DATA: toolbarmode TYPE i, readonlymode TYPE i.
+DATA: tdlinetab LIKE tline-tdline OCCURS 0.
+DATA: wtlinetab LIKE tline.
+DATA: wtdline LIKE tline-tdline.
+DATA: tlinetab_format LIKE tline OCCURS 0 WITH HEADER LINE.
+DATA: textstream(70) TYPE c OCCURS 0.
+DATA: statustext(40).
+DATA: desc_dynnr LIKE sy-dynnr.
+
+DATA: desc_langu_listbox(80) TYPE c.
+FIELD-SYMBOLS: <desc_langu>.
+
+FIELD-SYMBOLS: <rm03m_spras> LIKE rm03m-spras.
+
+DATA: gv_isold.
+DATA: tlinetab LIKE tline OCCURS 0.
+DATA: ismodified TYPE i.
+DATA: anz_sprachen LIKE sy-tabix.
+DATA: lang_tc_tab LIKE t002t OCCURS 0 WITH HEADER LINE.
+DATA: sptxt LIKE t002t-sptxt.
+
+DATA: actioncode LIKE rmmzu-okcode.
+
+CONTROLS tc_longtext TYPE TABLEVIEW USING SCREEN 0002.
+DATA: tc_longtext_height LIKE tc_longtext-lines VALUE 11.
+DATA: tc_longtext_markedline LIKE tc_longtext-lines.
+DATA: tc_longtext_top_line LIKE tc_longtext-top_line.
+DATA: BEGIN OF lang_tc_tab_tc OCCURS 0.
+        INCLUDE STRUCTURE t002t.
+DATA: mark,
+END OF lang_tc_tab_tc.
+DATA: longtext_maintained_text(57) TYPE c.
+DATA: textposi TYPE i.
+
+TABLES: t002t.
+DATA: sy_langu_sptxt LIKE t002t-sptxt.
+
+DATA: ltext_invisible, ltext_input, ltext_required TYPE i.
+DATA: langtextbild_feldauswahl LIKE sy-dynnr.
+DATA: langtext_t130m_aktyp_save LIKE t130m-aktyp.
+DATA: lineindex LIKE sy-tabix.
+
+DATA: note_exist LIKE rm61r-manot.
+
+DATA: wordwrap_position LIKE cl_gui_textedit=>m_wordwrap_position.
+DATA: object_info LIKE ttxob.
+
+* IS2ERP start
+* Data declaration needed for screen SAPLMGD1 3320
+
+* IS2ERP: Replace declaration below ... by ...
+*data: gt_spec_charact_value like mgv_s_spec_char_value
+*                            occurs 0 with header line.
+DATA: BEGIN OF gt_spec_charact_value_screen OCCURS 0,
+  matnr TYPE char18, "MATNR	MATNR_INT
+  chval TYPE text60, "CHVAL	MGV_SPEC_TYPE_CHARACT_VALUE
+END OF gt_spec_charact_value_screen.
+
+CONTROLS tc_specialization TYPE TABLEVIEW USING SCREEN 0002.
+DATA: gf_spec_type_texts_text3 TYPE text80. "MGV_S_SPEC_TYPE_TEXTS
+* IS2ERP end
+
+ENHANCEMENT-POINT MMMGBBAU_02 SPOTS ES_MMMGBBAU STATIC INCLUDE BOUND.
+
+
+"{ Begin ENHO DIMP_GENERAL_MMMGBBAU IS-A DIMP_GENERAL }
+*TF Variable Objektidentifikation/46C2==================================
+DATA: sub_prog_varid LIKE dcobjdef-name,
+      sub_dynp_varid LIKE sy-dynnr.
+data: gv_field(20).
+data: gv_varid_aktyp like t130m-aktyp.  "Variable Objektid
+data: gv_version_active like tmcnv-mvakt.
+data: gv_new_version.
+data: gf_materialid like materialid.
+DATA: pflegeschalter LIKE icons-text.   "iC5031265
+data: all_versions_locked type xfeld.
+data: maintenance_modus.
+DATA: version_activity LIKE icons-text. "iC5031508
+*data: vtype like mgvtype-vtype.
+data: change_validity like icons-text.
+DATA: call_mmls LIKE icons-text.        "iC5031508
+data: validity(15) type c.
+data: matnr_type(10) type c.
+*TF Variable Objektidentifikation/46C2==================================
+"{ End ENHO DIMP_GENERAL_MMMGBBAU IS-A DIMP_GENERAL }
+
+ENHANCEMENT-POINT MMMGBBAU_03 SPOTS ES_MMMGBBAU STATIC INCLUDE BOUND.
+
+
+*TF 4.6C Materialfixierung========================================
+DATA: material_fixed LIKE icons-text.
+DATA: gv_icon_info LIKE icont-quickinfo.
+DATA: gv_icon_name(20) TYPE c.
+DATA: gv_add_stdinf LIKE icon-internal.
+
+* Mill 0014 Single Unit Batch SW "{ ENHO /SAPMP/PIECEBATCH_MMMGBBAU IS-MP-MM /SAPMP/SINGLE_UNIT_BATCH }
+CLASS cl_mill_pcbt_mat_master DEFINITION LOAD. "{ ENHO /SAPMP/PIECEBATCH_MMMGBBAU IS-MP-MM /SAPMP/SINGLE_UNIT_BATCH }
+
+ENHANCEMENT-POINT MMMGBBAU_01 SPOTS ES_MMMGBBAU STATIC INCLUDE BOUND.
+*note 522456
+
+DATA: dokumente_input TYPE i VALUE '1'.
+DATA: dokumente_feldauswahl LIKE sy-dynnr.
+
+* Fields for IPM ================================================
+* Field for IP short text
+DATA: gv_ipm_ip_short_text TYPE ipm_crm_ip_short_text.
+
+* Short text for medium
+data: medkxt type MEDKXT.
+
+data: gv_isbatch TYPE xfeld.

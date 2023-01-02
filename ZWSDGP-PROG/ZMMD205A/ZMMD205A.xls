@@ -1,0 +1,4 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZMMD205A	ZTFI_PYREHD	付款申请单	透明表				
+ZMMD205A	ZTFI_PYREIT	付款申请单明细	结构				
+ZMMD205A	ZTMM233	收付款计划表	透明表				

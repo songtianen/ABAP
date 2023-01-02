@@ -1,0 +1,82 @@
+*&---------------------------------------------------------------------*
+*&      Module  DUB_DEL_EAN_ZUS  INPUT
+*&---------------------------------------------------------------------*
+*       zu l#schende und doppelt eingetragene S#tze werden aus der
+*       internen Tabelle entfernt.
+*       Au#erdem werden die evtl. gesetzten KZ HPEAN gel#scht f¨¹r die
+*       Mengeneinheiten, die keine EANs zugeordnet haben.
+*       Falls zu einer Mengeneinheit die letzte EAN gel#scht werden
+*       soll, wird dieser Satz nicht aus der Tabelle gel#scht, sondern
+*       nur die Felder f¨¹r EAN und EAN-Typ initialisiert. Grund:
+*       Man mu# die M#glichkeit haben, auch zu einer Mengeneinheit, die
+*       noch keine EAN zugeordnet hat (entweder nach L#schen der letzten
+*       EAN oder sie hatte noch keine EAN), EANs zu erfassen.
+*----------------------------------------------------------------------*
+MODULE DUB_DEL_EAN_ZUS INPUT.
+
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+* Wenn nicht per Button (per OKCODE) gel#scht wird, dann CHECK auf
+* BILDFLAG. FLAG_DEL_EAN ist gesetzt, wenn OKCODE mit "EADE" belegt.
+* Das Module DUB_DEL_EAN hier mu# beim L#schen
+* ablaufen, darf dies aber bei einem vorausgegangenen Fehler nicht tun
+* (dann ist das Bildflag gesetzt).
+  IF FLAG_DEL_EAN IS INITIAL.
+    CHECK BILDFLAG IS INITIAL.
+  ENDIF.
+
+  CLEAR: HILFS_EAN, HILFS_MEEIN.
+
+* MEAN_ME_TAB_CHECK ist nur gesetzt, wenn das BILDFLAG initial ist.
+  IF NOT MEAN_ME_TAB_CHECK IS INITIAL.
+*   MEAN_ME_TAB ist noch zu bereinigen. D.h.: die "gel#schten"
+*   (Felder EAN11 und NUMTP wurden initialisiert) oder
+*   doppelt eingetragenen S#tze werden aus der Tabelle gel#scht
+*   au#erdem werden f¨¹r MEINHs ohne EANs die KZ HPEAN gel#scht, da
+*   eine nicht vorhandene EAN keine Haupt-Ean sein kann.
+
+    LOOP AT MEAN_ME_TAB.
+      HTABIX  = SY-TABIX + 1.
+*     Fall: L#schen
+      IF MEAN_ME_TAB-EAN11 IS INITIAL.
+*       wenn EAN11 hier noch initial, dann soll gel#scht werden
+        IF NOT MEAN_ME_TAB-HPEAN IS INITIAL.
+*         Fall: Mengeneinheit ohne EAN --> HPEAN wird zur¨¹ckgesetzt
+          CLEAR MEAN_ME_TAB-HPEAN.
+          MODIFY MEAN_ME_TAB.
+        ENDIF.
+        CLEAR MEAN_ME_BUF.
+        READ TABLE MEAN_ME_TAB INDEX HTABIX INTO MEAN_ME_BUF.
+*       Falls ein weiterer Satz zur selben Mengeneinheit existiert, kann
+*       gel#scht werden, ansonsten bleibt der Satz mit den initialen
+*       Feldern EAN11 und NUMTP bestehen. Bem.: Die Eintr#ge mit den
+*       leeren EANs zu einer Mengeneinheit stehen immer VOR denjenigen
+*       mit gef¨¹llter EAN (wegen Sortierung);
+        IF MEAN_ME_BUF-MEINH EQ MEAN_ME_TAB-MEINH AND
+           NOT MEAN_ME_TAB-MEINH IS INITIAL.    " siehe n#chstes IF
+          DELETE MEAN_ME_TAB.
+        ENDIF.
+* Fall: Die Mengeneinheit ist leer aber die restl. Felder sollen mit
+* L#schbutton gel#scht werden.
+        IF MEAN_ME_TAB-MEINH IS INITIAL.
+          DELETE MEAN_ME_TAB.
+        ENDIF.
+      ENDIF.
+
+*     Fall: Doppelter Eintrag ( zu einer Mengeneinheit wurde die selbe
+*     EAN mehrfach erfa#t);
+      IF  ( MEAN_ME_TAB-EAN11 = HILFS_EAN    AND
+            NOT MEAN_ME_TAB-EAN11 IS INITIAL AND " neu ! ! ! (AHE)
+*           (die "leeren" EANs werden schon beim L#schen behandelt)
+            MEAN_ME_TAB-MEINH = HILFS_MEEIN ).  " neu ! ! ! (AHE)
+        DELETE MEAN_ME_TAB.
+      ELSE.
+        HILFS_EAN   = MEAN_ME_TAB-EAN11.
+        HILFS_MEEIN = MEAN_ME_TAB-MEINH.    " neu (AHE)
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDIF.
+
+ENDMODULE.                             " DUB_DEL_EAN_ZUS  INPUT

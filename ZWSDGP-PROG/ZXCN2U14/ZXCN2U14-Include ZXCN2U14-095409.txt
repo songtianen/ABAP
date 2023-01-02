@@ -1,0 +1,12 @@
+*&---------------------------------------------------------------------*
+*& °üº¬               ZXCN2U14
+*&---------------------------------------------------------------------*
+CALL FUNCTION 'ZFM_ENH_SAVECJ20N'
+  EXPORTING
+    I_RESBD_NEW = I_RESBD_NEW
+    I_RESBD_OLD = I_RESBD_OLD
+    I_AFVGD     = I_AFVGD
+    I_CAUFVD    = I_CAUFVD
+  EXCEPTIONS
+    REJECTED    = 1
+    OTHERS      = 2.

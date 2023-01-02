@@ -1,0 +1,81 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPS001_F4_DATEI01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  F4_DATE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_date INPUT.
+  CALL FUNCTION 'F4_DATE'
+    EXPORTING
+      date_for_first_month = zxmks
+      display              = ' '
+*     FACTORY_CALENDAR_ID  = ' '
+*     GREGORIAN_CALENDAR_FLAG = ' '
+*     HOLIDAY_CALENDAR_ID  = ' '
+*     PROGNAME_FOR_FIRST_MONTH = ' '
+*     DATE_POSITION        = ' '
+    IMPORTING
+      select_date          = zxmks
+*     SELECT_WEEK          =
+*     SELECT_WEEK_BEGIN    =
+*     SELECT_WEEK_END      =
+    EXCEPTIONS
+*     CALENDAR_BUFFER_NOT_LOADABLE = 1
+*     DATE_AFTER_RANGE     = 2
+*     DATE_BEFORE_RANGE    = 3
+*     DATE_INVALID         = 4
+*     FACTORY_CALENDAR_NOT_FOUND = 5
+*     HOLIDAY_CALENDAR_NOT_FOUND = 6
+*     PARAMETER_CONFLICT   = 7
+      OTHERS               = 8.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_ZWERKS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_zwerks INPUT.
+  SELECT
+    werks,
+    name1
+    INTO TABLE @DATA(gt_tab1)
+    FROM t001w
+    WHERE werks IN ('3008','3018','3038','3088').
+  SORT gt_tab1 BY werks.
+
+*将取到的值通过函数显示在搜索帮助显示框中
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     DDIC_STRUCTURE  = ' '
+      retfield        = 'WERKS'            "这个参数为帮助表中返回到选择屏幕的字段的参数
+*     pvalkey         = 'PROFI_TXT'
+      dynpprog        = sy-repid           "当前程序，不写会有问题
+      dynpnr          = sy-dynnr           "当前屏幕，不写会有问题
+      dynprofield     = 'ZWERKS'       "选择屏幕上需要加F4帮助的字段
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      value_org       = 'S'                "默认为C但是此处不用S不行
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     CALLBACK_PROGRAM       = ' '
+*     CALLBACK_FORM   = 'CB_FORM1'
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*  IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = gt_tab1           "F4帮助值的表
+*     FIELD_TAB       =
+*     RETURN_TAB      =
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDMODULE.

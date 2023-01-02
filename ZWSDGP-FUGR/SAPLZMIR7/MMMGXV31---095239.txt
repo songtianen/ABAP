@@ -1,0 +1,13 @@
+************************************************************************
+* Include MMMGXV31 f¨¹r Festwerte
+* -  Chargendefinitions-Ebenen
+************************************************************************
+
+CONSTANTS:
+      CHARGEN_EBENE_A         VALUE '0',   "Ebene Werk, d.h. pro MARC
+                                           "ist die ChargenNr eindeutig
+      CHARGEN_EBENE_0         VALUE '0',   "ebenfalls Ebene Werk
+      CHARGEN_EBENE_1         VALUE '1',   "Ebene Material, dh. pro MARA
+                                           "ist die ChargenNr eindeutig
+      CHARGEN_EBENE_2         VALUE '2'.   "Ebene Mandant, d.h. mandan-
+                                           "tenweit eind. ChargenNr.

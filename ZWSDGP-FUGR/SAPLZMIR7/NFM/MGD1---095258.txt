@@ -1,0 +1,73 @@
+*----------------------------------------------------------------------*
+***INCLUDE /NFM/MGD1 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  /NFM/EINBLENDEN  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+ MODULE /nfm/einblenden OUTPUT.
+   DATA: l_anzeigen. " Anzeigen Ja oder Nein?
+*  Zuerst auf Ja setzen; bei den Pr¨¹fungen wird es dann
+*  gegebenenfalls auf Nein gesetzt.
+   l_anzeigen = x.
+
+*  NE im Customizing eingeschaltet?
+   INCLUDE /nfm/tbasic_get.
+   IF /nfm/g_tbasic-active NE /nfm/c_xflag.
+     CLEAR l_anzeigen.
+   ENDIF.
+*  Die weiteren Abfragen nur noch, wenn Anzeigen = Ja, denn
+*  mehr als auf Nein gesetzt werden kann es nicht.
+   IF l_anzeigen = X.
+*    Bei der Vertriebssicht m¨¹ssen die Verkaufsorganisation und der
+*    Vertriebsweg sitzen, beim Rest das Werk.
+     CASE sub_status.
+       WHEN status_v.
+         IF rmmg1-vkorg IS INITIAL OR
+            rmmg1-vtweg IS INITIAL.
+           CLEAR l_anzeigen.
+         ENDIF.
+       WHEN OTHERS.
+         IF rmmg1-werks IS INITIAL.
+           CLEAR l_anzeigen.
+         ENDIF.
+     ENDCASE.
+   ENDIF.
+   IF l_anzeigen = X.
+*    Taucht NE ¨¹berhaupt in der aktuellen Bildsequenz auf? Zum Pr¨¹fen
+*    einfach schauen ob in der Sequenz eine NE-Auswahlgruppe vorhanden
+*    ist. Z.B. gleich die erste: N1.
+     CALL FUNCTION 'T133A_SINGLE_READ_AUSWG'
+       EXPORTING
+         auswahlgruppe       = 'N1'
+         bildsequenz         = bildsequenz
+*       IMPORTING
+*         WT133A              =
+      EXCEPTIONS
+        not_found           = 1
+        wrong_call          = 2
+        OTHERS              = 3.
+     IF sy-subrc <> 0.
+       CLEAR l_anzeigen.
+     ENDIF.
+   ENDIF.
+*  Bei Ja den Button einblenden, bei Nein ausblenden.
+   IF l_anzeigen = X.
+     LOOP AT SCREEN.
+       CHECK screen-group1 = 'NFM'.
+       screen-invisible = 0.
+       screen-active    = 1.
+       screen-input     = 1.
+       MODIFY SCREEN.
+     ENDLOOP.
+   ELSE.
+     LOOP AT SCREEN.
+       CHECK screen-group1 = 'NFM'.
+       screen-invisible = 1.
+       screen-active    = 0.
+       screen-input     = 0.
+       MODIFY SCREEN.
+     ENDLOOP.
+   ENDIF.
+ ENDMODULE.                             " /NFM/EINBLENDEN  OUTPUT

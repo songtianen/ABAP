@@ -1,0 +1,302 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZFG_GP_001F01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Form FILLCOND
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FILLCOND USING P_POSNR
+                    P_KSCHL
+                    P_KBETR
+                    P_VBAK TYPE VBAK
+              CHANGING O_COND STRUCTURE BAPICOND
+                       O_CONDX STRUCTURE BAPICONDX.
+  DATA:KALSM TYPE T683V-KALSM.
+  CLEAR:O_COND,O_CONDX,T683S.
+  CHECK P_KSCHL IS NOT INITIAL
+  AND P_KBETR IS NOT INITIAL.
+
+  PERFORM GETKALSM(ZPUBFORM) USING P_VBAK P_KSCHL
+        CHANGING KALSM.
+
+  SELECT SINGLE * FROM T683S
+   WHERE KVEWE = 'A'
+     AND KAPPL = 'V'
+     AND KALSM = KALSM
+     AND KSCHL = P_KSCHL.
+  O_COND-ITM_NUMBER = P_POSNR.
+  O_CONDX-ITM_NUMBER = P_POSNR.
+  O_COND-COND_ST_NO  = T683S-STUNR.
+  O_CONDX-COND_ST_NO  = T683S-STUNR.
+  O_COND-COND_COUNT  = '01'.
+  O_CONDX-COND_COUNT  = '01'.
+  O_COND-COND_TYPE  = P_KSCHL.
+  O_CONDX-COND_TYPE  = P_KSCHL.
+  O_COND-COND_VALUE = P_KBETR.
+  O_CONDX-COND_VALUE = 'X'.
+  O_COND-CONDVALUE  = P_KBETR.
+  O_COND-CURRENCY  = P_VBAK-WAERK.
+  IF T683S IS NOT INITIAL.
+    O_CONDX-UPDATEFLAG = 'U'.
+  ELSE.
+    O_CONDX-UPDATEFLAG = 'I'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ALVFM
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> OUTTAB
+*&      --> FIELDCAT
+*&      --> P_
+*&      --> P_
+*&---------------------------------------------------------------------*
+FORM ALVFM TABLES ALVITAB INFIELDCAT USING INGUI INCOMMAND.
+  DATA:WA                       TYPE SLIS_FIELDCAT_ALV,
+       OUTFIELDCAT              TYPE SLIS_T_FIELDCAT_ALV,
+       I_CALLBACK_PROGRAM       TYPE SY-REPID,
+       I_GRID_SETTINGS          TYPE LVC_S_GLAY,
+       IS_VARIANT               TYPE DISVARIANT,
+       HOTSPOTFLAG              TYPE CHAR1,
+       EDITFLAG                 TYPE CHAR1,
+       CHBOX                    TYPE CHAR1,
+       SEL                      TYPE CHAR1,
+       IS_LAYOUT                TYPE SLIS_LAYOUT_ALV,
+       N                        TYPE I,
+       COLORFLAG                TYPE CHAR1,
+       I_CALLBACK_USER_COMMAND  TYPE CHAR30,
+       TOPPAGE                  TYPE CHAR1,
+       I_CALLBACK_PF_STATUS_SET TYPE CHAR30.
+  CLEAR:SEL,CHBOX,N,TOPPAGE,COLORFLAG.
+
+  PERFORM GETTABSTRU(ZPUBFORM) USING ALVITAB CHANGING OUTFIELDCAT.
+
+  I_CALLBACK_PROGRAM = SY-CPROG.
+
+  LOOP AT OUTFIELDCAT INTO WA .
+    CASE WA-FIELDNAME.
+      WHEN 'SEL' .
+        SEL = 'X'.
+      WHEN 'CHBOX'.
+        CHBOX = 'X'.
+      WHEN 'TOPPAGE'.
+        TOPPAGE = 'X'.
+      WHEN 'COLOR'.
+        COLORFLAG = 'X'.
+    ENDCASE.
+    CLEAR WA.
+  ENDLOOP.
+  IF SEL = 'X' AND CHBOX NE 'X' .
+    IS_LAYOUT-BOX_FIELDNAME = 'SEL'.
+  ENDIF.
+  IF COLORFLAG = 'X'.
+    IS_LAYOUT-INFO_FIELDNAME = 'COLOR'.
+  ENDIF.
+  CLEAR WA.
+
+
+  IF INCOMMAND IS NOT INITIAL.
+    I_CALLBACK_USER_COMMAND = INCOMMAND.
+  ELSE.
+    I_CALLBACK_USER_COMMAND = 'USER_COMMAND'.
+  ENDIF.
+*GUI状态:INGUI为X则为默认GUI状态名称，不为空则赋值自定义
+  IF INGUI IS NOT INITIAL.
+    CASE INGUI.
+      WHEN 'X'.
+        I_CALLBACK_PF_STATUS_SET = 'SET_STATUS'.
+      WHEN OTHERS.
+        I_CALLBACK_PF_STATUS_SET = INGUI.
+    ENDCASE.
+
+  ENDIF.
+  "针对字段超多报表，NO_OUT字段失效问题追加修复
+  LOOP AT INFIELDCAT INTO WA.
+    CASE WA-FIELDNAME.
+      WHEN 'HANDLE'.
+        IS_VARIANT-REPORT = I_CALLBACK_PROGRAM.
+        IS_VARIANT-HANDLE = WA-SELTEXT_L.
+    ENDCASE.
+
+    IF WA-NO_OUT = 'X'.
+      DELETE TABLE INFIELDCAT FROM WA.
+    ENDIF.
+    IF WA-HOTSPOT = 'X'.
+      HOTSPOTFLAG = 'X'.
+    ENDIF.
+    IF WA-EDIT = 'X'.
+      EDITFLAG = 'X'.
+    ENDIF.
+    CLEAR WA.
+  ENDLOOP.
+********ADD BY DONGPZ BEGIN AT 24.02.2021 17:02:59
+*增加不同ALV的布局单独设定-加在FIELDCAT中
+  IF IS_VARIANT-HANDLE IS INITIAL.
+    IS_VARIANT-REPORT = I_CALLBACK_PROGRAM.
+    IS_VARIANT-HANDLE = '1'.
+  ENDIF.
+********ADD BY DONGPZ END AT 24.02.2021 17:02:59
+  "自适应宽度与斑马线
+  IS_LAYOUT-ZEBRA = 'X'.
+  IF EDITFLAG NE 'X'.
+    IS_LAYOUT-COLWIDTH_OPTIMIZE = 'X'.
+  ELSE.
+    I_GRID_SETTINGS-EDT_CLL_CB = 'X'.
+  ENDIF.
+
+  IF INGUI IS NOT INITIAL.
+*带自定义GUI状态
+    IF TOPPAGE = 'X'.
+      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+        EXPORTING
+          I_CALLBACK_PROGRAM       = I_CALLBACK_PROGRAM
+          IT_FIELDCAT              = INFIELDCAT[]
+          I_SAVE                   = 'A'
+          IS_LAYOUT                = IS_LAYOUT
+          I_GRID_SETTINGS          = I_GRID_SETTINGS
+          IS_VARIANT               = IS_VARIANT
+          I_CALLBACK_USER_COMMAND  = I_CALLBACK_USER_COMMAND
+          I_CALLBACK_PF_STATUS_SET = I_CALLBACK_PF_STATUS_SET
+          I_CALLBACK_TOP_OF_PAGE   = 'TOP_OF_PAGE'
+        TABLES
+          T_OUTTAB                 = ALVITAB
+        EXCEPTIONS
+          PROGRAM_ERROR            = 1
+          OTHERS                   = 2.
+    ELSE.
+      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+        EXPORTING
+          I_CALLBACK_PROGRAM       = I_CALLBACK_PROGRAM
+          IT_FIELDCAT              = INFIELDCAT[]
+          I_SAVE                   = 'A'
+          IS_LAYOUT                = IS_LAYOUT
+          IS_VARIANT               = IS_VARIANT
+          I_GRID_SETTINGS          = I_GRID_SETTINGS
+          I_CALLBACK_USER_COMMAND  = I_CALLBACK_USER_COMMAND
+          I_CALLBACK_PF_STATUS_SET = I_CALLBACK_PF_STATUS_SET
+        TABLES
+          T_OUTTAB                 = ALVITAB
+        EXCEPTIONS
+          PROGRAM_ERROR            = 1
+          OTHERS                   = 2.
+    ENDIF.
+  ELSE.
+    IF HOTSPOTFLAG = 'X'.
+      "使用标准GUI状态，但配合点击跳转事件
+      IF TOPPAGE = 'X'.
+        CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+          EXPORTING
+            I_CALLBACK_PROGRAM      = I_CALLBACK_PROGRAM
+            IT_FIELDCAT             = INFIELDCAT[]
+            I_SAVE                  = 'A'
+            IS_LAYOUT               = IS_LAYOUT
+            IS_VARIANT              = IS_VARIANT
+            I_CALLBACK_USER_COMMAND = I_CALLBACK_USER_COMMAND
+            I_CALLBACK_TOP_OF_PAGE  = 'TOP_OF_PAGE'
+          TABLES
+            T_OUTTAB                = ALVITAB
+          EXCEPTIONS
+            PROGRAM_ERROR           = 1
+            OTHERS                  = 2.
+      ELSE.
+        CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+          EXPORTING
+            I_CALLBACK_PROGRAM      = I_CALLBACK_PROGRAM
+            IT_FIELDCAT             = INFIELDCAT[]
+            I_SAVE                  = 'A'
+            IS_LAYOUT               = IS_LAYOUT
+            IS_VARIANT              = IS_VARIANT
+            I_CALLBACK_USER_COMMAND = I_CALLBACK_USER_COMMAND
+          TABLES
+            T_OUTTAB                = ALVITAB
+          EXCEPTIONS
+            PROGRAM_ERROR           = 1
+            OTHERS                  = 2.
+      ENDIF.
+    ELSE.
+      IF TOPPAGE = 'X'.
+        CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+          EXPORTING
+            I_CALLBACK_PROGRAM     = I_CALLBACK_PROGRAM
+            IT_FIELDCAT            = INFIELDCAT[]
+            I_SAVE                 = 'A' "控制缺省/特定用户
+            IS_LAYOUT              = IS_LAYOUT
+            IS_VARIANT             = IS_VARIANT
+            I_CALLBACK_TOP_OF_PAGE = 'TOP_OF_PAGE'
+          TABLES
+            T_OUTTAB               = ALVITAB
+          EXCEPTIONS
+            PROGRAM_ERROR          = 1
+            OTHERS                 = 2.
+      ELSE.
+        CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+          EXPORTING
+            I_CALLBACK_PROGRAM    = I_CALLBACK_PROGRAM
+            IT_FIELDCAT           = INFIELDCAT[]
+            I_SAVE                = 'A' "控制缺省/特定用户
+            IS_LAYOUT             = IS_LAYOUT
+            IS_VARIANT            = IS_VARIANT
+            I_SCREEN_START_COLUMN = 45
+            I_SCREEN_END_COLUMN   = 120
+            I_SCREEN_START_LINE   = 10
+            I_SCREEN_END_LINE     = 20
+          TABLES
+            T_OUTTAB              = ALVITAB
+          EXCEPTIONS
+            PROGRAM_ERROR         = 1
+            OTHERS                = 2.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form CDFOLDER
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PATH
+*&      <-- MSG
+*&---------------------------------------------------------------------*
+*打开文件夹
+FORM CDFOLDER USING P_PATH CHANGING P_MSG.
+  DATA:COMMAND1 TYPE BAPI_MSG.
+  CLEAR:COMMAND1,P_MSG.
+  CONCATENATE 'cd' P_PATH INTO COMMAND1 SEPARATED BY SPACE.
+  PERFORM FTP_COMMAND(ZPUBFORM) TABLES OUTRESULT
+                                USING OUTHANDLE COMMAND1
+                                CHANGING P_MSG.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form PDBWART
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ITAB_ZWCYSL
+*&      --> IT_ZSMM206_PSPNR
+*&      <-- IT_MIGO
+*&---------------------------------------------------------------------*
+FORM PDBWART  USING    P_ITAB_ZWCYSL
+                       P_IT_ZSMM206_PSPNR
+              CHANGING P_IT_MIGO TYPE ZSFMS_MIGOPOST.
+  IF P_ITAB_ZWCYSL GT 0.
+    IF P_IT_ZSMM206_PSPNR IS NOT INITIAL.
+      P_IT_MIGO-BWART = 'Z51'.
+      P_IT_MIGO-SOBKZ = 'Q'.
+      P_IT_MIGO-EXBWR = 0.
+    ELSE.
+      P_IT_MIGO-BWART = '511'.
+    ENDIF.
+  ELSEIF P_ITAB_ZWCYSL LT 0.
+    IF P_IT_ZSMM206_PSPNR IS NOT INITIAL.
+      P_IT_MIGO-BWART = 'Z55'.
+      P_IT_MIGO-SOBKZ = 'Q'.
+    ELSE.
+      P_IT_MIGO-BWART = 'Z53'.
+    ENDIF.
+  ENDIF.
+ENDFORM.

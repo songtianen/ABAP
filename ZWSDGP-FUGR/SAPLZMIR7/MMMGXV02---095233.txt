@@ -1,0 +1,45 @@
+************************************************************************
+* Include MMMGXV02 f¨¹r Festwerte
+* -  Materialarten
+* -  Transaktionsgruppen
+************************************************************************
+
+* ch zu 4.5B DATA durch CONSTANTS ersetzt
+*    -> weniger Hauptspeicher (da nicht mehr pro Benutzer)
+*    -> etwas bessere Performance
+
+*--- Standard-Materialarten ------------------------------------------
+CONSTANTS:
+        MTART_ROH   LIKE T134-MTART VALUE 'ROH',   "Rohstoff
+        MTART_FERT  LIKE T134-MTART VALUE 'FERT',  "Fertigerzeugnis
+        MTART_HALB  LIKE T134-MTART VALUE 'HALB',  "Halbfertigprodukt
+        MTART_HIBE  LIKE T134-MTART VALUE 'HIBE',  "Hilfs-/Betriebsstoff
+        MTART_HAWA  LIKE T134-MTART VALUE 'HAWA',  "Handelsware
+        MTART_UNBW  LIKE T134-MTART VALUE 'UNBW',  "Unbewertet
+        MTART_NLAG  LIKE T134-MTART VALUE 'NLAG',  "Nichtlagermaterial
+        MTART_IBAU  LIKE T134-MTART VALUE 'IBAU',  "Inst.bauteil
+        MTART_DIEN  LIKE T134-MTART VALUE 'DIEN',  "Dienstleistung
+        MTART_VERP  LIKE T134-MTART VALUE 'VERP',  "Verpackung
+        MTART_WETT  LIKE T134-MTART VALUE 'WETT',  "Wettbewerberprodukt
+        MTART_PROD  LIKE T134-MTART VALUE 'PROD',  "Produktgruppe
+        MTART_KMAT  LIKE T134-MTART VALUE 'KMAT',  "Produktgruppe
+        MTART_LEER  LIKE T134-MTART VALUE 'LEER',  "Leergut /ch ztu 3.0E
+
+*--- Transaktionsgruppen zu Standard-Materialarten -----------------
+        TGRUP_ROH  LIKE T130M-TGRUP VALUE 'R',     "Rohstoff
+        TGRUP_FERT LIKE T130M-TGRUP VALUE 'F',     "Fertigerzeugnis
+        TGRUP_HALB LIKE T130M-TGRUP VALUE 'B',     "Halbfertigprodukt
+        TGRUP_HIBE LIKE T130M-TGRUP VALUE 'I',     "Hilfs-/Betriebsstoff
+        TGRUP_HAWA LIKE T130M-TGRUP VALUE 'H',     "Handelsware
+        TGRUP_UNBW LIKE T130M-TGRUP VALUE 'U',     "Unbewertet
+        TGRUP_NLAG LIKE T130M-TGRUP VALUE 'N',     "Nichtlagermaterial
+        TGRUP_VERP LIKE T130M-TGRUP VALUE 'V',     "Verpackung
+        TGRUP_DIEN LIKE T130M-TGRUP VALUE 'S',     "Dienstleistung
+        TGRUP_IBAU LIKE T130M-TGRUP VALUE 'P',     "Instandh.baugruppe
+        TGRUP_WETT LIKE T130M-TGRUP VALUE 'W',     "Wettbewerberprodukt
+        TGRUP_KMAT LIKE T130M-TGRUP VALUE 'K',     "Wettbewerberprodukt
+        TGRUP_LEER LIKE T130M-TGRUP VALUE 'L',     "Leergut  /ch zu 3.0E
+        TGRUP_ALLG LIKE T130M-TGRUP VALUE '0',     "Allgemein
+
+*--- Verarbeitungsarten -------------------------------------------
+        VERAR_03 LIKE T130M-VERAR VALUE '03'.      "Retail

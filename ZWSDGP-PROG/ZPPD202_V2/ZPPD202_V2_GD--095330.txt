@@ -1,0 +1,1441 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPD202_V2_GD.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module STATUS_0700 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0700 OUTPUT.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  IF p_scgd = 'X'.
+    IF p_cj = 'X'.
+      APPEND 'SAVE' TO rt_extab.
+      APPEND 'DEL' TO rt_extab.
+      APPEND 'UPDMES' TO rt_extab.
+    ELSEIF p_xg = 'X'.
+      APPEND 'CRTGD' TO rt_extab.
+    ENDIF.
+  ENDIF.
+  SET PF-STATUS 'STA700' EXCLUDING rt_extab.
+  SET TITLEBAR 'TIT700' WITH '钢品工单维护'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0700  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0700 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CRTGD'."创建工单
+      PERFORM crtgd.
+    WHEN 'SAVE'."修改工单
+      PERFORM changaufnr.
+    WHEN 'DEL'."删除工单
+      PERFORM delaufnr.
+    WHEN 'MES'."推镇江mes
+      PERFORM data_check.
+
+    WHEN 'BXMES'."推博兴mes
+      PERFORM data_check_bxmes.
+
+    WHEN 'UPDMES'."重推镇江mes
+      PERFORM updmes.
+    WHEN 'JHDDY'."打印计划单
+      DATA:num TYPE i.
+      CLEAR num.
+      IF p_cj = 'X'.
+
+        LOOP AT it_crtaufnr WHERE chbox = 'X'.
+          num = num + 1.
+        ENDLOOP.
+        IF num NE 1.
+          MESSAGE s004 WITH '请选择一行打印计划单即可' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+        READ TABLE it_crtaufnr WITH KEY chbox = 'X' .
+        PERFORM jhddy IN PROGRAM ztest_jhddy USING it_crtaufnr-plnum.
+      ELSEIF p_xg = 'X'.
+        LOOP AT itab WHERE chbox = 'X'.
+          num = num + 1.
+        ENDLOOP.
+        IF num NE 1.
+          MESSAGE s004 WITH '请选择一行打印计划单即可' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+        READ TABLE itab WITH KEY chbox = 'X' .
+        PERFORM jhddy IN PROGRAM ztest_jhddy USING itab-plnum.
+      ENDIF.
+
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module OUT_SCREEN OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE out_screen OUTPUT.
+  IF alv_container1 IS INITIAL.
+    CREATE OBJECT alv_container1
+      EXPORTING
+        repid     = sy-repid
+        dynnr     = sy-dynnr
+        side      = cl_gui_docking_container=>dock_at_top
+        extension = 500.
+    IF p_scgd = 'X'.
+      IF p_xg = 'X'.
+        CREATE OBJECT alv_grid1
+          EXPORTING
+            i_parent = alv_container1.
+        CALL METHOD cl_gui_cfw=>dispatch.
+        CREATE OBJECT lcl_event_receiver_1.
+        SET HANDLER lcl_event_receiver_1->handle_double_click_1 FOR alv_grid1.
+        SET HANDLER lcl_event_receiver_1->handle_data_changed_1 FOR alv_grid1.
+        SET HANDLER lcl_event_receiver_1->handle_hotspot_click_1 FOR alv_grid1."热点点击
+        SET HANDLER lcl_event_receiver_1->handle_toolbar_1 FOR alv_grid1."增加按钮
+        SET HANDLER lcl_event_receiver_1->handle_user_command_1 FOR alv_grid1."按钮响应
+        SET HANDLER lcl_event_receiver_1->handle_on_f4_1 FOR alv_grid1."搜索帮助
+*    alv_grid_jgmx->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+        alv_grid1->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_enter )."mc_evt_enter
+        alv_grid1->register_delayed_event( i_event_id = cl_gui_alv_grid=>mc_evt_delayed_change_select )."MC_EVT_DELAYED_CHANGE_SELECT
+      ELSEIF p_cj = 'X'.
+        CREATE OBJECT alv_grid2
+          EXPORTING
+            i_parent = alv_container1.
+        CALL METHOD cl_gui_cfw=>dispatch.
+        CREATE OBJECT lcl_event_receiver_2.
+        SET HANDLER lcl_event_receiver_2->handle_double_click_2 FOR alv_grid2.
+        SET HANDLER lcl_event_receiver_2->handle_data_changed_2 FOR alv_grid2.
+        SET HANDLER lcl_event_receiver_2->handle_hotspot_click_2 FOR alv_grid2."热点点击
+        SET HANDLER lcl_event_receiver_2->handle_toolbar_2 FOR alv_grid2."增加按钮
+        SET HANDLER lcl_event_receiver_2->handle_user_command_2 FOR alv_grid2."按钮响应
+        SET HANDLER lcl_event_receiver_2->handle_on_f4_2 FOR alv_grid2."搜索帮助
+*    alv_grid_jgmx->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+        alv_grid2->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_enter )."mc_evt_enter
+        alv_grid2->register_delayed_event( i_event_id = cl_gui_alv_grid=>mc_evt_delayed_change_select )."MC_EVT_DELAYED_CHANGE_SELECT
+      ENDIF.
+    ENDIF.
+    PERFORM callalvn1.
+  ELSE.
+    PERFORM callalvn1.
+  ENDIF.
+  IF p_scgd = 'X'.
+    IF p_cj = 'X'.
+      PERFORM frm_refresh_alv_2.
+    ELSEIF p_xg = 'X'.
+      PERFORM frm_refresh_alv_1.
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.
+
+FORM callalvn1 .
+  CLEAR:it_fieldcat_1.
+  IF p_scgd = 'X'.
+    IF p_cj = 'X'.
+      PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_1 USING:
+     'CHBOX' '选择' '' '',
+     'ZWHTBS' '无合同标识' '' '',
+     'AUFNR    ' '工单          '  'ZTPP_206' 'AUFNR',
+     'DAUAT    ' '工单类型      '  'ZTPP_206' 'DAUAT',
+     'PSTTR    ' '计划开始日期  '  'ZTPP_206' 'PSTTR',
+     'PEDTR    ' '计划结束日期  '  'ZTPP_206' 'PEDTR',
+     'GSMNG    ' '工单数量      '  'ZTPP_206' 'PSMNG',
+     'PLNUM    ' '生产计划号    '  'ZTPP_206' 'PLNUM',
+     'VERID    ' '生产版本      '  'ZTPP_206' 'VERID',
+     'ARBPL    ' '工作中心      '  'ZTPP_206' 'ARBPL',
+     'STLAL    ' '可选BOM号     '  'ZTPP_206' 'STLAL',
+     'VBELN    ' '销售订单      '  'VBAK' 'VBELN',
+     'POSNR    ' '订单行号      '  'VBAP' 'POSNR',
+     'POSID    ' '项目号        '  'PRPS' 'POSID',
+     'POST1    ' '项目名称      '  'PRPS' 'POST1',
+     'MATNR    ' '物料编码      '  'MARA' 'MATNR',
+     'MAKTX    ' '物料描述      '  'MAKT' 'MAKTX',
+     'ZPCDH    ' '排产单号      '  'ZTPP_206' 'ZPCDH',
+     'WERKS    ' '工厂          '  'VBAP' 'WERKS',
+     'BSTKD    ' '外部合同号    '  'VBKD' 'BSTKD',
+     'KUNNR    ' '客户编号      '  'VBAK' 'KUNNR',
+     'NAME1    ' '客户名称      '  'KNA1' 'NAME1',
+     'ZNAME    ' '创建人        '  '' '',
+     'ZDATE    ' '创建日期      '  '' '',
+     'ZTIME    ' '创建时间      '  '' ''.
+
+    ELSEIF p_xg = 'X'.
+      PERFORM fillfieldcat(zpubform) TABLES it_fieldcat_1 USING:
+     'CHBOX' '选择' '' '',
+     'ZWHTBS' '无合同标识' '' '',
+     'AUFNR    ' '工单          '  '' '',
+     'DAUAT    ' '工单类型      '  '' '',
+     'PSKS     ' '工单块数      '  'ZTPP_206' 'PSKS',
+     'PSMNG    ' '工单数量      '  'ZTPP_206' 'PSMNG',
+     'PSTTR    ' '计划开始日期  '  'ZTPP_206' 'PSTTR',
+     'PEDTR    ' '计划结束日期  '  'ZTPP_206' 'PEDTR',
+     'VERID    ' '生产版本      '  'ZTPP_206' 'VERID',
+     'ARBPL    ' '工作中心      '  'ZTPP_206' 'ARBPL',
+     'STLAL    ' '可选BOM号     '  'ZTPP_206' 'STLAL',
+     'MATNR    ' '物料编码      '  'MARA' 'MATNR',
+     'MAKTX    ' '物料描述      '  'MAKT' 'MAKTX',
+     'ZJHDSHZT ' '计划单审核状态'  'ZTPP_206' 'ZJHDSHZT',
+     'ZWLLX    ' '物料类型      '  'ZTPP_206' 'ZWLLX',
+     'ZCD      ' '长度          '  'ZTPP_206' 'ZCD',
+     'ZBCKD    ' '宽度          '  'ZTPP_205A' 'ZBCKD',
+     'ZXISHU   ' '系数          '  'ZTPP_205A' 'ZXISHU',
+     'ZZS      ' '折数          '  'ZTPP_205A' 'ZZS',
+     'ZMB      ' '抿边          '  'ZTPP_205A' 'ZMB',
+     'ZZHANKUAN' '展宽          '  'ZTPP_205A' 'ZZHANKUAN',
+     'ZZWHD    ' '折弯厚度      '  'ZTPP_205A' 'ZZWHD',
+     'ZDTMC    ' '单体名称      '  'ZTPP_205A' 'ZDTMC',
+     'ZLMZX    ' '立面轴线      '  'ZTPP_205A' 'ZLMZX',
+     'PLNUM    ' '生产计划号    '  'ZTPP_206' 'PLNUM',
+     'PLNUMHH  ' '计划行号      '  'ZTPP_206' 'PLNUMHH',
+     'GSMNG    ' '计划数量      '  'ZTPP_206' 'GSMNG',
+     'ZKSJHD   ' '计划块数      '  'ZTPP_206' 'ZKS',
+     'ZKS      ' '块数          '  'ZTPP_206' 'ZKS',
+     'GSMNG_YJH ' '已计划总量    '  'ZTPP_206' 'GSMNG',
+     'ZKS_JHD_SUM' '已下计划块数  '  'ZTPP_206' 'ZKS',
+     'ZPCDH    ' '排产单号      '  'ZTPP_206' 'ZPCDH',
+     'ZPCDHH   ' '排产单行号    '  'ZTPP_206' 'ZPCDHH',
+     'ZPCSL    ' '排产数量      '  'ZTPP_206A' 'ZPCSL',
+     'VBELN    ' '销售订单      '  'VBAK' 'VBELN',
+     'POSNR    ' '订单行号      '  'VBAP' 'POSNR',
+     'WERKS    ' '工厂          '  'VBAP' 'WERKS',
+     'BSTKD    ' '外部合同号    '  'VBKD' 'BSTKD',
+     'KUNNR    ' '客户编号      '  'VBAK' 'KUNNR',
+     'NAME1    ' '客户名称      '  'KNA1' 'NAME1',
+     'ZNAME    ' '创建人        '  '' '',
+     'ZDATE    ' '创建日期      '  '' '',
+     'ZTIME    ' '创建时间      '  '' '',
+     'ZBZ      ' '备注          '  'ZTPP_206' 'ZBZ',
+     'ZDKSL    ' '打孔开洞      '  'ZTPP_205A' 'ZDKSL'.
+    ENDIF.
+  ENDIF.
+
+  LOOP AT it_fieldcat_1 INTO wa_fieldcat_1.
+    CONDENSE wa_fieldcat_1-fieldname NO-GAPS.
+    CONDENSE wa_fieldcat_1-ref_field NO-GAPS.
+    CONDENSE wa_fieldcat_1-ref_table NO-GAPS.
+    CASE wa_fieldcat_1-fieldname.
+      WHEN 'DEL' OR 'ZJBS'.
+        wa_fieldcat_1-checkbox   = 'X'.
+      WHEN 'CHBOX' OR 'CHBOX1'.
+        wa_fieldcat_1-hotspot   = 'X'.
+        wa_fieldcat_1-edit   = 'X'.
+        wa_fieldcat_1-checkbox   = 'X'.
+        wa_fieldcat_1-fix_column   = 'X'.
+      WHEN 'ZMF' OR 'ZSFHG'.
+        wa_fieldcat_1-checkbox   = 'X'.
+*      WHEN 'MATNR'.
+*        wa_fieldcat_1-f4availabl = 'X'.
+      WHEN 'ZJHDSHZT'.
+        wa_fieldcat_1-checkbox   = 'X'.
+      WHEN 'DAUAT'.
+        wa_fieldcat_1-f4availabl   = 'X'.
+        wa_fieldcat_1-edit   = 'X'.
+      WHEN 'PSKS'.
+        wa_fieldcat_1-edit   = 'X'.
+      WHEN 'PSTTR' OR 'PEDTR'.
+        wa_fieldcat_1-edit   = 'X'.
+      WHEN 'ZWHTBS'.
+        wa_fieldcat_1-checkbox   = 'X'.
+    ENDCASE.
+
+    MODIFY it_fieldcat_1 FROM wa_fieldcat_1.
+  ENDLOOP.
+*设置搜索帮助
+  CLEAR:it_f4_1.
+  LOOP AT it_fieldcat_1 INTO wa_fieldcat_1 WHERE f4availabl = 'X'
+                                         AND edit = 'X'
+                                         .
+    CLEAR:wa_f4_1.
+    wa_f4_1-fieldname = wa_fieldcat_1-fieldname.
+    wa_f4_1-register = 'X'.
+    wa_f4_1-getbefore = space.
+    wa_f4_1-chngeafter = 'X'.
+    INSERT wa_f4_1 INTO TABLE it_f4_1.
+  ENDLOOP.
+
+  IF p_scgd = 'X'.
+    IF p_xg = 'X'.
+      CALL METHOD alv_grid1->register_f4_for_fields
+        EXPORTING
+          it_f4 = it_f4_1.
+      PERFORM callalv(zpubform)
+      TABLES itab USING alv_grid1 it_fieldcat_1 'P202'.
+    ELSEIF p_cj = 'X'.
+      CALL METHOD alv_grid2->register_f4_for_fields
+        EXPORTING
+          it_f4 = it_f4_1.
+      PERFORM callalv(zpubform)
+      TABLES it_crtaufnr USING alv_grid2 it_fieldcat_1 'P202'.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form crtgd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM crtgd .
+  DATA:BEGIN OF it_plnum OCCURS 0,
+         plnum TYPE ztpp_206-plnum,
+         dauat TYPE afpo-dauat,
+       END OF it_plnum.
+  DATA:aufnr  TYPE ztpp_206-aufnr,
+       lv_msg TYPE bapi_msg,
+       return TYPE TABLE OF bapiret2 WITH HEADER LINE.
+  CLEAR lv_msg.
+
+  READ TABLE it_crtaufnr WITH KEY chbox = 'X'.
+  IF sy-subrc <> 0.
+    MESSAGE i004 WITH '选中需要生成工单的行项目.' .
+    RETURN.
+  ENDIF.
+  LOOP AT it_crtaufnr WHERE aufnr IS NOT INITIAL AND chbox = 'X'.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc = 0.
+    MESSAGE i004 WITH '已经生成工单号的行项目不要重复选中.' .
+    RETURN.
+  ENDIF.
+
+  REFRESH it_plnum.
+  LOOP AT it_crtaufnr WHERE aufnr IS INITIAL AND chbox = 'X'.
+    IF it_crtaufnr-dauat IS INITIAL.
+      MESSAGE i004 WITH '工单类型必填.'.
+      RETURN.
+    ENDIF.
+    CLEAR it_plnum.
+    MOVE-CORRESPONDING it_crtaufnr TO it_plnum.
+    COLLECT it_plnum.
+  ENDLOOP.
+  REFRESH: return.
+  SORT it_plnum BY plnum.
+  LOOP AT it_plnum.
+    PERFORM create_prodord USING
+                               it_plnum-plnum
+                               it_plnum-dauat
+                           CHANGING
+                                 aufnr
+                                 lv_msg .
+    IF aufnr IS NOT INITIAL.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'S' '004' lv_msg '' '' ''.
+      LOOP AT it_crtaufnr WHERE plnum = it_plnum-plnum.
+        it_crtaufnr-aufnr = aufnr.
+        MODIFY it_crtaufnr TRANSPORTING aufnr.
+      ENDLOOP.
+      UPDATE ztpp_206 SET aufnr = aufnr dauat = it_plnum-dauat WHERE plnum = it_plnum-plnum.
+      COMMIT WORK.
+    ELSE.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'E' '004' lv_msg '' '' ''.
+    ENDIF.
+  ENDLOOP.
+  PERFORM frm_refresh_alv_2.
+  IF return[] IS NOT INITIAL.
+    PERFORM showmsg(zpubform) TABLES return.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form create_prodord
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> IT_PLNUM_PLNUM
+*&      --> IT_PLNUM_DAUAT
+*&      <-- AUFNR
+*&      <-- LV_MSG
+*&---------------------------------------------------------------------*
+FORM create_prodord  USING    plnum
+                              dauat
+                     CHANGING aufnr
+                              lvg_msg.
+
+  DATA: ls_return TYPE TABLE OF bapiret2 WITH HEADER LINE.
+  CLEAR:ls_return,aufnr.
+  DATA order_number TYPE bapi_order_copy-order_number.
+  DATA:a_number TYPE char6.
+  " 找出该计划单号对应的排产单创建了几个工单  10.10.2022 10:30:15 by kkw
+  SELECT DISTINCT zpcdh,aufnr INTO TABLE @DATA(count_aufnr) FROM ztpp_206
+  WHERE zpcdh IN ( SELECT DISTINCT zpcdh FROM ztpp_206 WHERE plnum = @plnum ) AND aufnr NE ''.
+
+  DATA(line) = lines( count_aufnr ) + 1.
+  " 排产单没创建过工单才产生新的工单号  10.10.2022 14:17:21 by kkw
+  IF line EQ 1.
+    " 获取工单3-8位流水  10.10.2022 10:54:29 by kkw
+    PERFORM get_aufnr CHANGING a_number.
+    CHECK a_number IS NOT INITIAL.
+  ELSE.
+    READ TABLE count_aufnr INTO DATA(lw_aufnr) INDEX 1.
+    a_number = lw_aufnr-aufnr+2(9).
+  ENDIF.
+  " 补齐2位  10.10.2022 10:53:46 by kkw
+  DATA(aufnr_c2) = |{ CONV char2( line ) ALPHA = IN }|.
+
+  CONCATENATE 'PC' a_number '-' aufnr_c2 INTO order_number.
+  order_number = |{ order_number ALPHA = IN }|.
+  CALL FUNCTION 'BAPI_PRODORD_CREATE_FROM_PLORD'
+    EXPORTING
+      planned_order    = plnum
+      order_type       = dauat "'ZP15'
+      order_number     = order_number
+    IMPORTING
+      production_order = aufnr
+      return           = ls_return.
+
+  IF ls_return-type CA 'AEX'.
+
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+    lvg_msg = |创建生产订单报错:{ ls_return-message }|.
+  ELSE.
+
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    lvg_msg = |生产订单创建成功,订单号:{ aufnr }|.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form get_aufnr
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- A_NUMBER
+*&---------------------------------------------------------------------*
+" 钢品工单流水号3-8位  10.10.2022 11:04:20 by kkw
+FORM get_aufnr CHANGING a_number TYPE char6.
+  CALL FUNCTION 'NUMBER_RANGE_ENQUEUE'
+    EXPORTING
+      object           = 'ZGPPP05'
+    EXCEPTIONS
+      foreign_lock     = 1
+      object_not_found = 2
+      system_failure   = 3
+      OTHERS           = 4.
+  DO 5 TIMES.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'NUMBER_GET_NEXT'
+        EXPORTING
+          nr_range_nr = '01'
+          object      = 'ZGPPP05'
+        IMPORTING
+          number      = a_number
+        EXCEPTIONS
+          OTHERS      = 4.
+
+      CALL FUNCTION 'NUMBER_RANGE_DEQUEUE'
+        EXPORTING
+          object = 'ZGPPP05'
+        EXCEPTIONS
+          OTHERS = 4.
+      EXIT.
+    ELSE.
+      WAIT UP TO 1 SECONDS.
+*      RAISE num_range_error.
+    ENDIF.
+  ENDDO.
+
+  IF a_number IS INITIAL.
+    MESSAGE '流水号未生成.' TYPE 'S' DISPLAY LIKE 'E'.
+    STOP.
+  ELSE.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form changaufnr
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM changaufnr .
+  DATA: number     TYPE bapi_order_key-order_number,
+        orderdata  TYPE bapi_pp_order_change,
+        orderdatax TYPE bapi_pp_order_changex,
+        return     TYPE bapiret2.
+  DATA:BEGIN OF it_aufnr OCCURS 0,
+         aufnr TYPE ztpp_206-aufnr,
+         psmng TYPE ztpp_206-psmng,
+       END OF it_aufnr.
+  FREE:number,orderdata,orderdatax,return,it_aufnr.
+  DATA:gv_msg  TYPE string.
+  LOOP AT itab WHERE chbox = 'X'.
+    CLEAR:it_aufnr.
+    it_aufnr-aufnr = itab-aufnr.
+    it_aufnr-psmng = itab-psmng.
+    COLLECT it_aufnr.
+    IF itab-psks > itab-zks.
+      MESSAGE i004 WITH '块数不能大于原工单行块数'.
+      RETURN.
+    ENDIF.
+  ENDLOOP.
+
+  IF lines( it_aufnr[] ) NE 1.
+    MESSAGE i004 WITH '请选中同一工单的行项目修改'.
+    RETURN.
+  ENDIF.
+  READ TABLE it_aufnr INDEX 1.
+  IF it_aufnr-psmng EQ 0.
+    MESSAGE i004 WITH '工单总数量不允许为0'.
+    RETURN.
+  ENDIF.
+  number = it_aufnr-aufnr.
+  orderdata-quantity = it_aufnr-psmng.
+  orderdatax-quantity = 'X'.
+  CALL FUNCTION 'BAPI_PRODORD_CHANGE' "BAPI: Change Production Order
+    EXPORTING
+      number     = number                   " bapi_order_key-order_number  Production Order Number
+      orderdata  = orderdata                " bapi_pp_order_change  Transfer Structure for Changing Production Orders
+      orderdatax = orderdatax               " bapi_pp_order_changex  Transfer Structure for Changing Production Orders
+    IMPORTING
+      return     = return                   " bapiret2      Return Parameters
+*     order_type =                " bapi_order_copy-order_type  Order Type
+*     order_status =              " bapi_order_status  Order Status Indicator
+*     master_data_read =          " bapiflag-bapiflag  Indicator: Master Data Read
+    .
+  IF return-type CA 'AEX'.
+    gv_msg = return-message.
+  ELSE.
+    gv_msg = '生产订单修改成功！'.
+    LOOP AT itab WHERE chbox = 'X'.
+      UPDATE ztpp_206 SET psmng = itab-psmng psks = itab-psks WHERE plnum = itab-plnum AND plnumhh = itab-plnumhh AND aufnr = itab-aufnr.
+      COMMIT WORK.
+    ENDLOOP.
+  ENDIF.
+  MESSAGE i004 WITH gv_msg.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form DELAUFNR
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM delaufnr .
+  DATA:BEGIN OF it_aufnr OCCURS 0,
+         aufnr TYPE ztpp_206-aufnr,
+       END OF it_aufnr.
+  DATA:return    TYPE TABLE OF bapiret2 WITH HEADER LINE.
+  DATA:lt_orders TYPE TABLE OF bapi_order_key WITH HEADER LINE.
+  DATA:lt_detail_return TYPE TABLE OF bapi_order_return WITH HEADER LINE.
+  DATA:msg TYPE bapi_msg.
+
+
+  REFRESH: it_aufnr,return,lt_orders,lt_detail_return.
+  LOOP AT itab WHERE chbox = 'X'.
+    CLEAR it_aufnr.
+    it_aufnr-aufnr = itab-aufnr.
+    COLLECT it_aufnr.
+  ENDLOOP.
+  LOOP AT it_aufnr.
+    CLEAR:msg,lt_orders,lt_orders[],lt_detail_return,lt_detail_return[].
+    lt_orders-order_number = it_aufnr-aufnr.
+    APPEND lt_orders.
+
+    CALL FUNCTION 'BAPI_PRODORD_SET_DELETION_FLAG'
+      TABLES
+        orders        = lt_orders[]
+        detail_return = lt_detail_return.
+
+    LOOP AT lt_detail_return WHERE type CA 'AEX'.
+      IF msg IS INITIAL.
+        msg = lt_detail_return-message.
+      ELSE.
+        msg = msg && '/' && lt_detail_return-message.
+      ENDIF.
+    ENDLOOP.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK' .
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'E' '006' it_aufnr-aufnr msg '' ''.
+      EXIT.
+    ELSE.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          wait = 'X'.
+      " 这块不用写了，co02增强点会自动更新  23.09.2022 13:45:49 by kkw
+*      UPDATE ztpp_206 SET del_gd = 'X' WHERE aufnr = it_aufnr-aufnr.
+*      COMMIT WORK.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'S' '005' it_aufnr-aufnr '' '' ''.
+      DELETE itab WHERE aufnr = it_aufnr-aufnr.
+    ENDIF.
+  ENDLOOP.
+
+  IF return[] IS NOT INITIAL.
+    PERFORM showmsg(zpubform) TABLES return.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form mes
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM mes USING aufnr TYPE aufnr
+               zpcdh TYPE ztpp_206-zpcdh
+               arbpl TYPE ztpp_206-arbpl
+        CHANGING
+               p_rtype TYPE bapi_mtype
+               p_rtmsg TYPE bapi_msg.
+  "字段映射关系详见FS
+  RANGES:s_zxg FOR mara-zzl1.
+  DATA:total_qty    TYPE vbap-kwmeng,
+       total_meters TYPE vbap-kwmeng,
+       total_piece  TYPE ze_zks.
+  DATA:lv_selcount TYPE i.
+  DATA: gt_tab  TYPE zspp_208,
+        gs_tab  LIKE LINE OF gt_tab,
+        gt_tab4 TYPE TABLE OF zspp_204,
+        gs_tab4 LIKE LINE OF gt_tab4,
+        gt_tab5 TYPE TABLE OF zspp_205,
+        gs_tab5 LIKE LINE OF gt_tab5,
+        gt_tab6 TYPE TABLE OF zspp_206,
+        gs_tab6 LIKE LINE OF gt_tab6,
+        gt_tab7 TYPE TABLE OF zspp_207,
+        gs_tab7 LIKE LINE OF gt_tab7.
+  DATA:rtype TYPE bapi_mtype,
+       rtmsg TYPE bapi_msg.
+  DATA:num TYPE i.
+  DATA:zpcsl TYPE ztpp_205a-zpcsl.
+  FIELD-SYMBOLS:<fs> TYPE any.
+  CLEAR:gs_tab,gt_tab,gs_tab4,gt_tab4,gs_tab5,gt_tab5,gs_tab6,gt_tab6,gs_tab7,gt_tab7,rtmsg,rtype.
+  CLEAR:s_zxg[].
+  s_zxg = 'IEQZ型钢'. APPEND s_zxg.
+  s_zxg = 'IEQC型钢'. APPEND s_zxg.
+  " 取jest表工单状态I0002不为'X'  19.09.2022 10:34:20 by kkw
+  SELECT jest~stat, jest~inact INTO TABLE @DATA(it_stat) FROM aufk JOIN jest ON aufk~objnr = jest~objnr
+  WHERE aufk~aufnr = @aufnr AND jest~stat IN ( 'I0002', 'I0076' ).
+  SORT it_stat BY stat.
+  IF lines( it_stat ) EQ 2 AND it_stat[ 2 ]-inact NE 'X'.
+    p_rtype   = 'E'.
+    p_rtmsg = '工单已删除，不能推送MES'.
+    RETURN.
+  ENDIF.
+
+  SELECT * FROM ztpp_206 INTO TABLE @DATA(lt_206) WHERE aufnr = @aufnr.
+  SELECT * INTO TABLE @DATA(lt_212) FROM ztpp_212.
+  SELECT * INTO TABLE @DATA(lt_205b) FROM ztpp_205b WHERE zpcdh = @zpcdh."公共字段
+  SELECT z5a~*,z6~aufnr,z6~zpcdh,z6~zpcdhh INTO TABLE @DATA(lt_205a) FROM ztpp_205a AS z5a
+    JOIN ztpp_206 AS z6 ON z5a~zpcdh = z6~zpcdh AND z5a~zpcdhh = z6~zpcdhh
+  WHERE z6~aufnr = @aufnr.
+  SELECT * INTO TABLE @DATA(lt_205) FROM ztpp_205 WHERE zpcdh = @zpcdh.
+*  num = 0.
+  READ TABLE lt_206 INTO DATA(lw_206) INDEX 1.
+  SELECT SINGLE
+    zzl1
+    INTO @DATA(zzl1)
+    FROM mara
+    WHERE matnr = @lw_206-matnr.
+
+  SELECT
+      domname,
+      domvalue_l,
+      ddtext
+    INTO TABLE @DATA(it_yzms)
+    FROM dd07t
+    WHERE domname   IN ( 'ZD_SF' ,'ZD_SFTXWSD' ,'ZD_ZZYFY' ,'ZD_ZAZFS', 'ZD_ZWBFMYQ' ,'ZD_ZNBFMYQ' , 'ZD_ZDDLX' )
+      AND ddlanguage = @sy-langu
+      AND as4local   = 'A'.
+  SORT it_yzms BY  domname  domvalue_l .
+  CLEAR : total_qty ,total_meters,total_piece.
+  LOOP AT lt_206 INTO lw_206.
+    READ TABLE lt_205a INTO DATA(lw_205a) WITH KEY aufnr = aufnr zpcdh = lw_206-zpcdh zpcdhh = lw_206-zpcdhh..
+    gs_tab4-_order_no = aufnr.
+*    PERFORM get_snro_number CHANGING gs_tab4-_order_seq ."hanwq 20221117 delete
+    PERFORM get_order_seq_number  USING lw_206-plnum lw_206-plnumhh  CHANGING gs_tab4-_order_seq  ."hanwq 20221117 delete
+
+*    gs_tab4-_seq_no = lw_206-plnum.
+    gs_tab4-_seq_no = lw_205a-z5a-zbianhao.
+    gs_tab4-_qty                      = lw_206-zks.
+    total_piece = total_piece + gs_tab4-_qty .
+
+    gs_tab4-_unit1                    = '块'.
+    "若工厂是3060 ，在原基础上/1000，若工厂为3062，则长度（ProductLength）保持不变
+    IF lw_206-werks = '3060'.
+      gs_tab4-_product_length         = lw_206-zcd  / 1000 .
+    ELSEIF lw_206-werks = '3062'.
+      gs_tab4-_product_length         = lw_206-zcd  .
+    ENDIF.
+
+    gs_tab4-_size                     = ''.
+    SELECT SINGLE gmein INTO gs_tab4-_unit2  FROM afko WHERE aufnr = aufnr.
+
+    READ TABLE lt_205b INTO DATA(lw_205b) INDEX 1.
+
+    gs_tab4-_total_unit               = gs_tab4-_unit2.
+
+    gs_tab4-_install_name             = lw_205a-z5a-zdtmc.
+    gs_tab4-_install_position         = lw_205a-z5a-zlmzx.
+    gs_tab4-_stock_no                 = ''.
+    gs_tab4-_transport_lot            = ''.
+    gs_tab4-_hole_num                 = lw_205a-z5a-zdksl.
+    gs_tab4-_picture_address          = lw_205a-z5a-zfile.
+    gs_tab4-_total_meters             = lw_205a-z5a-zms.
+    gs_tab4-_z_w_thick                = lw_205a-z5a-zzwhd.
+    DATA:_z_w_num  TYPE i.
+    _z_w_num = lw_205a-z5a-zzs.
+    gs_tab4-_z_w_num                  = _z_w_num.
+    gs_tab4-_hole_req                 = lw_205a-z5a-zdksl.
+    gs_tab4-_m_req                    = lw_205a-z5a-zmb.
+    gs_tab4-_install_detail_position  = lw_205b-zxxazwz.
+    gs_tab4-_production_size          = lw_205b-zpccc.
+    gs_tab4-_product_size             = lw_205b-zjgcc.
+    gs_tab4-_board_length             = lw_205a-z5a-zbckd.
+    gs_tab4-_board_width              = lw_205a-z5a-zcd.
+    gs_tab4-_w_o_remark               = ''.
+    gs_tab4-_memo                     = ''.
+    gs_tab4-_suggest_pakage           = ''.
+    DATA: zdpgg TYPE vbap-kwmeng.
+    DATA: zsl   TYPE vbap-kwmeng.
+    DATA: zms   TYPE vbap-kwmeng.
+    CLEAR : zdpgg , zsl , zms .
+    IF lw_205a-z5a-zxishu = 0.
+      zdpgg = lw_206-zcd / 1000 .
+    ELSE.
+      zdpgg = lw_206-zcd * lw_205a-z5a-zxishu / 1000 .
+    ENDIF.
+    zsl     = zdpgg * lw_206-zks.
+    gs_tab4-_single_one               = zdpgg.
+    IF zzl1 IN s_zxg.
+      gs_tab4-_total_qty              = lw_205a-z5a-zpcsl.
+    ELSE.
+      gs_tab4-_total_qty                = zsl.
+    ENDIF.
+    gs_tab4-_plus_width               = ''.
+    APPEND gs_tab4 TO gt_tab4.
+    zms = gs_tab4-_product_length *  gs_tab4-_qty.
+    total_qty = total_qty + zsl.
+    total_meters = total_meters + zms.
+  ENDLOOP.
+
+  "预留
+  SELECT SINGLE auart INTO @DATA(auart) FROM aufk WHERE aufnr = @aufnr.
+  READ TABLE lt_212 INTO DATA(lw_212) WITH KEY arbpl = arbpl auart = auart.
+  IF sy-subrc EQ 0.
+    gs_tab-_order_type = lw_212-zmesddlx.
+    gs_tab-_order_mold = lw_212-zmesddlb.
+    gs_tab-_plant_code = lw_212-zmesgc.
+    gs_tab-_work_centre_group  = lw_212-zmescx.
+    gs_tab-_work_centre        = lw_212-zmesjgzx.
+  ELSE.
+*    MESSAGE s004 WITH '订单类别没有映射关系' DISPLAY LIKE 'I'.
+    p_rtype   = 'E'.
+    p_rtmsg = '订单类别没有映射关系'.
+    RETURN.
+  ENDIF.
+  SELECT
+     resb~bdter,
+     resb~lgort,
+     resb~matnr,
+     makt~maktx,
+     resb~bdmng,
+     resb~meins
+      INTO TABLE @DATA(lt_resb) FROM resb
+     LEFT JOIN makt ON resb~matnr = makt~matnr AND makt~spras = @sy-langu
+  WHERE resb~aufnr = @aufnr.
+  LOOP AT lt_resb INTO DATA(lw_resb).
+    gs_tab5-_order_no        = aufnr.
+    gs_tab5-_material_code   = lw_resb-matnr.
+    gs_tab5-_qty             = lw_resb-bdmng.
+    gs_tab5-_operation       = ''.
+    gs_tab5-_order_type      = lw_212-zmesddlx.
+    gs_tab5-_routing_type    = ''.
+    gs_tab5-_memo            = ''.
+    APPEND gs_tab5 TO gt_tab5.
+  ENDLOOP.
+
+*_ORDER_NO
+*_C_K_TYPE
+*_C_K_NUMBER
+*_C_K_PRICE
+*_C_K_TOTAL_PRICE
+*_C_K_PICTURE
+*_C_K_REMARK
+*_MEMO
+
+*  APPEND gs_tab6 TO gt_tab6.
+*  APPEND gs_tab7 TO gt_tab7.
+
+  gs_tab-_order_no = aufnr.
+  gs_tab-_sale_no = zpcdh.
+
+  gs_tab-_order_type = lw_212-zmesddlx.
+  gs_tab-_order_mold = lw_212-zmesddlb.
+  gs_tab-_plant_code = lw_212-zmesgc.
+  gs_tab-_work_centre_group  = lw_212-zmescx.
+  gs_tab-_work_centre        = lw_212-zmesjgzx.
+
+
+*  gs_tab-_order_status       = 'I0002'.
+  gs_tab-_order_status       = ''.
+*  gs_tab-_customer_code      = |{ itab-kunnr ALPHA = OUT }|.
+  READ TABLE lt_205 INTO DATA(lw_205) INDEX 1.
+  IF itab-vbeln(4) = 'NXHT'.
+    SELECT SINGLE
+       ztsd212~kunnr
+       prps~pspnr
+       prps~post1
+      INTO ( gs_tab-_customer_code , gs_tab-_project_code , gs_tab-_project_name )
+      FROM vbap
+      INNER JOIN vbak AS nxht ON nxht~vbeln      = vbap~vbeln
+      INNER JOIN vbak AS ht   ON ht~vbeln        = vbap~vgbel
+      INNER JOIN ztsd212      ON ztsd212~partner = ht~kunnr
+      INNER JOIN prps         ON vbap~ps_psp_pnr = prps~pspnr
+      WHERE vbap~vbeln = lw_205-vbeln
+        AND vbap~posnr = lw_205-posnr
+       .
+  ELSE.
+    SELECT SINGLE
+       ztsd212~kunnr
+       prps~pspnr
+       prps~post1
+      INTO ( gs_tab-_customer_code , gs_tab-_project_code , gs_tab-_project_name )
+      FROM vbap
+      INNER JOIN vbak ON vbak~vbeln = vbap~vbeln
+      INNER JOIN ztsd212 ON ztsd212~partner = vbak~kunnr
+      INNER JOIN prps ON vbap~ps_psp_pnr = prps~pspnr
+      WHERE vbap~vbeln = lw_205-vbeln
+        AND vbap~posnr = lw_205-posnr
+       .
+  ENDIF.
+  SELECT SINGLE erdat INTO ( gs_tab-_contract_date ) FROM aufk WHERE aufnr = aufnr.
+*  SELECT SINGLE gstrs gltrs gltrp INTO ( gs_tab-_plan_start_date,gs_tab-_plan_end_date,gs_tab-_deal_date ) FROM afko WHERE aufnr = aufnr.
+  SELECT SINGLE gstrs gltrs  INTO ( gs_tab-_plan_start_date,gs_tab-_plan_end_date ) FROM afko WHERE aufnr = aufnr.
+  CLEAR lw_205b.
+  READ TABLE lt_205b INTO lw_205b INDEX 1.
+  gs_tab-_deal_date = lw_205b-zjhsj.
+*  gs_tab-_project_name       = ''.
+*  gs_tab-_project_code       = ''.
+*  gs_tab-_contract_date      = ''.
+*  gs_tab-_plan_start_date    = itab-psttr.
+*  gs_tab-_plan_end_date      = itab-pedtr.
+*  gs_tab-_deal_date          = itab-pedtr.
+  READ TABLE lt_206 INTO DATA(ls_f_206) INDEX 1.
+  gs_tab-_material_code      = ls_f_206-matnr.
+
+
+  gs_tab-_total_meters       = total_meters.
+  IF zzl1 IN s_zxg.
+    CLEAR total_qty.
+    SELECT SUM( zpcsl ) INTO total_qty FROM ztpp_205a WHERE zpcdh = lw_206-zpcdh.
+  ENDIF.
+  gs_tab-_total_qty          = total_qty.
+  gs_tab-_total_unit         = lw_205-meins.
+  gs_tab-_contract_no        = lw_205-posnr.
+  gs_tab-_contract_lot       = ''.
+  gs_tab-_start_flag         = ''.
+  gs_tab-_purchase_no        = ''.
+  gs_tab-_father_order_no    = ''.
+  gs_tab-_son_order_no       = ''.
+  gs_tab-_package_type       = lw_205b-zdbfs.
+  gs_tab-_transport_req      = lw_205b-zzyyq.
+  gs_tab-_package_req        = lw_205b-zbzyq.
+  gs_tab-_core_req           = lw_205b-zxcyq.
+  READ TABLE it_yzms INTO DATA(wa_yzms) WITH KEY  domname = 'ZD_SF'  domvalue_l = lw_205b-zsfwbzj BINARY SEARCH.
+  gs_tab-_extern_z_l         = wa_yzms-ddtext.
+  CLEAR wa_yzms .
+  READ TABLE it_yzms INTO wa_yzms WITH KEY  domname = 'ZD_SF'  domvalue_l = lw_205b-zsfnbzj BINARY SEARCH.
+  gs_tab-_intern_z_l         = wa_yzms-ddtext.
+  CLEAR wa_yzms .
+  READ TABLE it_yzms INTO wa_yzms WITH KEY  domname = 'ZD_ZWBFMYQ'  domvalue_l = lw_205b-zwbfmyq BINARY SEARCH.
+  gs_tab-_extern_cover_req   = wa_yzms-ddtext.
+  CLEAR wa_yzms .
+  READ TABLE it_yzms INTO wa_yzms WITH KEY  domname = 'ZD_ZNBFMYQ'  domvalue_l = lw_205b-znbfmyq BINARY SEARCH.
+  gs_tab-_intern_cover_req   = wa_yzms-ddtext.
+  CLEAR wa_yzms .
+  READ TABLE it_yzms INTO wa_yzms WITH KEY  domname = 'ZD_SFTXWSD'  domvalue_l = lw_205b-zsftxwsd BINARY SEARCH.
+  gs_tab-_w_s_d_flag         = wa_yzms-ddtext.
+  CLEAR wa_yzms .
+  gs_tab-_customer_flag      = lw_205b-zkhbs.
+  READ TABLE it_yzms INTO wa_yzms WITH KEY  domname = 'ZD_ZAZFS'  domvalue_l = lw_205b-zazfs BINARY SEARCH.
+  gs_tab-_install_type       = wa_yzms-ddtext.
+  CLEAR wa_yzms ..
+  gs_tab-_core_brand         = lw_205b-zympp.
+  gs_tab-_board_info         = lw_205b-zbsbzxx.
+  gs_tab-_material_req       = lw_205b-zflyq.
+  gs_tab-_price_req          = lw_205b-zbhhsf.
+  CONCATENATE lw_205b-zxgyq lw_205b-zkdyq lw_205b-zjjyq INTO gs_tab-_product_req  SEPARATED BY '、'.
+  gs_tab-_steel_req          = lw_205b-zgjsyyq.
+
+  gs_tab-_count_type         = ''.
+  gs_tab-_c_k_remark         = lw_205b-zckbz.
+  gs_tab-_material_width     = ''.
+  READ TABLE it_yzms INTO wa_yzms WITH KEY  domname = 'ZD_ZZYFY'  domvalue_l = lw_205b-zzyfy BINARY SEARCH.
+  gs_tab-_press_req          = wa_yzms-ddtext.
+  CLEAR wa_yzms ..
+  gs_tab-_work_team          = lw_205b-zsybz.
+  gs_tab-_work_shop_code     = lw_205b-zcj.
+  gs_tab-_extern_board       = ''.
+  gs_tab-_intern_board       = ''.
+  gs_tab-_special_req        = ''.
+  gs_tab-_product_type       = lw_205b-zszc.
+  gs_tab-_remark             = ''.
+  gs_tab-_picture_address    = ''.
+  gs_tab-_kitting_status     = ''.
+  gs_tab-_kitting_remark     = ''.
+  gs_tab-_s_o_p_address      = ''.
+  gs_tab-_memo               = ''.
+  gs_tab-_plan_memo          = ''.
+  gs_tab-_total_piece        = total_piece.
+  gs_tab-_cut_width          = ''.
+  gs_tab-_work_meter         = lw_205-zms.
+  gs_tab-_sales_no           = lw_205-vbeln.
+  gs_tab-_final_product      = lw_205-matnr.
+  gs_tab-_plan_level         = ''.
+  gs_tab-_install_factory    = lw_205b-zcj.
+  gs_tab-_install_area       = lw_205b-zqy.
+  gs_tab-_burn_level         = lw_205b-zrsdj.
+
+  gs_tab-_work_order = gt_tab4.
+  gs_tab-_work_order_bom = gt_tab5.
+  APPEND gs_tab TO gt_tab.
+
+  CALL FUNCTION 'ZFM_GP_PP_MES_WORKPLANCREATE'
+    EXPORTING
+      in_tab = gt_tab
+    IMPORTING
+      rtype  = p_rtype
+      rtmsg  = p_rtmsg
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+    .
+  IF rtype = '0'.
+    UPDATE ztpp_206 SET mes_dat = sy-datum WHERE aufnr = aufnr.
+    COMMIT WORK.
+  ENDIF.
+*  MESSAGE rtmsg TYPE 'I'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form get_order_seq_number
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LW_206_PLNUM
+*&      --> LW_206_PLNUMHH
+*&      <-- GS_TAB4__ORDER_SEQ
+*&---------------------------------------------------------------------*
+FORM get_order_seq_number  USING    p_lw_206_plnum
+                                    p_lw_206_plnumhh
+                           CHANGING p_gs_tab4__order_seq.
+*  ERP序号（_ORDER_SEQ） 取值：
+*  通过工单号（_ORDER_NO）= ZTPP_206-AUFNR，找到ZTPP_206-PLNUM和ZTPP_206-PLNUMHH两者组合，
+*  ZTPP_206-PLNUM取值：（从后往前取7位），去掉前导零，
+*  ZTPP_206-PLNUMHH取值：去掉最后一个零，从后往前再取三位，两者组合，推到MES
+  DATA:plnum   TYPE char10,
+       plnumhh TYPE char6.
+  plnum = p_lw_206_plnum .
+  plnumhh = p_lw_206_plnumhh.
+
+  p_gs_tab4__order_seq = plnum+3(7) && plnumhh+2(3) .
+
+  PERFORM delzero(zpubform) CHANGING p_gs_tab4__order_seq.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form bxmes
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM bxmes USING aufnr TYPE aufnr
+                 zpcdh TYPE ztpp_206-zpcdh.
+  DATA:lv_selcount TYPE i.
+  DATA: gs_tab  TYPE zspp_213,
+        gt_tab4 TYPE TABLE OF zspp_214,
+        gs_tab4 LIKE LINE OF gt_tab4, "-BOM
+        gt_tab5 TYPE TABLE OF zspp_215,
+        gs_tab5 LIKE LINE OF gt_tab5. "-明细
+  DATA:rtype TYPE bapi_mtype,
+       rtmsg TYPE bapi_msg.
+  DATA:num TYPE i.
+  FIELD-SYMBOLS:<fs> TYPE any.
+  CLEAR:gs_tab,gs_tab4,gt_tab4,gs_tab5,gt_tab5,rtmsg,rtype.
+
+  " 取jest表工单状态I0002不为'X'  19.09.2022 10:34:20 by kkw
+  SELECT jest~stat, jest~inact INTO TABLE @DATA(it_stat) FROM aufk JOIN jest ON aufk~objnr = jest~objnr
+  WHERE aufk~aufnr = @aufnr AND jest~stat IN ( 'I0002', 'I0076' ).
+  SORT it_stat BY stat.
+  IF lines( it_stat ) EQ 2 AND it_stat[ 2 ]-inact NE 'X'.
+    MESSAGE '工单已删除，不能推送MES.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  SELECT * FROM ztpp_206 INTO TABLE @DATA(lt_206) WHERE aufnr = @aufnr.
+  SELECT * INTO TABLE @DATA(lt_212) FROM ztpp_212.
+  SELECT * INTO TABLE @DATA(lt_205b) FROM ztpp_205b WHERE zpcdh = @zpcdh."公共字段
+  SELECT z5a~*,z6~aufnr,z6~zpcdh,z6~zpcdhh INTO TABLE @DATA(lt_205a) FROM ztpp_205a AS z5a
+    JOIN ztpp_206 AS z6 ON z5a~zpcdh = z6~zpcdh AND z5a~zpcdhh = z6~zpcdhh
+  WHERE z6~aufnr = @aufnr.
+  SELECT * INTO TABLE @DATA(lt_205) FROM ztpp_205 WHERE zpcdh = @zpcdh.
+  READ TABLE lt_206 INTO DATA(lw_206) INDEX 1.
+  SELECT SINGLE
+        *
+      INTO @DATA(ls_vbap)
+      FROM vbap
+      WHERE vbeln = @lw_206-vbeln
+      AND   posnr = @lw_206-posnr
+       .
+
+*  num = 0.
+  LOOP AT lt_206 INTO lw_206.
+    gs_tab5-plnum          = lw_206-plnum.
+    gs_tab5-plnumhh        = lw_206-plnumhh.
+    READ TABLE lt_205a INTO DATA(lw_205a) WITH KEY aufnr = aufnr zpcdh = lw_206-zpcdh zpcdhh = lw_206-zpcdhh.
+    gs_tab5-zdtmc          = lw_205a-z5a-zdtmc.
+    gs_tab5-zlmzx          = lw_205a-z5a-zlmzx.
+
+    gs_tab5-cdate          = ''.
+    gs_tab5-length         = lw_205a-z5a-zcd.
+    gs_tab5-zbckd          = lw_205a-z5a-zbckd.
+    gs_tab5-zxishu         = lw_205a-z5a-zxishu.
+    gs_tab5-blocks         = lw_205a-z5a-zks.
+
+*    gs_tab5-remark         = ''.
+*    gs_tab5-cuserid        = ''.
+*    gs_tab5-name           = lw_206-zname.
+    gs_tab5-numbering      = lw_205a-z5a-zbianhao.
+*    gs_tab5-width          = ''.
+    gs_tab5-bendthickness  = lw_205a-z5a-zzwhd.
+    gs_tab5-bendwiden      = lw_205a-z5a-zzhankuan.
+    gs_tab5-bendfolds      = lw_205a-z5a-zzs.
+    gs_tab5-zcolor         = lw_205a-z5a-zcolor.
+    IF lw_206-psmng IS NOT INITIAL.
+      gs_tab5-gsmng = lw_206-psmng.
+    ELSE.
+      gs_tab5-gsmng = lw_206-gsmng.
+    ENDIF.
+    gs_tab5-memo = lw_206-zbz.
+    APPEND gs_tab5 TO gt_tab5.
+  ENDLOOP.
+
+  " 改为取预留  12.10.2022 15:59:24 by kkw
+  SELECT
+    resb~aufnr,
+    resb~bdter,
+    resb~lgort,
+    resb~matnr,
+    makt~maktx,
+    resb~bdmng,
+    resb~meins,
+    resb~erfme,
+*    t023t~wgbez
+    mara~zzl1 AS wgbez "MODIFY 20221208 BY HANWQ
+     INTO TABLE @DATA(lt_resb) FROM resb
+     JOIN makt ON resb~matnr = makt~matnr AND makt~spras = @sy-langu
+     JOIN mara ON resb~matnr = mara~matnr
+*     JOIN t023t ON mara~matkl = t023t~matkl AND t023t~spras = @sy-langu
+  WHERE aufnr = @aufnr.
+  LOOP AT lt_resb INTO DATA(lw_resb).
+    gs_tab4-orderno       =   lw_resb-aufnr.
+    gs_tab4-materialcode  =   lw_resb-matnr.
+    gs_tab4-qty           =   lw_resb-bdmng.
+    gs_tab4-operation     =   lw_resb-maktx.
+    gs_tab4-wgbez         =   lw_resb-wgbez.
+    gs_tab4-unit          =   lw_resb-meins.
+    gs_tab4-memo          =   ''.
+    APPEND gs_tab4 TO gt_tab4.
+  ENDLOOP.
+  READ TABLE lt_205 INTO DATA(lw_205) WITH KEY zpcdh = zpcdh.
+  gs_tab-ingredients   = gt_tab4.
+  gs_tab-details       = gt_tab5.
+  gs_tab-orderno       = aufnr.
+  gs_tab-customerid    = lw_205-kunnr.
+  gs_tab-customer      = lw_205-name1.
+  gs_tab-projectid     = lw_205-posid. "HANWQ 20221210
+  gs_tab-project       = lw_205-post1.
+*  gs_tab-name          = itab-maktx.
+*  gs_tab-gcid          = lw_205-matnr.
+  SELECT SINGLE maktx INTO gs_tab-name FROM makt WHERE matnr = lw_205-matnr AND spras = sy-langu.
+  SELECT SINGLE erdat INTO ( gs_tab-makedate ) FROM aufk WHERE aufnr = aufnr.
+  SELECT SINGLE gstrs,gltrs,gltrp,gamng,gmein INTO ( @gs_tab-plandate,@gs_tab-gltrs,@gs_tab-deliverydate,@DATA(gamng), @DATA(gmein) ) FROM afko WHERE aufnr = @aufnr.
+  SELECT SINGLE wgbez INTO gs_tab-wgbez FROM mara JOIN t023t ON mara~matkl = t023t~matkl AND t023t~spras = sy-langu
+  WHERE mara~matnr = lw_205-matnr.
+*  gs_tab-makedate      = itab-psttr.
+*  gs_tab-plandate      = itab-pedtr.
+*  gs_tab-gltrs         = itab-pedtr.
+*  gs_tab-deliverydate  = itab-pedtr.
+*  SELECT SINGLE TEXT1 INTO GS_TAB-PRODLINE FROM AFPO JOIN MKAL ON AFPO~VERID = MKAL~VERID WHERE AFPO~AUFNR = ITAB-AUFNR.
+  READ TABLE lt_206 INTO lw_206 INDEX 1.
+  SELECT SINGLE crtx~ktext INTO gs_tab-prodline
+    FROM crhd
+    JOIN crtx ON crhd~objid = crtx~objid AND crhd~objty = crtx~objty
+    WHERE crtx~spras = sy-langu
+  AND crhd~arbpl = lw_206-arbpl.
+*  gs_tab-prodline      = ''.
+  gs_tab-factory       = lw_205-werks.
+  gs_tab-gcid          = lw_206-matnr.
+  gs_tab-company       = ''.
+*  SELECT SINGLE gamng,gmein INTO ( @DATA(gamng), @DATA(gmein) ) FROM afko WHERE afko~aufnr = @itab-aufnr.
+  gs_tab-qty           = gamng.
+  gs_tab-unit          = gmein.
+  READ TABLE lt_205b INTO DATA(lw_205b) WITH KEY zpcdh = zpcdh.
+  gs_tab-zzljsfs = ls_vbap-zzljsfs.
+  gs_tab-zbzfs = lw_205b-zbzfs.
+  gs_tab-zdbfs = lw_205b-zdbfs.
+  IF lw_206-werks = '3000'.
+    CASE lw_206-arbpl.
+      WHEN '3000ALC1'.
+        gs_tab-zxbk = 'B001'.
+      WHEN '3000ALC2'.
+        gs_tab-zxbk = 'B002'.
+      WHEN '3000ADBX'.
+        gs_tab-zxbk = 'B011'.
+      WHEN '3000ALC3'.
+        gs_tab-zxbk = 'B003'.
+      WHEN '3000ALCZ' OR '3000AZJB'.
+        gs_tab-zxbk = 'B010'.
+      WHEN '3000BZWF' OR '3000BZWC' OR '3000BZWZ'.
+        gs_tab-zxbk = 'B004'.
+      WHEN '3000BZWJ'.
+        gs_tab-zxbk = 'D004'.
+      WHEN '3000BMQZ' OR '3000BMQF'.
+        gs_tab-zxbk = 'B007'.
+      WHEN '3000BLT1' OR '3000BLT2'.
+        gs_tab-zxbk = 'B006'.
+      WHEN '3000BFHB'.
+        gs_tab-zxbk = 'B008'.
+      WHEN '3000BZJ1'.
+        gs_tab-zxbk = 'B009'.
+      WHEN '3000BYW1' OR '3000BYW2' OR '3000BYW3'.
+        gs_tab-zxbk = 'B005'.
+    ENDCASE.
+
+  ELSEIF lw_206-werks = '3002'.
+    CASE lw_206-arbpl.
+      WHEN '3002DJZX'.
+        gs_tab-zxbk = 'B004'.
+      WHEN '3002DBB1'.
+        gs_tab-zxbk = 'B002'.
+      WHEN '3002DBB2'.
+        gs_tab-zxbk = 'B003'.
+      WHEN '3002DSGX' OR '3002DYXX'.
+        gs_tab-zxbk = 'B001'.
+    ENDCASE.
+
+  ELSEIF lw_206-werks = '3090'.
+    CASE lw_206-arbpl.
+      WHEN '3090ELL1'.
+        gs_tab-zxbk = 'B001'.
+    ENDCASE.
+
+  ENDIF.
+
+*  SELECT SINGLE prps~pspnr prps~post1 ap~erdat INTO ( gs_tab-_project_code,gs_tab-_project_name,gs_tab-_contract_date )
+*    FROM vbap AS ap JOIN prps ON ap~ps_psp_pnr = prps~pspnr
+*    WHERE ap~vbeln = itab-vbeln AND ap~posnr = itab-posnr.
+
+  CALL FUNCTION 'ZFM_GPBX_PP_MES_WORKPLANCREATE'
+    EXPORTING
+      in_tab = gs_tab
+    IMPORTING
+      rtype  = rtype
+      rtmsg  = rtmsg
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+    .
+  IF rtype = '200'.
+    UPDATE ztpp_206 SET mes_dat = sy-datum WHERE aufnr = aufnr.
+    COMMIT WORK.
+  ENDIF.
+  MESSAGE rtmsg TYPE 'I'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form updmes
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM updmes .
+  DATA:
+    p_input    TYPE  string,
+    p_output   TYPE  string,
+    p_status   TYPE  i,
+    ksrq       TYPE  erdat,
+    ksrq_flag  TYPE char1,
+    jsrq       TYPE  erdat,
+    jsrq_flag  TYPE char1,
+    aufnr      TYPE  aufnr,
+    aufnr_flag TYPE char1,
+    rtype      TYPE  bapi_mtype,
+    rtmsg      TYPE  bapi_msg,
+    in_tab     TYPE TABLE OF  zspp_232 WITH HEADER LINE,
+    gv_msg     TYPE string.
+  DATA:lv_selcount TYPE i.
+  DATA: number     TYPE bapi_order_key-order_number,
+        orderdata  TYPE bapi_pp_order_change,
+        orderdatax TYPE bapi_pp_order_changex,
+        return     TYPE bapiret2.
+  DATA:BEGIN OF it_aufnr OCCURS 0,
+         aufnr TYPE ztpp_206-aufnr,
+         psmng TYPE ztpp_206-psmng,
+       END OF it_aufnr.
+  FREE:number,orderdata,orderdatax,return,it_aufnr.
+  READ TABLE itab WITH KEY chbox = 'X'.
+  aufnr = itab-aufnr.
+  ksrq  = itab-psttr.
+  jsrq  = itab-pedtr.
+  LOOP AT itab WHERE chbox = 'X'.
+    IF ksrq <> itab-psttr.
+      ksrq_flag = 'Y'.
+    ENDIF.
+    IF jsrq <> itab-pedtr.
+      jsrq_flag = 'Y'.
+    ENDIF.
+    IF aufnr <> itab-aufnr.
+      aufnr_flag = 'Y'.
+    ENDIF.
+    CLEAR:it_aufnr.
+    it_aufnr-aufnr = itab-aufnr.
+    it_aufnr-psmng = itab-psmng.
+    COLLECT it_aufnr.
+    IF itab-psks > itab-zks.
+      gv_msg = '块数不能大于原工单行块数'.
+      MESSAGE gv_msg TYPE 'I'.
+      RETURN.
+    ENDIF.
+  ENDLOOP.
+
+  IF aufnr_flag = 'Y'.
+    gv_msg = '请选中同一工单的行项目修改'.
+    MESSAGE gv_msg TYPE 'I'.
+    RETURN.
+  ENDIF.
+  IF ksrq_flag = 'Y'.
+    gv_msg = '同一工单请选择相同开始日期'.
+    MESSAGE gv_msg TYPE 'I'.
+    RETURN.
+  ENDIF.
+  IF jsrq_flag = 'Y'.
+    gv_msg = '同一工单请选择相同结束日期'.
+    MESSAGE gv_msg TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+  READ TABLE it_aufnr INDEX 1.
+  IF it_aufnr-psmng EQ 0.
+    gv_msg = '工单总数量不允许为0'.
+    MESSAGE gv_msg TYPE 'I'.
+    RETURN.
+  ENDIF.
+  IF itab-aufnr IS INITIAL.
+    MESSAGE '请选中有工单号的行推送MES.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  SELECT jest~stat, jest~inact INTO TABLE @DATA(it_stat) FROM aufk JOIN jest ON aufk~objnr = jest~objnr
+  WHERE aufk~aufnr = @itab-aufnr AND jest~stat IN ( 'I0002', 'I0076' ).
+  SORT it_stat BY stat.
+  IF lines( it_stat ) EQ 2 AND it_stat[ 2 ]-inact NE 'X'.
+    MESSAGE '工单已删除，不能推送MES.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  CLEAR : in_tab, in_tab[].
+  LOOP AT itab WHERE chbox = 'X' .
+    in_tab-orderno         = itab-aufnr.
+    in_tab-plnum           = itab-plnum.
+    in_tab-plnumhh         = itab-plnumhh.
+    in_tab-changedate      = jsrq.
+    in_tab-changestarttime = ksrq.
+    APPEND in_tab.
+  ENDLOOP.
+  CALL FUNCTION 'ZFM_GP_PP_MES_SCGDXG'
+    IMPORTING
+      p_input  = p_input
+      p_output = p_output
+      p_status = p_status
+      rtype    = rtype
+      rtmsg    = rtmsg
+    TABLES
+      in_tab   = in_tab.
+  IF rtype = 'S'.
+    number = it_aufnr-aufnr.
+    orderdata-quantity         = it_aufnr-psmng.
+    orderdata-basic_end_date   = jsrq.
+    orderdata-basic_start_date = ksrq.
+    orderdatax-quantity = 'X'.
+    orderdatax-basic_end_date   = 'X'.
+    orderdatax-basic_start_date = 'X'.
+    CALL FUNCTION 'BAPI_PRODORD_CHANGE' "BAPI: Change Production Order
+      EXPORTING
+        number     = number                   " bapi_order_key-order_number  Production Order Number
+        orderdata  = orderdata                " bapi_pp_order_change  Transfer Structure for Changing Production Orders
+        orderdatax = orderdatax               " bapi_pp_order_changex  Transfer Structure for Changing Production Orders
+      IMPORTING
+        return     = return.                   " bapiret2      Return Parameters
+    IF return-type CA 'AEX'.
+      MESSAGE s000(oo) WITH return-message DISPLAY LIKE 'E'.
+    ELSE.
+      gv_msg = '生产订单修改成功！'.
+      MESSAGE s000(oo) WITH gv_msg DISPLAY LIKE 'E'.
+      LOOP AT itab WHERE chbox = 'X'.
+        UPDATE ztpp_206 SET psmng = itab-psmng psks = itab-psks WHERE plnum = itab-plnum AND plnumhh = itab-plnumhh AND aufnr = itab-aufnr.
+        COMMIT WORK.
+      ENDLOOP.
+    ENDIF.
+  ELSE.
+    MESSAGE s000(oo) WITH rtmsg DISPLAY LIKE 'E'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form f4help
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> RETURN_TAB
+*&      --> P_E_FIELDNAME
+*&      --> P_
+*&      --> WA_TAB
+*&---------------------------------------------------------------------*
+FORM f4help  TABLES  p_return_tab STRUCTURE ddshretval
+              USING   p_e_fieldname
+                      p_intertab
+                      p_inwa.
+  DATA:retfield    TYPE dfies-fieldname,
+       dynprofield TYPE dynfnam.
+  FIELD-SYMBOLS:<f4_tab1> TYPE STANDARD TABLE .
+  CLEAR:retfield,dynprofield,p_return_tab[].
+  CONCATENATE p_intertab '-' p_e_fieldname INTO dynprofield.
+  retfield = p_e_fieldname.
+  CASE p_e_fieldname.
+    WHEN 'DAUAT'.
+      SELECT t003o~auart AS dauat,t003o~autyp,t003p~txt INTO TABLE @DATA(lt_t003o)
+        FROM t003o
+        JOIN t003p ON t003o~auart = t003p~auart AND t003p~spras = @sy-langu
+        WHERE t003o~auart IN ( 'ZP15','ZP16','ZP17','ZP18','ZP19','ZP20' ).
+      ASSIGN lt_t003o TO <f4_tab1>.
+  ENDCASE.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST' "调用函数
+    EXPORTING
+      retfield        = retfield  "搜索帮助内表要输出的的帮助字段名，注：要大写
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = dynprofield "屏幕字段
+      value_org       = 'S'
+    TABLES
+      value_tab       = <f4_tab1> "存储搜索帮助内容的内表
+      return_tab      = p_return_tab
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form data_check
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM data_check .
+  DATA:lv_selcount TYPE i.
+  DATA: rtmsg TYPE bapi_msg,
+        rtype TYPE bapi_mtype.
+  IF p_xg = 'X'.
+    LOOP AT itab WHERE chbox = 'X' .
+      lv_selcount = lv_selcount + 1.
+    ENDLOOP.
+    IF lv_selcount <> 1.
+      MESSAGE '请选中一行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+    IF itab-aufnr IS INITIAL.
+      MESSAGE '请选中有工单号的行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+    " 判断工单生效状态加到里面了  30.12.2022 14:49:42 by kkw
+***    " 取jest表工单状态I0002不为'X'  19.09.2022 10:34:20 by kkw
+***    SELECT jest~stat, jest~inact INTO TABLE @DATA(it_stat) FROM aufk JOIN jest ON aufk~objnr = jest~objnr
+***    WHERE aufk~aufnr = @itab-aufnr AND jest~stat IN ( 'I0002', 'I0076' ).
+***    SORT it_stat BY stat.
+***    IF lines( it_stat ) EQ 2 AND it_stat[ 2 ]-inact NE 'X'.
+***      MESSAGE '工单已删除，不能推送MES.' TYPE 'I'.
+***      RETURN.
+***    ENDIF.
+    CLEAR: rtmsg,rtype.
+    PERFORM mes USING itab-aufnr itab-zpcdh itab-arbpl CHANGING  rtype
+                                                                 rtmsg.
+    MESSAGE rtmsg TYPE 'I'.
+  ELSEIF p_cj = 'X'.
+    LOOP AT it_crtaufnr WHERE chbox = 'X' .
+      lv_selcount = lv_selcount + 1.
+    ENDLOOP.
+    IF lv_selcount <> 1.
+      MESSAGE '请选中一行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+    IF it_crtaufnr-aufnr IS INITIAL.
+      MESSAGE '请选中有工单号的行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+***    " 取jest表工单状态I0002不为'X'  19.09.2022 10:34:20 by kkw
+***    SELECT jest~stat, jest~inact INTO TABLE @it_stat FROM aufk JOIN jest ON aufk~objnr = jest~objnr
+***    WHERE aufk~aufnr = @it_crtaufnr-aufnr AND jest~stat IN ( 'I0002', 'I0076' ).
+***    SORT it_stat BY stat.
+***    IF lines( it_stat ) EQ 2 AND it_stat[ 2 ]-inact NE 'X'.
+***      MESSAGE '工单已删除，不能推送MES.' TYPE 'I'.
+***      RETURN.
+***    ENDIF.
+    CLEAR: rtmsg,rtype.
+    PERFORM mes USING it_crtaufnr-aufnr it_crtaufnr-zpcdh it_crtaufnr-arbpl CHANGING  rtype
+                                                                                      rtmsg.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form data_check_bxmes
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM data_check_bxmes .
+  DATA:lv_selcount TYPE i.
+  IF p_xg = 'X'.
+    LOOP AT itab WHERE chbox = 'X' .
+      lv_selcount = lv_selcount + 1.
+    ENDLOOP.
+    IF lv_selcount <> 1.
+      MESSAGE '请选中一行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+    IF itab-aufnr IS INITIAL.
+      MESSAGE '请选中有工单号的行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+
+    PERFORM bxmes USING itab-aufnr itab-zpcdh.
+  ELSEIF p_cj = 'X'.
+    LOOP AT it_crtaufnr WHERE chbox = 'X' .
+      lv_selcount = lv_selcount + 1.
+    ENDLOOP.
+    IF lv_selcount <> 1.
+      MESSAGE '请选中一行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+    IF it_crtaufnr-aufnr IS INITIAL.
+      MESSAGE '请选中有工单号的行推送MES.' TYPE 'I'.
+      RETURN.
+    ENDIF.
+
+    PERFORM bxmes USING it_crtaufnr-aufnr it_crtaufnr-zpcdh.
+  ENDIF.
+ENDFORM.

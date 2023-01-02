@@ -1,0 +1,51 @@
+FUNCTION zfm_gp_ps_crm_projtrans.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(POSID) TYPE  PRPS-POSID
+*"     REFERENCE(POST1) TYPE  PRPS-POST1
+*"     REFERENCE(STUFE) TYPE  PRPS-STUFE
+*"     REFERENCE(BS) TYPE  CHAR3
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_PS_CRM_PROJTRANS'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:stufe_char TYPE char3.
+  DATA:crmurl       TYPE string,
+       crmstr       TYPE string,
+       crmreturnstr TYPE string,
+       crmmsg       TYPE string,
+       crmsta       TYPE i.
+  stufe_char = stufe.
+  CONDENSE stufe_char NO-GAPS.
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_PS_CRM_PROJTRANS' CHANGING crmurl.
+  CHECK crmurl IS NOT INITIAL.
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING crmurl.
+
+  CONCATENATE crmurl 'posid=' posid '&post1=' post1 '&stufe=' stufe_char INTO crmurl.
+  CLEAR:crmreturnstr,crmmsg,crmsta.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+*     input     = crmstr
+      url       = crmurl
+      reqmethod = 'GET' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = crmreturnstr "返回JSON报文
+      rtmsg     = crmmsg "消息
+      status    = crmsta "HTTP状态
+*    TABLES
+*     header    = oahead
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+*  CLEAR:ibom.
+*  /ui2/cl_json=>deserialize( EXPORTING json = bom_return pretty_name = /ui2/cl_json=>pretty_mode-camel_case CHANGING data = it_bom ).
+  rtype = ''.
+  rtmsg = ''.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

@@ -1,0 +1,39 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS005
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZPS005.
+TABLES: ZTPS004A,PROJ.
+DATA: LS_ZTPS004A TYPE STANDARD TABLE OF ZTPS004A.
+SELECT-OPTIONS: F_ZXMMC FOR ZTPS004A-ZXMMC,
+ F_ZUQXM FOR PROJ-PSPID,
+ P_ZSQR  FOR ZTPS004A-ZSQR,
+            P_ZSQBM FOR ZTPS004A-ZSQBM,
+            P_ZSQDT FOR ZTPS004A-ZSQDT,
+            P_ZUHDT FOR  ZTPS004A-ZUHDT.
+
+INITIALIZATION.
+  %_F_zxmmc_%_app_%-TEXT = '项目名称'.
+  %_F_zuqxm_%_app_%-TEXT = '项目编码'.
+  %_P_ZSQR_%_APP_%-TEXT = '申请人'.
+  %_P_ZSQBM_%_APP_%-TEXT = '申请部门'.
+  %_P_ZSQDT_%_APP_%-TEXT = '申请时间'.
+  %_P_ZUHDT_%_APP_%-TEXT = '维修时间'.
+
+
+START-OF-SELECTION.
+
+  SELECT *
+  FROM ZTPS004A
+  WHERE ZXMMC IN @F_ZXMMC
+  AND ZUQXM IN @F_ZUQXM
+  AND ZSQR IN @P_ZSQR
+  AND ZSQBM IN @P_ZSQBM
+  AND ZSQDT IN @P_ZSQDT
+  AND ZUHDT IN @P_ZUHDT
+  INTO CORRESPONDING FIELDS OF TABLE @LS_ZTPS004A.
+
+  DATA(FALV) = ZCL_FALV=>CREATE( CHANGING CT_TABLE = LS_ZTPS004A ).
+  FALV->TITLE_V1 = '完工项目维修信息查询报表'.
+  FALV->DISPLAY(  ).

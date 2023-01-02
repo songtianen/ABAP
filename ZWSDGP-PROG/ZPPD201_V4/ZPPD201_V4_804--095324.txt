@@ -1,0 +1,17 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_V3_802
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: FUNCTION CODES FOR TABSTRIP 'Z802_YQ'
+CONSTANTS: BEGIN OF c_z804_yq,
+             tab1 LIKE sy-ucomm VALUE 'Z804_YQ_PCD',
+             tab2 LIKE sy-ucomm VALUE 'Z804_YQ_BOM',
+             tab3 LIKE sy-ucomm VALUE 'Z804_YQ_CK',
+           END OF c_z804_yq.
+*&SPWIZARD: DATA FOR TABSTRIP 'Z802_YQ'
+CONTROLS:  z804_yq TYPE TABSTRIP.
+DATA: BEGIN OF g_z804_yq,
+        subscreen   LIKE sy-dynnr,
+        prog        LIKE sy-repid VALUE 'ZPPD201_V4',
+        pressed_tab LIKE sy-ucomm VALUE c_z804_yq-tab1,
+      END OF g_z804_yq.

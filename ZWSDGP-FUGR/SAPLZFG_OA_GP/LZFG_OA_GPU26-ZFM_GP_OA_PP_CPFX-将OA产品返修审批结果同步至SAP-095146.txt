@@ -1,0 +1,39 @@
+FUNCTION zfm_gp_oa_pp_cpfx.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZTPP_214
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_PP_CPFX'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  DATA:cxroot TYPE REF TO cx_root,
+       msg    TYPE bapi_msg.
+  IF in_tab[] IS INITIAL.
+    fillmsgr 'E' 'in_tab[]不能为空.'.
+  ENDIF.
+
+  INSERT ztpp_214 FROM TABLE in_tab[].
+
+  TRY .
+    CATCH  cx_root INTO cxroot.
+      msg =  cxroot->get_text( ).
+      CONCATENATE 'E:' msg INTO msg.
+  ENDTRY.
+  IF msg+0(1) NE 'E'.
+    fillmsgr 'S' '保存ztpp_214成功.'.
+    COMMIT WORK.
+
+  ELSE.
+    fillmsgr 'E' '保存ztpp_214失败.'.
+    ROLLBACK WORK.
+
+  ENDIF.
+
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

@@ -1,0 +1,53 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_JSXDPAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZJSXD_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zjsxd_con_modify INPUT.
+  MODIFY it_jsxd
+    INDEX zjsxd_con-current_line.
+  CLEAR wa_ggzd-zpcsl.
+  LOOP AT it_jsxd INTO DATA(wa_jsxd).
+    wa_ggzd-zpcsl = wa_ggzd-zpcsl + wa_jsxd-zpcsl.
+  ENDLOOP.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZJSXD_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zjsxd_con_mark INPUT.
+  DATA: g_ZJSXD_CON_wa2 LIKE LINE OF it_jsxd.
+  IF zjsxd_con-line_sel_mode = 1
+  AND it_jsxd-sel = 'X'.
+    LOOP AT it_jsxd INTO g_ZJSXD_CON_wa2
+      WHERE sel = 'X'.
+      g_ZJSXD_CON_wa2-sel = ''.
+      MODIFY it_jsxd
+        FROM g_ZJSXD_CON_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_jsxd
+    INDEX zjsxd_con-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZJSXD_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zjsxd_con_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZJSXD_CON'
+                              'IT_JSXD'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  UPDATE_ZPCSL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE update_zpcsl INPUT.
+  CLEAR:it_jsxd-zpcsl.
+  it_jsxd-zpcsl = it_jsxd-zcd * it_jsxd-zxishu / 1000  * it_jsxd-zks_bcpc.
+ENDMODULE.

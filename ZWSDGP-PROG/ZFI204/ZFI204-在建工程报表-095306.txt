@@ -1,0 +1,248 @@
+*&---------------------------------------------------------------------*
+*& Report ZFI204
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zfi204.
+TYPE-POOLS: slis.
+TABLES: anla,cepc, aufk.
+DATA: BEGIN OF item OCCURS 0,
+        bukrs     TYPE bukrs,
+        butxt     TYPE butxt,
+        anln1     TYPE anln1,
+        eaufn     TYPE eaufn,
+        txt50     TYPE txt50,
+        aktiv     TYPE aktivd,
+        prctr     TYPE prctr,
+        mctxt     TYPE mctxt,
+        shkzg     TYPE shkzg,
+        belnr     TYPE belnr,
+        saknr     TYPE saknr,
+        txt20     TYPE txt20_skat,
+        dmbtr     TYPE dmbtr,
+        budat     TYPE budat,
+        ebeln     TYPE ebeln,
+        dmbtr1    TYPE dmbtr, "入库金额
+        belnr1    TYPE belnr,
+        dmbtr2    TYPE dmbtr, "发票核销金额
+        belnr2    TYPE belnr,
+        belnr3    TYPE bseg-belnr,
+        h_waers   TYPE waers,
+        name_org1 TYPE bu_nameor1,
+        hkont     TYPE hkont,
+      END OF item.
+DATA:itab LIKE TABLE OF item WITH HEADER LINE.
+DATA:fieldcat        TYPE slis_t_fieldcat_alv,
+     is_layout       TYPE slis_layout_alv,
+     i_grid_settings TYPE lvc_s_glay.
+DATA:BEGIN OF ls_dmbtr OCCURS 0,
+       bwart TYPE bwart,
+       dmbtr TYPE dmbtr,
+     END OF ls_dmbtr.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:
+    s_bukrs FOR anla-bukrs,
+    s_eaufn  FOR anla-eaufn.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+INITIALIZATION.
+  %_s_bukrs_%_app_%-text = '公司代码'.
+  %_s_eaufn_%_app_%-text = '内部订单'.
+
+START-OF-SELECTION.
+  PERFORM getdata.
+  PERFORM alvshow.
+
+FORM getdata.
+  SELECT
+    anla~bukrs
+    anla~anln1
+    anla~eaufn
+    anla~aktiv
+    anla~txt50
+    aufk~prctr
+    ekkn~ebeln
+    INTO CORRESPONDING FIELDS OF TABLE item
+    FROM anla
+    INNER JOIN aufk ON aufk~aufnr = anla~eaufn
+    INNER JOIN ekkn ON ekkn~aufnr = anla~eaufn
+    WHERE anla~bukrs IN s_bukrs
+    AND anla~eaufn IN s_eaufn.
+  LOOP AT item.
+    SELECT SINGLE butxt
+      INTO item-butxt
+      FROM t001
+      WHERE bukrs = item-bukrs.
+    "入库金额
+    CLEAR:ls_dmbtr,ls_dmbtr[].
+    SELECT
+      bwart,
+      dmbtr
+      INTO CORRESPONDING FIELDS OF TABLE @ls_dmbtr
+      FROM ekbe
+      WHERE ebeln = @item-ebeln
+      AND vgabe = '1'.
+    LOOP AT ls_dmbtr .
+      IF ls_dmbtr-bwart = '101'.
+        item-dmbtr1 = item-dmbtr1 + ls_dmbtr-dmbtr.
+      ELSEIF ls_dmbtr-bwart = '102'.
+        item-dmbtr1 = item-dmbtr1 - ls_dmbtr-dmbtr.
+      ENDIF.
+      CLEAR ls_dmbtr.
+    ENDLOOP.
+    "入库凭证
+    SELECT SINGLE
+      belnr,
+      gjahr
+      FROM ekbe
+      INTO (@DATA(ls_belnr), @DATA(ls_gjahr))
+      WHERE ebeln = @item-ebeln
+      AND vgabe = '1'.
+    DATA(ls_awkey) = ls_belnr && ls_gjahr.
+    SELECT SINGLE
+      belnr ,
+      budat
+      INTO (@DATA(ls_belnr2), @DATA(ls_budat))
+      FROM bkpf
+      WHERE awkey = @ls_awkey.
+    item-belnr1 = ls_belnr2.
+    item-budat = ls_budat.
+    "发票核销金额
+    CLEAR:ls_dmbtr,ls_dmbtr[].
+    SELECT
+      dmbtr
+      INTO CORRESPONDING FIELDS OF TABLE @ls_dmbtr
+      FROM ekbe
+      WHERE ebeln = @item-ebeln
+      AND vgabe = '2'.
+    LOOP AT ls_dmbtr.
+      item-dmbtr2 = ls_dmbtr-dmbtr + item-dmbtr2.
+      CLEAR:ls_dmbtr.
+    ENDLOOP.
+    "发票核销凭证
+    SELECT SINGLE
+  belnr,
+  gjahr
+  FROM ekbe
+  INTO (@ls_belnr, @ls_gjahr)
+  WHERE ebeln = @item-ebeln
+  AND vgabe = '2'.
+    ls_awkey = ls_belnr && ls_gjahr.
+    SELECT SINGLE
+      belnr ,
+      budat
+      INTO (@ls_belnr2, @ls_budat)
+      FROM bkpf
+      WHERE awkey = @ls_awkey.
+    item-belnr2 = ls_belnr2.
+    "客户名称
+    SELECT SINGLE name1
+      INTO item-name_org1
+      FROM kna1
+      INNER JOIN ekko ON ekko~llief = kna1~kunnr
+      WHERE ekko~ebeln = item-ebeln.
+    MODIFY item.
+  ENDLOOP.
+  SELECT
+    anla~bukrs
+    anla~anln1
+    anla~eaufn
+    anla~aktiv
+    anla~txt50
+    bseg~belnr AS belnr3
+    bseg~hkont
+    bseg~dmbtr
+    bseg~shkzg
+    bseg~h_waers
+    INTO CORRESPONDING FIELDS OF TABLE itab
+    FROM anla
+    INNER JOIN bseg ON bseg~aufnr = anla~eaufn
+    WHERE anla~bukrs IN s_bukrs
+    AND bseg~hkont LIKE '66%'
+    AND anla~eaufn IN s_eaufn.
+  LOOP AT itab.
+    SELECT SINGLE butxt
+    INTO itab-butxt
+    FROM t001
+    WHERE bukrs = itab-bukrs.
+    SELECT SINGLE txt20
+      INTO itab-txt20
+      FROM skat
+      WHERE saknr = itab-hkont.
+    MODIFY itab.
+  ENDLOOP.
+  APPEND LINES OF itab TO item.
+
+ENDFORM.
+
+
+FORM alvshow.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING:
+  'BUKRS' '公司编码' '' '' '' '',
+  'BUTXT' '公司描述' '' '' '' '',
+  'ANLN1' '投资' '' '' '' '',
+  'EAUFN' '投资订单' '' '' '' '',
+  'TXT50' '投资订单描述' '' '' '' '',
+  'AKTIV' '资本化日期' '' '' '' '',
+  'SHKZG' '借贷标识' '' '' '' '',
+  'BELNR' '凭证编号' '' '' '' '',
+  'TXT20' '会计科目' '' '' '' '',
+  'DMBTR' '金额' '' '' '' '',
+  'BUDAT' '过账日期' '' '' '' '',
+  'EBELN' '采购订单' '' '' '' '',
+  'DMBTR1' '入库金额' '' '' '' '',
+  'BELNR1' '入库凭证' '' '' '' '',
+  'DMBTR2' '发票核销金额' '' '' '' '',
+  'BELNR2' '发票核销凭证' '' '' '' '',
+  'H_WAERS' '货币' '' '' '' '',
+  'NAME_ORG1' '供应商客户名称' '' '' '' ''.
+*自适应宽度与斑马线
+  is_layout-zebra = 'X'.
+  is_layout-colwidth_optimize = 'X'.
+*存在可编辑字段
+  i_grid_settings-edt_cll_cb = 'X'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      it_fieldcat              = fieldcat[]
+      i_save                   = 'A'
+      is_layout                = is_layout
+      i_grid_settings          = i_grid_settings
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+    TABLES
+      t_outtab                 = item[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD' EXCLUDING lt_exfcode.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+
+*  CASE r_ucomm.
+**    WHEN '&IC1'."单击/双击响应
+**      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+**      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+**      CASE rs_selfield-fieldname.
+**        WHEN 'VBELN'.
+**          PERFORM va03(zpubform) USING wa-vbeln.
+***        WHEN 'BSTKD'.
+***          PERFORM va43(zpubform) USING wa-bstkd.
+**
+**      ENDCASE.
+*
+*  ENDCASE.
+
+*ALV实时刷新
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.

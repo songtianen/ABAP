@@ -1,0 +1,24 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD202_V2_BCP_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZBCP_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zbcp_con_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_bcp LINES zbcp_con-lines.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZBCP_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zbcp_con_get_lines OUTPUT.
+  g_zbcp_con_lines = sy-loopc.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_920 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_920 OUTPUT.
+  SET PF-STATUS 'STA920'.
+  SET TITLEBAR 'TIT920' WITH '维护半成品生产版本'.
+ENDMODULE.

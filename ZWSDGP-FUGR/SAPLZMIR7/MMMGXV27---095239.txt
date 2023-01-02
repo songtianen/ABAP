@@ -1,0 +1,7 @@
+************************************************************************
+* Include MMMGXV27 f¨¹r Festwerte
+* -  RFTYPen f¨¹r Vorlagehandling
+************************************************************************
+CONSTANTS:
+      RFTYP_AFTER  LIKE MREFTAB-RFTYP VALUE 'A',
+      RFTYP_BEFORE LIKE MREFTAB-RFTYP VALUE 'B'.

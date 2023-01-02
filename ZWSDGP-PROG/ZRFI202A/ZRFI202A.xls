@@ -1,0 +1,11 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRFI202A	ZSFMS_MIGOPOST	MIGO过账接口	结构				
+ZRFI202A	ZSMM_060	结构	结构				
+ZRFI202A	ZSPUBS_0001	日期时间通用结构	结构				
+ZRFI202A	ZSPUBS_0002	创建日期结构	结构				
+ZRFI202A	ZTFI203	研发生产阶段配置表	透明表				
+ZRFI202A	ZTFI204	研发金额比例调整配置表	透明表				
+ZRFI202A	ZTFIRD_MATDATA	研发项目投料	透明表				
+ZRFI202A	ZTMM_011	物料主数据批导配置表	透明表				
+ZRFI202A	ZTNUMS_UPDATE	按工厂流水（日/年/月/周清零）	透明表				
+ZRFI202A	ZTPP_213	生产废料存表	透明表				

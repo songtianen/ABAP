@@ -1,0 +1,20 @@
+*&---------------------------------------------------------------------*
+*&  Include           ERP_CVP_MM_I3_C_TRX0005
+*&---------------------------------------------------------------------*
+* Called from UIs for material and article maintenance MM0x/MM4x
+* Check input value for competitor. If competitor is blocked, prevent
+* assignment with error message.
+
+  DATA:
+    ls_kna1 TYPE kna1.
+
+  CALL FUNCTION 'V_KNA1_SINGLE_READ'
+    EXPORTING
+      pi_kunnr = mara-kunnr
+    IMPORTING
+      pe_kna1  = ls_kna1
+    EXCEPTIONS
+      OTHERS   = 0.
+  IF NOT ls_kna1-cvp_xblck IS INITIAL.
+    MESSAGE e706(mm) WITH mara-kunnr.
+  ENDIF.

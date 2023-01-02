@@ -1,0 +1,748 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD201A
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd201a MESSAGE-ID zgp_msg.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields,ztmm220,eban.
+DATA: fldct TYPE slis_t_fieldcat_alv,
+      slayt TYPE slis_layout_alv,
+      varnt LIKE disvariant,
+      repid LIKE sy-repid,
+      tabix LIKE sy-tabix.
+DATA:flag TYPE char1.
+*DATA:BEGIN OF itab OCCURS 0,
+*       zdbdh  TYPE ztmm220-zdbdh,
+*       zhh    TYPE ztmm221-zhh,
+*       zdblx  TYPE ztmm220-zdblx,
+*       zdcgc  TYPE ztmm220-zdcgc,
+*       werks  TYPE ztmm220-werks,
+*       zdckcd TYPE ztmm221-zdckcd,
+*       lgort  TYPE ztmm221-lgort,
+*       zdbrq  TYPE ztmm220-zdbrq,
+*       zcjz   TYPE ztmm220-zcjz,
+*       zdjzt  TYPE ztmm220-zdjzt,
+*       matnr  TYPE ztmm221-matnr,
+*       zwlcms TYPE ztmm221-zwlcms,
+*       zdbsl  TYPE ztmm221-zdbsl,
+*       meins  TYPE ztmm221-meins,
+*       charg  TYPE ztmm221-charg,
+*       zjh    TYPE ztmm221-zjh,
+*       zzyh   TYPE ztmm221-zzyh,
+*       zch    TYPE ztmm220-zch,
+*       zxmh   TYPE ztmm221-zxmh,
+*       zxsddh TYPE ztmm221-zxsddh,
+*       zbh    TYPE ztmm221-zbh,
+*       zkw    TYPE ztmm221-zkw,
+*       select,
+*       cb     TYPE char1,
+*       sobkz  TYPE sobkz,
+*       zsj    TYPE ztmm220-zsj,
+*       zsfz   TYPE ztmm220-zsfz,
+*       zsjdh  TYPE ztmm220-zsjdh,
+*       zyszrr TYPE ztmm220-zyszrr,
+*       lifnr  TYPE ztmm220-lifnr,
+*       zjsfs  TYPE ztmm220-zjsfs,
+*       zwldj  TYPE ztmm220-zwldj,
+*       zysje  TYPE ztmm220-zysje,
+*       zccf   TYPE ztmm220-zccf,
+*       zywlx  TYPE ztmm220-zywlx,
+*     END OF itab.
+DATA:BEGIN OF itab OCCURS 0.
+       INCLUDE TYPE ztmm220.
+DATA:  cb     TYPE char1,
+       eknam  TYPE t024-eknam,
+       submit TYPE char1, "保存后赋值才允许提交
+       select,
+     END OF itab.
+DATA:BEGIN OF wa_ch,
+       zdbdh  TYPE ztmm220-zdbdh,
+       zch    TYPE ztmm220-zch,
+       zsj    TYPE ztmm220-zsj,
+       zsfz   TYPE ztmm220-zsfz,
+       zsjdh  TYPE ztmm220-zsjdh,
+       zyszrr TYPE ztmm220-zyszrr,
+       lifnr  TYPE ztmm220-lifnr,
+       zjsfs  TYPE ztmm220-zjsfs,
+       zwldj  TYPE ztmm220-zwldj,
+       zysje  TYPE ztmm220-zysje,
+       wmsmsg TYPE char220,
+     END OF wa_ch.
+
+DATA:BEGIN OF wa_ccf,
+       zdbdh  TYPE ztmm220-zdbdh,
+       zccf   TYPE ztmm220-zccf,
+       wmsmsg TYPE char220,
+     END OF wa_ccf.
+DATA:wa220  TYPE ztmm220,
+     it007v TYPE TABLE OF dd07v WITH HEADER LINE,
+     pch    TYPE char1,
+     pccf   TYPE char1.
+
+DEFINE data_check.
+  IF &1 IS INITIAL.
+    MESSAGE s001 WITH &2 DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+END-OF-DEFINITION.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:s_zdbdh FOR ztmm220-zdbdh,
+                 s_zdcgc FOR eban-werks,
+                 s_zdckcd  FOR eban-lgort,
+*                 s_lgort  FOR eban-lgort,
+                 s_zdblx  FOR ztmm220-zdblx,
+                 s_ekgrp FOR eban-ekgrp,
+                 s_werks FOR ztmm220-werks.
+*                 s_matnr FOR eban-matnr.
+
+*  PARAMETERS:p_zsfzc LIKE ztmm220-zsfzc.
+  SELECT-OPTIONS:s_zch FOR ztmm220-zch,
+                 s_lifnr FOR ztmm220-lifnr,
+                 s_zdbrq FOR ztmm220-zdbrq,
+                 s_zcjz FOR ztmm220-zcjz.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+*SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+*  PARAMETERS:pch  RADIOBUTTON GROUP grd2 USER-COMMAND singleclick DEFAULT 'X' MODIF ID m1,
+*             pccf RADIOBUTTON GROUP grd2 MODIF ID m1.
+*SELECTION-SCREEN END OF BLOCK blk2.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+
+  %_s_zdbdh_%_app_%-text    = '调拨单号'.
+  %_s_zdcgc_%_app_%-text    = '调出工厂'.
+*  %_p_zsfzc_%_app_%-text    = '是否找车'.
+  %_s_zch_%_app_%-text    = '车号'.
+  %_s_lifnr_%_app_%-text    = '运输公司'.
+  %_s_zdbrq_%_app_%-text    = '调拨日期'.
+  %_s_zcjz_%_app_%-text    = '创建人'.
+  %_s_zdckcd_%_app_%-text   = '调出库存地'.
+*  %_s_lgort_%_app_%-text    = '调入库存地'.
+  %_s_zdblx_%_app_%-text    = '调拨类型'.
+  %_s_ekgrp_%_app_%-text    = '采购组'.
+  %_s_werks_%_app_%-text    = '调入工厂'.
+*  %_s_matnr_%_app_%-text    = '物料编号'.
+
+*  t02 = '功能选择'.
+*  %_pch_%_app_%-text = '维护车号'.
+*  %_pccf_%_app_%-text = '维护仓储费'.
+
+AT SELECTION-SCREEN OUTPUT.
+  CASE sy-tcode.
+    WHEN 'ZMM210B'.
+      pch = 'X'.
+      pccf = ''.
+    WHEN 'ZMM210C'.
+      pch = ''.
+      pccf = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+START-OF-SELECTION.
+
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  PERFORM getdata.
+  PERFORM alvshow.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  DATA: wherestr TYPE string,
+        zdjzt    TYPE ztmm220-zdjzt.
+  IF pch = 'X'.
+    zdjzt = '2ZCZ'.
+  ELSEIF pccf = 'X'.
+    zdjzt = '3CCFZ'.
+  ENDIF.
+  wherestr =  ` ztmm220~zdbdh IN @s_zdbdh    `
+&& ` AND ztmm220~zdcgc IN @s_zdcgc    `
+&& ` AND ztmm220~zch IN @s_zch        `
+&& ` AND ztmm220~lifnr IN @s_lifnr    `
+&& ` AND ztmm220~zdbrq IN @s_zdbrq    `
+&& ` AND ztmm220~zcjz IN @s_zcjz      `
+&& ` AND ztmm220~zdckcd IN @s_zdckcd  `
+&& ` AND ztmm220~zdblx IN @s_zdblx    `
+&& ` AND ztmm220~zdjzt = @zdjzt       `
+&& ` AND ztmm220~ekgrp IN @s_ekgrp    `
+&& ` AND ztmm220~werks IN @s_werks    `.
+*  SELECT
+*    ztmm220~zdbdh
+*    ztmm221~zhh
+*    ztmm220~zdblx
+*    ztmm220~zdcgc
+*    ztmm220~werks
+*    ztmm221~zdckcd
+*    ztmm221~lgort
+*    ztmm220~zdbrq
+*    ztmm220~zcjz
+*    ztmm220~zdjzt
+*    ztmm221~matnr
+*    ztmm221~zwlcms
+*    ztmm221~zdbsl
+*    ztmm221~meins
+*    ztmm221~charg
+*    ztmm221~zjh
+*    ztmm221~zzyh
+*    ztmm220~zch
+*    ztmm221~zxmh
+*    ztmm221~zxsddh
+*    ztmm221~zbh
+*    ztmm221~zkw
+*    ztmm221~sobkz
+*    INTO CORRESPONDING FIELDS OF TABLE itab
+*    FROM ztmm220
+*    JOIN ztmm221 ON ztmm220~zdbdh = ztmm221~zdbdh
+*    WHERE (wherestr).
+  SELECT ztmm220~*,t024~eknam
+   INTO TABLE @DATA(lt_tab)
+   FROM ztmm220
+    LEFT JOIN t024 ON ztmm220~ekgrp = t024~ekgrp
+   WHERE (wherestr)
+    .
+  .
+  REFRESH itab.
+  LOOP AT lt_tab INTO DATA(lw_tab).
+    CLEAR itab.
+    MOVE-CORRESPONDING lw_tab-ztmm220 TO itab.
+    itab-eknam = lw_tab-eknam.
+    APPEND itab.
+  ENDLOOP.
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1."控制用户布局
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'CB'       ''         ''       '选择',
+'ZDBDH'    'ZTMM220'    'ZDBDH'     '调拨单号'     ,
+*'ZHH'      'ZTMM221'    'ZHH'       '行号'         ,
+'ZDBLX'    'ZTMM220'    'ZDBLX'     '调拨类型'     ,
+'ZDCGC'    'ZTMM220'    'ZDCGC'     '调出工厂'     ,
+'WERKS'    'ZTMM220'    'WERKS'     '调入工厂'     ,
+'ZDCKCD'   'ZTMM221'    'ZDCKCD'    '调出库存地'   ,
+'ZDBRQ'    'ZTMM221'    'ZDBRQ'     '调拨日期'     ,
+'ZCJZ'     'ZTMM220'    'ZCJZ'      '创建者'       ,
+'ZDJZT'    'ZTMM220'    'ZDJZT'     '单据状态'     ,
+*'MATNR'    'ZTMM221'    'MATNR'     '物料编码'     ,
+*'ZWLCMS'   'ZTMM221'    'ZWLCMS'    '物料描述'     ,
+*'SOBKZ'    'ZTMM221'    'SOBKZ'     '库存分类'     ,
+*'ZDBSL'    'ZTMM221'    'ZDBSL'     '调拨数量'     ,
+*'MEINS'    'ZTMM221'    'MEINS'     '单位'         ,
+*'LGORT'    'ZTMM221'    'LGORT'     '调入库存地'   ,
+*'CHARG'    'ZTMM221'    'CHARG'     '批次号'       ,
+*'ZJH'      'ZTMM221'    'ZJH'       '卷号'         ,
+*'ZZYH'     'ZTMM221'    'ZZYH'      '资源号'       ,
+'ZCH'      'ZTMM220'    'ZCH'       '车号'         ,
+*'ZXMH'     'ZTMM221'    'ZXMH'      '项目号'       ,
+*'ZXSDDH'   'ZTMM221'    'ZXSDDH'    '销售订单号'   ,
+*'ZBH'      'ZTMM221'    'ZBH'       '包号'         ,
+*'ZKW'      'ZTMM221'    'ZKW'       '库位'         .
+'ZCCF'    'ZTMM220'    'ZCCF'       '仓储费'     ,
+'ZZL'     'ZTMM220'     'ZZL'       '总量'     ,
+'ZZZ'     'ZTMM220'     'ZZZ'       '总重'     ,
+'EKNAM'    'T024'    'EKNAM'     '采购组'     ,
+'ZSJ'    'ZTMM220'    'ZSJ'     '司机'     ,
+'ZSFZ'    'ZTMM220'    'ZSFZ'     '司机身份证'     ,
+'ZSJDH'    'ZTMM220'    'ZSJDH'     '司机电话'     ,
+'ZYSZRR'    'ZTMM220'    'ZYSZRR'     '运输责任人'     ,
+'LIFNR'    'ZTMM220'    'LIFNR'     '运输公司'     ,
+'ZJSFS'    'ZTMM220'    'ZJSFS'     '结算方式'     ,
+'ZWLDJ'    'ZTMM220'    'ZWLDJ'     '物流单价'     ,
+'ZYSJE'    'ZTMM220'    'ZYSJE'     '运输金额'     .
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = itab[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR 'ZDBDH' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+    WHEN 'CB'.
+      ls_fldct-checkbox = 'X'.
+      ls_fldct-edit = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF itab.
+  DATA:filename TYPE string.
+  DATA pdfxstring TYPE xstring.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+        WHEN 'ZDBDH'.
+          PERFORM showdbd USING wa-zdbdh.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'WHCH'.
+      PERFORM init_ch CHANGING flag.
+      CHECK flag = 'S'.
+      CALL SCREEN 901 STARTING AT 37 5 ENDING   AT 97 25."维护车号信息
+    WHEN 'WHCCF'.
+      PERFORM init_ccf CHANGING flag.
+      CHECK flag = 'S'.
+      CALL SCREEN 902 STARTING AT 37 5 ENDING   AT 97 15."维护仓储费信息
+    WHEN 'BH'.
+      PERFORM bhdbd.
+      PERFORM getdata.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+
+  IF pch = 'X'.
+    SET TITLEBAR 'TIT1000' WITH '维护车号'.
+    APPEND 'WHCCF' TO rt_extab.
+  ELSEIF pccf = 'X'.
+    SET TITLEBAR 'TIT1000' WITH '维护仓储费'.
+    APPEND 'WHCH' TO rt_extab.
+  ELSE.
+    APPEND 'WHCCF' TO rt_extab.
+    APPEND 'WHCH' TO rt_extab.
+  ENDIF.
+
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0901 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0901 OUTPUT.
+  SET PF-STATUS 'STA901'.
+  IF pch = 'X'.
+    SET TITLEBAR 'TIT901' WITH '维护车号'.
+  ELSEIF pccf = 'X'.
+    SET TITLEBAR 'TIT901' WITH '维护仓储费'.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0901  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+DATA:save_ok LIKE sy-ucomm.
+DATA:ok_code LIKE sy-ucomm.
+MODULE user_command_0901 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SUBMIT'."提交
+      PERFORM save220.
+      CHECK itab-submit = 'X'.
+      PERFORM submit220 CHANGING flag.
+      IF flag = 'S'.
+        PERFORM getdata.
+*        LEAVE TO SCREEN 0." 不自动返回上一屏幕  26.12.2022 14:37:58 by kkw
+      ENDIF.
+    WHEN 'SAVE'."保存
+      PERFORM save220.
+    WHEN 'CANCLE'."取消
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+
+FORM init_ch CHANGING flg TYPE char1.
+  DATA:num TYPE i.
+  CLEAR:wa_ch,num,flg.
+  LOOP AT itab WHERE cb = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选择一行调拨单明细维护.'.
+    RETURN.
+  ENDIF.
+  READ TABLE itab WITH KEY cb = 'X'.
+  MOVE-CORRESPONDING itab TO wa_ch.
+  wa_ch-wmsmsg = ''.
+  flg = 'S'.
+ENDFORM.
+
+FORM init_ccf CHANGING flg TYPE char1.
+  DATA:num TYPE i.
+  CLEAR:wa_ch,num,flg.
+  LOOP AT itab WHERE cb = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选择一行调拨单明细维护.'.
+    RETURN.
+  ENDIF.
+  READ TABLE itab WITH KEY cb = 'X'.
+  MOVE-CORRESPONDING itab TO wa_ccf.
+  wa_ccf-wmsmsg = ''.
+  flg = 'S'.
+ENDFORM.
+
+FORM submit220 CHANGING flag.
+  DATA:msg TYPE bapi_msg.
+  " 取出业务流向当前状态的下一状态(前状态、后状态)  23.11.2022 19:55:15 by kkw
+  PERFORM getdomain(zpubform) TABLES it007V USING 'ZD_ZDJZT'.
+  IF itab-zywlx IS INITIAL.
+    MESSAGE e004 WITH '业务流向不能为空.'.
+    RETURN.
+  ENDIF.
+  SPLIT itab-zywlx AT wa220-zdjzt+0(1) INTO DATA(qzt) DATA(hzt).
+  READ TABLE it007v WITH KEY domvalue_l+0(1) = hzt+0(1).
+  IF sy-subrc NE 0.
+    MESSAGE s004 WITH '获取业务流向和阈值对照关系产生错误.'.
+    RETURN.
+  ENDIF.
+  wa220-zdjzt = it007v-domvalue_l.
+  UPDATE ztmm220 SET zdjzt = it007v-domvalue_l.
+  IF  sy-subrc EQ 0.
+    COMMIT WORK.
+    MESSAGE s004 WITH '提交成功'.
+    flag = 'S'.
+  ENDIF.
+  IF ( wa220-werks = '3060' OR wa220-werks = '3062' ) AND it007v-domvalue_l = '4RKZ'.
+    PERFORM postwms_cgdh USING wa220-zdbdh CHANGING flag msg.
+    wa_ch-wmsmsg = msg.
+    wa_ccf-wmsmsg = msg.
+  ENDIF.
+ENDFORM.
+
+FORM save220.
+  IF pch = 'X'.
+    data_check wa_ch-zch '车号'.
+    data_check wa_ch-zsj '司机'.
+    data_check wa_ch-zsjdh '司机电话'.
+    data_check wa_ch-zjsfs '结算方式'.
+    IF wa_ch-zjsfs = 'ZC'.
+      data_check wa_ch-zysje '运输金额'.
+      IF itab-zzl NE 0.
+        wa_ch-zwldj = wa_ch-zysje / itab-zzz.
+      ENDIF.
+    ELSEIF wa_ch-zjsfs = 'DJ'.
+      data_check wa_ch-zwldj '物流单价'.
+      IF itab-zzl NE 0.
+        wa_ch-zysje = wa_ch-zwldj * itab-zzz.
+      ENDIF.
+    ENDIF.
+
+    MOVE-CORRESPONDING itab TO wa220.
+    MOVE-CORRESPONDING wa_ch TO wa220.
+  ELSEIF pccf = 'X'.
+    data_check wa_ccf-zccf '仓储费'.
+    MOVE-CORRESPONDING itab TO wa220.
+    MOVE-CORRESPONDING wa_ccf TO wa220.
+  ENDIF.
+  UPDATE ztmm220 FROM wa220.
+  IF  sy-subrc EQ 0.
+    COMMIT WORK.
+    LOOP AT itab WHERE cb = 'X'.
+      IF pch = 'X'.
+        MOVE-CORRESPONDING wa_ch TO itab.
+      ELSEIF pccf = 'X'.
+        MOVE-CORRESPONDING wa_ccf TO itab.
+      ENDIF.
+      itab-submit = 'X'.
+      MODIFY itab.
+    ENDLOOP.
+    MESSAGE s004 WITH '保存成功'.
+    PERFORM yfft USING wa220-zdbdh wa220-zysje wa220-zccf.
+  ENDIF.
+
+ENDFORM.
+
+FORM showdbd USING zdbdh.
+  DATA:s_zdbdh TYPE RANGE OF ztmm220-zdbdh.
+  s_zdbdh = VALUE #( sign = 'I' option = 'EQ'
+  ( low = zdbdh )
+  ).
+  SUBMIT zmmd201    WITH s_zdbdh2   IN s_zdbdh
+                    WITH p_cx = 'X'
+                    WITH p_cj = ''
+                    WITH p_wh = ''
+                    AND RETURN.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form bhdbd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM bhdbd .
+  DATA:num TYPE i.
+  CLEAR:num.
+  LOOP AT itab WHERE cb = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选择一行调拨单驳回.'.
+    RETURN.
+  ENDIF.
+
+  " 取出业务流向当前状态的上下一状态(前状态、后状态)  23.11.2022 19:55:15 by kkw
+  PERFORM getdomain(zpubform) TABLES it007V USING 'ZD_ZDJZT'.
+  IF itab-zywlx IS INITIAL.
+    MESSAGE e004 WITH '业务流向不能为空.'.
+    RETURN.
+  ENDIF.
+  SPLIT itab-zywlx AT itab-zdjzt+0(1) INTO DATA(qzt) DATA(hzt).
+  DATA(len) = strlen( qzt ) - 1.
+  READ TABLE it007v WITH KEY domvalue_l+0(1) = qzt+len(1).
+  IF sy-subrc NE 0.
+    MESSAGE s004 WITH '获取业务流向和阈值对照关系产生错误.'.
+    RETURN.
+  ENDIF.
+  UPDATE ztmm220 SET zdjzt = it007v-domvalue_l WHERE zdbdh = itab-zdbdh.
+  IF  sy-subrc EQ 0.
+    COMMIT WORK.
+    MESSAGE s004 WITH '驳回成功'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form yfft
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_220_ZDBDH
+*&      --> WA_220_ZYSJE
+*&      --> WA_220_ZCCF
+*&---------------------------------------------------------------------*
+FORM yfft  USING   zdbdh TYPE ztmm220-zdbdh
+                   zysje TYPE ztmm220-zysje
+                   zccf TYPE ztmm220-zccf.
+  DATA:zdbsl    TYPE ztmm221-zdbsl_in,
+       zysje_lj TYPE ztmm221-zysje, "明细累加运输金额
+       zccf_lj  TYPE ztmm221-zccf.
+  SELECT * INTO TABLE @DATA(lt221) FROM ztmm221 WHERE zdbdh = @zdbdh.
+  DATA(line) = lines( lt221 ).
+  CLEAR:zdbsl,zysje_lj,zccf_lj.
+  LOOP AT lt221 INTO DATA(lw221).
+    zdbsl = zdbsl + lw221-zdbsl_in.
+  ENDLOOP.
+
+  "分摊运费和仓储费.
+  LOOP AT lt221 INTO lw221.
+    IF sy-tabix NE line.
+      IF zdbsl NE 0.
+        lw221-zysje = zysje / zdbsl * lw221-zdbsl.
+        lw221-zccf = zccf / zdbsl * lw221-zdbsl.
+        zysje_lj = zysje_lj + lw221-zysje.
+        zccf_lj  = zccf_lj + lw221-zccf.
+      ENDIF.
+    ELSE.
+      lw221-zysje = zysje - zysje_lj.
+      lw221-zccf = zccf - zccf_lj.
+    ENDIF.
+    MODIFY lt221 FROM lw221.
+  ENDLOOP.
+  UPDATE ztmm221 FROM TABLE lt221.
+  COMMIT WORK.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  FILL_ZYSZRR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fill_zyszrr INPUT.
+  CALL FUNCTION 'ZFM_ZYSGSF4'
+    EXPORTING
+      field    = 'ZYSZRR'
+      scrfield = 'WA_CH-ZYSZRR'
+      dbpt     = 'WA_CH-LIFNR'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  FILL_LIFNR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE fill_lifnr INPUT.
+  SELECT lifnr,
+         name1
+    INTO TABLE @DATA(it_zysgs)
+    FROM lfa1.
+  PERFORM f4helpn(zpubform) TABLES it_zysgs USING 'LIFNR' 'WA_CH-LIFNR'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  WA_MODIFY  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE wa_modify INPUT.
+  IF wa_ch-zjsfs = 'ZC'.
+    data_check wa_ch-zysje '运输金额'.
+    IF itab-zzz NE 0.
+      wa_ch-zwldj = wa_ch-zysje / itab-zzz.
+    ENDIF.
+  ELSEIF wa_ch-zjsfs = 'DJ'.
+    data_check wa_ch-zwldj '物流单价'.
+    IF itab-zzz NE 0.
+      wa_ch-zysje = wa_ch-zwldj * itab-zzz.
+    ENDIF.
+  ENDIF.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*& Form postwms_cgdh
+*&---------------------------------------------------------------------*
+*& 推送WMS逻辑，ZTMM220中单据类型为供应商库调拨回厂（GYSHC）时，
+*& ZTMM220中调入工厂WERKS包含3060和3062，
+*& 单据状态变为入库中（ZRKZ）时触发接口传WMS或者在调拨单维护时点推送WMS传WMS。接口名称ZFM_GP_MM_WMS_CGDH_POST
+*&---------------------------------------------------------------------*
+*&      <-- FLAG
+*&---------------------------------------------------------------------*
+FORM postwms_cgdh USING zdbdh CHANGING p_flag p_msg.
+  DATA:in_tab TYPE TABLE OF zsmm_204 WITH HEADER LINE,
+       rtype  TYPE bapi_mtype,
+       rtmsg  TYPE bapi_msg.
+  REFRESH in_tab.
+  SELECT SINGLE * INTO @DATA(wa_220) FROM ztmm220 WHERE zdbdh = @zdbdh.
+  SELECT * INTO TABLE @DATA(lt_221) FROM ztmm221 WHERE zdbdh = @zdbdh.
+  LOOP AT lt_221 INTO DATA(it_221).
+    CLEAR in_tab.
+    in_tab-zdhno   = wa_220-zdbdh.
+    in_tab-kunnr   = ''.
+    in_tab-zdhlx   = wa_220-zdblx.
+    in_tab-werks   = wa_220-werks.
+    in_tab-lgort   = it_221-lgort.
+    SELECT SINGLE lgobe INTO in_tab-lgobe FROM t001l
+      WHERE werks = wa_220-werks AND lgort = it_221-lgort.
+*    in_tab-lgobe   = ''.
+    in_tab-zcj     = ''.
+    in_tab-bukrs   = ''.
+    in_tab-butxt   = ''.
+    in_tab-zshdate = wa_220-zdbrq.
+    SELECT SINGLE zzl1 INTO in_tab-groes FROM mara
+      WHERE matnr = it_221-matnr.
+*    in_tab-groes   = ''.
+    in_tab-zczmc   = wa_220-zsj.
+    in_tab-zch     = wa_220-zch.
+    DATA(len) = strlen( wa_220-zcjz ).
+    IF len > 2.
+      IF wa_220-zcjz+1(1) = '0'.
+        len = len - 2.
+        in_tab-zzdr = wa_220-zcjz+2(len).
+      ELSE.
+        len = len - 1.
+        in_tab-zzdr = wa_220-zcjz+1(len).
+      ENDIF.
+    ENDIF.
+*    in_tab-zzdr    = ''.
+    in_tab-zzdate  = wa_220-zzdrq.
+    in_tab-zdjcz   = ''.
+    in_tab-lifnr   = wa_220-zdcgc.
+    in_tab-zbz     = wa_220-zbz.
+    in_tab-banfn   = ''.
+    in_tab-zdhhh   = it_221-zhh.
+    in_tab-zzdys   = it_221-zdbsl_in.
+    in_tab-matnr   = it_221-matnr.
+    SELECT SINGLE post1 INTO in_tab-post1 FROM prps
+      WHERE posid = it_221-zxmh.
+*    in_tab-post1   = ''.
+    in_tab-pspid   = it_221-zxmh.
+    in_tab-zrksl   = it_221-zdbsl_in.
+    in_tab-ebeln   = ''.
+    in_tab-meins   = it_221-meins_in.
+    in_tab-charg   = ''.
+    in_tab-zmxcz   = ''.
+    APPEND in_tab.
+  ENDLOOP.
+
+
+  CALL FUNCTION 'ZFM_GP_MM_WMS_CGDH_POST'
+    IMPORTING
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+      rtype  = rtype
+      rtmsg  = rtmsg
+*     FLAG   =
+*     MESSAGE        =
+    TABLES
+      in_tab = in_tab.
+  p_flag = rtype.
+  p_flag = to_upper( p_flag  ).
+  p_msg = rtmsg.
+*  wa_220-wmsmsg = rtmsg.
+ENDFORM.

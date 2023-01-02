@@ -1,0 +1,19 @@
+*- allgemeine Daten f¨¹r die Verbr#uche ( Includes MM03VER1 und MM03VER2)
+DATA:  GJAHR       LIKE  MVER-GJAHR,
+       ZAHLR(2)      TYPE N,            "Wie MVER-Zahlr
+       XPOSI(3)      TYPE N,            "wievielte Position im Jahr
+       INDEX(2)      TYPE N,            "Position im MVER-Satz (1-13)
+       SYFDATE        LIKE SY-DATUM,      "Fabrikdatum
+       SYFWEEK        LIKE SCAL-WEEK,     "Fabrikwoche
+       SYFDAYF        LIKE SCAL-FACDATE,  "Fabrikkalendertag
+       ALTJAHR        LIKE MVER-GJAHR,    "Hilfsfeld fuer Jahreszahl
+       JAHR           LIKE MVER-GJAHR,    "Hilfsfeld fuer Jahreszahl
+       NUM_ERSTER_TAG(5) TYPE N.          "Erster Tag im Jahr
+DATA:  PERKZ LIKE MARC-PERKZ,
+       PERIV LIKE MARC-PERIV,
+       DATUM LIKE SY-DATUM,              "Hilfsfeld f¨¹r Datum
+       FAKT1      TYPE  F    .           "Rechfeld, um #berlauf festzu.
+
+DATA:  BEGIN OF INT_PPER OCCURS 2.        "Buchhaltungsperioden
+         INCLUDE STRUCTURE PPER.
+DATA:  END OF INT_PPER.

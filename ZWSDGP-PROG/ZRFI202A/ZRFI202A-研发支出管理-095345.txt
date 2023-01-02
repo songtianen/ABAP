@@ -1,0 +1,556 @@
+*&---------------------------------------------------------------------*
+*& Report ZRFI202A
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZRFI202A MESSAGE-ID ZMSG_GP.
+TABLES:SSCRFIELDS,
+       T001,
+       FAGL_SEGM,
+       PRPS,
+       MBEW,
+       CKMLCR,
+       CKMLHD,
+       ZTPP_213,
+       ZTMM_011,
+       AUFK,
+       ZTFIRD_MATDATA,
+       *ZTFIRD_MATDATA.
+
+SELECTION-SCREEN BEGIN OF BLOCK B1 WITH FRAME TITLE TEXT-001.
+*生产余废料统计
+  PARAMETERS:P_BUKRS LIKE T001-BUKRS OBLIGATORY MEMORY ID BUK MODIF ID M.
+  SELECT-OPTIONS:S_SEGM FOR FAGL_SEGM-SEGMENT,
+                 S_POSID FOR PRPS-POSID,
+                 S_AUFNR FOR AUFK-AUFNR MODIF ID A1,
+                 S_DATUM FOR SY-DATUM MODIF ID A2.
+*研发项目指定
+  SELECT-OPTIONS:S_RDNO FOR ZTFIRD_MATDATA-RDNO MODIF ID B3.
+  PARAMETERS:P_DATBI TYPE ZTFIRD_MATDATA-DATBI MODIF ID B2,
+             P1A     RADIOBUTTON GROUP GRD1 USER-COMMAND CLICK1 DEFAULT 'X' MODIF ID B1,
+             P1B     RADIOBUTTON GROUP GRD1 MODIF ID B1.
+*研发物料创建
+  PARAMETERS:P2A RADIOBUTTON GROUP GRD2 USER-COMMAND CLICK2 DEFAULT 'X' MODIF ID C1,
+             P2B RADIOBUTTON GROUP GRD2 MODIF ID C1.
+SELECTION-SCREEN END OF BLOCK B1.
+
+INCLUDE: ZRFI202_TOP,
+         ZRFI202_CLASS,
+         ZRFI202_FRM.
+
+LOAD-OF-PROGRAM.
+  PERFORM INITLOAD.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM MODIFYSCREEN.
+
+START-OF-SELECTION.
+  IF P_BUKRS IS INITIAL.
+    MESSAGE S009 WITH '公司' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  PERFORM SAVELOG(ZREPLOG) USING SY-REPID '' IF FOUND.
+  PERFORM GETDATA.
+  PERFORM UPDATELOG(ZREPLOG) IF FOUND.
+
+  CALL SCREEN 9000.
+
+
+
+FORM GETDATA.
+  CLEAR:IT_WERKS,R_WERKS[],IT_OBJNR[],ITAB[],
+  ITAB1[],R_RDSTATE[],IT_MATNR[],IT_AUFNR[],
+  IT_MBEWS[],IT_PSPNR[].
+  DELETE IT_ZTFI204 WHERE BUKRS NE P_BUKRS.
+*根据公司代码获取所有工厂
+  SELECT T001K~BUKRS
+         T001~BUTXT
+         T001W~WERKS
+         T001W~NAME1
+  INTO TABLE IT_WERKS
+  FROM T001K INNER JOIN T001W ON T001K~BWKEY = T001W~BWKEY
+             INNER JOIN T001 ON T001K~BUKRS = T001~BUKRS
+  WHERE T001~BUKRS = P_BUKRS.
+  LOOP AT IT_WERKS.
+    CLEAR:R_WERKS.
+    R_WERKS+0(3) = 'IEQ'.
+    R_WERKS-LOW = IT_WERKS-WERKS.
+    COLLECT R_WERKS.
+  ENDLOOP.
+  READ TABLE IT_WERKS INDEX 1.
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      IF S_DATUM[] IS INITIAL.
+        MESSAGE S009 WITH '日期' DISPLAY LIKE 'E'.
+        STOP.
+      ENDIF.
+
+*取废料销售
+      PERFORM GETZTPP213.
+      IF IT_DETAIL[] IS INITIAL.
+        MESSAGE S005 DISPLAY LIKE 'E'.
+        STOP.
+      ENDIF.
+      LOOP AT IT_DETAIL.
+*预估单价的计算逻辑
+        IT_DETAIL-DMBTR_FLGJ = IT_DETAIL-DMBTR_RDDJ * IT_DETAIL-MENGE.
+        MODIFY IT_DETAIL.
+      ENDLOOP.
+      ITAB[] = IT_DETAIL[].
+    WHEN TCODE2.
+      CASE 'X'.
+        WHEN P1A.
+          IF P_DATBI IS INITIAL.
+            MESSAGE S009 WITH '截止日期' DISPLAY LIKE 'E'.
+            STOP.
+          ENDIF.
+*取废料销售
+          PERFORM GETZTPP213.
+        WHEN P1B.
+          SELECT *
+            INTO TABLE IT_DETAIL
+            FROM ZTFIRD_MATDATA
+            WHERE BUKRS = P_BUKRS
+            AND   SEGMENT IN S_SEGM
+            AND   POSID IN S_POSID
+            AND   AUFNR IN S_AUFNR
+            AND   RDNO IN S_RDNO
+            AND   DATBI = P_DATBI.
+      ENDCASE.
+      LOOP AT IT_DETAIL.
+        CLEAR:IT_MATNR,IT_PSPNR,IT_AUFNR.
+        IT_MATNR-MATNR = IT_DETAIL-MATNR.
+        COLLECT IT_MATNR.
+        IT_MATNR-MATNR = IT_DETAIL-FLH.
+        COLLECT: IT_MATNR.
+        IT_MATNR-MATNR = IT_DETAIL-MATNR_RD.
+        IT_PSPNR-PSPNR = IT_DETAIL-PSPNR.
+        IT_AUFNR-AUFNR = IT_DETAIL-INAUFNR.
+        COLLECT:IT_PSPNR, IT_MATNR,IT_AUFNR.
+      ENDLOOP.
+      ITAB[] = IT_DETAIL[].
+      SORT ITAB BY PSPNR PRSTATE.
+      DELETE ADJACENT DUPLICATES FROM ITAB
+      COMPARING PSPNR PRSTATE.
+*指定时汇总
+      IF P1A = 'X'.
+        SORT IT_DETAIL BY PSPNR PRSTATE.
+        SORT ITAB BY PSPNR PRSTATE.
+        SORT IT_ZTFI204 BY GDATU DESCENDING.
+*取数据库中已经存的项目
+        IF ITAB[] IS NOT INITIAL.
+          SELECT *
+            INTO TABLE IT_ZTFIRD_MATDATA
+            FROM ZTFIRD_MATDATA
+            FOR ALL ENTRIES IN ITAB
+            WHERE PSPNR = ITAB-PSPNR
+            AND   PRSTATE = ITAB-PRSTATE.
+          SORT IT_ZTFIRD_MATDATA BY PSPNR PRSTATE.
+          LOOP AT ITAB.
+            CLEAR:ITAB-DMBTR_FLGJ,ITAB-MENGE,ITAB-RATE_RDADJ,
+            ITAB-RDNO.
+            READ TABLE IT_ZTFIRD_MATDATA WITH KEY PSPNR = ITAB-PSPNR
+                                                  PRSTATE = ITAB-PRSTATE
+                                                  BINARY SEARCH.
+            IF SY-SUBRC = 0.
+              ITAB-DATBI = P_DATBI.
+              ITAB-DATAB = IT_ZTFIRD_MATDATA-DATBI + 1.
+            ELSE.
+              ITAB-DATBI = SY-DATUM.
+              ITAB-DATAB = '20220101'.
+            ENDIF.
+            IF ITAB-DATBI LT ITAB-DATAB.
+              ITAB-ICON = RED.
+              ITAB-FLAG = 'E'.
+              ITAB-MSG = '开始截止日期不正确'.
+            ENDIF.
+            READ TABLE IT_DETAIL WITH KEY PSPNR = ITAB-PSPNR
+                                          PRSTATE = ITAB-PRSTATE
+                                          BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              TABIX = SY-TABIX.
+              LOOP AT IT_DETAIL FROM TABIX.
+                IF IT_DETAIL-PSPNR NE ITAB-PSPNR
+                  OR IT_DETAIL-PRSTATE NE ITAB-PRSTATE.
+                  EXIT.
+                ENDIF.
+                ITAB-DMBTR_FLGJ = ITAB-DMBTR_FLGJ + IT_DETAIL-DMBTR_FLGJ.
+                ITAB-MENGE = ITAB-MENGE + IT_DETAIL-MENGE.
+              ENDLOOP.
+            ENDIF.
+*随机生成调整比例
+            CLEAR:IT_ZTFI204.
+            LOOP AT IT_ZTFI204 WHERE GDATU LE P_DATBI.
+              EXIT.
+            ENDLOOP.
+            IF SY-SUBRC NE 0.
+              ITAB-ICON = RED.
+              ITAB-FLAG = 'E'.
+              ITAB-MSG = '未取得调整比例'.
+            ELSE.
+              CLEAR:RND_MIN,RND_MAX,RND_AMOUNT.
+              RND_MIN = IT_ZTFI204-FFACT.
+              RND_MAX = IT_ZTFI204-TFACT.
+              CALL FUNCTION 'RANDOM_AMOUNT'
+                EXPORTING
+                  RND_MIN    = RND_MIN
+                  RND_MAX    = RND_MAX
+                  VALCURR    = 'DEM'
+                IMPORTING
+                  RND_AMOUNT = RND_AMOUNT.
+              ITAB-RATE_RDADJ = RND_AMOUNT.
+              IF ITAB-RATE_RDADJ IS INITIAL.
+                ITAB-RATE_RDADJ = 100.
+              ENDIF.
+            ENDIF.
+            ITAB-DMBTR_RDADJ = ITAB-RATE_RDADJ * ITAB-DMBTR_FLGJ / 100.
+            MODIFY ITAB.
+          ENDLOOP.
+          SORT ITAB BY PSPNR PRSTATE.
+          LOOP AT IT_DETAIL.
+            READ TABLE ITAB WITH KEY PSPNR = IT_DETAIL-PSPNR
+                                     PRSTATE = IT_DETAIL-PRSTATE
+                                     BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              IT_DETAIL-DMBTR_RDADJ = ITAB-DMBTR_RDADJ.
+              IT_DETAIL-RATE_RDADJ = ITAB-RATE_RDADJ.
+            ENDIF.
+            MODIFY IT_DETAIL.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    WHEN TCODE3.
+      CASE 'X'.
+        WHEN P2A.
+          APPEND 'IEQ0' TO R_RDSTATE.
+        WHEN P2B.
+          APPEND 'IEQ1' TO R_RDSTATE.
+      ENDCASE.
+      SELECT *
+        INTO TABLE IT_DETAIL
+        FROM ZTFIRD_MATDATA
+        WHERE BUKRS = P_BUKRS
+        AND   SEGMENT IN S_SEGM
+        AND   POSID IN S_POSID
+        AND   RDNO IN S_RDNO
+        AND   DATBI = P_DATBI
+        AND   RDSTATE IN R_RDSTATE.
+      LOOP AT IT_DETAIL.
+        CLEAR:IT_MATNR,IT_AUFNR,IT_PSPNR.
+        IT_MATNR-MATNR = IT_DETAIL-MATNR.
+        COLLECT IT_MATNR.
+        IT_MATNR-MATNR = IT_DETAIL-FLH.
+        COLLECT: IT_MATNR.
+        IT_AUFNR-AUFNR = IT_DETAIL-INAUFNR.
+        COLLECT IT_AUFNR.
+        IT_MATNR-MATNR = IT_DETAIL-MATNR_RD.
+        IT_AUFNR-AUFNR = IT_DETAIL-AUFNR.
+        IT_PSPNR-PSPNR = IT_DETAIL-PSPNR.
+        COLLECT: IT_MATNR,IT_AUFNR,IT_PSPNR.
+      ENDLOOP.
+      ITAB[] = IT_DETAIL[].
+      SORT ITAB BY PSPNR PRSTATE.
+      DELETE ADJACENT DUPLICATES FROM ITAB
+      COMPARING PSPNR PRSTATE.
+*创建时物料号
+      IF P2A = 'X'.
+*找产出库存地
+        DELETE IT_AUFNR WHERE AUFNR IS INITIAL.
+        IF IT_AUFNR[] IS NOT INITIAL.
+          SORT IT_AUFNR BY AUFNR.
+          SELECT *
+            INTO TABLE @DATA(IT_AUFM)
+            FROM AUFM
+            FOR ALL ENTRIES IN @IT_AUFNR
+            WHERE AUFNR = @IT_AUFNR-AUFNR
+            AND   BWART = '101'
+            AND NOT EXISTS ( SELECT * FROM M_MBMPS   "未被冲销
+                                           WHERE M_MBMPS~SJAHR = AUFM~MJAHR AND
+                                                 M_MBMPS~SMBLN = AUFM~MBLNR AND
+                                                 M_MBMPS~SMBLP = AUFM~ZEILE ).
+          SORT IT_AUFM BY AUFNR.
+        ENDIF.
+        LOOP AT ITAB.
+          CLEAR:ZNUMBER,ITAB-LGORT.
+*获取四位流水号
+          CALL FUNCTION 'ZNUMS_UPDATE'
+            EXPORTING
+              REPID    = SY-REPID
+              TCODE    = SY-TCODE
+              FLAG     = 'D'
+              WEISHU   = 4
+            IMPORTING
+              ZNUMBER  = ZNUMBER
+            EXCEPTIONS
+              OVERFLOW = 1
+              OTHERS   = 2.
+
+          CONCATENATE 'ZY' ZNUMBER ITAB-MATNR INTO ITAB-MATNR_RD.
+          SELECT SINGLE COUNT(*)
+            FROM MARA
+            WHERE MATNR = ITAB-MATNR_RD.
+          IF SY-SUBRC EQ 0.
+            ITAB-ICON = GREEN.
+            ITAB-FLAG = 'E'.
+            ITAB-MSG = '物料已存在'.
+          ELSE.
+            LOOP AT IT_DETAIL WHERE PSPNR = ITAB-PSPNR
+                                AND PRSTATE = ITAB-PRSTATE.
+              READ TABLE IT_AUFM INTO DATA(WA_AUFM) WITH KEY AUFNR = IT_DETAIL-AUFNR BINARY SEARCH.
+              IF SY-SUBRC EQ 0.
+                ITAB-LGORT = WA_AUFM-LGORT.
+                EXIT.
+              ENDIF.
+            ENDLOOP.
+          ENDIF.
+          IF ITAB-LGORT IS INITIAL.
+            ITAB-ICON = GREEN.
+            ITAB-FLAG = 'E'.
+            ITAB-MSG = '未取得库存地点'.
+          ENDIF.
+          IF ITAB-MENGE GT 0.
+            ITAB-DMBTR_RDDJ = ITAB-DMBTR_RDADJ / ITAB-MENGE.
+          ENDIF.
+          MODIFY ITAB.
+        ENDLOOP.
+        SORT ITAB BY PSPNR PRSTATE.
+        LOOP AT IT_DETAIL.
+          READ TABLE ITAB WITH KEY PSPNR = IT_DETAIL-PSPNR
+                                   PRSTATE = IT_DETAIL-PRSTATE
+                                   BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_DETAIL-LGORT = ITAB-LGORT.
+          ENDIF.
+          MODIFY IT_DETAIL.
+        ENDLOOP.
+      ENDIF.
+    WHEN TCODE4 OR TCODE5.
+      IF SY-TCODE = TCODE4.
+        APPEND 'IEQ1' TO R_RDSTATE.
+        APPEND 'IEQ2' TO R_RDSTATE.
+      ELSE.
+        APPEND 'IEQ2' TO R_RDSTATE.
+        APPEND 'IEQ3' TO R_RDSTATE.
+      ENDIF.
+      SELECT *
+        INTO TABLE ITAB
+        FROM ZTFIRD_MATDATA
+        WHERE BUKRS = P_BUKRS
+        AND   SEGMENT IN S_SEGM
+        AND   POSID IN S_POSID
+        AND   RDNO IN S_RDNO
+        AND   DATBI = P_DATBI
+        AND   RDSTATE IN R_RDSTATE.
+      LOOP AT ITAB.
+        CLEAR:IT_MATNR,IT_MBEWS,IT_PSPNR,IT_AUFNR.
+        IT_MATNR-MATNR = ITAB-MATNR.
+        COLLECT IT_MATNR.
+        IT_MATNR-MATNR = ITAB-FLH.
+        IT_AUFNR-AUFNR = ITAB-INAUFNR.
+        COLLECT: IT_AUFNR,IT_MATNR.
+        IT_MATNR-MATNR = ITAB-MATNR_RD.
+        IT_MBEWS-MATNR = ITAB-MATNR_RD.
+        IT_MBEWS-WERKS = ITAB-WERKS.
+        IT_PSPNR-PSPNR = ITAB-PSPNR.
+        IT_AUFNR-AUFNR = ITAB-AUFNR.
+        COLLECT: IT_PSPNR,IT_MATNR,IT_MBEWS,IT_AUFNR.
+      ENDLOOP.
+      IF SY-TCODE = TCODE4.
+        IF IT_MBEWS[] IS NOT INITIAL.
+          POPER = SY-DATUM+4(2).
+          SORT IT_MBEWS BY WERKS MATNR.
+          SELECT *
+            INTO TABLE @DATA(IT_MBEW)
+            FROM MBEW
+            FOR ALL ENTRIES IN @IT_MBEWS
+            WHERE BWKEY = @IT_MBEWS-WERKS
+            AND   MATNR = @IT_MBEWS-MATNR.
+          SORT IT_MBEW BY BWKEY MATNR.
+*获取成本估算
+          SELECT *
+            INTO TABLE @DATA(IT_CKMLHD)
+            FROM CKMLHD
+            FOR ALL ENTRIES IN @IT_MBEWS
+            WHERE BWKEY = @IT_MBEWS-WERKS
+            AND   MATNR = @IT_MBEWS-MATNR.
+          IF SY-SUBRC EQ 0.
+            SORT IT_CKMLHD BY KALNR.
+            SELECT *
+              INTO TABLE @DATA(IT_CKMLCR)
+              FROM CKMLCR
+              FOR ALL ENTRIES IN @IT_CKMLHD
+              WHERE KALNR = @IT_CKMLHD-KALNR
+              AND   BDATJ = @SY-DATUM+0(4)
+              AND   POPER = @POPER
+              AND   CURTP IN ('10','31','32').
+            SORT IT_CKMLCR BY KALNR CURTP.
+            SORT IT_CKMLHD BY BWKEY MATNR.
+          ENDIF.
+          LOOP AT ITAB.
+            CLEAR:MBEW,CKMLCR,CKMLHD.
+            READ TABLE IT_MBEW INTO MBEW WITH KEY BWKEY = ITAB-WERKS
+                                                  MATNR = ITAB-MATNR_RD
+                                                  BINARY SEARCH.
+            IF MBEW-STPRS IS INITIAL.
+              ITAB-FLAG = 'E'.
+              ITAB-ICON = RED.
+              ITAB-MSG = '请先发布标准价格'.
+            ENDIF.
+            READ TABLE IT_CKMLHD INTO CKMLHD WITH KEY BWKEY = ITAB-WERKS
+                                                      MATNR = ITAB-MATNR_RD
+                                                      BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              ITAB-KALNR = CKMLHD-KALNR.
+              LOOP AT IT_CKMLCR INTO CKMLCR WHERE KALNR = CKMLHD-KALNR
+                                              AND ( CURTP = '31'
+                                                  OR CURTP = '32' )
+                                              AND STPRS IS NOT INITIAL .
+                EXIT.
+              ENDLOOP.
+              IF SY-SUBRC EQ 0.
+                ITAB-FLAG = 'E'.
+                ITAB-ICON = RED.
+                ITAB-MSG = '在其他货币类型（31/32）中存在标准价格，请取消标准价格发布，重新评估标准价格'.
+              ENDIF.
+            ENDIF.
+            MODIFY ITAB.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+  ENDCASE.
+  IF ITAB[] IS INITIAL.
+    MESSAGE S005 DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+  IF IT_PSPNR[] IS NOT INITIAL.
+    SORT IT_PSPNR BY PSPNR.
+    SELECT *
+      INTO TABLE IT_PRPS
+      FROM PRPS
+      FOR ALL ENTRIES IN IT_PSPNR
+      WHERE PSPNR = IT_PSPNR-PSPNR.
+    SORT IT_PRPS BY PSPNR.
+  ENDIF.
+  DELETE IT_MATNR WHERE MATNR IS INITIAL.
+  IF IT_MATNR[] IS NOT INITIAL.
+    SELECT *
+      INTO TABLE IT_MAKT
+      FROM MAKT
+      FOR ALL ENTRIES IN IT_MATNR
+      WHERE MATNR = IT_MATNR-MATNR
+      AND   SPRAS = SY-LANGU.
+    SORT IT_MAKT BY MATNR.
+  ENDIF.
+  DELETE IT_AUFNR WHERE AUFNR IS INITIAL.
+  IF IT_AUFNR[] IS NOT INITIAL.
+    SORT IT_AUFNR BY AUFNR.
+    SELECT *
+      INTO TABLE IT_AUFK
+      FROM AUFK
+      FOR ALL ENTRIES IN IT_AUFNR
+      WHERE AUFNR = IT_AUFNR-AUFNR.
+    SORT IT_AUFK BY AUFNR.
+  ENDIF.
+
+  LOOP AT ITAB.
+    ITAB-BUKRS = P_BUKRS.
+    PERFORM FILLDATA CHANGING ITAB.
+    CASE SY-TCODE.
+      WHEN TCODE3.
+        IF P2A = 'X'.
+          CONCATENATE 'ZY' ITAB-MAKTX INTO ITAB-MATNR_RDT.
+        ENDIF.
+    ENDCASE.
+    READ TABLE IT_PRPS WITH KEY PSPNR = ITAB-PSPNR BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-POST1 = IT_PRPS-POST1.
+    ENDIF.
+    READ TABLE IT_AUFK WITH KEY AUFNR = ITAB-INAUFNR BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-INAUFNRT = IT_AUFK-KTEXT.
+    ENDIF.
+    MODIFY ITAB.
+  ENDLOOP.
+ENDFORM.
+FORM MODIFYSCREEN .
+  %_P1A_%_APP_%-TEXT = '指定/更新'.
+  %_P1B_%_APP_%-TEXT = '查询/撤销指定'.
+  %_P2A_%_APP_%-TEXT = '物料创建'.
+  %_P2B_%_APP_%-TEXT = '查询'.
+  %_P_BUKRS_%_APP_%-TEXT = '公司代码'.
+  %_P_DATBI_%_APP_%-TEXT = '截止日期'.
+  %_S_AUFNR_%_APP_%-TEXT = '生产订单'.
+  %_S_DATUM_%_APP_%-TEXT = '日期'.
+  %_S_POSID_%_APP_%-TEXT = '项目'.
+  %_S_RDNO_%_APP_%-TEXT = '调整单号'.
+  %_S_SEGM_%_APP_%-TEXT = '产业公司'.
+  LOOP AT SCREEN.
+    CASE SCREEN-GROUP1.
+      WHEN 'M'.
+        SCREEN-REQUIRED = 2.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1+0(1).
+          WHEN 'B' OR 'C'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        CASE SCREEN-GROUP1.
+          WHEN 'A2'.
+            SCREEN-REQUIRED = 2.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN TCODE2.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1+0(1).
+          WHEN 'A' OR 'C'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        CASE SCREEN-GROUP1.
+          WHEN 'B2'.
+            SCREEN-REQUIRED = 2.
+            SCREEN-ACTIVE = 1.
+          WHEN 'B3'.
+            CASE 'X'.
+              WHEN P1A.
+                SCREEN-ACTIVE = 0.
+              WHEN P1B.
+                SCREEN-ACTIVE = 1.
+            ENDCASE.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN TCODE3.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1+0(1).
+          WHEN 'A'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        CASE SCREEN-GROUP1.
+          WHEN 'B2'.
+            SCREEN-REQUIRED = 2.
+          WHEN 'B1'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN TCODE4 OR TCODE5.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1+0(1).
+          WHEN 'A' OR 'C'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        CASE SCREEN-GROUP1.
+          WHEN 'B2'.
+            SCREEN-REQUIRED = 2.
+          WHEN 'B1'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.

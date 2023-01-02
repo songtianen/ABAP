@@ -1,0 +1,608 @@
+*&---------------------------------------------------------------------*
+*& Report ZRMM208A
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZRMM208A MESSAGE-ID ZMSG_GP.
+TABLES:ZTMM208,
+       *ZTMM208,
+       *ZVMM208,
+       ZTMM209,
+       ZVMMPO,
+       BUT000,
+       PRPS,
+       EKKN,
+       ZTPS010A,
+       *ZVMMPO,
+       ZTMM212,
+       MARM,
+       EKKO,
+       T001L,
+       ZSMM205,
+       EKPO.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK B1 WITH FRAME TITLE T1.
+  PARAMETERS:P1 RADIOBUTTON GROUP GRD1 USER-COMMAND SINGLECLICK DEFAULT 'X' MODIF ID M2,
+             P2 RADIOBUTTON GROUP GRD1 MODIF ID M2,
+             P3 RADIOBUTTON GROUP GRD1 MODIF ID M2,
+             P4 RADIOBUTTON GROUP GRD3 USER-COMMAND CLICK2 DEFAULT 'X' MODIF ID M3,
+             P5 RADIOBUTTON GROUP GRD3 MODIF ID M3.
+SELECTION-SCREEN END OF BLOCK B1.
+
+SELECTION-SCREEN BEGIN OF BLOCK B2 WITH FRAME TITLE T2.
+  PARAMETERS:P_WERKS    LIKE ZVMMPO-WERKS MEMORY ID WRK MODIF ID M,
+             P_ZWWLX(4) AS LISTBOX VISIBLE LENGTH 7 MODIF ID A.
+  SELECT-OPTIONS:S_EKORG FOR ZVMMPO-EKORG MODIF ID M1,
+                 S_EKGRP FOR ZVMMPO-EKGRP MODIF ID M1,
+                 S_LIFNR FOR ZVMMPO-LIFNR ,
+                 S_BEDAT FOR ZVMMPO-BEDAT MODIF ID M1,
+                 S_LGORT FOR ZVMMPO-LGORT ,
+                 S_EBELN FOR ZVMMPO-EBELN ,
+                 S_EBELP FOR ZVMMPO-EBELP MODIF ID M1,
+                 S_MATNR FOR ZVMMPO-MATNR ,
+                 S_PSTYP FOR ZVMMPO-PSTYP MODIF ID M1,
+                 S_EINDT FOR ZVMMPO-EINDT MODIF ID M1.
+  SELECT-OPTIONS:S_ZWWFNO FOR ZTMM208-ZWWFNO MODIF ID M4,
+                 S_ZWWLX  FOR ZTMM208-ZWWLX  MODIF ID M4,
+                 S_ZZZC   FOR ZTMM208-ZZZC   MODIF ID M4,
+                 S_ZZT    FOR ZTMM208-ZZT    MODIF ID M4,
+                 S_ZJSFS  FOR ZTMM208-ZJSFS  MODIF ID M4,
+                 S_ZCH    FOR ZTMM208-ZCH    MODIF ID M4,
+                 S_ZZBH   FOR ZTMM209-ZZBH   MODIF ID M4,
+                 S_ZJH    FOR ZTMM209-ZJH    MODIF ID M4,
+                 S_IDNRK  FOR ZTMM209-IDNRK  MODIF ID M4,
+                 S_DEL  FOR ZTMM209-DEL  MODIF ID M4,
+                 S_GZ  FOR ZTMM208-GZ  MODIF ID M4,
+                 S_ZDEL  FOR ZTMM208-ZDEL  MODIF ID M4,
+                 S_ZXMMC  FOR ZTMM209-ZXMMC  MODIF ID M4.
+SELECTION-SCREEN END OF BLOCK B2.
+
+INCLUDE:ZRMM208_TOP,
+        ZRMM208_CLASS,
+        ZRMM208_FRM.
+
+LOAD-OF-PROGRAM.
+  PERFORM INITLOAD.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM SELSCREEN.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR P_ZWWLX.
+  PERFORM LIST.
+
+START-OF-SELECTION.
+  IF P_WERKS  IS INITIAL.
+    MESSAGE S000(OO) WITH '工厂必填' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  IF SY-TCODE = TCODE1
+    AND P1 = 'X'
+    AND P_ZWWLX IS INITIAL.
+    MESSAGE S000(OO) WITH '委外加工类型必填' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  PERFORM SAVELOG(ZREPLOG) USING SY-REPID '' IF FOUND.
+  PERFORM GETDATA.
+  PERFORM UPDATELOG(ZREPLOG) IF FOUND.
+  PERFORM ALVSHOW.
+
+
+FORM GETDATA.
+  REFRESH:IT_KNUMV,IT_EBELN,IT_BANFN,
+          IT_MATNR,IT_LIFNR.
+  CLEAR:P1_X,P2_X,P3_X,P4_X,P5_X.
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      P1_X = P1.
+      P2_X = P2.
+      P3_X = P3.
+    WHEN TCODE2 OR TCODE3.
+      P3_X = 'X'.
+    WHEN TCODE4.
+      P4_X = P4.
+      P5_X = P5.
+  ENDCASE.
+
+  IF SY-TCODE = TCODE1"创建
+    AND P1_X = 'X'.
+    ASSIGN ITAB1[] TO <ITAB>.
+    CLEAR :<ITAB>,ITAB1[].
+    SELECT ZVMMPO~*
+      INTO TABLE @ITAB1
+      FROM ZVMMPO
+      WHERE ZVMMPO~WERKS = @P_WERKS
+        AND ZVMMPO~MEMORY = ''
+        AND ZVMMPO~LOEKZ NE 'L'
+        AND ZVMMPO~EKORG IN @S_EKORG
+        AND ZVMMPO~LIFNR IN @S_LIFNR
+        AND ZVMMPO~EKGRP IN @S_EKGRP
+        AND ZVMMPO~BEDAT IN @S_BEDAT
+        AND ZVMMPO~LGORT IN @S_LGORT
+        AND ZVMMPO~EBELN IN @S_EBELN
+        AND ZVMMPO~EBELP IN @S_EBELP
+        AND ZVMMPO~MATNR IN @S_MATNR
+        AND ZVMMPO~PSTYP IN @S_PSTYP
+        AND ZVMMPO~EINDT IN @S_EINDT
+        AND ZVMMPO~BSART EQ 'Z07'.
+    LOOP AT ITAB1.
+      CLEAR:IT_KNUMV,IT_EBELN,IT_BANFN,
+      IT_MATNR,IT_LIFNR.
+      IT_EBELN-EBELN = ITAB1-EBELN.
+      IT_KNUMV-KNUMV = ITAB1-KNUMV.
+      IT_KNUMV-POSNR = ITAB1-EBELP.
+      IT_KNUMV-EBELP = ITAB1-EBELP.
+      IT_BANFN-BANFN = ITAB1-BANFN.
+      IT_LIFNR-LIFNR = ITAB1-LIFNR.
+      IT_MATNR-MATNR = ITAB1-MATNR.
+      COLLECT:IT_BANFN, IT_KNUMV,IT_MATNR,IT_LIFNR,IT_EBELN.
+    ENDLOOP.
+  ELSE."查看维护冲销
+    ASSIGN ITAB2[] TO <ITAB>.
+    CLEAR :<ITAB>,ITAB2[].
+    CASE SY-TCODE.
+      WHEN TCODE1.
+        CASE 'X'.
+          WHEN P2_X.
+            CLEAR:S_DEL[],S_ZDEL[].
+            APPEND 'INEX' TO S_DEL.
+            APPEND 'INEX' TO S_ZDEL.
+        ENDCASE.
+      WHEN TCODE2 OR TCODE3 OR TCODE4.
+        CLEAR:S_DEL[],S_ZDEL[].
+        APPEND 'INEX' TO S_DEL.
+        APPEND 'INEX' TO S_ZDEL.
+        CASE SY-TCODE.
+          WHEN TCODE2.
+          WHEN TCODE3.
+          WHEN TCODE4.
+            CLEAR:S_GZ[].
+            CASE 'X'.
+              WHEN P4_X.
+                APPEND 'IEQA' TO S_GZ.
+                APPEND 'IEQB' TO S_GZ.
+              WHEN P5_X.
+                APPEND 'IEQB' TO S_GZ.
+                APPEND 'IEQC' TO S_GZ.
+            ENDCASE.
+        ENDCASE.
+    ENDCASE.
+*根据不同程序区分显示的到货通知
+    CASE 'X'.
+      WHEN P2_X.
+        CLEAR S_ZZT[].
+        APPEND 'INEE' TO S_ZZT.
+      WHEN P3_X.
+        CASE SY-TCODE.
+          WHEN TCODE2.
+            CLEAR S_ZZT[].
+            APPEND 'IEQB' TO S_ZZT.
+          WHEN TCODE3.
+            CLEAR S_ZZT[].
+            APPEND 'IEQC' TO S_ZZT.
+        ENDCASE.
+      WHEN P4_X.
+        CLEAR S_ZZT[].
+        APPEND 'IEQD' TO S_ZZT.
+      WHEN P5_X.
+        CLEAR S_ZZT[].
+        APPEND 'IEQE' TO S_ZZT.
+    ENDCASE.
+    SELECT ZVMM208~*
+      INTO TABLE @ITAB2
+      FROM ZVMM208
+      WHERE ZVMM208~WERKS = @P_WERKS
+*      AND   ZVMM208~DEL NE 'X'
+*      AND   ZVMM208~ZDEL NE 'X'
+      AND   ZVMM208~EBELN IN @S_EBELN
+      AND   ZVMM208~LIFNR IN @S_LIFNR
+      AND   ZVMM208~MATNR IN @S_MATNR
+      AND   ZVMM208~LGORT IN @S_LGORT
+      AND   ZVMM208~ZWWFNO IN @S_ZWWFNO
+      AND   ZVMM208~ZWWLX  IN @S_ZWWLX
+      AND   ZVMM208~ZZZC   IN @S_ZZZC
+      AND   ZVMM208~ZZT    IN @S_ZZT
+      AND   ZVMM208~ZJSFS  IN @S_ZJSFS
+      AND   ZVMM208~ZCH    IN @S_ZCH
+      AND   ZVMM208~ZZBH   IN @S_ZZBH
+      AND   ZVMM208~ZJH    IN @S_ZJH
+      AND   ZVMM208~IDNRK  IN @S_IDNRK
+      AND   ZVMM208~GZ  IN  @S_GZ
+      AND   ZVMM208~DEL  IN  @S_DEL
+      AND   ZVMM208~ZDEL  IN @S_ZDEL
+      AND   ZVMM208~ZXMMC  IN @S_ZXMMC .
+    LOOP AT ITAB2.
+      CLEAR:IT_EBELN,IT_BANFN,
+      IT_MATNR,IT_LIFNR.
+      IT_EBELN-EBELN = ITAB2-EBELN.
+      IT_LIFNR-LIFNR = ITAB2-LIFNR.
+      IT_MATNR-MATNR = ITAB2-MATNR.
+      COLLECT:IT_BANFN,IT_MATNR,IT_LIFNR,IT_EBELN.
+      CLEAR IT_MATNR.
+      IT_MATNR-MATNR = ITAB2-IDNRK.
+      COLLECT IT_MATNR.
+    ENDLOOP.
+  ENDIF.
+  IF <ITAB> IS INITIAL.
+    MESSAGE S005 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+*获取公共数据
+  PERFORM GETPUBDATA.
+
+  LOOP AT ITAB1.
+    PERFORM FILLDATA CHANGING ITAB1.
+    MODIFY ITAB1.
+  ENDLOOP.
+  LOOP AT ITAB2.
+    READ TABLE IT_ZVMMPO WITH KEY EBELN = ITAB2-EBELN
+                                  EBELP = ITAB2-EBELP
+                                  BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB2-MENGE = IT_ZVMMPO-MENGE.
+      ITAB2-EKGRP = IT_ZVMMPO-EKGRP.
+    ENDIF.
+    SELECT SINGLE NAME_ORG1
+      INTO ITAB2-ZZDRT
+      FROM BUT000
+      WHERE PARTNER = ITAB2-ZZDR.
+    SELECT SINGLE NAME_ORG1
+      INTO ITAB2-ZWLYT
+      FROM BUT000
+      WHERE PARTNER = ITAB2-ZWLY.
+    PERFORM FILLDATA CHANGING ITAB2.
+    MODIFY ITAB2.
+  ENDLOOP.
+  SORT ITAB2 BY ZWWFNO ZWWFHH.
+ENDFORM.
+FORM ALVSHOW.
+  IF SY-TCODE = TCODE1
+    AND P1_X = 'X'.
+    PERFORM INITFIELDCAT.
+  ELSE.
+    CLEAR:FIELDCAT.
+    PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT USING:
+'ICON' '状态' '' '' '' '' ,
+'MSG' '消息' '' '' '' '' ,
+'ZWWFNO' '委外发料单' '' '' '' '' ,
+'ZWWFHH' '委外发料单行号' '' '' '' '' ,
+'BUKRS' '公司代码' '' '' '' '' ,
+'BUTXT' '公司名称' '' '' '' '' ,
+'LIFNR' '供应商编码' 'X' '' '' '' ,
+'NAMEL' '供应商名称' '' '' '' '' ,
+'WERKS' '工厂' '' '' '' '' ,
+'NAMEW' '工厂名称' '' '' '' '' ,
+'ZWWLX' '委外类型' '' '' '' '' ,
+'ZWWLXT' '委外类型' '' '' '' '' ,
+'ZDEL' '删除标识' '' '' '' '' ,
+'ZZZC' '自找车' '' '' '' '' ,
+'ZZZCT' '自找车' '' '' '' '' ,
+'ZZT' '发料单状态' '' '' '' '' ,
+'ZZTT' '发料单状态' '' '' '' '' ,
+'ZLXFS' '联系方式' '' '' '' '' ,
+'ZZDR' '制单人' 'X' '' '' '' ,
+'ZZDRT' '制单人名称' '' '' '' '' ,
+'ZSHDZ' '收货地址' '' '' '' '' ,
+'ZZHDZ' '装货地址' '' '' '' '' ,
+'ZZL' '重量' '' '' '' '' ,
+'ZCD' '长度' '' '' '' '' ,
+'ZKD' '宽度' '' '' '' '' ,
+'ZCH' '车号' '' '' '' '' ,
+'ZWLY' '物流员' '' '' '' '' ,
+'ZYSGS' '运输公司' '' '' '' '' ,
+'ZYSZRR' '运输责任人' '' '' '' '' ,
+'ZSJ' '司机' '' '' '' '' ,
+'ZSFZ' '身份证' '' '' '' '' ,
+'ZSJDH' '司机电话' '' '' '' '' ,
+'ZJSFS' '结算方式' '' '' '' '' ,
+'ZJSFST' '结算方式' '' '' '' '' ,
+'ZWLDJ' '物流单价(含税)' '' '' '' '' ,
+'ZWWZL' '委外总量' '' '' '' '' ,
+'ZFLZL' '发料总量' '' '' '' '' ,
+'ZYFSL' '运费税率' '' '' '' '' ,
+'ZYSJE' '运输机呢' '' '' '' '' ,
+'ZYFZJ' '运费总价(不含税)' '' '' '' '' ,
+'EBELN' '采购订单' '' '' 'X' '' ,
+'EBELP' '采购订单行号' '' '' '' '' ,
+'EKGRP' '采购组' '' '' '' '' ,
+'T024' '采购组描述' '' '' '' '' ,
+'MATNR' '成品物料号' 'X' '' '' '' ,
+'MAKTX' '成品物料描述' '' '' '' '' ,
+'IDNRK' '组件物料编码' 'X' '' '' '' ,
+'MAKTX1' '组件物料描述' '' '' '' '' ,
+'CHARG' '批次' '' '' '' '' ,
+'LGORT' '库存地' '' '' '' '' ,
+'LGOBE' '库存地描述' '' '' '' '' ,
+'ZZBH' '自编号' '' '' '' '' ,
+'ZJH' '卷号' '' '' '' '' ,
+'MENGE' '采购订单数量' '' '' '' '' ,
+'BDMNG' '需求量' '' '' '' '' ,
+'ZWWSL' '委外数量' '' '' '' '' ,
+'MEINS' '单位' '' '' '' '' ,
+'ZKW' '库位' '' '' '' '' ,
+'ZXMMC' '项目名称' '' '' '' '' ,
+'ZWLDJI' '物流单价(含税)' '' '' '' '' ,
+'ZWLJE' '物流金额(含税)' '' '' '' '' ,
+'DEL' '行项目删除' '' '' '' '' ,
+'GZ' '过账标识' '' '' '' '' ,
+'GZT' '过账标识' '' '' '' '' ,
+'MBLNR' '物料凭证' '' '' 'X' '' ,
+'MJAHR' '凭证年度' '' '' '' '' ,
+'MJAHR101' '101凭证年度' '' '' '' '' ,
+'MBLNR101' '101物料凭证' '' '' 'X' '' ,
+'BUDAT' '过账日期' '' '' '' '' ,
+'CXMBLNR' '冲销物料凭证' '' '' 'X' '' ,
+'CXMJAHR' '冲销年度' '' '' '' '' ,
+'CXMBLNR101' '冲销物料凭证' '' '' 'X' '' ,
+'CXMJAHR101' '冲销年度' '' '' '' '' ,
+'ERDAT' '创建日期' '' '' '' '' ,
+'ERNAM' '创建人' '' '' '' '' ,
+'ERTIM' '创建时间' '' '' '' '' ,
+'ZDATE' '更新日期' '' '' '' '' ,
+'ZNAME' '更新人' '' '' '' '' ,
+'ZTIME' '更新时间' '' '' '' '' .
+
+*'PSPNR' '' '' '' '' '' ,
+*'POSID' '' '' '' '' '' ,
+*'POST1' '' '' '' '' '' ,
+    LOOP AT FIELDCAT INTO WA_FIELD.
+      CASE WA_FIELD-FIELDNAME.
+        WHEN 'ZDEL' OR 'DEL'.
+          WA_FIELD-CHECKBOX = 'X'.
+        WHEN 'BUDAT'.
+          CASE 'X'.
+            WHEN P4_X OR P5_X.
+              WA_FIELD-EDIT = 'X'.
+              WA_FIELD-REF_FIELDNAME = 'ERDAT'.
+              WA_FIELD-REF_TABNAME = 'VBAK'.
+          ENDCASE.
+      ENDCASE.
+      MODIFY FIELDCAT FROM WA_FIELD.
+    ENDLOOP.
+  ENDIF.
+
+  PERFORM ALVFM(ZPUBFORM) TABLES <ITAB> FIELDCAT USING 'X' ''.
+ENDFORM.
+FORM SET_STATUS USING RT_EXTAB TYPE SLIS_T_EXTAB.
+  DATA LT_EXFCODE TYPE TABLE OF SY-UCOMM.
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      APPEND 'BUT11' TO LT_EXFCODE.
+      APPEND 'BUT12' TO LT_EXFCODE.
+      CASE 'X'.
+        WHEN P1.
+          APPEND 'BUT03' TO LT_EXFCODE.
+          APPEND 'BUT08A' TO LT_EXFCODE.
+        WHEN P2.
+          APPEND 'BUT01' TO LT_EXFCODE.
+        WHEN P3.
+          APPEND 'BUT01' TO LT_EXFCODE.
+          APPEND 'BUT08A' TO LT_EXFCODE.
+      ENDCASE.
+    WHEN TCODE2 OR TCODE3.
+      APPEND 'BUT01' TO LT_EXFCODE.
+      APPEND 'BUT11' TO LT_EXFCODE.
+      APPEND 'BUT12' TO LT_EXFCODE.
+      APPEND 'BUT08A' TO LT_EXFCODE.
+    WHEN TCODE4.
+      APPEND 'BUT01' TO LT_EXFCODE.
+      APPEND 'BUT08A' TO LT_EXFCODE.
+      CASE 'X'.
+        WHEN P4_X.
+          APPEND 'BUT12' TO LT_EXFCODE.
+        WHEN P5_X.
+          APPEND 'BUT11' TO LT_EXFCODE.
+      ENDCASE.
+    WHEN OTHERS.
+  ENDCASE.
+  SET PF-STATUS 'STANDARD' EXCLUDING LT_EXFCODE.
+ENDFORM. "set_status
+FORM TOP_OF_PAGE.
+  DATA:IT_LIST_COMMENTARY TYPE SLIS_T_LISTHEADER,
+       WA_LIST_COMMENTARY TYPE SLIS_LISTHEADER,
+       SJTMS              TYPE NUMC10.
+  CLEAR:WA_LIST_COMMENTARY,SJTMS.
+  REFRESH:IT_LIST_COMMENTARY.
+
+  SJTMS = LINES( <ITAB> ).
+  PERFORM DELZERO(ZPUBFORM) CHANGING SJTMS.
+
+  WA_LIST_COMMENTARY-TYP = 'S'.
+  WA_LIST_COMMENTARY-KEY = '条目数:'.
+  WA_LIST_COMMENTARY-INFO = SJTMS.
+  APPEND WA_LIST_COMMENTARY TO IT_LIST_COMMENTARY.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      IT_LIST_COMMENTARY = IT_LIST_COMMENTARY[]
+    EXCEPTIONS
+      OTHERS             = 1.
+ENDFORM.
+FORM USER_COMMAND USING R_UCOMM LIKE SY-UCOMM
+                        RS_SELFIELD TYPE SLIS_SELFIELD.
+  CLEAR:IT_ZWWFNO[],WA_HEAD.
+  CASE R_UCOMM.
+    WHEN '&IC1'.
+      CHECK RS_SELFIELD-TABINDEX <> 0 . "小计行总计行什么的忽略
+      READ TABLE <ITAB> ASSIGNING <WA> INDEX RS_SELFIELD-TABINDEX.
+      ASSIGN COMPONENT RS_SELFIELD-FIELDNAME OF STRUCTURE <WA> TO <FS>.
+      CASE RS_SELFIELD-FIELDNAME.
+        WHEN 'EBELN'.
+          PERFORM ME23N(ZPUBFORM) USING <FS>.
+        WHEN 'BANFN'.
+          PERFORM ME53N(ZPUBFORM) USING <FS>.
+        WHEN 'MBLNR'.
+          ASSIGN COMPONENT 'MJAHR' OF STRUCTURE <WA> TO <FS1>.
+          IF SY-SUBRC EQ 0.
+            PERFORM MIGO(ZPUBFORM) USING <FS> <FS1>.
+          ENDIF.
+        WHEN 'MBLNR101'.
+          ASSIGN COMPONENT 'MJAHR101' OF STRUCTURE <WA> TO <FS1>.
+          IF SY-SUBRC EQ 0.
+            PERFORM MIGO(ZPUBFORM) USING <FS> <FS1>.
+          ENDIF.
+        WHEN 'CXMBLNR'.
+          ASSIGN COMPONENT 'CXMJAHR' OF STRUCTURE <WA> TO <FS1>.
+          IF SY-SUBRC EQ 0.
+            PERFORM MIGO(ZPUBFORM) USING <FS> <FS1>.
+          ENDIF.
+        WHEN 'CXMBLNR101'.
+          ASSIGN COMPONENT 'CXMJAHR101' OF STRUCTURE <WA> TO <FS1>.
+          IF SY-SUBRC EQ 0.
+            PERFORM MIGO(ZPUBFORM) USING <FS> <FS1>.
+          ENDIF.
+      ENDCASE.
+    WHEN 'BUT01'."创建
+      PERFORM BUT01.
+    WHEN 'BUT02'."刷新
+      PERFORM GETDATA.
+    WHEN 'BUT03'."查看
+      PERFORM BUT03.
+    WHEN 'BUT11' OR 'BUT12'."过账
+      PERFORM BUT11 USING R_UCOMM.
+*    WHEN 'BUT12'."冲销
+    WHEN 'BUT08A'."删除
+      READ TABLE ITAB2 WITH KEY SEL = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE E003.
+      ENDIF.
+      PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER.
+      CHECK ANSWER = '1'.
+      REFRESH ITAB2A.
+      CLEAR :WA_HEAD.
+      ITAB2A[] = ITAB2[].
+      SORT ITAB2A BY ZWWFNO.
+      DELETE ADJACENT DUPLICATES FROM ITAB2A COMPARING ZWWFNO.
+      LOOP AT ITAB2A WHERE SEL = 'X'
+                      AND ZZT = 'A'.
+        WA_HEAD-ZWWFNO = ITAB2A-ZWWFNO.
+        PERFORM DELALL.
+      ENDLOOP.
+      PERFORM GETDATA.
+      MESSAGE S007.
+  ENDCASE.
+  RS_SELFIELD-ROW_STABLE = 'X'.
+  RS_SELFIELD-COL_STABLE = 'X'.
+  RS_SELFIELD-REFRESH = 'X'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SELSCREEN
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SELSCREEN .
+  T1 = '选择条件'.
+  T2 = '功能选项'.
+  %_P_WERKS_%_APP_%-TEXT = '工厂'.
+  %_P_ZWWLX_%_APP_%-TEXT = '委外加工类型'.
+  %_P1_%_APP_%-TEXT = '创建'.
+  %_P2_%_APP_%-TEXT = '修改'.
+  %_P3_%_APP_%-TEXT = '查看'.
+  %_P4_%_APP_%-TEXT = '过账'.
+  %_P5_%_APP_%-TEXT = '冲销'.
+  %_S_BEDAT_%_APP_%-TEXT = '凭证日期'.
+  %_S_EBELN_%_APP_%-TEXT = '采购订单'.
+  %_S_EBELP_%_APP_%-TEXT = '行项目'.
+  %_S_EINDT_%_APP_%-TEXT = '交货日期'.
+  %_S_EKGRP_%_APP_%-TEXT = '采购组'.
+  %_S_EKORG_%_APP_%-TEXT = '采购组织'.
+  %_S_LIFNR_%_APP_%-TEXT = '供应商'.
+  %_S_MATNR_%_APP_%-TEXT = '物料号'.
+  %_S_IDNRK_%_APP_%-TEXT = '组件物料'.
+  %_S_PSTYP_%_APP_%-TEXT = '项目类别'.
+  %_S_LGORT_%_APP_%-TEXT = '库存地'.
+  %_S_ZWWFNO_%_APP_%-TEXT = '委外发料单'.
+  %_S_LIFNR_%_APP_%-TEXT = '供应商'.
+  %_S_ZWWLX_%_APP_%-TEXT = '委外类型'.
+  %_S_ZZZC_%_APP_%-TEXT = '自找车'.
+  %_S_ZZT_%_APP_%-TEXT = '委外状态'.
+  %_S_ZJSFS_%_APP_%-TEXT = '结算方式'.
+  %_S_ZCH_%_APP_%-TEXT = '车号'.
+  %_S_ZZBH_%_APP_%-TEXT = '自编号'.
+  %_S_GZ_%_APP_%-TEXT = '过账状态'.
+  %_S_ZJH_%_APP_%-TEXT = '卷号'.
+  %_S_ZXMMC_%_APP_%-TEXT = '项目名称'.
+  %_S_ZDEL_%_APP_%-TEXT = '抬头删除标识'.
+  %_S_DEL_%_APP_%-TEXT = '行项目删除标识'.
+
+  LOOP AT SCREEN.
+    CASE SCREEN-GROUP1.
+      WHEN 'M'.
+        SCREEN-REQUIRED = 2.
+      WHEN 'A'.
+        IF SY-TCODE = TCODE1
+          AND P1 = 'X'.
+          SCREEN-ACTIVE = 1.
+        ELSE.
+          SCREEN-ACTIVE = 0.
+        ENDIF.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1.
+          WHEN 'M3'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        CASE 'X'.
+          WHEN P1.
+            CASE SCREEN-GROUP1.
+              WHEN 'M4'.
+                SCREEN-ACTIVE = 0.
+              WHEN 'M1'.
+                SCREEN-ACTIVE = 1.
+            ENDCASE.
+          WHEN OTHERS.
+            CASE SCREEN-GROUP1.
+              WHEN 'M1'.
+                SCREEN-ACTIVE = 0.
+              WHEN 'M4'.
+                SCREEN-ACTIVE = 1.
+            ENDCASE.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN TCODE2 OR TCODE3.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1.
+          WHEN 'M2' OR 'M3' OR 'M1'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN TCODE4.
+      LOOP AT SCREEN.
+        CASE SCREEN-GROUP1.
+          WHEN 'M2' OR 'M1'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+        MODIFY SCREEN.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form LIST
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM LIST .
+  DATA: BEGIN OF IT_ZWWLXT OCCURS 0,
+          DOMVALUE_L TYPE DD07V-DOMVALUE_L,
+          DDTEXT     TYPE DD07V-DDTEXT,
+        END OF IT_ZWWLXT.
+  REFRESH IT_ZWWLXT.
+  LOOP AT IT_ZWWLX.
+    CLEAR IT_ZWWLXT.
+    MOVE-CORRESPONDING IT_ZWWLX TO IT_ZWWLXT.
+    APPEND IT_ZWWLXT.
+  ENDLOOP.
+  PERFORM ITABTOLIST(ZPUBFORM) TABLES IT_ZWWLXT USING 'P_ZWWLX'.
+ENDFORM.

@@ -1,0 +1,50 @@
+*&---------------------------------------------------------------------*
+*&      Form  OK_CODE_KTEXT
+*&---------------------------------------------------------------------*
+FORM OK_CODE_KTEXT.
+
+  CASE RMMZU-OKCODE.
+       WHEN FCODE_BABA.
+            CLEAR RMMZU-KINIT. " Initflag wird bei Verlassen d. Bildes
+                               " zur¨¹ckgesetzt
+*----- Erste Seite - KurzText First Page -----------------------------
+       WHEN FCODE_KTFP.
+            PERFORM FIRST_PAGE USING KT_ERSTE_ZEILE.
+*----- Seite vor - KurzText Next Page --------------------------------
+       WHEN FCODE_KTNP.
+           PERFORM NEXT_PAGE USING KT_ERSTE_ZEILE KT_ZLEPROSEITE
+                                   KT_LINES.
+*----- Seite zurueck - KurzText previous Page ------------------------
+       WHEN FCODE_KTPP.
+            PERFORM PREV_PAGE USING KT_ERSTE_ZEILE KT_ZLEPROSEITE.
+*----- Bottom - KurzText Last Page -----------------------------------
+       WHEN FCODE_KTLP.
+           PERFORM LAST_PAGE USING KT_ERSTE_ZEILE KT_LINES
+                                   KT_ZLEPROSEITE X.
+*----- SPACE - Enter -------------------------------------------------
+       WHEN FCODE_SPACE.
+         IF T133A-BILDT = BILDT_Z.
+* JH/08.01.97/1.2B (Anfang)
+* Das Setzen von BILDFLAG mu# unterbunden werden, damit die evtl.
+* ge#nderten MAKT-Daten nicht nur in die internen U-Puffertabellen,
+* sondern auch in die internen T-Puffertabellen (FGrp MG23) ¨¹bernommen
+* werden, soda# nach dem Ausf¨¹hren von 'Enter' und 'Beenden' evtl.
+* durchgef¨¹hrte #nderungen im MATERIAL_CHANGE_CHECK(_RETAIL) erkannt
+* werden k#nnen
+*           Datenfreigabe auf Zusatzbild hei#t Wiederholen
+*           BILDFLAG = X.
+* JH/08.01.97/1.2B (Ende)
+         ELSE.
+*         Datenfreigabe auf Hauptbild hei#t n#chstes Hauptbild
+          IF KT_FEHLERFLG IS INITIAL AND BILDFLAG IS INITIAL.
+            CLEAR RMMZU-KINIT. " Initflag wird bei Verlassen d. Bildes
+           ENDIF.              " zur¨¹ckgesetzt
+         ENDIF.
+* ----------Sonstige Funktionen wie Springen etc.----------------------
+       WHEN OTHERS.
+         IF KT_FEHLERFLG IS INITIAL AND BILDFLAG IS INITIAL.
+           CLEAR RMMZU-KINIT.
+         ENDIF.
+  ENDCASE.
+
+ENDFORM.                    " OK_CODE_KTEXT

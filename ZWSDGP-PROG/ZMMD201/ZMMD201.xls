@@ -1,0 +1,18 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZMMD201	ZE_ZHXS	转换系数	数据元素	DEC	000025	000005	
+ZMMD201	ZE_ZYFXH	运费序号	数据元素	CHAR	000010	000000	CHAR10
+ZMMD201	ZSMMS_CHAR	批次特性CHAR类型	结构				
+ZMMD201	ZSMM_204	采购到货通知wms结构	结构				
+ZMMD201	ZSMM_205	WMS采购入库后同步SAP结构	结构				
+ZMMD201	ZSPUBS_0001	日期时间通用结构	结构				
+ZMMD201	ZSPUBS_0002	创建日期结构	结构				
+ZMMD201	ZSSD252	同步内销库单到WMS结构	结构				
+ZMMD201	ZTMM201	到货通知抬头	透明表				
+ZMMD201	ZTMM220	调拨单主表	透明表				
+ZMMD201	ZTMM221	调拨单行项目表	透明表				
+ZMMD201	ZTMM222	锁定解锁库存表	透明表				
+ZMMD201	ZTMM226	运费核销明细表	透明表				
+ZMMD201	ZTPP210	配送任务表	透明表				
+ZMMD201	ZTPP316	生产包号-尺寸对照	透明表				
+ZMMD201	ZTSD218	保管信息表	透明表				
+ZMMD201	ZTSD219	SAP->ERP打印编号映射	透明表				

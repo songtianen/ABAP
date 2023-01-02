@@ -1,0 +1,156 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZFTP
+*&---------------------------------------------------------------------*
+FORM ftp USING command TYPE char3 CHANGING file TYPE string flag TYPE char1.
+  DATA: p_file   TYPE string,
+        p_host   TYPE char30 VALUE '192.168.0.141',
+        p_folder TYPE char100 VALUE '/ceshi/pp/' ,   "ftp服务器路径；必须/结尾
+        p_user   TYPE char30 VALUE 'sapfile',
+        p_passwd TYPE char30 VALUE 'sap@2022',
+        dest     LIKE rfcdes-rfcdest VALUE 'SAPFTP',
+        compress TYPE c VALUE 'N'.                   "是否压缩
+
+  DATA: path     TYPE string,  "用于接收上传文件的路径和名称
+        filename TYPE string.
+
+
+  DATA: hdl     TYPE i,
+        key     TYPE i VALUE 26101957,
+        slen    TYPE i,
+        cmd(80) TYPE c.
+
+  DATA: BEGIN OF result OCCURS 0,
+          line(100) TYPE c,
+        END OF result.
+
+  DATA: abap_encoding TYPE abap_encoding VALUE 'UTF-8'.
+
+  DATA cc TYPE char220.
+
+  CALL FUNCTION 'GUI_FILE_LOAD_DIALOG'
+    EXPORTING
+      window_title  = '打开文件'
+*     DEFAULT_EXTENSION       =
+*     DEFAULT_FILE_NAME       =
+*     with_encoding = abap_true
+*     FILE_FILTER   =
+*     INITIAL_DIRECTORY       =
+    IMPORTING
+      path          = path
+      filename      = filename
+      fullpath      = p_file
+      file_encoding = abap_encoding.
+
+  file = filename.
+  slen = strlen( p_passwd ).
+
+* "获取加密密码 保存到P_PASSWD
+  CALL FUNCTION 'HTTP_SCRAMBLE'
+    EXPORTING
+      source      = p_passwd
+      sourcelen   = slen
+      key         = key
+    IMPORTING
+      destination = p_passwd.
+
+* 连接ftp服务器
+  CALL FUNCTION 'FTP_CONNECT'
+    EXPORTING
+      user            = p_user
+      password        = p_passwd
+      host            = p_host
+      rfc_destination = dest
+    IMPORTING
+      handle          = hdl.  "连接的句柄
+  " 处理中文文件名乱码问题  10.10.2022 14:39:32 by kkw
+  CONCATENATE 'quote' 'opts' 'utf8' 'off'  INTO cmd SEPARATED BY space.
+  CALL FUNCTION 'FTP_COMMAND'
+    EXPORTING
+      handle        = hdl
+      command       = cmd
+      compress      = compress
+    TABLES
+      data          = result
+    EXCEPTIONS
+      command_error = 1
+      tcpip_error   = 2.
+  REFRESH result.
+  "执行FTP命令 CD 打开目标ftp的文件夹
+  "now open the target ftp folder
+  " 按天存储  10.10.2022 14:58:37 by kkw
+  CONCATENATE p_folder sy-datum '/' INTO p_folder.
+  CONCATENATE 'cd' p_folder INTO cmd SEPARATED BY space.
+  CALL FUNCTION 'FTP_COMMAND'
+    EXPORTING
+      handle        = hdl
+      command       = cmd
+      compress      = compress
+    TABLES
+      data          = result
+    EXCEPTIONS
+      command_error = 1
+      tcpip_error   = 2.
+  IF sy-subrc EQ 1.
+    " 在ftp服务器上创建文件夹  10.10.2022 15:00:20 by kkw
+    CONCATENATE 'mkdir' p_folder INTO cmd SEPARATED BY space.
+    CALL FUNCTION 'FTP_COMMAND'
+      EXPORTING
+        handle        = hdl
+        command       = cmd
+        compress      = compress
+      TABLES
+        data          = result
+      EXCEPTIONS
+        command_error = 1
+        tcpip_error   = 2.
+  ENDIF.
+  REFRESH result.
+* 打开本地需上传文件的路径
+  CONCATENATE 'lcd' path INTO cmd SEPARATED BY space.
+  CALL FUNCTION 'FTP_COMMAND'
+    EXPORTING
+      handle        = hdl
+      command       = cmd
+      compress      = compress
+    TABLES
+      data          = result
+    EXCEPTIONS
+      command_error = 1
+      tcpip_error   = 2.
+  REFRESH result.
+* 将本地文件放到目标ftp文件夹中
+  CONCATENATE 'put ' filename INTO cmd SEPARATED BY space.
+  CALL FUNCTION 'FTP_COMMAND'
+    EXPORTING
+      handle        = hdl
+      command       = cmd
+      compress      = compress
+    TABLES
+      data          = result
+    EXCEPTIONS
+      command_error = 1
+      tcpip_error   = 2.
+
+  IF  sy-subrc EQ 0.
+    MESSAGE '上传附件成功' TYPE 'I'.
+    flag = 'S'.
+  ELSE.
+    CLEAR cc.
+    LOOP AT result.
+      cc = |{ result-line } { cc }|.
+    ENDLOOP.
+    MESSAGE cc TYPE 'I'.
+    flag = 'E'.
+  ENDIF.
+  REFRESH result.
+* 断开FTP连接
+  CALL FUNCTION 'FTP_DISCONNECT'
+    EXPORTING
+      handle = hdl.
+* 断开RFC链接
+  CALL FUNCTION 'RFC_CONNECTION_CLOSE'
+    EXPORTING
+      destination = dest
+    EXCEPTIONS
+      OTHERS      = 1.
+ENDFORM.

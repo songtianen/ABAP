@@ -1,0 +1,166 @@
+*&---------------------------------------------------------------------*
+*& Include ZRSD207_CLASS
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Include ZRSD202_CLASS
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_receiver DEFINITION
+*----------------------------------------------------------------------*
+CLASS LCL_EVENT_RECEIVER DEFINITION DEFERRED .
+CLASS LCL_EVENT_RECEIVER DEFINITION.
+  PUBLIC SECTION.
+*9000屏幕ALV事件
+    METHODS HANDLE_DOUBLE_CLICK"双击
+      FOR EVENT DOUBLE_CLICK OF CL_GUI_ALV_GRID
+      IMPORTING E_ROW E_COLUMN ES_ROW_NO.
+
+    METHODS HANDLE_DATA_CHANGED"数据更改
+      FOR EVENT DATA_CHANGED OF CL_GUI_ALV_GRID
+      IMPORTING ER_DATA_CHANGED.
+    METHODS HANDLE_TOOLBAR"工具栏
+      FOR EVENT TOOLBAR OF CL_GUI_ALV_GRID
+      IMPORTING E_OBJECT E_INTERACTIVE.
+    METHODS HANDLE_COMMAND"响应事件
+      FOR EVENT USER_COMMAND OF CL_GUI_ALV_GRID
+      IMPORTING E_UCOMM.
+    METHODS HANDLE_HOTSPOT_CLICK"单点点击
+      FOR EVENT HOTSPOT_CLICK OF CL_GUI_ALV_GRID
+      IMPORTING E_ROW_ID E_COLUMN_ID.
+*F4搜索帮助
+    METHODS HANDLE_ON_F4 FOR EVENT ONF4 OF CL_GUI_ALV_GRID
+      IMPORTING SENDER
+                E_FIELDNAME
+                ES_ROW_NO
+                ER_EVENT_DATA.
+  PRIVATE SECTION.
+ENDCLASS.                    "LCL_EVENT_RECEIVER DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS LCL_EVENT_RECEIVER IMPLEMENTATION
+*----------------------------------------------------------------------*
+CLASS LCL_EVENT_RECEIVER IMPLEMENTATION.
+  METHOD HANDLE_DOUBLE_CLICK.
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD HANDLE_DATA_CHANGED.
+    DATA:MOD_DATA    TYPE LVC_T_MODI,
+         WA_MOD_DATA TYPE LVC_S_MODI.
+    CLEAR:MOD_DATA,WA_MOD_DATA.
+    MOD_DATA = ER_DATA_CHANGED->MT_MOD_CELLS.
+    LOOP AT MOD_DATA INTO WA_MOD_DATA.
+      CLEAR WA_ITEM.
+      READ TABLE IT_ITEM INTO WA_ITEM INDEX WA_MOD_DATA-ROW_ID.
+      CASE WA_MOD_DATA-FIELDNAME.
+        WHEN 'ZZHWZT1'.
+      ENDCASE.
+      MODIFY IT_ITEM FROM WA_ITEM INDEX WA_MOD_DATA-ROW_ID.
+    ENDLOOP.
+    PERFORM REFRESHALV.
+  ENDMETHOD.                    "handle_data_changed
+  METHOD HANDLE_COMMAND.
+    PERFORM USER_COMMAND USING E_UCOMM.
+    PERFORM REFRESHALV.
+  ENDMETHOD.
+  METHOD HANDLE_TOOLBAR.
+    DATA: LS_TOOLBAR TYPE STB_BUTTON,
+          DISABLED   TYPE CHAR1,
+          DISABLED1  TYPE CHAR1.
+    CLEAR: LS_TOOLBAR,DISABLED,DISABLED1.
+    CALL FUNCTION 'ZFM_SD_AUTHCONTROL'
+      EXPORTING
+        AUTHACT  = 'B'
+        DJLX     = 'HT'
+        VBELN    = WA_HEAD-VBELN
+      IMPORTING
+        DISABLED = DISABLED1.
+    CASE WA_HEAD-ZZT1.
+      WHEN 'B' OR '' OR 'A'.
+        DISABLED1 = 'X'.
+      WHEN OTHERS.
+    ENDCASE.
+    IF P_MODE = 'S'.
+      DISABLED1 = 'X'.
+    ENDIF.
+    CLEAR LS_TOOLBAR.
+    LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    CLEAR: LS_TOOLBAR.
+    LS_TOOLBAR-FUNCTION = 'ALL'.    " 功能码
+    LS_TOOLBAR-ICON = '@4B@'.  " 图标名称
+    LS_TOOLBAR-QUICKINFO = '全选'.   " 图标的提示信息
+    LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+    LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+    LS_TOOLBAR-TEXT = '全选'.       " 按钮上显示的文本
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    CLEAR: LS_TOOLBAR.
+    LS_TOOLBAR-FUNCTION = 'SAL'.    " 功能码
+    LS_TOOLBAR-ICON = '@4D@'.  " 图标名称
+    LS_TOOLBAR-QUICKINFO = '取消全选'.   " 图标的提示信息
+    LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+    LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+    LS_TOOLBAR-TEXT = '取消全选'.       " 按钮上显示的文本
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    IF DISABLED1 NE 'X'.
+      CLEAR LS_TOOLBAR.
+      LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+      APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-FUNCTION = 'BUT01'.    " 功能码
+      LS_TOOLBAR-ICON = '@0V@'.  " 图标名称
+      LS_TOOLBAR-QUICKINFO = '开启'.   " 图标的提示信息
+      LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+      LS_TOOLBAR-DISABLED = DISABLED1.        " X表示灰色，不可用
+      LS_TOOLBAR-TEXT = '开启'.       " 按钮上显示的文本
+      APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+      CLEAR: LS_TOOLBAR.
+      LS_TOOLBAR-FUNCTION = 'BUT02'.    " 功能码
+      LS_TOOLBAR-ICON = '@0W@'.  " 图标名称
+      LS_TOOLBAR-QUICKINFO = '关闭'.   " 图标的提示信息
+      LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+      LS_TOOLBAR-DISABLED = DISABLED1.        " X表示灰色，不可用
+      LS_TOOLBAR-TEXT = '关闭'.       " 按钮上显示的文本
+      APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    ENDIF.
+    CLEAR LS_TOOLBAR.
+    LS_TOOLBAR-BUTN_TYPE = 3. " 分隔符
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+    CLEAR: LS_TOOLBAR.
+    LS_TOOLBAR-FUNCTION = 'BUT08A'.    " 功能码
+    LS_TOOLBAR-ICON = '@16@'.  " 图标名称
+    LS_TOOLBAR-QUICKINFO = '详细LOG'.   " 图标的提示信息
+    LS_TOOLBAR-BUTN_TYPE = 0.        " 0表示正常按钮
+    LS_TOOLBAR-DISABLED = ''.        " X表示灰色，不可用
+    LS_TOOLBAR-TEXT = '详细LOG'.       " 按钮上显示的文本
+    APPEND LS_TOOLBAR TO E_OBJECT->MT_TOOLBAR.
+  ENDMETHOD.                    "HANDLE_TOOLBAR
+  METHOD HANDLE_HOTSPOT_CLICK.
+    CONDENSE E_ROW_ID     NO-GAPS.
+    CONDENSE E_COLUMN_ID  NO-GAPS.
+    CLEAR:WA_ITEM.
+    CASE E_COLUMN_ID.
+      WHEN 'CHBOX'.
+        READ TABLE IT_ITEM INTO WA_ITEM INDEX E_ROW_ID.
+        IF WA_ITEM-CHBOX = 'X'.
+          WA_ITEM-CHBOX = ''.
+        ELSE.
+          WA_ITEM-CHBOX = 'X'.
+        ENDIF.
+        MODIFY IT_ITEM FROM WA_ITEM INDEX E_ROW_ID TRANSPORTING CHBOX.
+    ENDCASE.
+    PERFORM REFRESHALV.
+  ENDMETHOD.
+*F4搜索帮助
+  METHOD HANDLE_ON_F4.
+
+    ER_EVENT_DATA->M_EVENT_HANDLED = 'X'.
+    ASSIGN ER_EVENT_DATA->M_DATA->* TO <IT_MODI>.
+    CASE E_FIELDNAME.
+      WHEN 'EBELP'.
+
+    ENDCASE.
+    PERFORM REFRESHALV.
+  ENDMETHOD.
+ENDCLASS.                    "LCL_EVENT_RECEIVER IMPLEMENTATION
+DATA:LCL_EVENT_RECEIVER1 TYPE REF TO LCL_EVENT_RECEIVER,
+     LCL_EVENT_RECEIVER2 TYPE REF TO LCL_EVENT_RECEIVER,
+     LCL_EVENT_RECEIVER3 TYPE REF TO LCL_EVENT_RECEIVER.

@@ -1,0 +1,726 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS206
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps206.
+TABLES: sscrfields,proj.
+TYPES: BEGIN OF ty_out,
+         srvpos    TYPE srvpos, "服务编号
+         ekgrp     TYPE ekgrp, "采购组
+         ekorg     TYPE ekorg, "采购组织
+         zsm       TYPE mwskz, "税码
+         menge     TYPE string, "采购金额
+         lifnr     TYPE lifnr, "供应商编码
+         zsghtbh   TYPE ekko-zsghtbh, "合同号
+         zsghtqdsj TYPE ekko-zsghtqdsj, "合同号
+         zgcmc     TYPE ekko-zgcmc, "合同号
+         zazsfzr   TYPE ekko-zsghtbh, "合同号
+         banfn     TYPE banfn, "采购申请编码
+         bnfpo     TYPE bnfpo, "采购申请行项目
+         ebeln     TYPE ebeln, "采购订单号
+         butxt     TYPE butxt, "校验消息
+         ktext1    TYPE ktext1, "短文本
+         name1     TYPE name1, "供应商名称
+         butxt1    TYPE butxt, "导入信息
+         type      TYPE bapi_mtype,
+       END OF ty_out.
+DATA: fieldcat  TYPE slis_t_fieldcat_alv,
+      it_upload TYPE TABLE OF ty_out WITH HEADER LINE,
+      return    TYPE TABLE OF bapireturn WITH HEADER LINE,
+      return1   TYPE TABLE OF bapiret2 WITH HEADER LINE,
+      functxt   TYPE smp_dyntxt.
+DATA:msg TYPE bapi_msg.
+DATA:ev_aufnr           TYPE aufnr,
+     gs_net_bus2002_new TYPE bapi_bus2002_new,
+     gt_bapiret2        TYPE TABLE OF bapiret2,
+     gs_bapiret2        TYPE bapiret2,
+     lv_sys_sta         TYPE bapi_system_status-system_status,
+     lt_result          TYPE STANDARD TABLE OF bapi_status_result,
+     ls_result          TYPE bapi_status_result,
+     bdcdata            LIKE TABLE OF bdcdata WITH HEADER LINE,
+     bdcreturn          TYPE TABLE OF bapiret2 WITH HEADER LINE.
+DATA: poheader          TYPE bapimepoheader,
+      poheaderx         TYPE bapimepoheaderx,
+      wa_ext            TYPE bapi_te_mepoheader,
+      wa_extx           TYPE bapi_te_mepoheaderx,
+      exppurchaseorder  TYPE bapimepoheader-po_number,
+      extensionin       TYPE TABLE OF bapiparex WITH HEADER LINE,
+      pocomponents      TYPE TABLE OF bapimepocomponent WITH HEADER LINE,
+      pocomponentsx     TYPE TABLE OF bapimepocomponentx WITH HEADER LINE,
+      poitem            TYPE STANDARD TABLE OF bapimepoitem WITH HEADER LINE,
+      poitemx           TYPE STANDARD TABLE OF bapimepoitemx WITH HEADER LINE,
+      poschedule        TYPE STANDARD TABLE OF bapimeposchedule WITH HEADER LINE,
+      poschedulex       TYPE STANDARD TABLE OF bapimeposchedulx WITH HEADER LINE,
+      pocond            TYPE STANDARD TABLE OF bapimepocond WITH HEADER LINE,
+      poservices        TYPE STANDARD TABLE OF bapiesllc WITH HEADER LINE,
+      poaccount         TYPE STANDARD TABLE OF bapimepoaccount WITH HEADER LINE,
+      poaccountx        TYPE STANDARD TABLE OF bapimepoaccountx WITH HEADER LINE,
+      posrvaccessvalues TYPE STANDARD TABLE OF bapiesklc WITH HEADER LINE,
+      potextitem        TYPE TABLE OF bapimepotext WITH HEADER LINE,
+      "return           TYPE TABLE OF bapiret2 WITH HEADER LINE,
+      pocondx           TYPE STANDARD TABLE OF bapimepocondx WITH HEADER LINE,
+      potextheader      TYPE TABLE OF bapimepotextheader WITH HEADER LINE.
+PARAMETERS: p_pspid LIKE proj-pspid OBLIGATORY.
+SELECTION-SCREEN FUNCTION KEY :1.
+
+INITIALIZATION.
+  %_P_PSPID_%_app_%-text = '项目编码'.
+  functxt = '@14@导出模板'.
+  sscrfields-functxt_01 = functxt.
+
+AT SELECTION-SCREEN.
+  CASE sscrfields-ucomm.
+    WHEN 'FC01'.
+      REFRESH fieldcat.
+      PERFORM init_fieldcat(zpubform) TABLES fieldcat
+    USING :'' '服务编号' '' '' '' '',
+          '' '采购组' '' '' '' '',
+          '' '采购组织' '' '' '' '',
+          '' '税码' '' '' '' '',
+          '' '采购金额' '' '' '' '',
+          '' '供应商编码' '' '' '' '',
+          '' '施工合同号' '' '' '' '',
+          '' '施工合同签订时间' '' '' '' '',
+          '' '工程名称' '' '' '' '',
+          '' '安装商负责人' '' '' '' ''.
+      PERFORM itabstructoclip(zpubform) USING fieldcat '' ''.
+  ENDCASE.
+
+START-OF-SELECTION.
+  PERFORM cliptoitab(zpubform) TABLES it_upload.
+  LOOP AT it_upload.
+    "服务短文本
+    PERFORM addzero(zpubform) CHANGING it_upload-srvpos.
+    PERFORM addzero(zpubform) CHANGING it_upload-lifnr.
+    IF it_upload-srvpos IS NOT INITIAL.
+*      SELECT SINGLE ktext1 INTO it_upload-ktext1
+*        FROM esll
+*        WHERE srvpos = it_upload-srvpos.
+*      IF sy-subrc NE 0.
+*        it_upload-type = 'E'.
+*        CONCATENATE '服务编号不存在' it_upload-butxt1 INTO it_upload-butxt1.
+*      ENDIF.
+      SELECT SINGLE asktx INTO it_upload-ktext1
+        FROM asmdt
+        WHERE asnum = it_upload-srvpos.
+      IF sy-subrc NE 0.
+        it_upload-type = 'E'.
+        CONCATENATE '服务编号不存在' it_upload-butxt1 INTO it_upload-butxt1.
+      ENDIF.
+    ENDIF.
+
+    "供应商编码
+    IF it_upload-lifnr IS NOT INITIAL.
+      SELECT SINGLE name1 INTO it_upload-name1
+        FROM lfa1
+        WHERE lifnr = it_upload-lifnr.
+      IF sy-subrc NE 0.
+        it_upload-type = 'E'.
+        CONCATENATE '供应商不存在' it_upload-butxt1 INTO it_upload-butxt1.
+      ENDIF.
+    ENDIF.
+
+    IF it_upload-ekgrp IS NOT INITIAL.
+      SELECT SINGLE COUNT(*)
+        FROM t024
+        WHERE ekgrp = it_upload-ekgrp.
+      IF sy-subrc NE 0.
+        it_upload-type = 'E'.
+        CONCATENATE '采购组不存在' it_upload-butxt1 INTO it_upload-butxt1.
+      ENDIF.
+    ENDIF.
+
+    IF it_upload-ekorg IS NOT INITIAL.
+      SELECT SINGLE COUNT(*)
+        FROM t024e
+        WHERE ekorg = it_upload-ekorg.
+      IF sy-subrc NE 0.
+        it_upload-type = 'E'.
+        CONCATENATE '采购组织不存在' it_upload-butxt1 INTO it_upload-butxt1.
+      ENDIF.
+    ENDIF.
+    IF it_upload-zsm IS NOT INITIAL.
+      SELECT SINGLE COUNT(*)
+        FROM t007a
+        WHERE kalsm = 'TAXCN'
+        AND   mwskz = it_upload-zsm.
+      IF sy-subrc NE 0.
+        it_upload-type = 'E'.
+        CONCATENATE '税码不存在' it_upload-butxt1 INTO it_upload-butxt1.
+      ENDIF.
+    ENDIF.
+
+    MODIFY it_upload.
+  ENDLOOP.
+  PERFORM alvshow.
+
+FORM alvshow.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'SRVPOS' '服务编号' 'X' '' '' '',
+        'KTEXT1' '短文本' '' '' '' '',
+        'EKGRP' '采购组' '' '' '' '',
+        'EKORG' '采购组织' '' '' '' '',
+        'ZSM' '税码' '' '' '' '',
+        'MENGE' '采购金额' '' '' '' '',
+        'LIFNR' '供应商编码' 'X' '' '' '',
+        'NAME1' '供应商名称' '' '' '' '',
+        'ZSGHTBH' '施工合同号' '' '' '' '',
+        'ZSGHTQDSJ' '施工合同签订时间' '' '' '' '',
+        'ZGCMC' '工程名称' '' '' '' '',
+        'ZAZSFZR' '安装商负责人' '' '' '' '',
+        'BANFN' '采购申请号' '' '' '' '',
+        'BNFPO' '采购申请行项目' '' '' '' '',
+        'EBELN' '采购订单号' '' '' '' '',
+        'BUTXT1' '校验信息' '' '' '' '',
+        'BUTXT' '导入信息' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES it_upload fieldcat USING 'X' ''.
+ENDFORM.
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA: lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD1' EXCLUDING lt_exfcode.
+ENDFORM. "set_status
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+  CASE r_ucomm.
+    WHEN '&BUT80'.
+      READ TABLE it_upload WITH KEY type = 'E'.
+      IF sy-subrc EQ 0.
+        MESSAGE e000(oo) WITH '上传数据存在错误，请重新填写'.
+      ENDIF.
+      PERFORM but80."再次推送
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.
+
+FORM but80.
+  "项目描述
+  SELECT SINGLE post1,prctr,werks,vbukr,vernr,kalid,profl INTO
+  ( @DATA(ls_post1), @DATA(ls_PRCTR),@DATA(ls_werks),
+   @DATA(ls_vbukr), @DATA(ls_vernr),@DATA(ls_kalid),@DATA(ls_profl) )
+  FROM proj
+  WHERE pspid = @p_pspid.
+  "利润中心
+  DATA: ps_post1 TYPE prps-post1,
+        ps_poski TYPE prps-poski,
+        ps_vernr TYPE prps-vernr,
+        ps_belkz TYPE prps-belkz,
+        ps_fakkz TYPE prps-fakkz.
+  DATA(ps_posid) = |{ p_pspid }-{ ls_werks }|.
+  SELECT  SINGLE post1,poski,vernr,belkz,fakkz
+  INTO (@ps_post1,@ps_poski,@ps_vernr,@ps_belkz,@ps_fakkz )
+  FROM prps
+  WHERE posid = @ps_posid.
+  SELECT SINGLE stspd
+  INTO @DATA(tc_stspd)
+  FROM tcj41
+  WHERE profidproj = @ls_profl.
+  SELECT SINGLE auart
+  INTO @DATA(tc_auart)
+  FROM tcn41
+  WHERE profidnetz = @ls_profl.
+
+  LOOP AT it_upload.
+*创建网络
+    CLEAR : gs_net_bus2002_new.
+    gs_net_bus2002_new-project_definition = p_pspid."is_network-pspid.       "项目定义
+    gs_net_bus2002_new-wbs_element        = ps_posid."is_network-posid.       "工作分解结构元素 (WBS 元素)
+    gs_net_bus2002_new-short_text         = ls_post1."is_network-ktext.       "描述
+    gs_net_bus2002_new-plant              = ls_werks."is_network-werks.       "工厂
+    gs_net_bus2002_new-mrp_controller     = 'PS1'."is_network-dispo.       "MRP控制者
+    CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+    CALL FUNCTION 'BAPI_BUS2002_CREATE'
+      EXPORTING
+        i_network = gs_net_bus2002_new
+      TABLES
+        et_return = gt_bapiret2.
+    LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AEX'.
+
+    ENDLOOP.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+    ENDIF.
+    CHECK sy-subrc NE 0.
+    CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+      TABLES
+        et_return = gt_bapiret2.
+    LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AEX'.
+
+    ENDLOOP.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = gs_bapiret2.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+    ELSE.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          wait   = 'X'
+        IMPORTING
+          return = gs_bapiret2.
+      READ TABLE gt_bapiret2 INTO gs_bapiret2 WITH KEY id = 'CNIF_PI'
+                                                       number = '003'.
+      IF sy-subrc EQ 0.
+        ev_aufnr = gs_bapiret2-message_v2.
+      ENDIF.
+      IF ev_aufnr IS NOT INITIAL.
+        PERFORM bdc_dynpro      USING 'SAPLCOKO' '2000'.
+        PERFORM bdc_field       USING 'BDC_CURSOR'
+                                      'CAUFVD-AUFNR'.
+        PERFORM bdc_field       USING 'BDC_OKCODE'
+                                      '=LIST'.
+        PERFORM bdc_field       USING 'CAUFVD-AUFNR'
+                                      ev_aufnr.
+        PERFORM bdc_dynpro      USING 'SAPLCOVG' '2000'.
+        PERFORM bdc_field       USING 'BDC_OKCODE'
+                                      '=FRML'.
+        PERFORM bdc_field       USING 'BDC_CURSOR'
+                                      'AFVGD-VORNR(01)'.
+        PERFORM bdc_dynpro      USING 'SAPLCOVG' '2000'.
+        PERFORM bdc_field       USING 'BDC_OKCODE'
+                                      '/00'.
+        PERFORM bdc_field       USING 'BDC_CURSOR'
+                                      'AFVGD-EKGRP(01)'.
+        PERFORM bdc_field       USING 'AFVGD-MATKL(01)'
+                                      'ZFW'.
+        PERFORM bdc_field       USING 'AFVGD-EKGRP(01)'
+                                      it_upload-ekgrp.
+        PERFORM bdc_field       USING 'RC27X-FLG_SERV(01)'
+                                      'X'.
+        PERFORM bdc_field       USING 'AFVGD-LTXA1(01)'
+                                      '服务采购'.
+        PERFORM bdc_field       USING 'AFVGD-EKORG(01)'
+                                      it_upload-ekorg.
+        PERFORM bdc_dynpro      USING 'SAPLMLSP' '0200'.
+        PERFORM bdc_field       USING 'BDC_OKCODE'
+                                      '/00'.
+        PERFORM bdc_field       USING 'BDC_CURSOR'
+                                      'ESLL-TBTWR(01)'.
+        PERFORM bdc_field       USING 'RM11P-NEW_ROW'
+                                      '10'.
+        PERFORM bdc_field       USING 'ESLL-SRVPOS(01)'
+                                      it_upload-srvpos.
+        PERFORM bdc_field       USING 'ESLL-MENGE(01)'
+                                      it_upload-menge.
+        PERFORM bdc_field       USING 'ESLL-TBTWR(01)'
+                                      '1'.
+        PERFORM bdc_dynpro      USING 'SAPLMLSP' '0200'.
+        PERFORM bdc_field       USING 'BDC_OKCODE'
+                                      '=ESB'.
+        PERFORM bdc_field       USING 'BDC_CURSOR'
+                                      'ESLL-KTEXT1(01)'.
+        PERFORM bdc_field       USING 'RM11P-NEW_ROW'
+                                      '10'.
+        PERFORM bdc_dynpro      USING 'SAPLCOVG' '2000'.
+        PERFORM bdc_field       USING 'BDC_OKCODE'
+                                      '=BU'.
+        PERFORM bdc_field       USING 'BDC_CURSOR'
+                                      'AFVGD-EKGRP(01)'.
+        SET UPDATE TASK LOCAL.
+        PERFORM bdcfm(zpubform) TABLES bdcdata bdcreturn
+         USING 'CN22' 'N'.    "BDC MODE A:调试模式
+        LOOP AT bdcreturn WHERE type = 'S'.
+          it_upload-butxt = '导入成功'.
+        ENDLOOP.
+        LOOP AT bdcreturn WHERE type CA 'AEX'.
+          CONCATENATE bdcreturn-message msg INTO msg.
+          it_upload-butxt = msg.
+        ENDLOOP.
+        IF it_upload-butxt = '导入成功'.
+          lv_sys_sta = 'REL'.
+          SET UPDATE TASK LOCAL.
+          CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+          SET UPDATE TASK LOCAL.
+          CALL FUNCTION 'BAPI_BUS2002_SET_STATUS'   "释放网络
+            EXPORTING
+              number            = ev_aufnr
+              set_system_status = 'REL'
+            TABLES
+              e_result          = lt_result.
+          LOOP AT lt_result INTO ls_result WHERE message_id CA 'AE'.
+            it_upload-butxt = it_upload-butxt && ls_result-message_text.
+          ENDLOOP.
+          IF sy-subrc EQ 0.
+            CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+            CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+              EXPORTING
+                i_precommit_ok = 'Y'.
+          ENDIF.
+          CHECK sy-subrc NE 0.
+          SET UPDATE TASK LOCAL.
+          CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+            TABLES
+              et_return = gt_bapiret2.
+          LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+            it_upload-butxt = gs_bapiret2-message && '&' && it_upload-butxt.
+          ENDLOOP.
+          IF sy-subrc EQ 0.
+            SET UPDATE TASK LOCAL.
+            CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+              IMPORTING
+                return = gs_bapiret2.
+            CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+            CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+              EXPORTING
+                i_precommit_ok = 'Y'.
+          ELSE.
+            SET UPDATE TASK LOCAL.
+            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+              IMPORTING
+                return = gs_bapiret2.
+            IF sy-subrc = 0.
+              SELECT
+                 aufk~aufnr
+                FROM aufk
+                INNER JOIN prps ON prps~pspnr = aufk~pspel
+                WHERE prps~posid = @ps_posid
+                ORDER BY aufnr DESCENDING
+                INTO TABLE @DATA(lt_aufnr)
+                UP TO 1 ROWS.
+              READ TABLE lt_aufnr INTO DATA(wa_aufnr) INDEX 1.
+              DATA: ls_aufnr TYPE aufnr.
+              ls_aufnr = wa_aufnr-aufnr.
+              SELECT SINGLE
+                ebkn~banfn
+                FROM ebkn
+                INNER JOIN aufk ON aufk~aufnr = ebkn~nplnr
+                WHERE aufk~aufnr = @ls_aufnr
+                INTO    @DATA(ls_BANFN).
+              IF ls_BANFN IS NOT INITIAL.
+                it_upload-banfn = ls_BANFN.
+                it_upload-bnfpo = '10'.
+                DATA: ls_frgco TYPE t16fc-frgco.
+                CLEAR: ls_frgco .
+                ls_frgco = 'Z1'.
+                IF ls_frgco IS NOT INITIAL.
+                  SET UPDATE TASK LOCAL.
+                  CALL FUNCTION 'BAPI_REQUISITION_RELEASE'
+                    EXPORTING
+                      number                 = ls_BANFN
+                      rel_code               = ls_frgco
+                      item                   = '00010'
+                    TABLES
+                      return                 = return
+                    EXCEPTIONS
+                      authority_check_fail   = 1
+                      requisition_not_found  = 2
+                      enqueue_fail           = 3
+                      prerequisite_fail      = 4
+                      release_already_posted = 5
+                      responsibility_fail    = 6
+                      OTHERS                 = 7.
+                  DATA(subrc) = sy-subrc.
+                  LOOP AT return WHERE type CA 'AEX'.
+                    CONCATENATE return-message it_upload-butxt INTO it_upload-butxt
+                    SEPARATED BY '/'.
+                  ENDLOOP.
+                  IF sy-subrc EQ 0 OR subrc NE 0.
+                    CONCATENATE 'E:' it_upload-butxt INTO it_upload-butxt.
+                    SET UPDATE TASK LOCAL.
+                    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+                  ELSE.
+                    SET UPDATE TASK LOCAL.
+                    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                      EXPORTING
+                        wait = 'X'.
+                  ENDIF.
+                  CLEAR: ls_frgco .
+                  ls_frgco = 'Z2'.
+                  SET UPDATE TASK LOCAL.
+                  CALL FUNCTION 'BAPI_REQUISITION_RELEASE'
+                    EXPORTING
+                      number                 = ls_BANFN
+                      rel_code               = ls_frgco
+                      item                   = '00010'
+                    TABLES
+                      return                 = return
+                    EXCEPTIONS
+                      authority_check_fail   = 1
+                      requisition_not_found  = 2
+                      enqueue_fail           = 3
+                      prerequisite_fail      = 4
+                      release_already_posted = 5
+                      responsibility_fail    = 6
+                      OTHERS                 = 7.
+                  subrc = sy-subrc.
+                  LOOP AT return WHERE type CA 'AEX'.
+                    CONCATENATE return-message it_upload-butxt INTO it_upload-butxt
+                    SEPARATED BY '/'.
+                  ENDLOOP.
+                  IF sy-subrc EQ 0 OR subrc NE 0.
+                    CONCATENATE 'E:' it_upload-butxt INTO it_upload-butxt.
+                    SET UPDATE TASK LOCAL.
+                    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+                  ELSE.
+                    SET UPDATE TASK LOCAL.
+                    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                      EXPORTING
+                        wait = 'X'.
+                    IF sy-subrc = 0.
+                      "抬头数据
+                      poheader-doc_type = 'Z02'."凭证类型
+                      poheader-comp_code = ls_vbukr."公司代码
+                      poheader-vendor = it_upload-lifnr."供应商
+                      PERFORM addzero(zpubform) CHANGING poheader-vendor.
+                      poheader-purch_org = it_upload-ekorg."采购组织
+                      poheader-pur_group = it_upload-ekgrp."采购组
+                      poheader-currency = 'CNY'."货币
+                      poheader-creat_date = sy-datum."PO创建日期,制单日期
+                      poheader-doc_date = sy-datum."PO创建日期
+                      PERFORM setbapix(zpubform) USING poheader CHANGING poheaderx.
+                      "行项目
+                      poitem-po_item = '10'."行项目
+                      "poitem-material = it_upload-srvpos.":物料
+                      poitem-short_text = it_upload-ktext1.
+                      poitem-matl_group = 'ZFW'.
+                      poitem-plant = ls_werks."工厂
+                      poitem-quantity = '1'."数量
+                      poitem-net_price = it_upload-menge."净价
+                      poitem-price_unit = '1'."价格单位
+                      poitem-po_unit = 'AU'."单位
+                      poitem-tax_code = it_upload-zsm."税码
+                      poitem-preq_no = ls_banfn."采购申请号
+                      poitem-preq_item = '10'."采购申请行号
+                      poitem-acctasscat = 'N'."科目分配类别
+                      poitem-item_cat = 'D'."项目类别K
+                      poitem-wbs_element = |{ p_pspid }{ ls_werks }|."wbs
+                      poitem-pckg_no = '1'.
+                      "计划行
+                      poschedule-po_item = '10'."
+                      poschedule-sched_line = 1."
+                      poschedule-delivery_date = sy-datum."交货日期
+                      poschedule-quantity = '1'."数量
+                      PERFORM setbapix(zpubform) USING poitem CHANGING poitemx.
+                      PERFORM setbapix(zpubform) USING poschedule CHANGING poschedulex.
+                      APPEND:poitem,poitemx.
+                      APPEND: poschedule,poschedulex.
+                      "科目分配
+                      poaccount-po_item = '10'.
+                      poaccount-serial_no = '01'.
+                      DATA: ls_saknr TYPE saknr.
+                      CLEAR:ls_saknr.
+                      SELECT SINGLE konts
+                        INTO ls_saknr
+                        FROM t030
+                        INNER JOIN asmd ON asmd~bklas = t030~bklas
+                        WHERE asmd~asnum = it_upload-srvpos
+                        AND t030~ktopl = 'WISD'.
+                      poaccount-gl_account = ls_saknr.
+                      poaccount-network = ev_aufnr.
+                      poaccount-activity = '0010'.
+                      PERFORM setbapix(zpubform) USING poaccount CHANGING poaccountx.
+                      APPEND: poaccount,poaccountx.
+                      "服务
+                      poservices-pckg_no = '1'.
+                      poservices-line_no = '1'.
+                      poservices-outl_level = '0'.
+                      poservices-outl_ind = 'X'.
+                      poservices-subpckg_no = '2'.
+                      APPEND poservices.
+                      poservices-pckg_no = '2'.
+                      poservices-line_no = '2'.
+                      poservices-ext_line = '10'.
+                      poservices-outl_level = '0'.
+                      poservices-service = it_upload-srvpos.
+                      poservices-quantity = it_upload-menge.
+                      poservices-base_uom = 'AU'.
+                      poservices-gr_price = '1'.
+                      poservices-short_text = it_upload-ktext1.
+                      poservices-net_value = it_upload-menge.
+                      poservices-pln_pckg = '1'.
+                      poservices-pln_line = '2'.
+                      APPEND poservices.
+                      "服务值
+                      posrvaccessvalues-pckg_no = '2'.
+                      posrvaccessvalues-line_no = '2'.
+                      posrvaccessvalues-serno_line = '1'.
+                      posrvaccessvalues-percentage = '100'.
+                      posrvaccessvalues-serial_no = '1'.
+                      posrvaccessvalues-quantity = it_upload-menge.
+                      posrvaccessvalues-net_value = it_upload-menge.
+                      APPEND posrvaccessvalues.
+                      "EDIT BY DONGPZ AT 28.11.2022 20:18:25增强字段写入
+                      CLEAR:wa_ext,wa_extx.
+                      wa_ext-zsghtbh   = it_upload-zsghtbh   .
+                      wa_ext-zsghtqdsj = it_upload-zsghtqdsj .
+                      wa_ext-zgcmc     = it_upload-zgcmc     .
+                      wa_ext-zazsfzr   = it_upload-zazsfzr   .
+                      wa_extx-zsghtbh   = 'X'.
+                      wa_extx-zsghtqdsj = 'X'.
+                      wa_extx-zgcmc     = 'X'.
+                      wa_extx-zazsfzr   = 'X'.
+                      CLEAR:extensionin.
+                      extensionin-structure = 'BAPI_TE_MEPOHEADER'.
+                      extensionin+30(960) = wa_ext.
+                      APPEND extensionin.
+                      CLEAR:extensionin.
+                      extensionin-structure = 'BAPI_TE_MEPOHEADERX'.
+                      extensionin-valuepart1 = wa_extx.
+                      APPEND extensionin.
+                      SET UPDATE TASK LOCAL.
+                      CALL FUNCTION 'BAPI_PO_CREATE1'
+                        EXPORTING
+                          poheader          = poheader
+                          poheaderx         = poheaderx
+                          no_price_from_po  = 'X'
+                        IMPORTING
+                          exppurchaseorder  = exppurchaseorder
+                        TABLES
+                          return            = return1
+                          pocond            = pocond
+                          pocondx           = pocondx
+                          poitem            = poitem
+                          poitemx           = poitemx
+                          poservices        = poservices
+                          poaccount         = poaccount
+                          poaccountx        = poaccountx
+                          posrvaccessvalues = posrvaccessvalues
+                          poschedule        = poschedule
+                          poschedulex       = poschedulex
+                          pocomponents      = pocomponents
+                          pocomponentsx     = pocomponentsx
+                          extensionin       = extensionin
+                          potextheader      = potextheader
+                        EXCEPTIONS
+                          OTHERS            = 1.
+                      subrc = sy-subrc.
+                      LOOP AT return1 WHERE type CA 'AEX'.
+                        CONCATENATE return1-message it_upload-butxt INTO it_upload-butxt
+                        SEPARATED BY '/'.
+                      ENDLOOP.
+                      IF sy-subrc EQ 0 OR subrc NE 0.
+                        CONCATENATE 'E:' it_upload-butxt INTO it_upload-butxt.
+                        SET UPDATE TASK LOCAL.
+                        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+                      ELSE.
+                        SET UPDATE TASK LOCAL.
+                        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                          EXPORTING
+                            wait = 'X'.
+*更新增强字段
+                        IF sy-subrc = 0.
+                          it_upload-ebeln = exppurchaseorder.
+                          CLEAR: ls_frgco.
+                          ls_frgco = 'Z1'.
+                          SET UPDATE TASK LOCAL.
+                          CALL FUNCTION 'BAPI_PO_RELEASE'
+                            EXPORTING
+                              purchaseorder          = exppurchaseorder
+                              po_rel_code            = ls_frgco
+                            TABLES
+                              return                 = return
+                            EXCEPTIONS
+                              authority_check_fail   = 1
+                              document_not_found     = 2
+                              enqueue_fail           = 3
+                              prerequisite_fail      = 4
+                              release_already_posted = 5
+                              responsibility_fail    = 6
+                              OTHERS                 = 7.
+                          subrc = sy-subrc.
+                          LOOP AT return WHERE type CA 'AEX'.
+                            CONCATENATE return-message it_upload-butxt INTO it_upload-butxt
+                            SEPARATED BY '/'.
+                          ENDLOOP.
+                          IF sy-subrc EQ 0 OR subrc NE 0.
+                            CONCATENATE 'E:' it_upload-butxt INTO it_upload-butxt.
+                            SET UPDATE TASK LOCAL.
+                            CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+                          ELSE.
+                            SET UPDATE TASK LOCAL.
+                            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                              EXPORTING
+                                wait = 'X'.
+                            it_upload-butxt = '成功'.
+                          ENDIF.
+                          CLEAR: ls_frgco.
+                          ls_frgco = 'Z2'.
+                          SET UPDATE TASK LOCAL.
+                          CALL FUNCTION 'BAPI_PO_RELEASE'
+                            EXPORTING
+                              purchaseorder          = exppurchaseorder
+                              po_rel_code            = ls_frgco
+                            TABLES
+                              return                 = return
+                            EXCEPTIONS
+                              authority_check_fail   = 1
+                              document_not_found     = 2
+                              enqueue_fail           = 3
+                              prerequisite_fail      = 4
+                              release_already_posted = 5
+                              responsibility_fail    = 6
+                              OTHERS                 = 7.
+                          subrc = sy-subrc.
+                          LOOP AT return WHERE type CA 'AEX'.
+                            CONCATENATE return-message it_upload-butxt INTO it_upload-butxt
+                            SEPARATED BY '/'.
+                          ENDLOOP.
+                          IF sy-subrc EQ 0 OR subrc NE 0.
+                            CONCATENATE 'E:' it_upload-butxt INTO it_upload-butxt.
+                            SET UPDATE TASK LOCAL.
+                            CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+                          ELSE.
+                            SET UPDATE TASK LOCAL.
+                            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                              EXPORTING
+                                wait = 'X'.
+                            it_upload-butxt = '成功'.
+                          ENDIF.
+                        ENDIF.
+                      ENDIF.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    MODIFY it_upload.
+    CLEAR it_upload.
+    CLEAR ev_aufnr.
+    CLEAR: bdcdata[], bdcreturn[].
+    CLEAR:
+   return1[],
+   pocond[],
+   pocondx[],
+   poitem[],
+   poitemx[],
+   poservices[],
+   poaccount[],
+   poaccountx[],
+   posrvaccessvalues[],
+   poschedule[],
+   poschedulex[],
+   pocomponents[],
+   pocomponentsx[],
+   extensionin[],
+   potextheader[].
+  ENDLOOP.
+ENDFORM.
+
+FORM bdc_field USING fnam fval.
+  CLEAR bdcdata.
+  bdcdata-fnam = fnam.
+  bdcdata-fval = fval.
+  CONDENSE bdcdata-fval.
+  APPEND bdcdata.
+ENDFORM.
+FORM bdc_dynpro USING program dynpro.
+  CLEAR bdcdata.
+  bdcdata-program  = program.
+  bdcdata-dynpro   = dynpro.
+  bdcdata-dynbegin = 'X'.
+  APPEND bdcdata.
+ENDFORM.

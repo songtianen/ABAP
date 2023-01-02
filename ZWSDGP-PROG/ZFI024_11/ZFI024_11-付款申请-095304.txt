@@ -1,0 +1,1368 @@
+*&---------------------------------------------------------------------*
+*& Report ZFI024_11
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zfi024_11.
+TABLES: ekko,rseg,but0bk,t001,fagl_segm,rbkp.
+TYPE-POOLS:shlp.
+DATA: BEGIN OF item OCCURS 0,
+        sel,
+        ebeln      TYPE ebeln,          "采购订单
+        ebelp      TYPE ebelp,          "行项目
+        matnr      TYPE matnr,          "物料编码
+        txz01      TYPE txz01,          "物料描述
+        menge      TYPE menge_d,        "数量
+        meins      TYPE meins,          "单位
+        netwr      TYPE netwr,          "单价
+        waers      TYPE waers,          "货币
+        menge_cpq  TYPE menge_d,    "付款数量
+        dmbtr_apt  TYPE dmbtr,      "应付金额
+        dmbtr_apa  TYPE dmbtr,      "实付金额
+        menge_paq  TYPE menge_d,    "已付数量
+        dmbtr_atp  TYPE dmbtr,      "已付金额
+        menge_cpq1 TYPE menge_d,    "累计数量
+        dmbtr_cpa  TYPE dmbtr,     "累计付款金额
+        menge_req  TYPE menge_d,   "收货数量
+        dmbtr_hva  TYPE dmbtr,     "收货金额
+        menge_inq  TYPE menge_d,   "发票数量
+        dmbtr_ina  TYPE dmbtr,     "发票金额
+        elikz      TYPE elikz,         "订单状态
+        dmbtr_tpp  TYPE dmbtr,     "当期付款计划
+        dmbtr_rpp  TYPE dmbtr,     "剩余付款计划
+        knumv      TYPE knumv,
+        belnr      TYPE belnr_d,
+        buzei      TYPE buzei,
+        loekz      TYPE aufloekz,
+        unsez      TYPE unsez,
+        posid      TYPE ps_posid,
+        zposid     TYPE ps_posid,
+        post1      TYPE ps_post1,
+        zpost1     TYPE ps_post1,
+      END OF item.
+DATA: BEGIN OF zboitem OCCURS 0,
+        sel,
+        zbono    TYPE zbono, "票据号
+        wrbtr    TYPE wrbtr, "凭证货币金额
+        wname    TYPE wname, "汇票收款人
+        wbzog    TYPE wbzog, "汇票付款人
+        zbana    TYPE zbana, "付款行
+        zname1   TYPE zname1,
+        wdate    TYPE wdate, "汇票签发日
+        wverd    TYPE wverd, "汇票使用日期
+        eknam    TYPE eknam, "采购组的描述
+        zydate   TYPE zydate, "占用日期
+        billdate TYPE zefi_billdate, "票据日期
+        accou    TYPE zefi_zyhzh, "银行账户
+      END OF zboitem.
+DATA: BEGIN OF ebeln OCCURS 0,
+        ebeln TYPE ebeln,
+        dmbtr TYPE dmbtr,
+      END OF ebeln,
+      BEGIN OF ebelnp OCCURS 0,
+        ebeln TYPE ebeln,
+        ebelp TYPE ebelp,
+      END OF ebelnp.
+DATA: BEGIN OF pyrehd OCCURS 0,
+        zoano        TYPE ztfi_pyrehd-zoano,
+        zoait        TYPE ztfi_pyrehd-zoait,
+        zretype      TYPE ztfi_pyrehd-zretype,
+        ddtext       TYPE ddtext,
+        zdept        TYPE ztfi_pyrehd-zdept,
+        telfx        TYPE t024-telfx,
+        waers        TYPE ekko-waers,
+        bukrs        TYPE ekko-bukrs,
+        butxt        TYPE butxt,
+        zoauser      TYPE ztfi_pyrehd-zoauser,
+        zpycat       TYPE ztfi_pyrehd-zpycat,
+        bustxt       TYPE ztfi_dealtype-bustxt,
+        zpyctn       TYPE ztfi_pyrehd-zpyctn,
+        paytype      TYPE ztfi_pyrehd-paytype,
+        text1        TYPE char10,
+        zredat       TYPE ztfi_pyrehd-zredat,
+        zpldat       TYPE ztfi_pyrehd-zpldat,
+        zbd1t        TYPE char10,
+        duedate      TYPE char10,
+        zpyretype_oa TYPE ztfi_pyrehd-zpyretype_oa,
+        zplan        TYPE ztfi_pyrehd-zplan,
+        zretx        TYPE ztfi_pyrehd-zretx,
+        lifnr        TYPE ztfi_pyrehd-lifnr,
+        name1        TYPE lfa1-name1,
+        zyhzh_k      TYPE ztfi_pyrehd-zyhzh_k,
+        banka_k      TYPE ztfi_pyrehd-banka_k,
+        bankl_k      TYPE ztfi_pyrehd-bankl_k,
+        bankl_t_k    TYPE ztfi_pyrehd-bankl_t_k,
+        swift        TYPE char10,
+        zcont        TYPE ztfi_pyrehd-zcont,
+        zcontc       TYPE ztfi_pyrehd-zcontc,
+        zcontr       TYPE ztfi_pyrehd-zcontr,
+        dmbtr_pln    TYPE ztfi_pyrehd-dmbtr_pln,
+        posid        TYPE ps_posid,
+        post1        TYPE ps_post1,
+      END OF pyrehd,
+      it_pyrehd LIKE TABLE OF pyrehd WITH HEADER LINE.
+DATA: firstday TYPE d,
+      lastday  TYPE d.
+DATA: ok_code LIKE sy-ucomm,
+      save_ok LIKE sy-ucomm.
+*      cols    TYPE scxtab_column.
+DATA: fieldcat1  TYPE slis_t_fieldcat_alv.
+DATA: fieldcat TYPE lvc_t_fcat.
+DATA: afield LIKE LINE OF fieldcat.
+DATA: layout TYPE lvc_s_layo.
+DATA: ls_edit         TYPE lvc_s_styl,
+      is_layout       TYPE slis_layout_alv,
+      i_grid_settings TYPE lvc_s_glay.
+
+DATA: go_flct            TYPE lvc_t_fcat WITH HEADER LINE,
+      variant            TYPE disvariant,
+      slayout            TYPE lvc_s_layo,
+      go_grid            TYPE REF TO cl_gui_alv_grid,
+      g_custom_container TYPE REF TO cl_gui_custom_container,
+      zefi_pycat         TYPE TABLE OF dd07v WITH HEADER LINE,
+      go_cont            TYPE REF TO cl_gui_docking_container.
+DATA: zoano   TYPE ztfi_pyrehd-zoano,
+      znumber TYPE ztnums_update-znumber10.
+DATA: lt_py TYPE STANDARD TABLE OF ztfi_pyrees .
+DATA: it_events TYPE slis_t_event.
+CLASS lcl_event_receiver DEFINITION DEFERRED .
+DATA: event_receiver TYPE REF TO lcl_event_receiver.
+DATA: gt_exclude TYPE ui_functions.
+DATA: gs_stable TYPE lvc_s_stbl.
+DATA: g_container   TYPE scrfname VALUE 'CONTROL',
+      o_dyndoc_id   TYPE REF TO cl_dd_document,
+      o_splitter    TYPE REF TO cl_gui_splitter_container,
+      o_parent_grid TYPE REF TO cl_gui_container,
+      o_parent_top  TYPE REF TO cl_gui_container,
+      o_html_cntrl  TYPE REF TO cl_gui_html_viewer.
+DATA: intab1     TYPE STANDARD TABLE OF zsfi209 WITH HEADER LINE,
+      ls_item    LIKE TABLE OF item WITH HEADER LINE,
+      ps_lifnr   TYPE ekko-lifnr,
+      ps_bukrs   TYPE t001-bukrs,
+      ps_segment TYPE fagl_segm-segment,
+      ps_ekgrp   TYPE t024-ekgrp,
+      ps_zpycat  TYPE ztfi_dealtype-zpycat,
+      ps_zlsch   TYPE t042z-zlsch,
+      ps_zretx   TYPE ztfi_pyrehd-zretx,
+      flag       TYPE char01,
+      ps_bankn   TYPE but0bk-bankn.
+*---------------------------------------------------------------------*
+*       CLASS lcl_event_receiver DEFINITION
+*---------------------------------------------------------------------*
+CLASS lcl_event_receiver DEFINITION.
+  PUBLIC SECTION.
+    METHODS handle_double_click
+      FOR EVENT double_click OF cl_gui_alv_grid
+      IMPORTING e_row e_column es_row_no.
+
+    METHODS handle_hotspot_click
+      FOR EVENT hotspot_click OF cl_gui_alv_grid
+      IMPORTING e_row_id e_column_id es_row_no.
+
+    METHODS handle_toolbar
+      FOR EVENT toolbar      OF cl_gui_alv_grid
+      IMPORTING e_object e_interactive.
+
+    METHODS handle_command
+      FOR EVENT user_command OF cl_gui_alv_grid
+      IMPORTING e_ucomm.
+
+    METHODS:handle_onf4 FOR EVENT onf4 OF cl_gui_alv_grid
+      IMPORTING e_fieldname
+                es_row_no
+                er_event_data.
+
+    METHODS:handle_changed FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING er_data_changed.
+
+    METHODS handle_data_changed1"数据更改
+      FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING er_data_changed.
+*Event Handler for Top of page
+    METHODS:  top_of_page FOR EVENT top_of_page
+      OF cl_gui_alv_grid
+      IMPORTING e_dyndoc_id.
+
+ENDCLASS.                    "lcl_event_receiver DEFINITION
+
+*---------------------------------------------------------------------*
+*       CLASS lcl_event_receiver IMPLEMENTATION
+*---------------------------------------------------------------------*
+CLASS lcl_event_receiver IMPLEMENTATION.
+  METHOD handle_double_click.
+    PERFORM athdouble_click USING e_row e_column es_row_no.
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD handle_hotspot_click.
+    PERFORM athotclick USING e_row_id e_column_id es_row_no.
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD handle_toolbar.
+    PERFORM attoolbar USING e_object e_interactive .
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD handle_command.
+    CASE e_ucomm.
+      WHEN 'SELALL'.
+*        PERFORM sub_select_all.
+      WHEN 'DESALL'.
+*        PERFORM sub_deselect_all.
+    ENDCASE.
+    CALL METHOD go_grid->refresh_table_display
+      EXPORTING
+        is_stable = gs_stable.
+  ENDMETHOD.
+  METHOD handle_onf4.
+  ENDMETHOD.                    "charg_onf4_help
+  METHOD handle_changed.
+  ENDMETHOD.                    "HANDLE_CHANGED_DATA
+  METHOD top_of_page.
+*   Top-of-page event
+    PERFORM event_top_of_page USING o_dyndoc_id.
+  ENDMETHOD.                    "TOP_OF_PAGE
+
+  METHOD handle_data_changed1.
+    DATA:mod_data    TYPE lvc_t_modi,
+         wa_mod_data TYPE lvc_s_modi,
+         wa_out      LIKE LINE OF item.
+    CLEAR:mod_data,wa_mod_data,wa_out.
+    mod_data = er_data_changed->mt_mod_cells.
+    LOOP AT mod_data INTO wa_mod_data.
+      CLEAR wa_out.
+      CONDENSE wa_mod_data-value NO-GAPS.
+      READ TABLE item INTO wa_out INDEX wa_mod_data-row_id.
+      CASE wa_mod_data-fieldname.
+        WHEN 'MENGE_CPQ'.
+          PERFORM delqfw IN PROGRAM zpubform CHANGING wa_mod_data-value.
+          wa_out-dmbtr_apt = wa_mod_data-value * wa_out-netwr.
+          wa_out-dmbtr_apa = wa_out-dmbtr_apt.
+          wa_out-menge_cpq1 = wa_mod_data-value + wa_out-menge_paq.
+          wa_out-dmbtr_cpa = wa_out-dmbtr_apa + wa_out-dmbtr_atp.
+        WHEN 'DMBTR_APA'.
+          PERFORM delqfw IN PROGRAM zpubform CHANGING wa_mod_data-value.
+          wa_out-dmbtr_cpa = wa_mod_data-value + wa_out-dmbtr_atp.
+      ENDCASE.
+      MODIFY item FROM wa_out INDEX wa_mod_data-row_id.
+    ENDLOOP.
+    gs_stable-row = 'X'." 基于行的稳定刷新
+    gs_stable-col = 'X'." 基于列稳定刷新
+    CALL METHOD go_grid->refresh_table_display
+      EXPORTING
+        is_stable = gs_stable.
+  ENDMETHOD.                    "HANDLE_MODIFY
+ENDCLASS.                    "lcl_event_receiver IMPLEMENTATION
+FORM event_top_of_page USING dg_dyndoc_id TYPE REF TO cl_dd_document.
+  DATA : dl_text(255) TYPE c.  "Text
+*  CALL METHOD dg_dyndoc_id->add_text
+*    EXPORTING
+*      text         = 'Flight Details'
+*      sap_style    = cl_dd_area=>heading
+*      sap_fontsize = cl_dd_area=>large
+*      sap_color    = cl_dd_area=>list_heading_int.
+
+*  CALL METHOD dg_dyndoc_id->add_gap
+*    EXPORTING
+*      width = 200.
+*
+*  CALL METHOD o_dyndoc_id->add_picture
+*    EXPORTING
+*      picture_id = 'ENJOYSAP_LOGO'.
+
+* Add new-line CALL METHOD DG_DYNDOC_ID->NEW_LINE.
+*  CALL METHOD dg_dyndoc_id->new_line.
+  CLEAR : dl_text.
+* program ID
+  dl_text = '供应商 :'.
+  CALL METHOD dg_dyndoc_id->add_gap.
+
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE name1
+  INTO @DATA(ls_name1)
+  FROM lfa1
+  WHERE lifnr = @ps_lifnr.
+  dl_text = |{ ps_lifnr ALPHA = OUT } { ls_name1 }|.
+
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+  CLEAR : dl_text.
+* program ID
+  dl_text = '供应商收款账号 :'.
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  dl_text = ps_bankn.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+  CLEAR : dl_text.
+* program ID
+  dl_text = '收款行 :'.
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE
+  but0bk~bankl,
+  bnka~banka
+  INTO (@DATA(ls_bankl),@DATA(ls_banka))
+  FROM but0bk
+  INNER JOIN bnka ON bnka~bankl = but0bk~bankl
+  WHERE but0bk~partner = @ps_lifnr.
+  dl_text = |{ ls_bankl }  { ls_banka }|.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+* Add new-line
+  CALL METHOD dg_dyndoc_id->new_line.
+
+  CLEAR : dl_text.
+*   program ID
+  dl_text = '产业公司 :'.
+
+  CALL METHOD dg_dyndoc_id->add_gap.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE
+  name
+  INTO @DATA(sg_name)
+  FROM fagl_segmt
+  WHERE segment = @ps_segment.
+
+  dl_text = |{ ps_segment ALPHA = OUT } { sg_name }|.
+
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+
+  CLEAR : dl_text.
+*   program ID
+  dl_text = '公司代码 :'.
+
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE
+  butxt
+  INTO @DATA(butxt)
+  FROM t001
+  WHERE bukrs = @ps_bukrs.
+
+  dl_text = |{ ps_bukrs } { butxt }|.
+
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+
+  CLEAR : dl_text.
+*   program ID
+  dl_text = '期间 :'.
+
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  DATA(ls_dats) = sy-datum.
+  dl_text = ls_dats+4(2).
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+* Add new-line
+  CALL METHOD dg_dyndoc_id->new_line.
+  CLEAR : dl_text.
+
+
+
+  dl_text = '采购组 :'.
+  CALL METHOD dg_dyndoc_id->add_gap.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE
+  eknam
+  INTO @DATA(sg_eknam)
+  FROM t024
+  WHERE ekgrp = @ps_ekgrp.
+  dl_text = |{ ps_ekgrp } { sg_eknam }|.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+  dl_text = '付款类型 :'.
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE bustxt
+  INTO @DATA(bustxt)
+  FROM ztfi_dealtype
+  WHERE zpycat = @ps_zpycat
+  AND rptyp = 'P'.
+  dl_text = |{ ps_zpycat } { bustxt }|.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+  dl_text = '计划付款日期 :'.
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  dl_text = sy-datum.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+* Add new-line
+  CALL METHOD dg_dyndoc_id->new_line.
+
+  dl_text = '付款方式 :'.
+  CALL METHOD dg_dyndoc_id->add_gap.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  SELECT SINGLE
+  text1
+  INTO @DATA(sg_text1)
+  FROM t042z
+  WHERE zlsch = @ps_zlsch
+  AND land1 = 'CN'.
+  dl_text = |{ ps_zlsch }-{ sg_text1 }|.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+  dl_text = '付款申请备注 :'.
+  CALL METHOD dg_dyndoc_id->add_gap
+    EXPORTING
+      width = 28.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_heading_int.
+
+  CLEAR dl_text.
+  dl_text = ps_zretx.
+  CALL METHOD o_dyndoc_id->add_text
+    EXPORTING
+      text         = dl_text
+      sap_emphasis = cl_dd_area=>heading
+      sap_color    = cl_dd_area=>list_negative_inv.
+
+  PERFORM display.
+ENDFORM.
+FORM display.
+*   Creating html control
+  IF o_html_cntrl IS INITIAL.
+    CREATE OBJECT o_html_cntrl
+      EXPORTING
+        parent = o_parent_top.
+  ENDIF.
+  CALL METHOD o_dyndoc_id->merge_document.
+  o_dyndoc_id->html_control = o_html_cntrl.
+*   Display document
+  CALL METHOD o_dyndoc_id->display_document
+    EXPORTING
+      reuse_control      = 'X'
+      parent             = o_parent_top
+    EXCEPTIONS
+      html_display_error = 1.
+
+  IF sy-subrc NE 0.
+    MESSAGE 'Failure' TYPE 'E'.
+  ENDIF.
+ENDFORM.                    "TOP_OF_PAGE" display
+FORM athotclick USING p_e_row TYPE lvc_s_row p_e_column p_es_row_no.
+  PERFORM refresh_alv_table.
+  CALL METHOD cl_gui_cfw=>set_new_ok_code
+    EXPORTING
+      new_code = 'ENTE'.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM. " atdoubleclick
+FORM athdouble_click  USING p_e_row TYPE lvc_s_row p_e_column p_es_row_no.
+
+ENDFORM.                    " ATHDOUBLE_CLICK
+FORM attoolbar  USING p_e_object  TYPE REF TO cl_alv_event_toolbar_set p_e_interactive.
+
+ENDFORM.                    " ATHDOUBLE_CLICK
+FORM refresh_alv_table .
+  DATA:ls_stable TYPE lvc_s_stbl.
+  ls_stable-row = 'X'.
+  ls_stable-col = 'X'.
+  CALL METHOD go_grid->refresh_table_display
+    EXPORTING
+      is_stable = ls_stable
+    EXCEPTIONS
+      finished  = 1
+      OTHERS    = 2.
+ENDFORM.
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t1.
+  PARAMETERS:
+    p_bukrs  LIKE t001-bukrs OBLIGATORY DEFAULT '3000',
+    p_lifnr  LIKE ekko-lifnr,
+    p_bankn  LIKE but0bk-bankn,
+    p_segmnt LIKE fagl_segm-segment.
+  SELECT-OPTIONS:
+      s_ebeln FOR ekko-ebeln MODIF ID bl2,
+      s_belnr FOR rbkp-belnr .
+  PARAMETERS:
+    p_zlsch  LIKE t042z-zlsch,
+    p_ekgrp  LIKE t024-ekgrp  MODIF ID bl2,
+    p_zpycat LIKE ztfi_dealtype-zpycat,
+    p_zpldat LIKE mkpf-bldat DEFAULT sy-datum,
+    p_zretx  LIKE ztfi_pyrehd-zretx,
+    p_zwlnam LIKE zfi024_11-zwlnam MODIF ID bl1.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK blk3 WITH FRAME TITLE t3.
+  PARAMETERS: p1 RADIOBUTTON GROUP grd1 USER-COMMAND singleclick DEFAULT 'X',
+              p2 RADIOBUTTON GROUP grd1,
+              p3 RADIOBUTTON GROUP grd1.
+SELECTION-SCREEN END OF BLOCK blk3.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk4 WITH FRAME TITLE t4.
+  PARAMETERS p4 AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK blk4.
+
+INITIALIZATION.
+  %_p_lifnr_%_app_%-text = '供应商'.
+  %_p_bankn_%_app_%-text = '供应商收款账号'.
+  %_p_bukrs_%_app_%-text = '公司代码'.
+  %_p_segmnt_%_app_%-text = '产业公司'.
+  %_s_ebeln_%_app_%-text = '合同号'.
+  %_s_belnr_%_app_%-text = '发票号'.
+  %_p_zlsch_%_app_%-text = '付款方式'.
+  %_p_ekgrp_%_app_%-text = '采购组'.
+  %_p_zpycat_%_app_%-text = '付款类型'.
+  %_p_zpldat_%_app_%-text = '计划付款日期'.
+  %_p_zretx_%_app_%-text = '付款备注'.
+  %_p_zwlnam_%_app_%-text = '物流员'.
+  %_p1_%_app_%-text       = '材料采购付款'.
+  %_p2_%_app_%-text       = '采购运费付款'.
+  %_p3_%_app_%-text       = '销售运费付款'.
+  %_p4_%_app_%-text       = '包含执行完成'.
+  t3 = '关联选择'.
+  t1 = '基础数据'.
+
+AT SELECTION-SCREEN OUTPUT.
+  IF p_bankn IS INITIAL.
+    SELECT SINGLE bankn
+      INTO p_bankn
+      FROM but0bk
+    WHERE partner = p_lifnr.
+  ENDIF.
+  LOOP AT SCREEN INTO DATA(screen_wa).
+    IF p1 = 'X' AND
+      screen_wa-group1 = 'BL1'.
+      screen_wa-active = '0'.
+    ENDIF.
+    IF ( p2 = 'X' OR p3 = 'X' ) AND
+      screen_wa-group1 = 'BL2'.
+      screen_wa-active = '0'.
+    ENDIF.
+    MODIFY SCREEN FROM screen_wa.
+  ENDLOOP.
+
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_zlsch .
+  PERFORM f4_p_zlsch.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_zpycat.
+  PERFORM f4_p_zpycat.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_bukrs.
+  PERFORM f4_p_bukrs.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_bankn.
+  PERFORM f4_p_bankn.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_zwlnam.
+  PERFORM f4_p_zwlnam.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_belnr-low .
+  PERFORM f4_s_belnr.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_belnr-high .
+  PERFORM f4_s_belnr.
+
+START-OF-SELECTION.
+  PERFORM checkinput.
+  PERFORM getdata.
+  IF lines( zboitem ) = 0.
+    DO 30 TIMES.
+      APPEND INITIAL LINE TO zboitem.
+    ENDDO.
+  ENDIF.
+  IF p1 = 'X'.
+    CALL SCREEN 100."显示屏幕
+  ELSEIF p2 = 'X' OR p3 = 'X'.
+    PERFORM showalv.
+  ENDIF.
+FORM checkinput.
+  IF p1 = 'X'.
+    IF p_lifnr IS INITIAL
+      OR p_segmnt IS INITIAL
+      OR p_zlsch IS INITIAL
+      OR p_ekgrp IS INITIAL
+      OR p_zpycat IS INITIAL.
+      MESSAGE s000(oo) WITH  '供应商、产业公司、付款方式、采购组、付款类型必输' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+
+  ELSEIF p2 = 'X' OR p3 = 'X'.
+    IF p_lifnr IS INITIAL
+      OR p_segmnt IS INITIAL
+      OR p_zlsch IS INITIAL
+      OR p_zwlnam IS INITIAL
+      OR p_zpycat IS INITIAL.
+      MESSAGE s000(oo) WITH '供应商、产业公司、付款方式、物流员、付款类型必输' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+FORM getdata.
+  CLEAR: ps_lifnr,ps_bankn,
+  ps_bukrs,ps_segment,
+  ps_zlsch,ps_zretx,
+  ps_ekgrp,ps_zpycat.
+  ps_lifnr = p_lifnr.
+  ps_bankn = p_bankn.
+  ps_segment = p_segmnt.
+  ps_ekgrp = p_ekgrp.
+  ps_zpycat = p_zpycat.
+  ps_bukrs = p_bukrs.
+  ps_zlsch = p_zlsch.
+  ps_zretx = p_zretx.
+  IF p1 = 'X'.
+    SELECT
+    ekpo~ebeln,
+    ekpo~ebelp,
+    ekpo~matnr,
+    ekpo~txz01,
+    ekpo~menge,
+    ekpo~meins,
+    ekko~waers,
+    "ekpo~menge AS menge_cpq,
+    ekpo~elikz,
+    ekko~knumv,
+    ekko~unsez
+    FROM ekpo
+    INNER JOIN ekko ON ekpo~ebeln = ekko~ebeln
+    LEFT JOIN rseg ON rseg~ebeln = ekpo~ebeln AND rseg~ebelp = ekpo~ebelp
+    WHERE ekko~lifnr = @p_lifnr
+    AND ekko~bukrs = @p_bukrs
+    AND ekko~ekgrp = @p_ekgrp
+    AND ekko~ebeln IN @s_ebeln
+    AND rseg~belnr IN @s_belnr
+*    AND ekko~frgke ='R'   "BY LIWENLONG 2022.12.08
+    AND ekko~bsart = 'Z09'
+    INTO CORRESPONDING FIELDS OF TABLE @item.
+
+    SELECT
+    ekpo~ebeln,
+    ekpo~ebelp,
+    ekpo~matnr,
+    ekpo~txz01,
+    ekpo~menge,
+    ekpo~meins,
+    ekko~waers,
+    "ekpo~menge AS menge_cpq,
+    ekpo~elikz,
+    ekko~knumv,
+    ekko~unsez
+    FROM ekpo
+    INNER JOIN ekko ON ekpo~ebeln = ekko~ebeln
+    LEFT JOIN rseg ON rseg~ebeln = ekpo~ebeln AND rseg~ebelp = ekpo~ebelp
+    WHERE ekko~lifnr = @p_lifnr
+    AND ekko~bukrs = @p_bukrs
+    AND ekko~ekgrp = @p_ekgrp
+    AND ekko~ebeln IN @s_ebeln
+    AND rseg~belnr IN @s_belnr
+    AND ekko~frgke ='R'   "BY LIWENLONG 2022.12.08
+    AND ekko~bsart <> 'Z09'
+    APPENDING CORRESPONDING FIELDS OF TABLE @item.
+
+    SORT item BY ebeln ebelp .
+    DELETE ADJACENT DUPLICATES FROM item COMPARING ebeln ebelp.
+    firstday = p_zpldat+0(6) && '01'.
+    CALL FUNCTION 'RP_LAST_DAY_OF_MONTHS'
+      EXPORTING
+        day_in            = p_zpldat
+      IMPORTING
+        last_day_of_month = lastday.
+
+    LOOP AT item.
+      SELECT SINGLE prcd_elements~kbetr AS netwr
+      INTO item-netwr
+      FROM prcd_elements
+      WHERE knumv = item-knumv
+      AND kposn = item-ebelp
+      AND kschl = 'PBXX'.
+      SELECT
+        zoano,
+        menge_cpq,
+        dmbtr_apa
+        FROM ztfi_pyrees
+        WHERE ebeln = @item-ebeln AND ebelp = @item-ebelp
+        INTO TABLE @DATA(lt_pyrees).
+      DATA(lt_pyrees_t) = lt_pyrees[].
+      LOOP AT lt_pyrees INTO DATA(wa_pyrees).
+        SELECT SINGLE zprstus
+          INTO @DATA(ls_zprstus)
+          FROM ztfi_pyrehd
+          WHERE zoano = @wa_pyrees-zoano
+          "AND zprstus IN ('20', '28','01','21','25').
+          AND zprstus IN ('20', '28').
+        IF sy-subrc <> 0.
+          DELETE lt_pyrees.
+        ENDIF.
+      ENDLOOP.
+      DATA: ls_yful TYPE zefi_menge_cpq,
+            ls_yfje TYPE zefi_dmbtr_cpa.
+      LOOP AT lt_pyrees INTO wa_pyrees.
+        ls_yful = wa_pyrees-menge_cpq + ls_yful.
+        ls_yfje = wa_pyrees-dmbtr_apa + ls_yfje.
+      ENDLOOP.
+      LOOP AT lt_pyrees_t INTO wa_pyrees.
+        SELECT SINGLE zprstus
+          INTO @ls_zprstus
+          FROM ztfi_pyrehd
+          WHERE zoano = @wa_pyrees-zoano
+          AND zprstus IN ('20', '28','01','21','25').
+        IF sy-subrc <> 0.
+          DELETE lt_pyrees_t.
+        ENDIF.
+      ENDLOOP.
+      DATA: ls_yful_t TYPE zefi_menge_cpq,
+            ls_yfje_t TYPE zefi_dmbtr_cpa.
+      LOOP AT lt_pyrees_t INTO DATA(wa_pyrees_t).
+        ls_yful_t = wa_pyrees_t-menge_cpq + ls_yful_t.
+        ls_yfje_t = wa_pyrees_t-dmbtr_apa + ls_yfje_t.
+      ENDLOOP.
+      item-menge_paq = ls_yful.
+      item-menge_cpq = item-menge - ls_yful_t.
+      item-dmbtr_apt = item-menge_cpq * item-netwr.
+      item-dmbtr_atp = ls_yfje.
+      item-dmbtr_apa = item-menge * item-netwr - ls_yfje_t.
+      item-menge_cpq1 = item-menge_cpq + item-menge_paq.
+      item-dmbtr_cpa = item-dmbtr_apa + item-dmbtr_atp.
+      CLEAR: ls_yfje,ls_yful.
+      SELECT SUM(  menge )
+      INTO @DATA(s_req)
+      FROM ekbe
+      WHERE bewtp = 'E' AND ebeln = @item-ebeln
+      AND ebelp = @item-ebelp
+      AND shkzg = 'S'  .
+      SELECT SUM(  menge )
+      INTO @DATA(h_req)
+      FROM ekbe
+      WHERE bewtp = 'E' AND ebeln = @item-ebeln
+      AND ebelp = @item-ebelp
+      AND shkzg = 'H'  .
+      item-menge_req = s_req - h_req.
+      CLEAR:s_req, h_req.
+      SELECT SUM( dmbtr )
+      INTO @DATA(s_hva)
+      FROM ekbe
+      WHERE bewtp = 'E' AND ebeln = @item-ebeln
+      AND ebelp = @item-ebelp
+        AND shkzg = 'S'.
+      SELECT SUM( dmbtr )
+      INTO @DATA(h_hva)
+      FROM ekbe
+      WHERE bewtp = 'E' AND ebeln = @item-ebeln
+      AND ebelp = @item-ebelp
+        AND shkzg = 'H'.
+      item-dmbtr_hva = item-menge_req * item-netwr.
+      CLEAR: s_hva , h_hva.
+      SELECT SUM( menge )
+      INTO @DATA(s_inq)
+      FROM ekbe
+      WHERE bewtp = 'Q' AND ebeln = @item-ebeln
+        AND ebelp = @item-ebelp
+        AND shkzg = 'S'.
+      SELECT SUM( menge )
+      INTO @DATA(h_inq)
+      FROM ekbe
+      WHERE bewtp = 'Q' AND ebeln = @item-ebeln
+        AND ebelp = @item-ebelp
+        AND shkzg = 'H'.
+      item-menge_inq = s_inq - h_inq.
+      CLEAR:s_inq , h_inq.
+      item-dmbtr_ina = item-menge_inq * item-netwr.
+      SELECT SINGLE zfkje INTO @DATA(ls_zfkje)
+      FROM ztmm204
+      WHERE ebeln = @item-ebeln AND ebelp = @item-ebelp
+      AND zfkrq BETWEEN @firstday AND @lastday.
+      IF sy-subrc = 0.
+        item-dmbtr_tpp = ls_zfkje.
+        item-dmbtr_rpp = item-dmbtr_tpp - item-dmbtr_cpa.
+        ebelnp-ebeln = item-ebeln.
+        ebelnp-ebelp = item-ebelp.
+        APPEND ebelnp.
+      ELSE.
+*        SELECT SINGLE zfkjhd
+*        FROM ztmm204
+*        WHERE ebeln = @item-ebeln AND ebelp IS INITIAL
+*          INTO @DATA(ls_zfkjhd).
+*        IF sy-subrc = 0.
+*          SELECT SUM( zfkje )
+*          INTO @item-dmbtr_tpp
+*          FROM ztmm204
+*          WHERE zfkjhd = @ls_zfkjhd
+*          AND zfkrq BETWEEN @firstday AND @lastday.
+*          item-dmbtr_rpp = item-dmbtr_tpp - item-dmbtr_cpa.
+*          ebeln-ebeln = item-ebeln.
+*          APPEND ebeln.
+*        ENDIF.
+      ENDIF.
+      IF item-unsez IS NOT INITIAL.
+        SELECT SINGLE posid, post1
+          INTO (@item-posid, @item-post1)
+          FROM prps
+          INNER JOIN vbak ON vbak~ps_psp_pnr = prps~pspnr
+          WHERE vbak~vbeln = @item-unsez.
+      ENDIF.
+      SELECT SINGLE posid, post1
+        INTO  (@item-zposid, @item-zpost1)
+        FROM prps
+        INNER JOIN ekkn ON ekkn~ps_psp_pnr = prps~pspnr
+        WHERE ekkn~ebeln = @item-ebeln.
+      MODIFY item.
+    ENDLOOP.
+    TYPES: BEGIN OF tyout,
+             ebeln TYPE ebeln,
+             zfkje TYPE ztmm204-zfkje,
+           END OF tyout.
+    DATA: cl_ztmm204 TYPE TABLE OF tyout WITH HEADER LINE,
+          ls_ztmm204 TYPE TABLE OF tyout WITH HEADER LINE.
+    SELECT
+      ebeln,
+      zfkje
+      FROM ztmm204
+      FOR ALL ENTRIES IN @item
+      WHERE ebeln = @item-ebeln
+      AND ebelp IS INITIAL
+    INTO TABLE @ls_ztmm204.
+
+    LOOP AT ls_ztmm204 INTO DATA(wa_ztmm204).
+      MOVE-CORRESPONDING wa_ztmm204 TO cl_ztmm204.
+      COLLECT cl_ztmm204.
+      CLEAR cl_ztmm204.
+    ENDLOOP.
+    CLEAR: ls_ztmm204[].
+    ls_ztmm204[] = cl_ztmm204[].
+    SORT ls_ztmm204 BY ebeln zfkje.
+    LOOP AT item.
+      CLEAR wa_ztmm204.
+      READ TABLE ls_ztmm204 INTO wa_ztmm204 WITH KEY ebeln = item-ebeln.
+      IF sy-subrc = 0.
+        item-dmbtr_tpp = wa_ztmm204-zfkje.
+        MODIFY item.
+        CLEAR item.
+        DELETE ls_ztmm204[] INDEX sy-tabix.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT ebeln.
+      LOOP AT item WHERE ebeln = ebeln-ebeln.
+        ebeln-dmbtr = item-dmbtr_cpa + ebeln-dmbtr.
+        CLEAR: item.
+      ENDLOOP.
+      MODIFY ebeln.
+      CLEAR ebeln.
+    ENDLOOP.
+    SORT ebeln BY ebeln dmbtr.
+    DELETE ADJACENT DUPLICATES FROM ebeln COMPARING ALL FIELDS.
+    LOOP AT ebeln.
+*      LOOP AT item WHERE ebeln = ebeln-ebeln.
+*        item-dmbtr_rpp = ebeln-dmbtr.
+*        MODIFY item.
+*        CLEAR item.
+*      ENDLOOP.
+      READ TABLE item WITH KEY ebeln = ebeln-ebeln.
+      DATA(lv_index) = sy-tabix.
+      LOOP AT item .
+        IF lv_index = sy-tabix.
+          item-dmbtr_rpp = ebeln-dmbtr.
+          MODIFY item.
+          CLEAR item.
+        ENDIF.
+      ENDLOOP.
+      CLEAR ebeln.
+    ENDLOOP.
+    LOOP AT ebelnp.
+      LOOP AT item WHERE ebeln = ebelnp-ebeln AND ebelp = ebelnp-ebelp.
+        item-dmbtr_rpp = item-dmbtr_tpp - item-dmbtr_cpa.
+        MODIFY item.
+        CLEAR item.
+      ENDLOOP.
+      CLEAR ebelnp.
+    ENDLOOP.
+    IF p4 IS INITIAL.
+      LOOP AT item.
+        SELECT SINGLE ebeln INTO @DATA(ls_ebeln)
+          FROM ztfi_pycotd
+          WHERE ebeln = @item-ebeln.
+        IF  sy-subrc = 0.
+          DELETE item.
+        ENDIF.
+      ENDLOOP.
+    ELSE.
+      LOOP AT item.
+        SELECT SINGLE ebeln INTO @ls_ebeln
+          FROM ztfi_pycotd
+          WHERE ebeln = @item-ebeln.
+        IF  sy-subrc = 0.
+          item-loekz = 'X'.
+          MODIFY item.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+  ELSEIF p2 = 'X' .
+    SELECT
+    rseg~belnr,
+    rseg~buzei,
+    rseg~matnr,
+    rbkp~waers,
+    rseg~menge AS menge_inq,
+    rbkp~rmwwr AS dmbtr_ina
+    FROM rseg
+    INNER JOIN rbkp ON rseg~belnr = rbkp~belnr
+    INNER JOIN ztmm226 ON ztmm226~zfpno = rseg~belnr
+    WHERE rseg~lifnr = @p_lifnr
+    AND rseg~bukrs = @p_bukrs
+    AND ztmm226~zfylx = 'CGYF'
+    INTO CORRESPONDING FIELDS OF TABLE @item.
+    LOOP AT item INTO DATA(wa).
+      SELECT SINGLE maktx
+      INTO wa-txz01
+      FROM makt
+      WHERE matnr = wa-matnr.
+      wa-ebeln = wa-belnr.
+      wa-ebelp = wa-buzei.
+      DATA: BEGIN OF al08 OCCURS 1,
+              zoano TYPE ztfi_pyrehd-zoano,
+              dmbtr TYPE dmbtr,
+            END OF al08.
+      SELECT
+        zoano,
+        SUM( dmbtr_apa ) AS dmbtr
+        FROM ztfi_pyrees
+        WHERE ztfi_pyrees~ebeln = @wa-ebeln AND ztfi_pyrees~ebelp = @wa-ebelp
+        GROUP BY zoano
+      INTO TABLE @al08.
+      LOOP AT al08.
+        SELECT SINGLE zprstus INTO @DATA(lt_zprstus)
+          FROM ztfi_pyrehd
+        WHERE zoano = @al08-zoano.
+        IF sy-subrc = 0 AND ( ls_zprstus = '20' OR ls_zprstus = '28' ).
+          wa-dmbtr_atp = wa-dmbtr_atp + al08-dmbtr.
+        ENDIF.
+      ENDLOOP.
+      CLEAR: ls_zprstus, al08[],al08.
+      wa-dmbtr_apa = wa-dmbtr_ina - wa-dmbtr_atp.
+      MODIFY item FROM wa.
+    ENDLOOP.
+    IF p4 IS INITIAL.
+      LOOP AT item.
+        SELECT SINGLE ebeln INTO @ls_ebeln
+          FROM ztfi_pycotd
+          WHERE ebeln = @item-ebeln.
+        IF  sy-subrc = 0.
+          DELETE item.
+        ENDIF.
+      ENDLOOP.
+    ELSE.
+      LOOP AT item.
+        SELECT SINGLE ebeln INTO @ls_ebeln
+          FROM ztfi_pycotd
+          WHERE ebeln = @item-ebeln.
+        IF  sy-subrc = 0.
+          item-loekz = 'X'.
+          MODIFY item.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+  ELSEIF p3 = 'X'.
+
+    SELECT
+      rbkp~belnr,
+      rbkp~waers,
+      rbkp~rmwwr AS dmbtr_ina
+      FROM rbkp
+      INNER JOIN ztmm226 ON ztmm226~zfpno = rbkp~belnr
+      WHERE rbkp~lifnr = @p_lifnr
+      AND rbkp~bukrs = @p_bukrs
+      AND ztmm226~zfylx IN ('XSYF','DBYF','OA01','OA02','OA03','OA04','OA99')
+      INTO CORRESPONDING FIELDS OF TABLE @item.
+    LOOP AT item INTO wa.
+      SELECT SINGLE maktx
+      INTO wa-txz01
+      FROM makt
+      WHERE matnr = wa-matnr.
+
+      wa-ebeln = wa-belnr.
+      wa-ebelp = wa-buzei.
+      SELECT
+      SUM( dmbtr_apa ) AS yfje
+      FROM ztfi_pyrees
+      INNER JOIN ztfi_pyrehd ON ztfi_pyrees~zoano = ztfi_pyrehd~zoano
+      WHERE ztfi_pyrees~ebeln = @wa-ebeln AND ztfi_pyrees~ebelp = @wa-ebelp
+*      AND ztfi_pyrehd~zprstus = '20'
+      AND ztfi_pyrehd~zprstus IN ('20','28')
+      INTO @wa-dmbtr_atp.
+      wa-dmbtr_apa = wa-dmbtr_ina - wa-dmbtr_atp.
+      MODIFY item FROM wa.
+    ENDLOOP.
+  ENDIF.
+  IF p4 IS INITIAL.
+    LOOP AT item.
+      SELECT SINGLE ebeln INTO @ls_ebeln
+        FROM ztfi_pycotd
+        WHERE ebeln = @item-ebeln.
+      IF  sy-subrc = 0.
+        DELETE item.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT item.
+      SELECT SINGLE ebeln INTO @ls_ebeln
+        FROM ztfi_pycotd
+        WHERE ebeln = @item-ebeln.
+      IF  sy-subrc = 0.
+        item-loekz = 'X'.
+        MODIFY item.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+
+*&SPWizard: Data incl. inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zfi024_11_include .
+*&SPWizard: Include inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zfi024_11_pbo .
+INCLUDE zfi024_11_pai .
+*&---------------------------------------------------------------------*
+*& Form f4_p_zlsch
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM f4_p_zlsch .
+  SELECT
+    zlsch,
+    text1
+    INTO TABLE @DATA(f4_p_zlsch)
+  FROM t042z
+  WHERE land1 = 'CN' .
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'ZLSCH'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'P_ZLSCH'
+      value_org        = 'S'
+      callback_program = sy-repid
+      "callback_form    = 'CB_FORM'
+      display          = 'F'   " <– Force
+    TABLES
+      value_tab        = f4_p_zlsch
+      "return_tab       = return_tab
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form f4_p_zpycat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM f4_p_zpycat .
+  SELECT
+    zpycat,
+    bustxt
+    INTO TABLE @DATA(f4_p_zpycat)
+  FROM ztfi_dealtype
+  WHERE rptyp = 'P' .
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'ZPYCAT'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'P_ZPYCAT'
+      value_org        = 'S'
+      callback_program = sy-repid
+      "callback_form    = 'CB_FORM'
+      display          = 'F'   " <– Force
+    TABLES
+      value_tab        = f4_p_zpycat
+      "return_tab       = return_tab
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form f4_p_bukrs
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM f4_p_bukrs .
+  SELECT bukrs,butxt
+    INTO TABLE @DATA(lt_bukrs)
+  FROM t001
+  WHERE bukrs LIKE '3%'.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'BUKRS'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'P_BUKRS'
+      value_org        = 'S'
+      callback_program = sy-repid
+      "callback_form    = 'CB_FORM'
+      display          = 'F'   " <– Force
+    TABLES
+      value_tab        = lt_bukrs
+      "return_tab       = return_tab
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDFORM.
+FORM f4_p_bankn.
+
+  DATA: et_bank TYPE STANDARD TABLE OF zoa_rfc_bankaccount_read_s1 WITH HEADER LINE.
+  DATA: ipartner TYPE bu_partner.
+  DATA: BEGIN OF bank OCCURS 0,
+          zyhzh   TYPE zefi_zyhzh_k,
+          banka   TYPE zefi_banka,
+          bankl   TYPE bankl,
+          banka_k TYPE banka,
+        END OF bank.
+  CLEAR ipartner.
+  ipartner = p_lifnr.
+  CALL FUNCTION 'ZOA_RFC_BANKACCOUNT_READ'
+    EXPORTING
+      ipartner = ipartner
+    TABLES
+      et_bank  = et_bank.
+  LOOP AT et_bank.
+    MOVE-CORRESPONDING et_bank TO bank.
+    APPEND bank.
+    CLEAR: bank, et_bank.
+  ENDLOOP.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'ZYHZH'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'P_BANKN'
+      value_org        = 'S'
+      callback_program = sy-repid
+      "callback_form    = 'CB_FORM'
+      display          = 'F'   " <– Force
+    TABLES
+      value_tab        = bank
+      "return_tab       = return_tab
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form f4_p_zwlnam
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM f4_p_zwlnam .
+  SELECT
+    zwlnam,
+    zygtype,
+    zdept
+    FROM zfi024_11
+  INTO TABLE @DATA(ls_zfi024).
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'ZWLNAM'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'P_ZWLNAM'
+      value_org        = 'S'
+      callback_program = sy-repid
+      "callback_form    = 'CB_FORM'
+      display          = 'F'   " <– Force
+    TABLES
+      value_tab        = ls_zfi024
+      "return_tab       = return_tab
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDFORM.
+FORM f4_s_belnr.
+  SELECT
+    belnr,
+    gjahr,
+    blart,
+    bldat,
+    budat,
+    bukrs,
+    lifnr
+    FROM rbkp
+  INTO TABLE @DATA(f4_belnr).
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'BELNR'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'S_BELNR'
+      value_org        = 'S'
+      callback_program = sy-repid
+*     callback_form    = 'CB_FORM'
+      display          = 'S'   " <– Force
+    TABLES
+      value_tab        = f4_belnr
+*     RETURN_TAB       = RETURN_TAB
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+
+ENDFORM.
+
+FORM showalv.
+  REFRESH fieldcat1.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat1 USING :
+        'EBELN' '凭证编码' '' '' '' '',
+        'EBELP' '行项目' '' '' '' '',
+        'MATNR' '物料编码' '' '' '' '',
+        'TXZ01' '物料描述' '' '' '' '',
+        'WAERS' '货币' '' '' '' '',
+        'DMBTR_APA' '实付金额' '' '' '' 'X',
+        'DMBTR_ATP' '已付金额' '' '' '' '',
+        'MENGE_INQ' '发票数量' '' '' '' '',
+        'DMBTR_INA' '发票金额' '' '' '' ''.
+  LOOP AT fieldcat1 INTO DATA(wa1).
+    IF wa1-fieldname = 'DMBTR_APA'.
+      wa1-decimals_out = 2.
+      MODIFY fieldcat1 FROM wa1.
+    ENDIF.
+  ENDLOOP.
+  PERFORM alvfm(zpubform) TABLES item fieldcat1 USING 'SET_STATUS2' 'USER_COMMAND2'.
+ENDFORM.
+
+FORM set_status2 USING rt_extab TYPE slis_t_extab.
+  SET PF-STATUS 'STA100'.
+  SET TITLEBAR 'TIT100' WITH '创建'.
+ENDFORM. "set_status
+
+FORM user_command2 USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+  CASE r_ucomm.
+    WHEN 'YLPP'.
+      PERFORM read_it_alv.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.

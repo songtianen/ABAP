@@ -1,0 +1,527 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD012
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZRSD206 MESSAGE-ID ZMSG_GP.
+TABLES:LIKP,
+       LIPS,
+       *LIPS,
+       *ZTSD_NXPO,
+       VBAP,
+       *VBAP,
+       MARA,
+       MARC,
+       DD03L,
+       ZTSD208,
+       VBAK,
+       STXL,
+       PRPS,
+       ZTPP316,
+       ZVSDLIPS_ITEM,
+       ZSSD252,
+       SSCRFIELDS,
+       ZTSD206,
+       ZTSDCKDI,
+       ZTSDCKD.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK B1 WITH FRAME TITLE T1.
+  PARAMETERS:P1    RADIOBUTTON GROUP GRD1 USER-COMMAND CLICK1 DEFAULT 'X',
+             P_CRT TYPE CHAR1 NO-DISPLAY,
+             P2    RADIOBUTTON GROUP GRD1.
+SELECTION-SCREEN END OF BLOCK B1.
+SELECTION-SCREEN BEGIN OF BLOCK B2 WITH FRAME TITLE T2.
+  PARAMETERS:P_VKORG LIKE LIKP-VKORG MEMORY ID VKO MODIF ID M.
+  SELECT-OPTIONS:S_VBELN FOR LIKP-VBELN MODIF ID M1 MEMORY ID VL,
+                 S_KUNWE FOR LIKP-KUNNR MODIF ID M1 ,
+                 S_VSTEL FOR LIKP-VSTEL MODIF ID M1 ,
+                 S_WADAT FOR LIKP-WADAT MODIF ID M1 ,
+                 S_BUDAT FOR LIKP-WADAT_IST MODIF ID M1 ,
+                 S_WBSTK FOR LIKP-WBSTK MODIF ID M1 ,
+                 S_MATNR FOR LIPS-MATNR MODIF ID M1 ,
+                 S_WERKS FOR LIPS-WERKS MODIF ID M1 ,
+                 S_LGORT FOR LIPS-LGORT MODIF ID M1 ,
+                 S_CHARG FOR LIPS-CHARG MODIF ID M1 ,
+                 S_VGBEL FOR VBAK-VBELN MODIF ID M1 MEMORY ID AUN,
+                 S_AUBEL FOR VBAP-VBELN MODIF ID M1,
+                 S_POSID FOR PRPS-POSID MODIF ID M1,
+                 S_POST1 FOR PRPS-POST1 MODIF ID M1,
+                 S_KUNNR FOR VBAK-KUNNR MODIF ID M1.
+  PARAMETERS:P2A     RADIOBUTTON GROUP GRD2 USER-COMMAND CLICK2 DEFAULT 'X' MODIF ID M1,
+             P2B     RADIOBUTTON GROUP GRD2 MODIF ID M1,
+             P_VBELV LIKE LIKP-VBELN NO-DISPLAY,
+             P_MODE  TYPE CHAR1 NO-DISPLAY DEFAULT 'S'.
+SELECTION-SCREEN END OF BLOCK B2.
+
+SELECTION-SCREEN FUNCTION KEY :1.
+
+INCLUDE: ZRSD206_TOP,
+         ZRSD206_CLASS,
+         ZRSD206_FRM.
+
+LOAD-OF-PROGRAM.
+  PERFORM LOADINIT.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM SELSCREEN.
+
+AT SELECTION-SCREEN.
+  CASE SSCRFIELDS-UCOMM.
+    WHEN 'FC01'.
+      PERFORM CALLPROG(ZPUBFORM) USING 'ZVSD213' 'V'.
+  ENDCASE.
+
+START-OF-SELECTION.
+  IF P_VBELV IS NOT INITIAL.
+    PERFORM CALLCKD USING P_VBELV ''.
+  ELSE.
+    CASE 'X'.
+      WHEN P1.
+        CASE P_CRT.
+          WHEN 'X'.
+            PERFORM CREATECKD.
+          WHEN OTHERS.
+            PERFORM CALLPROG(ZPUBFORM) USING 'ZRSD202' 'P'.
+        ENDCASE.
+      WHEN P2.
+        IF P_VKORG IS INITIAL.
+          MESSAGE S000(OO) WITH '销售组织必填' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+        PERFORM SAVELOG(ZREPLOG) USING SY-REPID '' IF FOUND.
+        PERFORM GETDATA.
+        PERFORM UPDATELOG(ZREPLOG) IF FOUND.
+        PERFORM ALVSHOW.
+    ENDCASE.
+  ENDIF.
+
+
+FORM GETDATA.
+  CLEAR:IT_PSPNR[],IT_MATNR[],INTAB[],IT_KUNNR[],
+  IT_ATNAM[],ITAB[],IT_FIELDCAT,OUTTAB001[],
+  IT_AUBEL[],OUTTAB[].
+  SELECT LIKP~VBELN
+         LIKP~VKORG
+         LIKP~VSTEL
+         LIKP~KUNNR AS KUNWE
+         LIKP~WADAT
+         LIKP~WADAT_IST AS BUDAT
+         LIKP~WBSTK
+         LIKP~ERNAM
+         LIPS~POSNR
+         LIPS~UECHA
+         LIPS~MATNR
+         LIPS~WERKS
+         LIPS~LGORT
+         LIPS~CHARG
+         LIPS~LFIMG
+         LIPS~MEINS
+         LIPS~VGBEL
+         LIPS~VGPOS
+         LIPS~PS_PSP_PNR AS PSPNR
+         VBAP~VGBEL AS AUBEL
+         VBAP~VGPOS AS AUPOS
+         PRPS~POSID
+         PRPS~POST1
+         MARA~ZZL1
+*         MAKT~MAKTX
+    INTO TABLE ITAB
+    FROM LIKP INNER JOIN LIPS ON LIKP~VBELN = LIPS~VBELN
+              INNER JOIN VBAP ON LIPS~VGBEL = VBAP~VBELN
+                             AND LIPS~VGPOS = VBAP~POSNR
+              INNER JOIN VBAK ON VBAP~VBELN = VBAK~VBELN
+              INNER JOIN MARA ON VBAP~MATNR = MARA~MATNR
+*              INNER JOIN MAKT ON LIPS~MATNR = MAKT~MATNR
+*                             AND MAKT~SPRAS = SY-LANGU
+              INNER JOIN PRPS ON LIPS~PS_PSP_PNR = PRPS~PSPNR
+    WHERE LIKP~VKORG = P_VKORG
+     AND  LIKP~VBELN     IN S_VBELN
+     AND  LIKP~KUNNR     IN S_KUNWE
+     AND  LIKP~VSTEL     IN S_VSTEL
+     AND  LIKP~WADAT     IN S_WADAT
+     AND  LIKP~WBSTK     IN S_WBSTK
+     AND  LIKP~WADAT_IST IN S_BUDAT
+     AND  LIPS~MATNR     IN S_MATNR
+     AND  LIPS~WERKS     IN S_WERKS
+     AND  LIPS~LGORT     IN S_LGORT
+     AND  LIPS~CHARG     IN S_CHARG
+     AND  LIPS~VGBEL     IN S_VGBEL
+     AND  VBAP~VGBEL     IN S_AUBEL
+     AND  PRPS~POSID     IN S_POSID
+     AND  PRPS~POST1     IN S_POST1
+     AND  VBAK~KUNNR     IN S_KUNNR.
+  CALL FUNCTION 'ZFM_SD_AUTHCONTROL'
+    EXPORTING
+      AUTHACT = 'A'
+      DJLX    = 'CK'
+    TABLES
+      INTAB   = ITAB.
+  LOOP AT ITAB.
+    CLEAR:IT_KUNNR,INTAB,IT_MATNR,
+    IT_POSNR1.
+    IT_KUNNR-KUNNR = ITAB-KUNWE.
+    INTAB-WERKS = ITAB-WERKS.
+    INTAB-MATNR = ITAB-MATNR.
+    INTAB-CHARG = ITAB-CHARG.
+    IT_MATNR-MATNR = ITAB-MATNR.
+    IT_VBELN-VBELN = ITAB-VBELN.
+    IT_AUBEL-VBELN = ITAB-AUBEL.
+    IT_AUBEL-POSNR = ITAB-AUPOS.
+    COLLECT: INTAB,IT_KUNNR,IT_MATNR,IT_AUBEL.
+  ENDLOOP.
+  IF ITAB[] IS INITIAL.
+    MESSAGE S005 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  SORT ITAB BY VBELN POSNR.
+  DELETE IT_KUNNR WHERE KUNNR IS INITIAL.
+  IF IT_KUNNR[] IS NOT INITIAL.
+    SORT IT_KUNNR BY KUNNR.
+    SELECT *
+      INTO TABLE IT_KNA1
+      FROM KNA1
+      FOR ALL ENTRIES IN IT_KUNNR
+      WHERE KUNNR = IT_KUNNR-KUNNR.
+    SORT IT_KNA1 BY KUNNR.
+  ENDIF.
+  LOOP AT ITAB.
+    READ TABLE IT_T001L WITH KEY WERKS = ITAB-WERKS
+                                 LGORT = ITAB-LGORT
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-LGOBE = IT_T001L-LGOBE.
+    ENDIF.
+    READ TABLE IT_T001W WITH KEY WERKS = ITAB-WERKS BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-NAMEW = IT_T001W-NAME1.
+    ENDIF.
+    READ TABLE IT_KNA1 WITH KEY KUNNR = ITAB-KUNWE BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-NAMWE = IT_KNA1-NAME1.
+    ENDIF.
+    READ TABLE IT_TVSTT WITH KEY VSTEL = ITAB-VSTEL BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-TVSTT = IT_TVSTT-VTEXT.
+    ENDIF.
+    READ TABLE IT_WBSTK WITH KEY DOMVALUE_L = ITAB-WBSTK BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      ITAB-WBSTKT = IT_WBSTK-DDTEXT.
+    ENDIF.
+    CONCATENATE ITAB-AUBEL ITAB-AUPOS INTO TDNAME.
+    PERFORM GETLONGTEXT(ZPUBFORM)
+    USING 'Z001' TDNAME 'VBBP'
+          CHANGING ITAB-GUIGE.
+    MODIFY ITAB.
+  ENDLOOP.
+  CASE 'X'.
+    WHEN P2A.
+*取排产单
+      IF IT_AUBEL[] IS NOT INITIAL.
+        SORT IT_AUBEL BY VBELN POSNR.
+        SELECT *
+          INTO TABLE IT_205
+          FROM ZTPP_205
+          FOR ALL ENTRIES IN IT_AUBEL
+          WHERE VBELN = IT_AUBEL-VBELN
+          AND   POSNR = IT_AUBEL-POSNR.
+          SORT IT_205 BY VBELN POSNR.
+      ENDIF.
+*根据出库单查尺寸明细
+      SELECT *
+        INTO TABLE IT_ZVSDLIPS_ITEM
+        FROM ZVSDLIPS_ITEM
+        FOR ALL ENTRIES IN ITAB
+        WHERE VBELN = ITAB-VBELN
+        AND   POSNR = ITAB-POSNR.
+      IF SY-SUBRC EQ 0.
+*取316数据
+        SORT IT_ZVSDLIPS_ITEM BY WERKS MATNR CHARG ZCC ZBH.
+        SELECT *
+          INTO TABLE IT_ZTPP316
+          FROM ZTPP316
+          FOR ALL ENTRIES IN IT_ZVSDLIPS_ITEM
+          WHERE WERKS = IT_ZVSDLIPS_ITEM-WERKS
+          AND   MATNR = IT_ZVSDLIPS_ITEM-MATNR
+          AND   CHARG = IT_ZVSDLIPS_ITEM-CHARG
+          AND   ZCC   = IT_ZVSDLIPS_ITEM-ZCC
+          AND   ZBH   = IT_ZVSDLIPS_ITEM-ZBH  .
+        SORT IT_ZTPP316 BY WERKS MATNR CHARG ZCC ZBH.
+      ENDIF.
+      SORT IT_ZVSDLIPS_ITEM BY VBELN POSNR.
+*取批次特征
+      CALL FUNCTION 'ZFMS_05_GETPCTX'
+        TABLES
+          INTAB  = INTAB
+          OUTTAB = OUTTAB.
+      DELETE OUTTAB WHERE ATWRT IS INITIAL.
+      LOOP AT OUTTAB.
+        CLEAR IT_ATNAM.
+        IT_ATNAM-ATNAM = OUTTAB-ATNAM.
+        COLLECT IT_ATNAM.
+      ENDLOOP.
+*取物料属性
+      PERFORM GET001 TABLES IT_MATNR.
+      SORT OUTTAB001 BY MATNR.
+      SORT OUTTAB BY MATNR CHARG.
+
+*构建动态内表
+*原有FIELDCAT中
+      LOOP AT FIELDCAT INTO WA_FIELD .
+        PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT
+        USING WA_FIELD-FIELDNAME WA_FIELD-SELTEXT_L
+              WA_FIELD-REF_TABNAME WA_FIELD-REF_FIELDNAME.
+      ENDLOOP.
+*填充尺寸明细数据
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT USING:
+            'ZCC206' '尺寸' 'ZTSD206' 'ZCC',
+            'ZBH206' '包号' 'ZTSD206' 'ZBH',
+            'AUFNR206' '工单' 'ZTSD206' 'AUFNR',
+            'ZSHUL206' '数量' 'ZTSD206' 'ZSHUL',
+            'ZZK316' '块数' 'ZTPP316' 'ZZK',
+            'ZKD316' '宽度' 'ZTPP316' 'ZKD',
+            'ZCD316' '长度' 'ZTPP316' 'ZCD',
+            'ZXS316' '系数' 'ZTPP316' 'ZXS',
+            'ZPCDH' '排产单号' 'ZTPP_205' '',
+            'TOPPAGE' '数量' 'MARA' 'LVORM'.
+*取特性描述
+      IF IT_ATNAM[] IS NOT INITIAL.
+        SORT IT_ATNAM BY ATNAM.
+        SELECT CABN~ATINN,
+               CABN~ADZHL,
+               CABN~ATNAM,
+               CABNT~ATBEZ
+          INTO TABLE @DATA(IT_CABNT)
+          FROM CABN INNER JOIN CABNT ON CABN~ATINN = CABNT~ATINN
+          FOR ALL ENTRIES IN @IT_ATNAM
+          WHERE CABN~ATNAM = @IT_ATNAM-ATNAM
+            AND CABNT~SPRAS = @SY-LANGU.
+        SORT IT_CABNT BY ATNAM.
+        LOOP AT IT_ATNAM.
+          READ TABLE IT_CABNT INTO DATA(WA_CABNT) WITH KEY ATNAM = IT_ATNAM BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT USING:
+                  IT_ATNAM-ATNAM WA_CABNT-ATBEZ 'AUSP' 'ATWRT'.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+*生成动态内表
+      CALL METHOD CL_ALV_TABLE_CREATE=>CREATE_DYNAMIC_TABLE
+        EXPORTING
+          IT_FIELDCATALOG = IT_FIELDCAT
+        IMPORTING
+          EP_TABLE        = D_ITAB1.
+      ASSIGN D_ITAB1->* TO <D_ITAB1>.
+      CREATE DATA D_WA1 LIKE LINE OF <D_ITAB1>.
+      ASSIGN D_WA1->* TO <D_WA1>.
+*填充数据
+      LOOP AT ITAB.
+        CLEAR:<D_WA1>.
+        READ TABLE IT_ZVSDLIPS_ITEM INTO ZVSDLIPS_ITEM WITH KEY VBELN = ITAB-VBELN
+                                                                POSNR = ITAB-POSNR
+                                                                BINARY SEARCH.
+        IF SY-SUBRC = 0.
+          D_TABIX = SY-TABIX.
+          LOOP AT IT_ZVSDLIPS_ITEM INTO ZVSDLIPS_ITEM FROM D_TABIX.
+            CLEAR:<D_WA1>.
+            IF ZVSDLIPS_ITEM-VBELN NE ITAB-VBELN
+              OR ZVSDLIPS_ITEM-POSNR NE ITAB-POSNR.
+              EXIT.
+            ENDIF.
+            MOVE-CORRESPONDING ITAB TO <D_WA1>.
+            SELECT *
+              FROM DD03L
+              WHERE TABNAME = 'ZTSD206'
+              AND   AS4LOCAL = 'A'.
+              ASSIGN COMPONENT DD03L-FIELDNAME OF STRUCTURE ZVSDLIPS_ITEM TO <FS>.
+              IF SY-SUBRC EQ 0.
+                CONCATENATE DD03L-FIELDNAME '206' INTO ZDM.
+                ASSIGN COMPONENT ZDM OF STRUCTURE <D_WA1> TO <FS1>.
+                IF SY-SUBRC EQ 0.
+                  <FS1> = <FS>.
+                ENDIF.
+              ENDIF.
+            ENDSELECT.
+*匹配316表数据
+            READ TABLE IT_ZTPP316 INTO ZTPP316 WITH KEY WERKS = ZVSDLIPS_ITEM-WERKS
+                                                        MATNR = ZVSDLIPS_ITEM-MATNR
+                                                        CHARG = ZVSDLIPS_ITEM-CHARG
+                                                        ZCC   = ZVSDLIPS_ITEM-ZCC
+                                                        ZBH   = ZVSDLIPS_ITEM-ZBH
+                                                        BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              SELECT *
+                FROM DD03L
+                WHERE TABNAME = 'ZTPP316'
+                AND   AS4LOCAL = 'A'.
+                ASSIGN COMPONENT DD03L-FIELDNAME OF STRUCTURE ZTPP316 TO <FS>.
+                IF SY-SUBRC EQ 0.
+                  CONCATENATE DD03L-FIELDNAME '316' INTO ZDM.
+                  ASSIGN COMPONENT ZDM OF STRUCTURE <D_WA1> TO <FS1>.
+                  IF SY-SUBRC EQ 0.
+                    <FS1> = <FS>.
+                  ENDIF.
+                ENDIF.
+              ENDSELECT.
+            ENDIF.
+            PERFORM FILLATWRT.
+            APPEND <D_WA1> TO <D_ITAB1>.
+          ENDLOOP.
+        ELSE.
+          MOVE-CORRESPONDING ITAB TO <D_WA1>.
+          PERFORM FILLATWRT.
+          APPEND <D_WA1> TO <D_ITAB1>.
+        ENDIF.
+      ENDLOOP.
+    WHEN OTHERS.
+  ENDCASE.
+  CLEAR:ZDM.
+ENDFORM.
+FORM ALVSHOW.
+  CASE 'X'.
+    WHEN P2A.
+      CHECK ITAB[] IS NOT INITIAL
+      AND IT_FIELDCAT[] IS NOT INITIAL.
+*构建FIELDCAT
+      LOOP AT IT_FIELDCAT INTO WA_FIELDCAT.
+        PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT1
+          USING WA_FIELDCAT-FIELDNAME WA_FIELDCAT-SCRTEXT_L
+                '' '' '' ''.
+      ENDLOOP.
+      LOOP AT FIELDCAT1 INTO WA_FIELD.
+        CASE WA_FIELD-FIELDNAME.
+          WHEN 'HANDLE' OR 'TOPPAGE'.
+            WA_FIELD-NO_OUT = 'X'.
+            WA_FIELD-SELTEXT_L = 'Y206'.
+          WHEN 'VBELN' OR 'VGBEL' OR 'AUBEL'.
+            WA_FIELD-HOTSPOT = 'X'.
+        ENDCASE.
+        MODIFY FIELDCAT1 FROM WA_FIELD.
+      ENDLOOP.
+      PERFORM ALVFM(ZPUBFORM) TABLES <D_ITAB1> FIELDCAT1 USING '' ''.
+    WHEN OTHERS.
+      CHECK ITAB[] IS NOT INITIAL.
+      PERFORM INIT_FIELDCAT(ZRSD202) TABLES FIELDCAT USING :
+            'HANDLE' 'Z206' '' 'X' '' '' 'LIKP' 'VKORG'.
+      PERFORM ALVFM(ZPUBFORM) TABLES ITAB FIELDCAT USING '' ''.
+  ENDCASE.
+
+ENDFORM.
+*FORM SET_STATUS USING RT_EXTAB TYPE SLIS_T_EXTAB.
+*  DATA LT_EXFCODE TYPE TABLE OF SY-UCOMM.
+*  SET PF-STATUS 'STANDARD' EXCLUDING LT_EXFCODE.
+*ENDFORM. "set_status
+FORM TOP_OF_PAGE.
+  DATA:IT_LIST_COMMENTARY TYPE SLIS_T_LISTHEADER,
+       WA_LIST_COMMENTARY TYPE SLIS_LISTHEADER,
+       SJTMS              TYPE NUMC10.
+  CLEAR:WA_LIST_COMMENTARY,SJTMS.
+  REFRESH:IT_LIST_COMMENTARY.
+  CASE 'X'.
+    WHEN P2A.
+      SJTMS = LINES( <D_ITAB1> ).
+    WHEN P2B.
+      SJTMS = LINES( ITAB ).
+  ENDCASE.
+  PERFORM DELZERO(ZPUBFORM) CHANGING SJTMS.
+
+  WA_LIST_COMMENTARY-TYP = 'S'.
+  WA_LIST_COMMENTARY-KEY = '条目数:'.
+  WA_LIST_COMMENTARY-INFO = SJTMS.
+  APPEND WA_LIST_COMMENTARY TO IT_LIST_COMMENTARY.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      IT_LIST_COMMENTARY = IT_LIST_COMMENTARY[]
+    EXCEPTIONS
+      OTHERS             = 1.
+ENDFORM.
+FORM USER_COMMAND USING R_UCOMM LIKE SY-UCOMM
+                        RS_SELFIELD TYPE SLIS_SELFIELD.
+  DATA WA LIKE LINE OF ITAB.
+  CASE R_UCOMM.
+    WHEN '&IC1'.
+      CHECK RS_SELFIELD-TABINDEX <> 0 . "小计行总计行什么的忽略
+      CASE 'X'.
+        WHEN P2A.
+          READ TABLE <D_ITAB1> ASSIGNING <WA> INDEX RS_SELFIELD-TABINDEX.
+          CHECK SY-SUBRC = 0.
+        WHEN P2B.
+          READ TABLE ITAB ASSIGNING <WA> INDEX RS_SELFIELD-TABINDEX.
+          CHECK SY-SUBRC = 0.
+      ENDCASE.
+      ASSIGN COMPONENT RS_SELFIELD-FIELDNAME OF STRUCTURE <WA> TO <FS>.
+      CHECK SY-SUBRC = 0.
+      CASE RS_SELFIELD-FIELDNAME.
+        WHEN 'VGBEL'.
+          CALL FUNCTION 'ZFM_CALLSODJ'
+            EXPORTING
+              VBELN  = <FS>
+              INTYPE = 'FH'
+              MODE   = 'S'.
+        WHEN 'AUBEL'.
+          CALL FUNCTION 'ZFM_CALLSODJ'
+            EXPORTING
+              VBELN  = <FS>
+              INTYPE = 'HT'
+              MODE   = 'S'.
+        WHEN 'VBELN'.
+          PERFORM CALLCKD USING <FS> ''.
+      ENDCASE.
+  ENDCASE.
+  RS_SELFIELD-ROW_STABLE = 'X'.
+  RS_SELFIELD-COL_STABLE = 'X'.
+  RS_SELFIELD-REFRESH = 'X'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SELSCREEN
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SELSCREEN .
+  T1 = '功能选项'.
+  T2 = '选择条件'.
+  SSCRFIELDS-FUNCTXT_01 = '@0J@配置引库存配置表'.
+  %_P1_%_APP_%-TEXT = '创建出库单'.
+  %_P2_%_APP_%-TEXT = '查询出库单'.
+  %_P2A_%_APP_%-TEXT = '尺寸明细级别'.
+  %_P2B_%_APP_%-TEXT = '批次级别'.
+  %_P_VKORG_%_APP_%-TEXT = '销售组织'.
+  %_S_AUBEL_%_APP_%-TEXT = '合同号'.
+  %_S_BUDAT_%_APP_%-TEXT = '实际交货日期'.
+  %_S_CHARG_%_APP_%-TEXT = '批次'.
+  %_S_KUNWE_%_APP_%-TEXT = '送达方'.
+  %_S_LGORT_%_APP_%-TEXT = '库存地'.
+  %_S_MATNR_%_APP_%-TEXT = '物料号'.
+  %_S_VBELN_%_APP_%-TEXT = '出库单号'.
+  %_S_VGBEL_%_APP_%-TEXT = '发货通知单号'.
+  %_S_VSTEL_%_APP_%-TEXT = '装运点'.
+  %_S_WADAT_%_APP_%-TEXT = '计划交货日期'.
+  %_S_WBSTK_%_APP_%-TEXT = '货物移动状态'.
+  %_S_WERKS_%_APP_%-TEXT = '工厂'.
+  %_S_KUNNR_%_APP_%-TEXT = '客户'.
+  %_S_POSID_%_APP_%-TEXT = '项目定义'.
+  %_S_POST1_%_APP_%-TEXT = '项目名称'.
+  LOOP AT SCREEN.
+    CASE SCREEN-GROUP1.
+      WHEN 'M'.
+        SCREEN-REQUIRED = 2.
+    ENDCASE.
+    CASE 'X'.
+      WHEN P1.
+        CASE SCREEN-GROUP1.
+          WHEN 'M' OR 'M1'.
+            SCREEN-ACTIVE = 0.
+        ENDCASE.
+      WHEN P2.
+        CASE SCREEN-GROUP1.
+          WHEN 'M' OR 'M1'.
+            SCREEN-ACTIVE = 1.
+        ENDCASE.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+ENDFORM.

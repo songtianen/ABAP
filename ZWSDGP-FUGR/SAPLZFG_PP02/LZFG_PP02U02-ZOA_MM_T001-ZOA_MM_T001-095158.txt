@@ -1,0 +1,35 @@
+FUNCTION ZOA_MM_T001.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  TABLES
+*"      TO_WITHDRAW STRUCTURE  ZOA_T01
+*"      S_AUFNR STRUCTURE  STXDRNAME
+*"----------------------------------------------------------------------
+tables: afko, afpo, AUFM, resb, mseg.
+
+
+  SELECT  afko~aufnr
+*          afko~GLTRP   "生产订单开始日期
+*          afko~GETRI   "生产订单完成日期
+           afko~PVERW   "订单类型
+          afko~rsnum   "预留
+          afpo~plnum   "计划订单
+*          aufm~rsnum   "预留
+*          aufm~MBLNR   "物料凭证
+**          resb~STLNR   "BOM 物料单
+*          MSEG~BWART   "移动类型
+
+
+    INTO  CORRESPONDING FIELDS OF TABLE TO_WITHDRAW
+    FROM  AFKO
+    INNER  JOIN afpo ON  afko~aufnr = afpo~aufnr.
+*    inner  join aufm on  afko~rsnum = aufm~rsnum
+**    INNER JOIN  resb on  afko~AUFNR = resb~AUFNR
+*    INNER JOIN  mseg on  afpo~AUFNR = mseg~AUFNR
+**    WHERE AFKO~AUFNR in S_AUFNR.
+*    where MSEG~BWART = '261' and afko~PVERW = '1'.
+
+
+
+
+ENDFUNCTION.

@@ -1,0 +1,19 @@
+*******************************************************************
+*   System-defined Include-files.                                 *
+*******************************************************************
+  INCLUDE LZFG_PP_BOMTOP.                    " Global Declarations
+  INCLUDE LZFG_PP_BOMUXX.                    " Function Modules
+
+*******************************************************************
+*   User-defined Include-files (if necessary).                    *
+*******************************************************************
+* INCLUDE LZFG_PP_BOMF...                    " Subroutines
+* INCLUDE LZFG_PP_BOMO...                    " PBO-Modules
+* INCLUDE LZFG_PP_BOMI...                    " PAI-Modules
+* INCLUDE LZFG_PP_BOME...                    " Events
+* INCLUDE LZFG_PP_BOMP...                    " Local class implement.
+* INCLUDE LZFG_PP_BOMT99.                    " ABAP Unit tests
+
+INCLUDE lzfg_pp_bomf01.
+
+INCLUDE lzfg_pp_bomf02.

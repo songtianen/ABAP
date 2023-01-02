@@ -1,0 +1,11 @@
+*----------------------------------------------------------------------*
+*   INCLUDE AEMM_FCODES                                                *
+*----------------------------------------------------------------------*
+
+* Function codes used by the routines for editing Tickets & Additionals
+* as part of the material master editing.  CvB----07/97
+
+data: fcode_mmae_delete_row(4)    type c value 'DELR',
+      fcode_mmae_insert_row(4)    type c value 'INSR',
+      fcode_mmae_extra_text(4)    type c value 'ADET',
+      fcode_mmae_var_assign(4)    type c value 'VARI'.

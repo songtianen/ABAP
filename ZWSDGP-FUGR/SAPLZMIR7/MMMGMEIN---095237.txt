@@ -1,0 +1,75 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGMEIN                                                   *
+*   Allgemeine Deklarationen f¨¹r Mengeneinheiten.                      *
+*----------------------------------------------------------------------*
+TABLES: RM03E,
+        T006M,
+        TNTPB.
+
+* AHE: 16.07.96 - A
+* Umstellung Mengeneinheiten-Bilder auf Table Control
+CONTROLS: TC_ME_8020 TYPE TABLEVIEW USING SCREEN 0002.
+CONTROLS: TC_ME_8021 TYPE TABLEVIEW USING SCREEN 0002.
+CONTROLS: TC_ME_8022 TYPE TABLEVIEW USING SCREEN 0002.
+CONTROLS: TC_ME_8024 TYPE TABLEVIEW USING SCREEN 0002. "<<<<<<<TF 4.7<<<
+                         "jw/20.11.98 Dynp. 8022 f¨¹r hier. ME
+DATA: DP_8020 LIKE SY-DYNNR VALUE '8020',
+      DP_8021 LIKE SY-DYNNR VALUE '8021',
+      DP_8022 LIKE SY-DYNNR VALUE '8022', "jw/20.11.98
+      DP_8024 LIKE SY-DYNNR VALUE '8024'. "TF 4.7
+
+DATA: TC_ME_TOPL_BUF LIKE SY-STEPL.
+* AHE: 16.07.96 - E
+
+*-- Datenstrukturen f¨¹r Kurztexthandling ------------------------------
+DATA:   ME_ZEILEN_NR   LIKE SY-TABIX,    "Zeilen-nr.
+        ME_AKT_ZEILE   LIKE SY-TABIX,    "aktuelle Zeile
+        ME_ERSTE_ZEILE LIKE SY-TABIX,    "erste Zeile pro Seite
+        ME_ERSTE_ZEILE_C(3),     "ME_ERSTE_ZEILE aufbereitet f¨¹r Dynpro
+        ME_ZLEPROSEITE LIKE SY-LOOPC,    "Anzahl Zeilen pro Seite
+        ME_SAVSPRAS    LIKE MAKT-SPRAS,  "Hilfsfeld Sprachenschluessel
+        ME_EINTRAEGE_C(3),               "Anz. ME aufbereitet f. Dynpro
+        ME_LINES       LIKE SY-TABIX,    "Anzahl ME-Eintr#ge
+        ME_FEHLERFLG(1),                 "Fehlerflag
+        ME_DOPPEINTRAG(1),               "ME ist doppelt vorhanden
+        ME_DOPPEINTRAG_GES(1),           "Doppelte ME vorhanden
+        ME_ZAEHLER     LIKE SY-TABIX,    "Hilfsfeld Zeilenz#hler
+        ADDKOFLG(1),                     "UmrFehler wg. additiver Konst.
+        HADDKO LIKE T006-ADDKO,        "Hilfsfeld f¨¹r additive Konstante
+        Z_UMREN LIKE MARM-UMREN,         "Hilfsfeld
+        Z_UMREZ LIKE MARM-UMREZ,         "Hilfsfeld
+        SAVMEINH  LIKE MARM-MEINH,       "Hilfsfeld Mengeneinheit
+        SAVMEINH2 LIKE MARM-MEINH,       "Hilfsfeld Mengeneinheit
+        RET_EAN11 LIKE MARM-EAN11,       "Hilfsfeld letzte EAN
+        RET_NUMTP LIKE MARM-NUMTP,       "Hilfsfeld letzter Nummerntyp
+        ME_FLGALT(1)      VALUE 'A',     "Eintrag bereits geprueft
+        ME_BILDFLAG_OLD,                 "Zwischenspeicher Bildflag,
+                                         "um zu merken, ob Bildflag
+                                         "au#erhalb des Bildbausteins
+                                         "gesetzt wurde.
+        ME_EANERRFLG,                    "Fehler bei EAN-Pr¨¹fung auf-
+                                         "getreten
+        ME_FLG_DEL(1),                   "ME darf gel#scht werden (dopp)
+        ME_MEINH_DEL LIKE MARM-MEINH,    "Me, die gel#scht werden darf
+        ME_BME LIKE MARM-MEINH,          "Hilfsfeld BasisME
+        ME_BSTME LIKE MARM-MEINH,        "Hilfsfeld BestellME
+        ME_AUSME LIKE MARM-MEINH,        "Hilfsfeld LieferME/AusgabeME
+        ME_VRKME LIKE MARM-MEINH,        "Hilfsfeld VerkaufsME
+        me_updateflg(1) type c,          "Umrechnung wurde geaendert
+        LHMG_UPDATEFLG(1) TYPE C.        "LHM-Menge wird geaendert, da
+                                         "Umrechnungsfaktoren der ME ge-
+                                         "aendert wurden.
+                                         "note 132233/jw 4.1.99
+
+* cfo/29.4.97 Zum retten der bereits #nderungsgepr¨¹ften Mengeneinheiten.
+DATA RET_MEINH LIKE SMEINH OCCURS 0 WITH HEADER LINE.
+
+*-- Mengeneinheiten Fehlerexits
+DATA:   FDMEINH(1)   VALUE 'D',          "Doppelter Eintrag
+        ULMEINH(1)   VALUE 'U',          "Feld¨¹berlauf bei Konsistprf
+        KZMEINH(1)   VALUE 'K',          "Fehler bei spezieller ME
+        OTMEINH(1)   VALUE 'O',          "anderer Fehler
+        SBMEINH(1)   VALUE 'S'.          "Fehler bei Sub-Me jw/4.6A
+
+*-- WS Abwicklung Datendefinition Anteils-/variable Mengeneinheiten
+INCLUDE MMMGMEWS.

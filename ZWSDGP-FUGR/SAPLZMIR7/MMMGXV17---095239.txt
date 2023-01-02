@@ -1,0 +1,69 @@
+************************************************************************
+*
+* Include f¨¹r Festwerte Tabellennamen
+*
+************************************************************************
+
+* 1. Zeichen der Materialstammtabellen
+CONSTANTS:  P_MATSTAMM(1) VALUE 'M'.
+
+*---- Tabellennamen --------------------------------------------------
+*mk/4.0A like t130C-TBNAM ersetzt durch like sptab-tbnam (nur tempor#r
+*notwendig, da T130C-tbnam bereits verl#ngert, PTAB's noch nicht)
+CONSTANTS:   T_MAW1 LIKE SPTAP-TBNAM  VALUE 'MAW1',
+        T_MWLI LIKE SPTAB-TBNAM  VALUE 'MWLI',     "cfo/4.0
+        T_MARA LIKE SPTAP-TBNAM  VALUE 'MARA',
+        T_MARM LIKE SPTAP-TBNAM  VALUE 'MARM',
+        T_MAKT LIKE SPTAP-TBNAM  VALUE 'MAKT',
+        T_MLAN LIKE SPTAP-TBNAM  VALUE 'MLAN',
+        T_MARC LIKE SPTAP-TBNAM  VALUE 'MARC',
+        T_MARD LIKE SPTAP-TBNAM  VALUE 'MARD',
+        T_MBEW LIKE SPTAP-TBNAM  VALUE 'MBEW',
+        T_MBEWH LIKE SPTAB-TBNAM VALUE 'MBEWH', "TF 4.0C
+        T_MEAN LIKE SPTAP-TBNAM  VALUE 'MEAN',
+        T_MLEA LIKE SPTAP-TBNAM  VALUE 'MLEA',  " AHE: 18.06.96
+        T_MKAL LIKE SPTAP-TBNAM  VALUE 'MKAL',
+        T_MLGT LIKE SPTAP-TBNAM  VALUE 'MLGT',
+        T_MLGN LIKE SPTAP-TBNAM  VALUE 'MLGN',
+        T_MPGD LIKE SPTAP-TBNAM  VALUE 'MPGD',
+        T_MPOP LIKE SPTAP-TBNAM  VALUE 'MPOP',
+        T_MPOZ LIKE SPTAP-TBNAM  VALUE 'MPOZ',
+        T_MFHM LIKE SPTAP-TBNAM  VALUE 'MFHM',
+        T_MYMS LIKE SPTAP-TBNAM  VALUE 'MYMS',
+        T_MVKE LIKE SPTAP-TBNAM  VALUE 'MVKE',
+        T_MVER LIKE SPTAP-TBNAM  VALUE 'MVER',
+        T_QMAT LIKE SPTAP-TBNAM  VALUE 'QMAT',
+        T_PROW LIKE SPTAP-TBNAM  VALUE 'PROW',
+        T_MAEX LIKE SPTAP-TBNAM  VALUE 'MAEX',
+        T_RMMZU(5)                 VALUE 'RMMZU',   "mk/4.0
+        T_RMMG1(5)                 VALUE 'RMMG1',
+        T_RMMG1_BEZ(9)             VALUE 'RMMG1_BEZ',
+        T_RMMG3(5)                 VALUE 'RMMG3',
+        T_RM03M(5)                 VALUE 'RM03M',
+        T_MSICHTAUSW(10)           VALUE 'MSICHTAUSW'.
+
+*Namen f¨¹r interne Tabellen
+CONSTANTS:   T_MEINH       LIKE DFIES-TABNAME VALUE 'MEINH',
+        T_SMEINH(6)   TYPE C             VALUE 'SMEINH',
+        T_KTEXT       LIKE DFIES-TABNAME VALUE 'KTEXT',
+        T_SKTEXT      LIKE DFIES-TABNAME VALUE 'SKTEXT',
+        T_STEUERTAB   LIKE DFIES-TABNAME VALUE 'STEUERTAB',
+        T_STEUMMTAB   LIKE DFIES-TABNAME VALUE 'STEUMMTAB',
+        T_MG03STEUER  LIKE DFIES-TABNAME VALUE 'MG03STEUER',
+        T_MG03STEUMM  LIKE DFIES-TABNAME VALUE 'MG03STEUMM',
+        T_VERBTAB     LIKE DFIES-TABNAME VALUE 'SVERBTABA',
+        T_GVERBTAB(11) TYPE C            VALUE 'GES_VERBTAB',
+        T_UVERBTAB(11) TYPE C            VALUE 'UNG_VERBTAB',
+        T_PROWF       LIKE DFIES-TABNAME VALUE 'PROWF',
+        T_PROWFA      LIKE DFIES-TABNAME VALUE 'PROWFA',
+        T_LTEXT       LIKE DFIES-TABNAME VALUE 'LTEX1'.
+* Views
+CONSTANTS:   T_MARCV LIKE RSRD1-OBJNAME  VALUE 'MARCV'.
+CONSTANTS:   T_MARAT LIKE RSRD1-OBJNAME  VALUE 'MARAT'.
+
+* Hilfsdeklarationen f¨¹r Generierer
+CONSTANTS: MAW1_FUNGR LIKE T130C-FUNGR VALUE 'MG38',
+      MAW1_PFUNG LIKE T130C-PFUNG VALUE 'MG40'.
+
+* Feldnamen (jw/4.6A)
+CONSTANTS:   F_MARM_MEINH LIKE T130F-FNAME VALUE 'MARM-MEINH'.

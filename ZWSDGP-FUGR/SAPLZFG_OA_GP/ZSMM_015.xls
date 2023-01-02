@@ -1,0 +1,3 @@
+字段	主键	数据元素	数据类型	长度	小数位	短文本	0
+FLAG		BAPI_MTYPE	CHAR	000001	000000	消息类型: S 成功,E 错误,W 警告,I 信息,A 中断	0
+MESSAGE		BAPI_MSG	CHAR	000220	000000	消息文本	0

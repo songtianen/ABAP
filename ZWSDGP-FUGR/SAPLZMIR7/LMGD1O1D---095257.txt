@@ -1,0 +1,392 @@
+*------------------------------------------------------------------
+*           Feldauswahl
+*
+*Die Feldauswahlleiste wird im Modul VERK_FELDAUSWAHL erstellt.
+*mk/12.07.95 Lesen T130F vorgezogen aus FB incl. Fauswtab erg#nzen
+*mk/05.12.95 KZINI wird nur im Erweiterungsfall ben#tigt bzw.
+*f¨¹r den Kurtext im Anlegefall (Sonfausw_in_fgrup) sowie f¨¹r Kopffelder
+*------------------------------------------------------------------
+MODULE feldauswahl OUTPUT.
+
+* (del) TRANSLATE AKTVSTATUS USING ' $'.                     "BE/070597
+
+*-------- Aufbauen Feldauswahl-Tabelle --------------------------------
+
+  PERFORM t130f_lesen_komplett.
+
+  REFRESH fauswtab.   CLEAR fauswtab.
+  CLEAR char_2.  "temp. Hilfsfeld f¨¹r SCREEN-GROUP+1 wg. Ausblenden
+  "Bezeichnungen zu ausgebl. zentralen Daten  /ch zu 3.0F
+
+  LOOP AT SCREEN.
+    CLEAR kz_field_initial.
+
+ENHANCEMENT-POINT lmgd1o1d_01 SPOTS es_lmgd1o1d INCLUDE BOUND.
+
+*mk/05.12.95 nur beim Erweitern sowie f¨¹r Kurztext und Kopffelder
+*wird die Information ben#tigt, ob Feld initial ist
+    IF screen-name CA '-'.             "mk/4.0A sonst Dump
+      IF ( t130m-aktyp = aktyph AND neuflag IS INITIAL )        OR
+         ( t130m-aktyp = aktyph  AND screen-name = makt_maktx ) OR
+         ( screen-name(5) = t_rmmg1 AND screen-name NE rmmg1_matnr
+                                    AND screen-name(9) NE t_rmmg1_bez ).
+*   ASSIGN (SCREEN-NAME) TO <F>.     mk/05.12.95
+        ASSIGN TABLE FIELD (screen-name) TO <f>.
+*       if <f> is initial.                        "mk/4.0A
+        IF sy-subrc EQ 0 AND <f> IS INITIAL.      "mk/4.0A
+          kz_field_initial = x.        "#bergabe Kennung Feld initial
+* Ungef¨¹llte OrgEbenenfelder werden ausgeblendet
+          IF screen-name(5) = t_rmmg1 AND screen-name NE rmmg1_matnr
+                                      AND screen-name(9) NE t_rmmg1_bez.
+            screen-invisible = 1.
+            screen-active    = 0.
+            screen-output    = 0.      "mk/3.0D
+            screen-input     = 0.      "mk/3.0D
+            screen-required  = 0.      "mk/3.0D
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+
+"{ Begin ENHO DIMP_GENERAL_LMGD1O1D IS-A DIMP_GENERAL }
+      IF screen-name EQ 'MARA-NTGEW'.
+        IF t133a-bilds EQ 'MC'.
+          screen-required = 1.
+        ENDIF.
+      ENDIF.
+"{ End ENHO DIMP_GENERAL_LMGD1O1D IS-A DIMP_GENERAL }
+
+ENHANCEMENT-POINT lmgd1o1d_06 SPOTS es_lmgd1o1d INCLUDE BOUND .
+    ENDIF.                             "mk/4.0A
+
+*   Auswerten der Berechtigung f¨¹r zentrale Felder.     neu zu 3.0F
+    IF rmmg2-manbr NE space.
+      IF screen-name(4) = t_mara   OR screen-name(4) = t_makt
+      OR screen-name(4) = t_marm   OR screen-name(4) = t_mean
+      OR screen-name(6) = t_smeinh OR screen-name(6) = t_sktext
+      OR screen-name = rmmzu_xltyf
+      OR screen-name = kt_delete       "L#schen KText /ch zu 4.0
+      OR screen-name = me_delete       "L#schen ME    /ch zu 4.0
+      OR screen-name = ean_delete .    "L#schen EAN   /ch zu 4.0
+        IF rmmg2-manbr = 1
+        OR screen-name    = mara_meins "BasisME wird nicht ausgebl.
+        OR screen-name(4) = t_makt     "Kurztexte werden nicht ausgebl.
+        OR screen-name(6) = t_sktext.
+          IF screen-name NE mara_lghty.
+            screen-input     = 0.
+            screen-required  = 0.
+          ENDIF.
+        ELSE.
+          screen-invisible = 1.
+          screen-active    = 0.
+          screen-output    = 0.
+          screen-input     = 0.
+          screen-required  = 0.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    IF screen-name = 'MARA-/CWM/TARA' AND mara-/cwm/xcwmat = space.
+      LOG-POINT ID /cwm/enh SUBKEY to_upper( sy-tcode && '\/CWM/APPL_MD_LMGD1O1D\LMGD1O1D_05\' && sy-cprog ) FIELDS /cwm/cl_enh_layer=>get_field( ).
+      screen-active = 0.
+      screen-input  = 0.
+    ENDIF.
+    IF screen-name = 'MARA-/CWM/TARUM' AND mara-/cwm/xcwmat = space.
+      screen-active = 0.
+      screen-input  = 0.
+    ENDIF.
+ENHANCEMENT-POINT lmgd1o1d_05 SPOTS es_lmgd1o1d INCLUDE BOUND.
+
+*   note 1296499: use SMEINH-EAN11/NUMTP for MEAN fields
+    IF screen-name = 'MEAN-EAN11'.
+      screen-name = 'SMEINH-EAN11'.
+    ENDIF.
+    IF screen-name = 'MEAN-EANTP'.
+      screen-name = 'SMEINH-NUMTP'.
+    ENDIF.
+
+*   note 1358288: override invisible flag set by table control to
+*   enable correct execution of field selection
+    IF <f_tc> IS ASSIGNED.
+      READ TABLE <f_tc>-cols INTO tc_col WITH KEY screen-name = screen-name.
+      IF sy-subrc = 0 AND screen-invisible = 1.
+        screen-invisible = 0.
+      ENDIF.
+    ENDIF.
+
+    fauswtab-fname = screen-name.
+    fauswtab-kzini = kz_field_initial.
+    fauswtab-kzact = screen-active.
+    fauswtab-kzinp = screen-input.
+    fauswtab-kzint = screen-intensified.
+    fauswtab-kzinv = screen-invisible.
+    fauswtab-kzout = screen-output.
+    fauswtab-kzreq = screen-required.
+    READ TABLE it130f WITH KEY fname = fauswtab-fname BINARY SEARCH.
+    IF sy-subrc NE 0.
+      CLEAR it130f.
+*mk/4.0A Sonderlogik f¨¹r Pushbuttons etc.
+      SPLIT screen-name AT '-' INTO it130f-tbnam it130f-fieldname.
+      IF it130f-fieldname IS INITIAL.
+        SPLIT screen-name AT '_' INTO it130f-tbnam it130f-fieldname.
+      ENDIF.
+    ENDIF.
+    fauswtab-pstat = it130f-pstat.
+    fauswtab-kzref = it130f-kzref.
+    fauswtab-kzkey = it130f-kzkey.
+    fauswtab-sfgru = it130f-sfgru.
+    fauswtab-kzkma = it130f-kzkma.
+    fauswtab-fgrup = it130f-fgrup.
+    fauswtab-tbnam = it130f-tbnam.     "mk/4.0A
+    fauswtab-fieldname  = it130f-fieldname.        "mk/4.0A
+    fauswtab-fgrou = it130f-fgrou.     "4.0A  BE/190997
+    fauswtab-fixre = it130f-fixre.     "TF 4.6C Materialfixierung
+
+ENHANCEMENT-POINT lmgd1o1d_02 SPOTS es_lmgd1o1d INCLUDE BOUND.
+    APPEND fauswtab.
+  ENDLOOP.
+
+*---------Feldauswahl Langtexte TF 4.6A--------------------------------
+* Langtextbilder werden als Ganzes ¨¹ber einen einzigen Eintrag in der
+* T130F verwaltet. In der Langtextpflege wird fauswtab um den ent-
+* sprechenden Eintrag erweitert, welcher der standardm##igen Feldauswahl
+* unterzogen wird. Abh#ngig vom Ergebnis werden die Parameter ltext_*
+* gesetzt und danach der Eintrag aus der fauswtab wieder entfernt.
+
+  IF NOT langtextbild_feldauswahl IS INITIAL.
+    CASE langtextbild_feldauswahl.
+      WHEN grunddtext_bild.
+        fauswtab-fname = ltext_grun.
+      WHEN bestelltext_bild.
+        fauswtab-fname = ltext_best.
+      WHEN vertriebstext_bild.
+        fauswtab-fname = ltext_vert.
+      WHEN ivermtext_bild.
+        fauswtab-fname = ltext_iver.
+      WHEN prueftext_bild.
+        fauswtab-fname = ltext_prue.
+      WHEN grunddtxte_bild.
+        fauswtab-fname = ltxte_grun.
+      WHEN bestelltxte_bild.
+        fauswtab-fname = ltxte_best.
+      WHEN vertriebstxte_bild.
+        fauswtab-fname = ltxte_vert.
+      WHEN ivermtxte_bild.
+        fauswtab-fname = ltxte_iver.
+      WHEN prueftxte_bild.
+        fauswtab-fname = ltxte_prue.
+    ENDCASE.
+    IF anz_sprachen > 0.               "TF 4.6C Materialfixierung
+      fauswtab-kzini = ' '.
+    ELSE.                              "TF 4.6C Materialfixierung
+      fauswtab-kzini = 'X'.            "TF 4.6C Materialfixierung
+    ENDIF.                             "TF 4.6C Materialfixierung
+    fauswtab-kzact = 1.
+    fauswtab-kzinp = 1.
+    fauswtab-kzint = 0.
+    fauswtab-kzinv = 0.
+    fauswtab-kzout = 1.
+    fauswtab-kzreq = 0.
+    READ TABLE it130f WITH KEY fname = fauswtab-fname BINARY SEARCH.
+    IF sy-subrc NE 0.
+      CLEAR it130f.
+*mk/4.0A Sonderlogik f¨¹r Pushbuttons etc.
+      SPLIT screen-name AT '-' INTO it130f-tbnam it130f-fieldname.
+      IF it130f-fieldname IS INITIAL.
+        SPLIT screen-name AT '_' INTO it130f-tbnam it130f-fieldname.
+      ENDIF.
+    ENDIF.
+    fauswtab-pstat = it130f-pstat.
+    fauswtab-kzref = it130f-kzref.
+    fauswtab-kzkey = it130f-kzkey.
+    fauswtab-sfgru = it130f-sfgru.
+    fauswtab-kzkma = it130f-kzkma.
+    fauswtab-fgrup = it130f-fgrup.
+    fauswtab-tbnam = it130f-tbnam.     "mk/4.0A
+    fauswtab-fieldname  = it130f-fieldname.        "mk/4.0A
+    fauswtab-fgrou = it130f-fgrou.     "4.0A  BE/190997
+    fauswtab-fixre = it130f-fixre.     "TF 4.6C Materialfixierung
+    APPEND fauswtab.
+  ENDIF.
+*---------Feldauswahl Langtexte TF 4.6A--------------------------------
+
+
+*---------Feldauswahl Dokumentdaten ( note 522456 )------------------
+* Dokumentdaten werden als Ganzes ¨¹ber einen einzigen Eintrag in der
+* T130F verwaltet. In der Dokumentdatenpflege wird fauswtab um den ent-
+* sprechenden Eintrag erweitert, welcher der standardm##igen Feldauswahl
+* unterzogen wird.
+* Danach der Eintrag aus der fauswtab wieder entfernt.
+
+  IF NOT dokumente_feldauswahl IS INITIAL.
+    CASE dokumente_feldauswahl.
+      WHEN dokumente_bild.
+        fauswtab-fname = 'DOKUMENTE'.
+    ENDCASE.
+
+
+    fauswtab-kzact = 1.
+    fauswtab-kzinp = 1.
+    fauswtab-kzint = 0.
+    fauswtab-kzinv = 0.
+    fauswtab-kzout = 1.
+    fauswtab-kzreq = 0.
+
+    READ TABLE it130f WITH KEY fname = fauswtab-fname BINARY SEARCH.
+
+    fauswtab-pstat = it130f-pstat.
+    fauswtab-kzref = it130f-kzref.
+    fauswtab-kzkey = it130f-kzkey.
+    fauswtab-sfgru = it130f-sfgru.
+    fauswtab-kzkma = it130f-kzkma.
+    fauswtab-fgrup = it130f-fgrup.
+    fauswtab-tbnam = it130f-tbnam.     "mk/4.0A
+    fauswtab-fieldname  = it130f-fieldname.        "mk/4.0A
+    fauswtab-fgrou = it130f-fgrou.     "4.0A  BE/190997
+    fauswtab-fixre = it130f-fixre.     "TF 4.6C Materialfixierung
+    APPEND fauswtab.
+  ENDIF.
+*---------Feldauswahl Dokumentdaten ( note 522456 )-------
+
+  SORT fauswtab BY fname.
+
+*-------- Aufrufen FB f¨¹r Feldauswahl ---------------------------------
+
+* Vereinigung der Feldauswahl-FB's Industrie und Retail      "BE/130197
+* CALL FUNCTION 'MATERIAL_FIELD_SELECTION'                   "BE/130197
+  CALL FUNCTION 'MATERIAL_FIELD_SELECTION_NEW'               "BE/130197
+    EXPORTING
+      aktvstatus   = aktvstatus
+      it130m       = t130m
+      neuflag      = neuflag
+      irmmg1       = rmmg1
+      irmmg2       = rmmg2                                       " n_2307549
+      rmmg2_kzkfg  = mara-kzkfg
+      it134_wmakg  = t134-wmakg "4.0A  BE/050697
+      imarc_dispr  = marc-dispr
+      imarc_pstat  = marc-pstat
+      impop_propr  = mpop-propr
+      imvke_pmatn  = mvke-pmatn "BE/130197
+      imbew_bwtty  = mbew-bwtty "4.0A  BE/150897
+      rmmg2_kzmpn  = rmmg2-kzmpn "mk/4.0A  MPN
+      imara_mstae  = mara-mstae "4.0A  BE/071097
+      it133a_pstat = t133a-pstat "RWA Hinw.127870
+      iv_matfi     = mara-matfi "TF 4.6C Materialfixierung
+    TABLES
+      fauswtab     = fauswtab
+      ptab         = ptab.
+
+
+ENHANCEMENT-POINT lmgd1o1d_03 SPOTS es_lmgd1o1d INCLUDE BOUND.
+*---------Feldauswahl Langtexte TF 4.6A--------------------------------
+
+  IF NOT langtextbild_feldauswahl IS INITIAL.
+    CASE langtextbild_feldauswahl.
+      WHEN grunddtext_bild.
+        fauswtab-fname = ltext_grun.
+      WHEN bestelltext_bild.
+        fauswtab-fname = ltext_best.
+      WHEN vertriebstext_bild.
+        fauswtab-fname = ltext_vert.
+      WHEN ivermtext_bild.
+        fauswtab-fname = ltext_iver.
+      WHEN prueftext_bild.
+        fauswtab-fname = ltext_prue.
+      WHEN grunddtxte_bild.
+        fauswtab-fname = ltxte_grun.
+      WHEN bestelltxte_bild.
+        fauswtab-fname = ltxte_best.
+      WHEN vertriebstxte_bild.
+        fauswtab-fname = ltxte_vert.
+      WHEN ivermtxte_bild.
+        fauswtab-fname = ltxte_iver.
+      WHEN prueftxte_bild.
+        fauswtab-fname = ltxte_prue.
+    ENDCASE.
+    READ TABLE fauswtab WITH KEY fname = fauswtab-fname.
+    ltext_invisible = fauswtab-kzinv.
+    ltext_input = fauswtab-kzinp.
+    ltext_required = fauswtab-kzreq.
+    DELETE fauswtab INDEX sy-tabix.
+
+* siehe Hinweis 516889 wg02.05.02
+    IF ( t130m-aktyp = aktypa OR t130m-aktyp = aktypz ).
+      READ TABLE fauswtab WITH KEY fname = 'DESC_LANGU_GDTXT'.
+      IF sy-subrc = 0.
+        fauswtab-kzinp = '0'.
+        MODIFY fauswtab INDEX sy-tabix.
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+*---------Feldauswahl Langtexte TF 4.6A--------------------------------
+
+*---------Feldauswahl Dokumentdaten ( note 522456 )-----------------
+* die Anzeigeeigenschaften der Dokumentdaten kann nur auf Anzeigen
+* beschr#nkt werden. Ausblenden bzw. Mu#feld werden nicht unterst¨¹tzt
+
+  IF NOT dokumente_feldauswahl IS INITIAL.
+    CASE dokumente_feldauswahl.
+      WHEN dokumente_bild.
+        fauswtab-fname = 'DOKUMENTE'.
+    ENDCASE.
+    READ TABLE fauswtab WITH KEY fname = fauswtab-fname.
+    dokumente_input = fauswtab-kzinp.
+    DELETE fauswtab INDEX sy-tabix.
+  ENDIF.
+
+*---------Feldauswahl Dokumentdaten  ( note 522456 ) -----------------
+
+
+*-------- Modifizieren Screen ¨¹ber Feldauswahl-Tabelle ----------------
+
+  LOOP AT SCREEN.
+
+*   read table fauswtab with key screen-name binary search.  mk/4.0A
+    READ TABLE fauswtab WITH KEY fname = screen-name BINARY SEARCH.
+
+    screen-active      = fauswtab-kzact.
+    screen-input       = fauswtab-kzinp.
+    screen-intensified = fauswtab-kzint.
+    screen-invisible   = fauswtab-kzinv.
+    screen-output      = fauswtab-kzout.
+
+* note 549538
+* Kennzeichen nicht ¨¹bernehmen f¨¹r Bezeichnungen
+    IF screen-group1(1) NE 'T'.
+      screen-required    = fauswtab-kzreq.
+    ENDIF.
+
+*   note 1358288: override columns set by TC_VIEW customizing
+    IF <f_tc> IS ASSIGNED.
+      READ TABLE <f_tc>-cols INTO tc_col WITH KEY screen-name = screen-name.
+      IF sy-subrc = 0.
+*       If field is set by table control to invisible and it is not
+*       required due to material field selection, then hide the field.
+*       Otherwise make sure, that the field is not hidden.
+        IF tc_col-invisible = cx_true AND screen-required = 0.
+          screen-invisible = 1.
+          screen-active    = 1.                            "note 1575018
+          screen-output    = 1.                            "note 1575018
+          screen-input     = 0.
+        ELSEIF screen-invisible = 1.
+          screen-active    = 1.                            "note 1575018
+          screen-output    = 1.                            "note 1575018
+          tc_col-invisible = cx_true.
+        ELSE.
+          tc_col-invisible = cx_false.
+        ENDIF.
+        tc_col-screen = screen.
+        MODIFY <f_tc>-cols FROM tc_col INDEX sy-tabix.
+      ENDIF.
+    ENDIF.
+
+    MODIFY SCREEN.
+
+  ENDLOOP.
+
+
+
+ENHANCEMENT-POINT lmgd1o1d_04 SPOTS es_lmgd1o1d INCLUDE BOUND.
+* (del) TRANSLATE AKTVSTATUS USING '$ '.                     "BE/070597
+
+ENDMODULE.

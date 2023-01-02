@@ -1,0 +1,64 @@
+FUNCTION zfm_gp_wms_pp_outplan.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"     VALUE(AUFNR) TYPE  AUFNR
+*"     VALUE(MATNR) TYPE  MATNR
+*"     VALUE(MENGE) TYPE  MENGE_D
+*"     VALUE(MEINS) TYPE  MEINS
+*"     VALUE(LGORT) TYPE  LGORT_D
+*"     VALUE(BUDAT_MKPF) TYPE  DATS
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSPP_212
+*"      OUT_TAB STRUCTURE  ZSPP_210
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_WMS_PP_OUTPLAN'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:it_migo TYPE TABLE OF zsfms_migopost WITH HEADER LINE.
+  aufnr   =    |{ aufnr ALPHA = IN }|.         "工单号
+  matnr   =    |{ matnr ALPHA = IN }|.         "物料号
+
+  SELECT COUNT( * ) FROM afko WHERE aufnr = aufnr.
+  IF sy-subrc NE 0.
+    DATA(msg) = 'SAP查无工单:' && aufnr.
+    fill_msg 'E' msg 'X'.
+  ENDIF.
+  CLEAR it_migo.
+  it_migo-werks  =  werks.
+  it_migo-aufnr  =  aufnr.
+  it_migo-matnr =  matnr.
+  it_migo-menge  =  menge.
+  it_migo-meins  =  meins.
+  it_migo-lgort  =  lgort.
+  APPEND it_migo.
+
+
+  CALL FUNCTION 'ZFMS_01_MIGOPOST'
+    EXPORTING
+      budat = budat_mkpf
+      bldat = sy-datum
+*     BKTXT =
+*     xblnr =
+      code  = '06'
+      bwart = '531'
+*     XSTOB =
+*     TEST  =
+    IMPORTING
+      rtype = rtype
+      rtmsg = rtmsg
+*     mblnr = mblnr
+*     mjahr = mjahr
+    TABLES
+      item  = it_migo.
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

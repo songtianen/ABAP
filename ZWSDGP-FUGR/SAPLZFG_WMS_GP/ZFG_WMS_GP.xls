@@ -1,0 +1,72 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZFG_WMS_GP	ZDPP_ZJHDHH	计划单行号	域	NUMC	000006	000000	
+ZFG_WMS_GP	ZD_ZDHNO	到货通知号	域	CHAR	000015	000000	
+ZFG_WMS_GP	ZEG_ZBH	包号	数据元素	CHAR	000030	000000	ATWRT30
+ZFG_WMS_GP	ZEPP_ZJHDHH	计划单行号	数据元素	NUMC	000006	000000	ZDPP_ZJHDHH
+ZFG_WMS_GP	ZE_BCCKJE	本次出库金额	数据元素	CURR	000013	000002	
+ZFG_WMS_GP	ZE_CJDESC	车间描述	数据元素	CHAR	000030	000000	CHAR30
+ZFG_WMS_GP	ZE_XH	序号	数据元素	INT1	000003	000000	
+ZFG_WMS_GP	ZE_ZDHHH	到货通知行号	数据元素	NUMC	000005	000000	EBELP
+ZFG_WMS_GP	ZE_ZDHNO	到货委托业务号	数据元素	CHAR	000015	000000	ZD_ZDHNO
+ZFG_WMS_GP	ZE_ZHK	总货款	数据元素	CURR	000011	000002	
+ZFG_WMS_GP	ZE_ZSXSYJE	授信剩余金额	数据元素	CURR	000013	000002	
+ZFG_WMS_GP	ZE_ZYFXH	运费序号	数据元素	CHAR	000010	000000	CHAR10
+ZFG_WMS_GP	ZFMDATA	请不要做任何更改!!不要激活!!	透明表				
+ZFG_WMS_GP	ZFMDATACFG	ZILOG参数	透明表				
+ZFG_WMS_GP	ZSAP2WMS	SAP与WMS库存地对照配置表	透明表				
+ZFG_WMS_GP	ZSD151	WMS退货入库后将信息回传至SAP	结构				
+ZFG_WMS_GP	ZSD151T	WMS退货入库后将信息回传至SAP	结构				
+ZFG_WMS_GP	ZSFMS_MIGOPOST	MIGO过账接口	结构				
+ZFG_WMS_GP	ZSMM206	接口结构	结构				
+ZFG_WMS_GP	ZSMM208	接口结构	结构				
+ZFG_WMS_GP	ZSMMS_CHAR	批次特性CHAR类型	结构				
+ZFG_WMS_GP	ZSMMS_CURR	批次特性维护CURR	结构				
+ZFG_WMS_GP	ZSMMS_NUM	批次特性更新NUM	结构				
+ZFG_WMS_GP	ZSMM_017	接口结构	结构				
+ZFG_WMS_GP	ZSMM_204	采购到货通知wms结构	结构				
+ZFG_WMS_GP	ZSMM_205	WMS采购入库后同步SAP结构	结构				
+ZFG_WMS_GP	ZSMM_206	委外发料单通知wms结构	结构				
+ZFG_WMS_GP	ZSMM_207	同步采购退货出库单到WMS结构	结构				
+ZFG_WMS_GP	ZSMM_223	锁定/解锁同步WMS入参抬头	结构				
+ZFG_WMS_GP	ZSMM_224	锁定/解锁同步WMS入参明细	结构				
+ZFG_WMS_GP	ZSMM_226	SAP合同释放/取消释放同步WMS入参	结构				
+ZFG_WMS_GP	ZSPP201	价格	结构				
+ZFG_WMS_GP	ZSPP_006	接口结构	结构				
+ZFG_WMS_GP	ZSPP_007	接口结构	结构				
+ZFG_WMS_GP	ZSPP_210	MES生产报工返回结构	结构				
+ZFG_WMS_GP	ZSPP_211	WMS-261结构	结构				
+ZFG_WMS_GP	ZSPP_211A	技术详单通用结构	结构				
+ZFG_WMS_GP	ZSPP_212	WMS-101结构	结构				
+ZFG_WMS_GP	ZSPP_227	镇江WMS生产工单入库	结构				
+ZFG_WMS_GP	ZSPP_229	镇江MES工单产生的废料MES->SAP	结构				
+ZFG_WMS_GP	ZSPP_230	钢品镇江WMS生产投料-migo261结构	结构				
+ZFG_WMS_GP	ZSPP_232	生产工单修改 SAP->WMS	结构				
+ZFG_WMS_GP	ZSPUBS_0001	日期时间通用结构	结构				
+ZFG_WMS_GP	ZSPUBS_0002	创建日期结构	结构				
+ZFG_WMS_GP	ZSSD207	发货通知信息同步到WMS抬头结构	结构				
+ZFG_WMS_GP	ZSSD208	发货通知信息同步WMS明细结构	结构				
+ZFG_WMS_GP	ZSSD219	WMS同步出库信息到SAP抬头结构	结构				
+ZFG_WMS_GP	ZSSD220	WMS同步出库信息到SAP明细结构	结构				
+ZFG_WMS_GP	ZSSD230	订单系统推送SAP-加工明细结构	结构				
+ZFG_WMS_GP	ZSSD252	同步内销库单到WMS结构	结构				
+ZFG_WMS_GP	ZSSD258	退货推WMS结构 sap->wms	结构				
+ZFG_WMS_GP	ZSSD265	出库单信息打印抬头结构	结构				
+ZFG_WMS_GP	ZSSD265A	出库单信息打印包明细结构1	结构				
+ZFG_WMS_GP	ZSSD265B	出库单信息打印包明细结构2	结构				
+ZFG_WMS_GP	ZSSD265C	出库单信息打印包号位置结构	结构				
+ZFG_WMS_GP	ZSSD_146L	采购入库明细	结构				
+ZFG_WMS_GP	ZTMM201	到货通知抬头	透明表				
+ZFG_WMS_GP	ZTMM202	到货通知行项目	透明表				
+ZFG_WMS_GP	ZTMM220	调拨单主表	透明表				
+ZFG_WMS_GP	ZTMM221	调拨单行项目表	透明表				
+ZFG_WMS_GP	ZTMM226	运费核销明细表	透明表				
+ZFG_WMS_GP	ZTPP316	生产包号-尺寸对照	透明表				
+ZFG_WMS_GP	ZTPP_205A	钢品生产排产单明细表	透明表				
+ZFG_WMS_GP	ZTPP_206	生产计划表	透明表				
+ZFG_WMS_GP	ZTPP_217	镇江MES废料传SAP表	透明表				
+ZFG_WMS_GP	ZTSAP_PUBSAVELOG	接口GUID存表	透明表				
+ZFG_WMS_GP	ZTSD206	产品包内明细表	透明表				
+ZFG_WMS_GP	ZTSD208	销售自定义角色权限表	透明表				
+ZFG_WMS_GP	ZTSD210	ZSAP2WMS接口关系映射表	透明表				
+ZFG_WMS_GP	ZTSD212	MDM客商编码转换	透明表				
+ZFG_WMS_GP	ZTSD219	SAP->ERP打印编号映射	透明表				

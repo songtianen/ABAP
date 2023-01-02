@@ -1,0 +1,25 @@
+FUNCTION ZFM_K_SETTLEMENT_POST.
+*"----------------------------------------------------------------------
+*"*"更新函数模块：
+*"
+*"*"全局接口：
+*"  IMPORTING
+*"     VALUE(I_AUAK) LIKE  AUAK STRUCTURE  AUAK
+*"  TABLES
+*"      AA STRUCTURE  AUAA OPTIONAL
+*"      AB STRUCTURE  AUAB OPTIONAL
+*"      AO STRUCTURE  AUAO OPTIONAL
+*"      AS STRUCTURE  AUAS OPTIONAL
+*"      AV STRUCTURE  AUAV OPTIONAL
+*"      AI STRUCTURE  AUAI OPTIONAL
+*"      AI_REST STRUCTURE  AUAI OPTIONAL
+*"      T_COIOB STRUCTURE  COIOB OPTIONAL
+*"      AW STRUCTURE  AUAW OPTIONAL
+*"  EXCEPTIONS
+*"      WRONG_INPUT
+*"----------------------------------------------------------------------
+  CALL FUNCTION 'ZFM_ENH_CJ88CRTFIDOCU' IN BACKGROUND TASK AS SEPARATE UNIT
+    EXPORTING
+      I_AUAK = I_AUAK.
+
+ENDFUNCTION.

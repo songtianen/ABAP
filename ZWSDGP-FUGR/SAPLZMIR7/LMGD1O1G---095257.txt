@@ -1,0 +1,340 @@
+*&---------------------------------------------------------------------*
+*&      Module  BEZEICHNUNGEN_LESEN  OUTPUT
+*&---------------------------------------------------------------------*
+* Lesen aller Bezeichnungen zum jeweiligen Bild                        *
+* Durch die #bergabe der FELDBEZTAB wird sichergestellt, da# nur f¨¹r   *
+* die sichtbaren Felder auf dem jeweiligen Bild, f¨¹r die Bezeichnungen
+* ausgegeben werden sollen, die Bezeichnungen gelesen werden
+* Zus#tzlich wird sichergestellt, da# pro Bild eine Bezeichnung nur
+* einmal ermittelt wird.
+*----------------------------------------------------------------------*
+MODULE bezeichnungen_lesen OUTPUT.
+  DESCRIBE TABLE feldbeztab LINES zaehler.
+  CHECK NOT zaehler IS INITIAL.
+
+* Basismengeneinheit als Infotext zu Mengenfeldern, z.B. MARC-VBAMB
+  IF NOT mara-meins IS INITIAL.
+    rm03m-meins = mara-meins.
+    rm03m-meinh = mara-meins.
+* cfo/25.7.96 Lesen der Bezeichnung zur Basismengeneinheit mu# ebenfalls
+* hier erfolgen (z.B. f¨¹r Mengeneinheitenbild).
+    IF t006a-spras NE sy-langu OR t006a-msehi NE mara-meins.
+      CALL FUNCTION 'CONVERSION_EXIT_CUNIT_OUTPUT'
+        EXPORTING
+          input          = mara-meins
+          language       = sy-langu
+        IMPORTING
+          long_text      = t006a-msehl
+          output         = t006a-mseh3
+          short_text     = t006a-mseht
+        EXCEPTIONS
+          unit_not_found = 01.
+      t006a-msehi = mara-meins.
+    ELSE.
+      sy-subrc = 0.
+    ENDIF.
+    IF sy-subrc NE 0.
+      CLEAR t006a.
+    ENDIF.
+  ELSE.
+    CLEAR mara-meins.
+  ENDIF.
+
+*mk/30.08.95 Ermitteln Periode/Vorperiode - obwohl logisch zur MARC
+*geh#rend bereits hier, da sub_ptab und sub_status f¨¹r Bestandsbild
+*leer ist
+  IF aktvstatus CA status_x OR aktvstatus CA status_z.
+* MARC_X wird bei Status Z benutzt f¨¹r Periodenermittlung
+*   READ TABLE FELDBEZTAB WITH KEY T_RMMG3.                       "4.0A
+    READ TABLE feldbeztab WITH KEY name(5) = t_rmmg3 BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'MARC_X_READ_DESCRIPTION'
+           EXPORTING
+                matnr       = rmmg1-matnr
+                werks       = rmmg1-werks
+                wmard       = mard
+                wt001_periv = t001-periv
+                kzrfb       = kzrfb
+            IMPORTING
+                 wrmmg3      = rmmg3
+*                    flgperiode  = flgperiode   vorest nicht benutzt
+           TABLES
+                feldbeztab  = feldbeztab.
+    ENDIF.
+  ENDIF.
+
+* cfo/24.7.96
+* Statt Loop ¨¹ber SUB_PTAB, Loop ¨¹ber PTAB, weil SUB_PTAB f¨¹r Zusatz-
+* Bilder nicht aufgebaut wird (Modul Bildstatus l#uft nicht) und dann
+* Bezeichnungen auf Zusatzbildern nicht gelesen werden.
+* Analog statt SUB_STATUS den AKTVSTATUS gesetzt.
+* SUB_PTAB und SUB_STATUS waren reines Performance-Tuning.
+
+  LOOP AT ptab.
+    CASE ptab-tbnam.
+      WHEN t_mara.
+*       READ TABLE FELDBEZTAB WITH KEY T_MARA.                    "4.0A
+        READ TABLE feldbeztab WITH KEY name(4) = t_mara BINARY SEARCH.
+        CHECK sy-subrc EQ 0.
+
+        CALL FUNCTION 'MARA_READ_DESCRIPTION'
+          EXPORTING
+            wmara            = mara
+          IMPORTING
+            wt006a           = t006a
+            wt023t           = t023t
+            wtspat           = tspat
+            wtptmt           = tptmt   " AHE: 07.05.98 (4.0c)
+            wtcscp_comp_lvlt = tcscp_comp_lvlt
+            ipmip_text       = gv_ipm_ip_short_text           " AHE: 11.05.98 (4.0c)
+            medkxt           = medkxt
+          TABLES
+            feldbeztab       = feldbeztab.
+
+* AHE: 07.05.98 - A (4.0c)
+* Sondercoding wegen Feld MARA-MTPOS_MARA und MVKE-MTPOS
+        tptmt_bezei_mara = tptmt-bezei.
+* AHE: 07.05.98 - E
+
+        IF aktvstatus CA status_q.
+          CALL FUNCTION 'MARA_Q_READ_DESCRIPTION'
+            EXPORTING
+              wmara_rbnrm = mara-rbnrm
+              kzrfb       = kzrfb
+            IMPORTING
+              wt352b_t    = t352b_t
+            TABLES
+              feldbeztab  = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_e.
+          CALL FUNCTION 'MARA_E_READ_DESCRIPTION'
+            EXPORTING
+              wmara      = mara
+              kzrfb      = kzrfb
+            IMPORTING
+              wt405      = t405
+            TABLES
+              feldbeztab = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_v.
+          CALL FUNCTION 'MARA_V_READ_DESCRIPTION'
+            EXPORTING
+              wmara       = mara
+            IMPORTING
+              wv_kna1wett = v_kna1wett
+              wttgrt      = ttgrt
+            TABLES
+              feldbeztab  = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_k.
+          CALL FUNCTION 'MARA_K_READ_DESCRIPTION'
+            EXPORTING
+              wmara       = mara
+            IMPORTING
+              wv_kna1wett = v_kna1wett
+            TABLES
+              feldbeztab  = feldbeztab.
+        ENDIF.
+
+      WHEN t_mfhm.
+*       READ TABLE FELDBEZTAB WITH KEY T_MFHM.                    "4.0A
+        READ TABLE feldbeztab WITH KEY name(4) = t_mfhm BINARY SEARCH.
+        CHECK sy-subrc EQ 0.
+
+        IF aktvstatus CA status_f.
+          CALL FUNCTION 'MFHM_F_READ_DESCRIPTION'
+            EXPORTING
+              wmfhm      = mfhm
+              kzrfb      = kzrfb
+            IMPORTING
+              wtc23t     = tc23t
+              wtcf13     = tcf13
+              otcf13     = *tcf13
+              wtcf11     = tcf11
+              wt435t     = t435t
+              wtc25t     = tc25t
+              otc25t     = *tc25t
+              wtca55     = tca55
+              otca55     = *tca55
+            TABLES
+              feldbeztab = feldbeztab.
+        ENDIF.
+
+      WHEN t_mvke.
+*       READ TABLE FELDBEZTAB WITH KEY T_MVKE.                    "4.0A
+        READ TABLE feldbeztab WITH KEY name(4) = t_mvke BINARY SEARCH.
+        CHECK sy-subrc EQ 0.
+
+        IF aktvstatus CA status_v.
+          CALL FUNCTION 'MVKE_V_READ_DESCRIPTION'
+            EXPORTING
+              wmvke        = mvke
+            IMPORTING
+              wrm03m_name1 = rm03m-name1
+              wtvsmt       = tvsmt
+              wtvbot       = tvbot
+              wtvkmt       = tvkmt
+              wt178t       = t178t
+              wtvprt       = tvprt
+              wrm03m_texpr = rm03m-texpr
+              wt179t       = t179t
+              wtptmt       = tptmt
+            TABLES
+              feldbeztab   = feldbeztab.
+        ENDIF.
+
+      WHEN t_marc.
+*       read table feldbeztab with key t_marc.     mk/4.0A
+        READ TABLE feldbeztab WITH KEY name(4) = t_marc BINARY SEARCH.
+        IF sy-subrc NE 0.
+*         READ TABLE FELDBEZTAB WITH KEY T_MPGD.                  "4.0A
+          READ TABLE feldbeztab WITH KEY name(4) = t_mpgd BINARY SEARCH.
+* MPGD-Felder geh#ren logisch zur MARC
+*         if sy-subrc ne 0.   mk/30.08.95 vorgezogen
+* RMMG3-Felder geh#ren logisch zur MARC (Werksbestand + Periodenfelder)
+*           read table feldbeztab with key t_rmmg3.
+*         endif.
+        ENDIF.
+        CHECK sy-subrc EQ 0.
+
+* AHE: 11.05.98 - A (4.0c)
+        CALL FUNCTION 'MARC_READ_DESCRIPTION'
+          EXPORTING
+            wmarc      = marc
+            kzrfb      = kzrfb
+          IMPORTING
+            wtmfpft    = tmfpft
+          TABLES
+            feldbeztab = feldbeztab.
+* AHE: 11.05.98 - E
+
+        IF aktvstatus CA status_d.
+          CALL FUNCTION 'MARC_D_READ_DESCRIPTION'
+            EXPORTING
+              wmarc      = marc
+              kzrfb      = kzrfb
+            IMPORTING
+              wt438t     = t438t
+              wt439t     = t439t
+              wt461x     = t461x "ch zu 3.0C -> IPr. 382656
+              wt438w     = t438w  " AHE: 15.03.98 (4.0c)
+            TABLES
+              feldbeztab = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_e.                          "ch zu 3.0D
+          CALL FUNCTION 'MARC_VE_READ_DESCRIPTION'
+            EXPORTING
+              wmarc      = marc
+              kzrfb      = kzrfb
+            IMPORTING
+              wt604t     = t604t
+              wt005t     = t005t
+              wt005u     = t005u
+              wtvfmt     = tvfmt
+              wt610ct    = t610ct                "4.0A BE/130897
+              wt609gp    = t609gp                "4.0A BE/130897
+              wt618mt    = t618mt                "4.0A BE/130897
+              wt618gt    = t618gt                "4.0A BE/130897
+              wt604n     = t604n                 "4.0A BE/130897
+            TABLES
+              feldbeztab = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_g.
+          CALL FUNCTION 'MARC_G_READ_DESCRIPTION'
+            EXPORTING
+              kzrfb        = kzrfb
+              wmarc_mmsta  = marc-mmsta
+            IMPORTING
+              wrm03m_kalst = rm03m-kalst
+            TABLES
+              feldbeztab   = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_q.
+          CALL FUNCTION 'MARC_Q_READ_DESCRIPTION'
+            EXPORTING
+              kzrfb       = kzrfb
+              wmarc_ssqss = marc-ssqss
+              wmarc_qzgtp = marc-qzgtp
+              wmarc_qssys = marc-qssys
+            IMPORTING
+              wtq02t      = tq02t
+              wtq05t      = tq05t
+              wtq08t      = tq08t
+            TABLES
+              feldbeztab  = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_v.
+          CALL FUNCTION 'MARC_V_READ_DESCRIPTION'
+            EXPORTING
+              wmarc      = marc
+              kzrfb      = kzrfb
+            IMPORTING
+              wtmvft     = tmvft
+              wtlgrt     = tlgrt
+              wt604t     = t604t
+              wt005t     = t005t
+              wt005u     = t005u
+              wtvfmt     = tvfmt
+              wt610ct    = t610ct                "4.0A BE/130897
+              wt609gp    = t609gp                "4.0A BE/130897
+              wt618mt    = t618mt                "4.0A BE/130897
+              wt618gt    = t618gt                "4.0A BE/130897
+              wt604n     = t604n                 "4.0A BE/130897
+            TABLES
+              feldbeztab = feldbeztab.
+        ENDIF.
+
+        IF aktvstatus CA status_a.
+          CALL FUNCTION 'MARC_A_READ_DESCRIPTION'
+               EXPORTING
+                    wmarc      = marc
+                    kzrfb      = kzrfb
+               IMPORTING
+                    wt024f     = t024f
+                    wtco43t    = tco43t
+* AHE: 30.06.98 - A (4.0C)
+*                   WTCO47T    = TCO47T  " AHE: 11.05.98 (4.0c)
+                    wtco48t    = tco48t
+* AHE: 30.06.98 - E
+               TABLES
+                    feldbeztab = feldbeztab.
+        ENDIF.
+*mk/30.08.95 vorgezogen
+*       IF sub_status CA STATUS_X OR sub_status CA STATUS_Z.
+* MARC_X wird bei Status Z benutzt f¨¹r Periodenermittlung
+      WHEN t_mbew.
+*       READ TABLE FELDBEZTAB WITH KEY T_MBEW.                    "4.0A
+        READ TABLE feldbeztab WITH KEY name(4) = t_mbew BINARY SEARCH.
+        CHECK sy-subrc EQ 0.
+
+        IF aktvstatus CA status_b.
+*        Wird zu 4.0C nicht mehr ben#tigt, da die Perioden im
+*        Einstiegsbereich (BWKEY_INITIAL_CHECK) ermittelt werden
+*         CALL FUNCTION 'MBEW_B_READ_DESCRIPTION'
+*              EXPORTING
+*                   WMBEW        = MBEW
+*                   WT001_PERIV  = T001-PERIV
+*              IMPORTING
+*                   WRMMZU_VMGJA = RMMZU-VMGJA
+*                   WRMMZU_VMMON = RMMZU-VMMON
+*                   WRMMZU_VJGJA = RMMZU-VJGJA
+*                   WRMMZU_VJMON = RMMZU-VJMON
+*              TABLES
+*                   FELDBEZTAB   = FELDBEZTAB.
+        ENDIF.
+
+* mk/27.02.95 aktuell nicht generierbar
+* erweitern um weitere Pflegestatus             <<<<<<<<<<<<<<<<<<<
+* erweitern um weitere Tabellen                 <<<<<<<<<<<<<<<<<<<
+
+    ENDCASE.
+  ENDLOOP.
+
+ENDMODULE.                             " BEZEICHNUNGEN_LESEN  OUTPUT

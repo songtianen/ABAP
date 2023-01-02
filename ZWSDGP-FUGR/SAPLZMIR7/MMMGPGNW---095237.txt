@@ -1,0 +1,16 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGPGNW
+* Deklarationen f¨¹r Prognosewerte
+*----------------------------------------------------------------------*
+
+*-- Datenstrukturen f¨¹r Prognosewerte -------------------------------
+DATA:   PW_ZEILEN_NR   LIKE SY-TABIX,      "Zeilen-nr.
+        PW_AKT_ZEILE   LIKE SY-TABIX,      "aktuelle Zeile
+        PW_ERSTE_ZEILE LIKE SY-TABIX,      "erste Zeile pro Seite
+* weg?  PW_ERSTE_ZEILE_C(3),  "PW_ERSTE_ZEILE aufbereitet f¨¹r Dynpro
+        PW_ZLEPROSEITE LIKE SY-LOOPC,      "Anzahl Zeilen pro Seite
+* weg?  PW_SAVSPRAS    LIKE MAKT-SPRAS,    "Hilfsfeld Sprachenschluessel
+        PW_FEHLERFLG(1),                   "Fehlerflag
+* weg?  PW_EINTRAEGE_C(3),    "Anzahl P-Werte aufbereitet f¨¹r Dynpro
+        PW_LINES       LIKE SY-TABIX,      "Anzahl Prognosewerte
+        PW_BILDFLAG_OLD.                   "gerettetes Bildflag

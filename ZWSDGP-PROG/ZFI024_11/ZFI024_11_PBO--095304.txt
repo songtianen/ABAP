@@ -1,0 +1,185 @@
+*&---------------------------------------------------------------------*
+*& Include ZFI024_11_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'TC01'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE tc01_change_tc_attr OUTPUT.
+  DESCRIBE TABLE zboitem LINES tc01-lines.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module ZBOITEM_GET_LINES OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE zboitem_get_lines OUTPUT.
+  g_tc01_lines = sy-loopc.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module ALV_DISPLAY OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE alv_display OUTPUT.
+
+  IF go_grid IS INITIAL.
+    CREATE OBJECT go_cont
+      EXPORTING
+        repid  = sy-repid
+        dynnr  = sy-dynnr
+        side   = cl_gui_docking_container=>dock_at_top
+*       extension = '150'
+        ratio  = 50
+      EXCEPTIONS
+        OTHERS = 1.
+*    CREATE OBJECT go_grid
+*      EXPORTING
+*        i_parent = go_cont.
+******* add top of page
+*    CREATE OBJECT g_custom_container
+*      EXPORTING
+*        container_name = g_container.
+* Create TOP-Document
+    CREATE OBJECT o_dyndoc_id
+      EXPORTING
+        style = 'ALV_GRID'.
+* Create Splitter for custom_container
+    CREATE OBJECT o_splitter
+      EXPORTING
+        parent  = go_cont
+        rows    = 2
+        columns = 1.
+    CALL METHOD o_splitter->get_container
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = o_parent_top.
+    CALL METHOD o_splitter->get_container
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = o_parent_grid.
+* Set height for g_parent_html
+    CALL METHOD o_splitter->set_row_height
+      EXPORTING
+        id     = 1
+        height = 25.
+
+    CREATE OBJECT go_grid
+      EXPORTING
+        i_parent = o_parent_grid.
+*******
+
+    slayout-cwidth_opt = 'X'.
+    slayout-zebra      = 'X'.
+    slayout-no_toolbar = ''.
+    slayout-sel_mode = 'D'.
+    slayout-box_fname = 'SEL'.
+    variant-report     = sy-repid.
+    variant-handle     = '1'.
+
+    CREATE OBJECT event_receiver.
+    SET HANDLER event_receiver->handle_double_click FOR go_grid.
+    SET HANDLER event_receiver->handle_hotspot_click FOR go_grid.
+    SET HANDLER event_receiver->handle_data_changed1 FOR go_grid.
+    SET HANDLER event_receiver->top_of_page FOR go_grid.
+
+    go_grid->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_enter
+    go_grid->register_delayed_event( i_event_id = cl_gui_alv_grid=>mc_evt_delayed_change_select )."MC_EVT_DELAYED_CHANGE_SELECT
+    PERFORM fill_fcat USING:"'GMARK' '' '' '选择标识',
+                            'EBELN' 'EKPO' 'EBELN' '采购订单',
+                            'EBELP' 'EKPO' 'EBELP' '行项目',
+                            'MATNR' 'EKPO' 'MATNR' '物料',
+                            'TXZ01' 'EKPO' 'TXZ01' '物料描述',
+                            'MENGE' 'EKPO' 'MENGE' '数量',
+                            'MEINS' 'EKPO' 'MEINS' '单位',
+                            'NETWR' 'PRCD_ELEMENTS' 'KBETR' '单价',
+                            'WAERS' 'EKKO' 'WAERS' '货币',
+                            'POSID' 'PRPS' 'POSID' '内销项目编号',
+                            'POST1' 'PRPS' 'POST1' '内销项目名称',
+                            'ZPOSID' 'PRPS' 'POSID' '项目编号',
+                            'ZPOST1' 'PRPS' 'POST1' '项目名称',
+                            'MENGE_CPQ' 'EKPO' 'MENGE' '付款数量',
+                            'DMBTR_APT' 'EKBE' 'DMBTR' '应付金额',
+                            'DMBTR_APA' 'EKBE' 'DMBTR' '实付金额',
+                            'MENGE_PAQ' 'EKPO' 'MENGE' '已付数量',
+                            'DMBTR_ATP' 'EKBE' 'DMBTR' '已付金额',
+                            'MENGE_CPQ1' 'EKPO' 'MENGE' '累计数量',
+                            'DMBTR_CPA' 'EKBE' 'DMBTR' '累计付款金额',
+                            'MENGE_REQ' 'EKPO' 'MENGE' '收货数量',
+                            'DMBTR_HVA' 'EKBE' 'DMBTR' '收货金额',
+                            'MENGE_INQ' 'EKPO' 'MENGE' '发票数量',
+                            'DMBTR_INA' 'EKBE' 'DMBTR' '发票金额',
+                            'ELIKZ' 'EKPO' 'ELIKZ' '订单状态',
+                            'DMBTR_TPP' 'EKBE' 'DMBTR' '当期付款计划',
+                            'LOEKZ' 'ZTFI_PYCOTD' 'LOEKZ' '已经执行完成'.
+*                            'DMBTR_RPP' 'EKBE' 'DMBTR' '剩余付款计划'.
+
+
+    CALL METHOD go_grid->set_table_for_first_display
+      EXPORTING
+        is_layout       = slayout
+        i_save          = 'A'
+        is_variant      = variant
+      CHANGING
+        it_fieldcatalog = go_flct[]
+        it_outtab       = item[].
+
+    CALL METHOD o_dyndoc_id->initialize_document
+      EXPORTING
+        background_color = cl_dd_area=>col_textarea.
+* Processing events
+    CALL METHOD go_grid->list_processing_events
+      EXPORTING
+        i_event_name = 'TOP_OF_PAGE'
+        i_dyndoc_id  = o_dyndoc_id.
+
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0100 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+  SET PF-STATUS 'STA100'.
+  SET TITLEBAR 'TIT100' WITH '创建'.
+ENDMODULE.
+FORM fill_fcat USING fldname reftab reffld text.
+  go_flct-fieldname = fldname.
+  go_flct-ref_table = reftab.
+  go_flct-ref_field = reffld.
+  go_flct-seltext   = text.
+  go_flct-coltext   = text.
+  go_flct-scrtext_l = text.
+  go_flct-scrtext_m = text.
+  go_flct-scrtext_s = text.
+  go_flct-col_opt   = 'X'.
+
+  IF reffld = 'KWMENG' OR reffld = 'ZJWEI' OR
+     reffld = 'CLABS' OR reffld = 'DMBTR_APA' OR reffld = 'MENGE_CPQ'.
+    go_flct-qfieldname = 'MEINS'.
+    go_flct-no_zero = 'X'.
+    go_flct-edit_mask = '==ZSIGN'.
+  ENDIF.
+  IF fldname = 'ZHDGC'.
+    go_flct-emphasize = 'C300'.
+  ENDIF.
+  IF fldname = 'ZSXQB'.
+    go_flct-emphasize = 'C600'.
+  ENDIF.
+*  fldct-no_convext = p_conv.
+*  TRANSLATE fldct-no_convext USING 'X  X'.
+*  IF fldname = 'GMARK'.
+*    go_flct-hotspot = 'X'.
+*    go_flct-icon = 'X'.
+*  ENDIF.
+  IF fldname =  'DMBTR_APA' OR fldname = 'MENGE_CPQ'.
+    go_flct-edit = 'X'.
+  ENDIF.
+  APPEND go_flct.
+  CLEAR go_flct.
+ENDFORM.

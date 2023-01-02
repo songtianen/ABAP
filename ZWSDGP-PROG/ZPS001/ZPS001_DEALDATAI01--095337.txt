@@ -1,0 +1,59 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPS001_DEALDATAI01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  DEALDATA  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE dealdata INPUT.
+  SELECT SINGLE
+    profi_txt
+    INTO zxmlx_t
+    FROM ztps002a
+    WHERE profl = zxmlx.
+  SELECT SINGLE
+    name1
+    INTO zwerks_t
+    FROM t001w
+    WHERE werks = zwerks.
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+    EXPORTING
+      input  = zcustomer
+    IMPORTING
+      output = zcustomer.
+  SELECT SINGLE
+    name1
+    INTO zcustomer_t
+    FROM kna1
+    WHERE kunnr = zcustomer.
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+    EXPORTING
+      input  = zcustomer
+    IMPORTING
+      output = zcustomer.
+  SELECT SINGLE
+    verna
+    INTO zxmfzr_t
+    FROM tcj04
+    WHERE vernr = zxmfzr.
+  SELECT SINGLE
+    bezei
+    INTO zzsbm_t
+    FROM tvgrt
+    WHERE spras = '1'
+    AND vkgrp = zzsbm.
+  SELECT SINGLE
+    bezei
+    INTO vkbur_t
+    FROM tvkbt
+    WHERE vkbur = vkbur
+    AND spras = '1'.
+  SELECT SINGLE
+    bztxt
+    INTO bzirk_t
+    FROM t171t
+    WHERE spras = '1'
+    AND bzirk = bzirk.
+
+ENDMODULE.

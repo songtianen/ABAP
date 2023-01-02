@@ -1,0 +1,25 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZPPD202	ZDPP_ZJHDHH	计划单行号	域	NUMC	000006	000000	
+ZPPD202	ZEPP_ZJHDHH	计划单行号	数据元素	NUMC	000006	000000	ZDPP_ZJHDHH
+ZPPD202	ZE_ZKS	块数	数据元素	QUAN	000015	000003	MENG15
+ZPPD202	ZSPP201	价格	结构				
+ZPPD202	ZSPP_203	MES计划单推送结构	结构				
+ZPPD202	ZSPP_204	MES计划单推送结构-生产计划单详情	结构				
+ZPPD202	ZSPP_205	MES计划单推送结构-BOM	结构				
+ZPPD202	ZSPP_206	MES计划单推送结构-生产计划单冲孔信息	结构				
+ZPPD202	ZSPP_207	MES计划单推送结构-生产计划单物料信息	结构				
+ZPPD202	ZSPP_211A	技术详单通用结构	结构				
+ZPPD202	ZSPP_213	推送工单到钢品博兴MES结构(包含字段务必全CHAR类型)	结构				
+ZPPD202	ZSPP_214	推送工单到钢品博兴MES结构-BOM	结构				
+ZPPD202	ZSPP_215	推送工单到钢品博兴MES结构-明细	结构				
+ZPPD202	ZSPP_232	生产工单修改 SAP->WMS	结构				
+ZPPD202	ZSPUBS_0001	日期时间通用结构	结构				
+ZPPD202	ZSSD230	订单系统推送SAP-加工明细结构	结构				
+ZPPD202	ZTPP_205	钢品生产排产单主表	透明表				
+ZPPD202	ZTPP_205A	钢品生产排产单明细表	透明表				
+ZPPD202	ZTPP_205B	排产单公共字段	透明表				
+ZPPD202	ZTPP_206	生产计划表	透明表				
+ZPPD202	ZTPP_212	MES订单类别映射表	透明表				
+ZPPD202	ZTSD207	加工明细表	透明表				
+ZPPD202	ZTSD212	MDM客商编码转换	透明表				
+ZPPD202	ZTSD219	SAP->ERP打印编号映射	透明表				

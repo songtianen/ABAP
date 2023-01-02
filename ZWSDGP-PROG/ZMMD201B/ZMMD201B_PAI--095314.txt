@@ -1,0 +1,739 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201B_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZXMKC_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zxmkc_con_modify INPUT.
+  MODIFY it_222
+    INDEX zxmkc_con-current_line.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZXMKC_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zxmkc_con_mark INPUT.
+  DATA: g_ZXMKC_CON_wa2 LIKE LINE OF it_222.
+  IF zxmkc_con-line_sel_mode = 1
+  AND it_222-sel = 'X'.
+    LOOP AT it_222 INTO g_ZXMKC_CON_wa2
+      WHERE sel = 'X'.
+      g_ZXMKC_CON_wa2-sel = ''.
+      MODIFY it_222
+        FROM g_ZXMKC_CON_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_222
+    INDEX zxmkc_con-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZXMKC_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zxmkc_con_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZXMKC_CON'
+                              'IT_222'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+DATA:save_ok LIKE sy-ucomm.
+MODULE user_command_0900 INPUT.
+  DEFINE data_check.
+    IF &1 IS INITIAL.
+      MESSAGE s001 WITH &2 DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  END-OF-DEFINITION.
+  DATA:number  TYPE char3.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SUBMIT'."提交
+      "检查锁定人和当前用户一致才允许往下进行
+      IF zsf NE '2'.
+        LOOP AT it_222.
+          IF it_222-z13 IS NOT INITIAL AND  it_222-z13 NE sy-uname.
+            "物料&1,批次&2,上次的锁定人&3,不是当前用户&4,无法操作.
+            MESSAGE i014 WITH it_222-matnr it_222-charg it_222-z13 sy-uname.
+            RETURN.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+      " 推送wms要先生成流水，生成流水号提前  26.12.2022 14:22:20 by kkw
+      LOOP AT it_222.
+        IF zsf = '1'.
+          data_check it_222-zsl '数量'.
+          data_check it_222-zxmh '项目号'.
+        ELSEIF zsf = '0'.
+          data_check it_222-zsl '数量'.
+          data_check it_222-zxmh '项目号'.
+          data_check it_222-zxxmh '转入项目号'.
+          data_check it_222-zsdr '锁定人'.
+        ELSEIF zsf = '2'.
+          data_check it_222-zsl '数量'.
+          data_check it_222-zxxmh '转入项目号'.
+          data_check it_222-zsdr '锁定人'.
+        ENDIF.
+        CLEAR number.
+        PERFORM get_snro_number USING 'ZGPMM04' CHANGING number.
+        IF number IS INITIAL.
+          MESSAGE s004 WITH '生成调拨单流水号失败.' DISPLAY LIKE 'E'.
+          RETURN.
+        ENDIF.
+        it_222-zdh = 'Z' && sy-datum+2(6) && number.
+        MODIFY it_222.
+      ENDLOOP.
+
+      "先推送wms，成功后再过账.
+      IF it_222-werks = '3060' OR it_222-werks = '3062'.
+        IF p_zwllx = 'YC'.
+          CLEAR:flag,msg.
+          PERFORM wms_lockunlock CHANGING flag msg.
+        ELSEIF p_zwllx = 'CP'.
+          CLEAR:flag,msg.
+          PERFORM wms_synccontract CHANGING flag msg.
+        ENDIF.
+        msg = '推送wms返回:' && msg.
+        MESSAGE i004 WITH msg.
+        CHECK flag = 'S'.
+      ENDIF.
+      IF zsf = '1'.
+        PERFORM migo411q."项目库存转非限制
+      ELSEIF zsf = '0'.
+        PERFORM migo311q."项目库存转项目库存
+      ELSEIF zsf = '2'.
+        PERFORM migo415q."非限制转项目库存
+      ENDIF.
+      PERFORM getdata.
+    WHEN 'CANCLE'."取消
+      LEAVE TO SCREEN 0.
+    WHEN 'TSWMS'.
+      LOOP AT it_222 WHERE zdh IS INITIAL.
+        EXIT.
+      ENDLOOP.
+      IF sy-subrc EQ 0.
+        MESSAGE i004 WITH '请生成单号后再推送WMS'.
+      ENDIF.
+      IF it_222-werks = '3060' OR it_222-werks = '3062'.
+        IF p_zwllx = 'YC'.
+          CLEAR:flag,msg.
+          PERFORM wms_lockunlock CHANGING flag msg.
+        ELSEIF p_zwllx = 'CP'.
+          CLEAR:flag,msg.
+          PERFORM wms_synccontract CHANGING flag msg.
+        ENDIF.
+        msg = '推送wms返回:' && msg.
+        MESSAGE i004 WITH msg.
+      ELSE.
+        MESSAGE s004 WITH '工厂不是3060或者3062,不能推送WMS'.
+      ENDIF.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form migo411q
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+"bapi 参数
+DATA:ls_header           TYPE          bapi2017_gm_head_01,
+     ls_code             TYPE          bapi2017_gm_code,
+     lt_item             TYPE TABLE OF bapi2017_gm_item_create,
+     ls_item             TYPE          bapi2017_gm_item_create,
+     lt_return           TYPE TABLE OF bapiret2,
+     ls_return           TYPE          bapiret2,
+     lv_materialdocument TYPE bapi2017_gm_head_ret-mat_doc,
+     lv_matdocumentyear  TYPE bapi2017_gm_head_ret-doc_year.
+DATA:it_char TYPE TABLE OF zsmms_char WITH HEADER LINE,
+     p_type  TYPE bapi_mtype,
+     p_msg   TYPE bapi_msg.
+
+DEFINE fillpctx.
+  CALL FUNCTION 'ZFM_DEALEXT_PCTX'
+    EXPORTING
+      sgtxt = &1
+      atnam = &2
+      atwrt = &3.
+END-OF-DEFINITION.
+
+FORM migo411q ."项目库存转非限制
+  CLEAR:ls_header,ls_code,ls_item,ls_item,lv_materialdocument,lv_matdocumentyear,p_type,p_msg.
+  REFRESH:lt_item,lt_return,it_char.
+  ls_code = '04'.
+  "准备抬头数据
+  ls_header-pstng_date    = sy-datum.
+  ls_header-doc_date      = sy-datum.             "凭证中的凭证日期
+  ls_header-pr_uname      = sy-uname.              "用户名
+  ls_header-header_txt = '项目库存释放'.
+  CLEAR:ls_item,lt_item.
+  "行项目数据
+  LOOP AT it_222.
+    data_check it_222-zsl '数量'.
+    data_check it_222-zxmh '项目号'.
+**    CLEAR number.
+**    PERFORM get_snro_number USING 'ZGPMM04' CHANGING number.
+**    IF number IS INITIAL.
+**      MESSAGE s004 WITH '生成调拨单流水号失败.' DISPLAY LIKE 'E'.
+**      RETURN.
+**    ENDIF.
+    ls_item-move_type  = '411'.         "移动类型
+    ls_item-plant      = it_222-werks.  "原工厂
+    ls_item-move_plant = it_222-werks.  "目标工厂
+    ls_item-material   = it_222-matnr.  "原物料号
+    ls_item-move_mat   = it_222-matnr.  "目标料号
+    ls_item-stge_loc   = it_222-lgort. "原库存地
+    ls_item-move_stloc = it_222-lgort. "目标库存地点
+    ls_item-entry_qnt  = it_222-zsl. "数量
+    ls_item-batch      = it_222-charg.  "原批次
+    ls_item-move_batch = it_222-charg.  "目标批次
+    ls_item-spec_stock = 'Q'. "特殊库存
+    ls_item-val_wbs_elem = it_222-zxmh.
+*    it_222-zdh = 'Z' && sy-datum+2(6) && number.
+    CONCATENATE it_222-matnr it_222-zdh INTO ls_item-item_text SEPARATED BY '-'.
+    fillpctx ls_item-item_text 'Z09' ''."项目名称
+    fillpctx ls_item-item_text 'Z24' ''."项目编号
+    fillpctx ls_item-item_text 'Z14' sy-datum.
+    fillpctx ls_item-item_text 'Z13' it_222-name_org1.
+    APPEND ls_item  TO lt_item .
+    MODIFY it_222.
+  ENDLOOP.
+
+  CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+    EXPORTING
+      goodsmvt_header  = ls_header
+      goodsmvt_code    = ls_code
+    IMPORTING
+      materialdocument = lv_materialdocument
+      matdocumentyear  = lv_matdocumentyear
+    TABLES
+      goodsmvt_item    = lt_item
+      return           = lt_return.
+
+  IF ( line_exists( lt_return[ type = 'A' ] ) ) OR ( line_exists( lt_return[ type = 'E' ] ) ) OR ( line_exists( lt_return[ type = 'X' ] ) ).
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+    DATA:msg1 TYPE bapi_msg.
+    CLEAR msg1.
+*    LOOP AT lt_return INTO ls_return WHERE type CA 'AEX'.
+*      CONCATENATE '错误：' ls_return-message INTO msg1.
+*    ENDLOOP.
+    PERFORM showmsg(zpubform) TABLES lt_return.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    msg1 = |411项目库存释放成功,凭证号:{ lv_materialdocument }|.
+    LOOP AT it_222.
+      it_222-mblnr = lv_materialdocument.
+      it_222-budat = sy-datum.
+      it_222-mjahr = lv_matdocumentyear.
+      it_222-zxgr  = sy-uname.
+      it_222-zgxsj = sy-datum.
+      MODIFY it_222.
+    ENDLOOP.
+    INSERT ztmm222 FROM TABLE it_222[].
+    COMMIT WORK.
+    MESSAGE i004 WITH msg1 .
+  ENDIF.
+
+ENDFORM.
+
+FORM get_snro_number USING snro TYPE tnro-object CHANGING p_numbr TYPE char3.
+  CLEAR: p_numbr.
+  SELECT COUNT( * ) FROM ztmm220 WHERE zzdrq = sy-datum.
+  IF sy-subrc NE 0.
+    CALL FUNCTION 'NUMBER_RANGE_INTERVAL_INIT'
+      EXPORTING
+        object            = snro
+        commit            = 'X'
+      EXCEPTIONS
+        no_interval_found = 1
+        object_not_found  = 2.
+    IF sy-subrc <> 0.
+      MESSAGE '初始化流水号失败.' TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'NUMBER_RANGE_ENQUEUE'
+    EXPORTING
+      object           = snro
+    EXCEPTIONS
+      foreign_lock     = 1
+      object_not_found = 2
+      system_failure   = 3
+      OTHERS           = 4.
+  DO 5 TIMES.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'NUMBER_GET_NEXT'
+        EXPORTING
+          nr_range_nr = '01'
+          object      = snro
+        IMPORTING
+          number      = p_numbr
+        EXCEPTIONS
+          OTHERS      = 4.
+
+      CALL FUNCTION 'NUMBER_RANGE_DEQUEUE'
+        EXPORTING
+          object = snro
+        EXCEPTIONS
+          OTHERS = 4.
+      EXIT.
+    ELSE.
+      WAIT UP TO 1 SECONDS.
+*      RAISE num_range_error.
+    ENDIF.
+  ENDDO.
+
+*  IF p_numbr IS INITIAL.
+*    MESSAGE '流水号未生成.' TYPE 'S' DISPLAY LIKE 'E'.
+*    RETURN.
+*  ELSE.
+*
+*  ENDIF.
+
+ENDFORM.
+
+FORM migo311q .
+  CLEAR:ls_header,ls_code,ls_item,ls_item,lv_materialdocument,lv_matdocumentyear,p_type,p_msg.
+  REFRESH:lt_item,lt_return,it_char.
+  ls_code = '04'.
+  "准备抬头数据
+  ls_header-pstng_date    = sy-datum.
+  ls_header-doc_date      = sy-datum.             "凭证中的凭证日期
+  ls_header-pr_uname      = sy-uname.              "用户名
+  ls_header-header_txt = '项目库存转移'.
+  CLEAR:ls_item,lt_item.
+  "行项目数据
+  LOOP AT it_222.
+    data_check it_222-zsl '数量'.
+    data_check it_222-zxmh '项目号'.
+    data_check it_222-zxxmh '转入项目号'.
+    data_check it_222-zsdr '锁定人'.
+**    CLEAR number.
+**    PERFORM get_snro_number USING 'ZGPMM04' CHANGING number.
+**    IF number IS INITIAL.
+**      MESSAGE s004 WITH '生成调拨单流水号失败.' DISPLAY LIKE 'E'.
+**      RETURN.
+**    ENDIF.
+    ls_item-move_type  = '311'.         "移动类型
+    ls_item-plant      = it_222-werks.  "原工厂
+    ls_item-move_plant = it_222-werks.  "目标工厂
+    ls_item-material   = it_222-matnr.  "原物料号
+    ls_item-move_mat   = it_222-matnr.  "目标料号
+    ls_item-stge_loc   = it_222-lgort. "原库存地
+    ls_item-move_stloc = it_222-lgort. "目标库存地点
+    ls_item-entry_qnt  = it_222-zsl. "数量
+    ls_item-entry_uom  = it_222-meins."单位
+    ls_item-batch      = it_222-charg.  "原批次
+    ls_item-move_batch = it_222-charg.  "目标批次
+    ls_item-val_wbs_elem = it_222-zxmh."原项目
+    ls_item-wbs_elem = it_222-zxxmh."项目
+    ls_item-spec_stock = 'Q'. "特殊库存
+*    it_222-zdh = 'Z' && sy-datum+2(6) && number.
+    CONCATENATE it_222-matnr it_222-zdh INTO ls_item-item_text SEPARATED BY '-'.
+    SELECT SINGLE post1 INTO @DATA(post1) FROM prps WHERE posid = @it_222-zxxmh.
+    fillpctx ls_item-item_text 'Z09' post1."项目名称
+    fillpctx ls_item-item_text 'Z24' it_222-zxxmh."项目编号
+    fillpctx ls_item-item_text 'Z14' sy-datum.
+    fillpctx ls_item-item_text 'Z13' it_222-name_org1.
+
+    APPEND ls_item  TO lt_item .
+    MODIFY it_222.
+  ENDLOOP.
+  CALL FUNCTION 'MB_SET_BAPI_FLAG'
+    EXPORTING
+      action = '3'.
+  CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+    EXPORTING
+      goodsmvt_header  = ls_header
+      goodsmvt_code    = ls_code
+    IMPORTING
+      materialdocument = lv_materialdocument
+      matdocumentyear  = lv_matdocumentyear
+    TABLES
+      goodsmvt_item    = lt_item
+      return           = lt_return.
+
+  IF ( line_exists( lt_return[ type = 'A' ] ) ) OR ( line_exists( lt_return[ type = 'E' ] ) ) OR ( line_exists( lt_return[ type = 'X' ] ) ).
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+    DATA:msg1 TYPE bapi_msg.
+    CLEAR msg1.
+*    LOOP AT lt_return INTO ls_return WHERE type CA 'AEX'.
+*      CONCATENATE '错误：' ls_return-message INTO msg1.
+*    ENDLOOP.
+    PERFORM showmsg(zpubform) TABLES lt_return.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    msg1 = |311项目库存转移成功,凭证号:{ lv_materialdocument }|.
+    LOOP AT it_222.
+      it_222-mblnr = lv_materialdocument.
+      it_222-budat = sy-datum.
+      it_222-mjahr = lv_matdocumentyear.
+      it_222-zxgr  = sy-uname.
+      it_222-zgxsj = sy-datum.
+      MODIFY it_222.
+    ENDLOOP.
+    INSERT ztmm222 FROM TABLE it_222[].
+    COMMIT WORK.
+    MESSAGE i004 WITH msg1.
+  ENDIF.
+
+ENDFORM.
+
+FORM migo415q ."非限制转项目库存
+  CLEAR:ls_header,ls_code,ls_item,ls_item,lv_materialdocument,lv_matdocumentyear,p_type,p_msg.
+  REFRESH:lt_item,lt_return,it_char.
+  ls_code = '04'.
+  "准备抬头数据
+  ls_header-pstng_date    = sy-datum.
+  ls_header-doc_date      = sy-datum.             "凭证中的凭证日期
+  ls_header-pr_uname      = sy-uname.              "用户名
+  ls_header-header_txt = '项目库存释放'.
+  CLEAR:ls_item,lt_item.
+  "行项目数据
+  LOOP AT it_222.
+    data_check it_222-zsl '数量'.
+    data_check it_222-zxxmh '转入项目号'.
+    data_check it_222-zsdr '锁定人'.
+**    CLEAR number.
+**    PERFORM get_snro_number USING 'ZGPMM04' CHANGING number.
+**    IF number IS INITIAL.
+**      MESSAGE s004 WITH '生成调拨单流水号失败.' DISPLAY LIKE 'E'.
+**      RETURN.
+**    ENDIF.
+    ls_item-move_type  = '415'.         "移动类型
+    ls_item-plant      = it_222-werks.  "原工厂
+    ls_item-move_plant = it_222-werks.  "目标工厂
+    ls_item-material   = it_222-matnr.  "原物料号
+    ls_item-move_mat   = it_222-matnr.  "目标料号
+    ls_item-stge_loc   = it_222-lgort. "原库存地
+    ls_item-move_stloc = it_222-lgort. "目标库存地点
+    ls_item-entry_qnt  = it_222-zsl. "数量
+    ls_item-entry_uom  = it_222-meins."单位
+    ls_item-batch      = it_222-charg.  "原批次
+    ls_item-move_batch = it_222-charg.  "目标批次
+*    ls_item-spec_stock = 'Q'. "特殊库存
+    ls_item-wbs_elem = it_222-zxxmh."转入项目号
+*    it_222-zdh = 'Z' && sy-datum+2(6) && number.
+    CONCATENATE it_222-matnr it_222-zdh INTO ls_item-item_text SEPARATED BY '-'.
+    SELECT SINGLE post1 INTO @DATA(post1) FROM prps WHERE posid = @it_222-zxxmh.
+    fillpctx ls_item-item_text 'Z09' post1."项目名称
+    fillpctx ls_item-item_text 'Z24' it_222-zxxmh."项目编号
+    fillpctx ls_item-item_text 'Z14' sy-datum.
+    fillpctx ls_item-item_text 'Z13' it_222-name_org1.
+    APPEND ls_item  TO lt_item .
+    MODIFY it_222.
+  ENDLOOP.
+
+  CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+    EXPORTING
+      goodsmvt_header  = ls_header
+      goodsmvt_code    = ls_code
+    IMPORTING
+      materialdocument = lv_materialdocument
+      matdocumentyear  = lv_matdocumentyear
+    TABLES
+      goodsmvt_item    = lt_item
+      return           = lt_return.
+
+  IF ( line_exists( lt_return[ type = 'A' ] ) ) OR ( line_exists( lt_return[ type = 'E' ] ) ) OR ( line_exists( lt_return[ type = 'X' ] ) ).
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+    DATA:msg1 TYPE bapi_msg.
+    CLEAR msg1.
+*    LOOP AT lt_return INTO ls_return WHERE type CA 'AEX'.
+*      CONCATENATE '错误：' ls_return-message INTO msg1.
+*    ENDLOOP.
+    PERFORM showmsg(zpubform) TABLES lt_return.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    msg1 = |415锁定项目成功,凭证号:{ lv_materialdocument }|.
+    LOOP AT it_222.
+      it_222-mblnr = lv_materialdocument.
+      it_222-budat = sy-datum.
+      it_222-mjahr = lv_matdocumentyear.
+      it_222-zxgr  = sy-uname.
+      it_222-zgxsj = sy-datum.
+      MODIFY it_222.
+    ENDLOOP.
+    INSERT ztmm222 FROM TABLE it_222[].
+    COMMIT WORK.
+    MESSAGE i004 WITH msg1.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form wms_lockunlock
+*&---------------------------------------------------------------------*
+*& 推送WMS逻辑，在项目库存释放，项目库存转移，库存锁定项目，
+*& ZTMM222中工厂WERKS包含3060和3062时，点击提交触发WMS，触发WMS成功后再调bapi过账。
+*& 接口名称ZFM_GP_MM_WMS_LOCKUNLOCK
+*&---------------------------------------------------------------------*
+*&      <-- FLAG
+*&---------------------------------------------------------------------*
+FORM wms_lockunlock  CHANGING p_flag p_msg.
+  DATA:it_head TYPE TABLE OF zsmm_223 WITH HEADER LINE,
+       it_item TYPE TABLE OF zsmm_224 WITH HEADER LINE.
+  REFRESH:it_head,it_item.
+  READ TABLE it_222 INDEX 1.
+  CLEAR it_head.
+  it_head-lgort  = it_222-lgort.
+  SELECT SINGLE lgobe INTO it_head-lgobe FROM t001l
+    WHERE lgort = it_222-lgort.
+*  it_head-lgobe  = ''.
+  it_head-zcj    = ''.
+  SELECT SINGLE kunnr INTO it_head-kunnr FROM kna1
+    WHERE name1 = it_222-zkh.
+*  it_head-kunnr  = ''.
+  it_head-zgxsj  = ''.
+  IF zsf = '1'.
+    it_head-zjsjs  = 'UNLOCK'.
+  ELSE.
+    it_head-zjsjs  = 'LOCK'.
+  ENDIF.
+  DATA(len) = strlen( it_222-zsdr ).
+  IF len > 2.
+    IF it_222-zsdr+1(1) = '0'.
+      len = len - 2.
+      it_head-zsdr = it_222-zsdr+2(len).
+    ELSE.
+      len = len - 1.
+      it_head-zsdr = it_222-zsdr+1(len).
+    ENDIF.
+  ENDIF.
+*  it_head-zsdr   = ''.
+  it_head-werks  = it_222-werks.
+  it_head-erpjgms = ''.
+  it_head-zbz    = it_222-zbz.
+  APPEND it_head.
+  LOOP AT it_222.
+    CLEAR it_item.
+    it_item-zdh     = it_222-zdh+1(11).
+    it_item-matnr   = it_222-matnr.
+    it_item-zsl     = it_222-zsl.
+    it_item-meins   = it_222-meins.
+    it_item-zjh     = it_222-zjh.
+    it_item-zzbh    = it_222-z01.
+    it_item-zxxmh   = it_222-zxxmh.
+    SELECT SINGLE post1 INTO it_item-post1 FROM prps
+      WHERE posid = it_222-zxxmh.
+*    it_item-post1   = ''.
+    it_item-zyxmh   = it_222-zxmh.
+    SELECT SINGLE post1 INTO it_item-zyxmmc FROM prps
+  WHERE posid = it_222-zxmh.
+*    it_item-zyxmmc  = ''.
+    it_item-zxsddh  = ''.
+    it_item-zyxsht  = ''.
+    it_item-charg   = ''.
+    APPEND it_item.
+  ENDLOOP.
+
+  CALL FUNCTION 'ZFM_GP_MM_WMS_LOCKUNLOCK'
+    IMPORTING
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+      rtype   = p_flag
+      rtmsg   = p_msg
+*     FLAG    =
+*     MESSAGE =
+    TABLES
+      it_head = it_head
+      it_item = it_item
+*     ot_item =
+    .
+  p_flag = to_upper( p_flag ).
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_MEINS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_meins INPUT.
+  DATA:l_lines_vb TYPE i,
+       return_tab TYPE ddshretval OCCURS 0.
+
+  GET CURSOR LINE l_lines_vb.
+  DATA(line) = zxmkc_con-top_line - 1 + l_lines_vb.
+  READ TABLE it_222 INDEX line.
+  CHECK it_222-cpxz NE 'X'.
+  SELECT meinh AS meins,umrez,umren,matnr,atinn
+    INTO TABLE @DATA(lt_meins)
+    FROM marm
+    WHERE matnr = @it_222-matnr.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     ddic_structure  = 'Z51_STCT' "structure名称
+      retfield        = 'MEINS'
+*     PVALKEY         = ' '
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = 'IT_222-MEINS'
+*     STEPL           = 0
+      window_title    = '单位选择'
+*     VALUE           = ' '
+      value_org       = 'S' "Structure
+*     MULTIPLE_CHOICE = ' '
+*     display         = 'F'
+*     callback_program = sy-repid
+*     callback_form   = 'CB_MEINS'
+*     MARK_TAB        =
+* IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = lt_meins[]
+*     field_tab       = l_dfies[]
+      return_tab      = return_tab[]
+*     dynpfld_mapping = l_dselc[]
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_ZSDR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_zsdr INPUT.
+  REFRESH return_tab.
+  SELECT partner AS zsdr,name_org1,bu_sort1,bu_sort2
+    INTO TABLE @DATA(lt_but000)
+     FROM but000
+    WHERE bu_sort2 NE ''
+    AND bu_group = 'Z800'.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'ZSDR'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'IT_222-ZSDR'
+      window_title     = '更新人'
+      value_org        = 'S' "Structure
+      callback_program = sy-repid
+      callback_form    = 'CB_ZSDR'
+    TABLES
+      value_tab        = lt_but000[]
+*     field_tab        = l_dfies[]
+      return_tab       = return_tab[]
+*     dynpfld_mapping  = l_dselc[]
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDMODULE.
+
+FORM cb_zsdr TABLES record_tab STRUCTURE seahlpres
+            CHANGING shlp TYPE shlp_descr_t
+                     callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+  interface-shlpfield+4(1) = '2'.
+  interface-valfield = 'IT_222-NAME_ORG1'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form wms_synccontract
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- FLAG
+*&      <-- MSG
+*&---------------------------------------------------------------------*
+FORM wms_synccontract  CHANGING p_flag
+                                p_msg.
+  DATA:intab TYPE TABLE OF zsmm_226 WITH HEADER LINE,
+       rtype TYPE bapi_mtype,
+       rtmsg TYPE bapi_msg.
+  REFRESH intab.
+  LOOP AT it_222.
+    CLEAR intab.
+    intab-zdh      = it_222-zdh+1(11).
+    SELECT SINGLE
+        ztps010a~kunnr
+        FROM prps
+         LEFT JOIN ztps010a ON ztps010a~pspid = substring( prps~posid,1,8 )
+        WHERE prps~post1 = @it_222-zxmh
+        INTO @intab-kunnr.
+*    intab-kunnr    = ''.
+    intab-werks    = it_222-werks.
+    intab-erpjgms  = ''.
+    SELECT SINGLE partner INTO @DATA(partner) FROM but000
+      WHERE name_org1 = @it_222-zsdr.
+    DATA(len) = strlen( partner ) - 4.
+    IF len > 0.
+      intab-zsdr     = partner+len(4).
+    ELSE.
+      intab-zsdr     = partner.
+    ENDIF.
+
+*    intab-zsdr     = ''.
+    intab-zgxsj    = sy-datum.
+    intab-zbz      = ''.
+    intab-zdhhh    = '10'.
+    intab-zxsddh   = ''.
+    intab-zxxmh    = ''.
+    intab-zyxsht   = it_222-z25.
+    intab-zyxshtmc = it_222-z26.
+    intab-zyxmh    = it_222-zxmh.
+    intab-zyxmmc   = it_222-z09.
+    intab-lgort    = it_222-lgort.
+    SELECT SINGLE lgobe INTO intab-lgobe FROM t001l WHERE werks = it_222-werks AND lgort = it_222-lgort.
+*    intab-lgobe    = ''.
+    intab-zcj      = ''.
+    intab-matnr    = it_222-matnr.
+    intab-zbaohao  = it_222-z20.
+    SELECT SUM( zzk ) SUM( zsl )  INTO ( intab-zkuaishu,intab-zsl ) FROM ztpp316 WHERE matnr = it_222-matnr AND werks = it_222-werks AND charg = it_222-charg AND zbh = it_222-z20.
+
+*    intab-zkuaishu = ''.
+*    intab-zsl      = it_222-zsl.
+    intab-meins    = it_222-meins.
+    intab-zjh      = it_222-zjh.
+    intab-charg    = it_222-charg.
+    APPEND intab.
+  ENDLOOP.
+
+
+  CALL FUNCTION 'ZFM_GP_MM_WMS_SYNCCONTRACT'
+    IMPORTING
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+      rtype  = rtype
+      rtmsg  = rtmsg
+    TABLES
+      in_tab = intab.
+  p_msg = rtmsg.
+  IF to_upper( rtype ) = 'S'.
+    p_flag = 'S'.
+  ELSE.
+    p_flag = 'E'.
+  ENDIF.
+ENDFORM.

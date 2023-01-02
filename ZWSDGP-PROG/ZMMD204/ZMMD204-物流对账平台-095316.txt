@@ -1,0 +1,1136 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD204
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd204 MESSAGE-ID zgp_msg.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields,ztmm226,mard,t001,prps.
+DATA: fldct   TYPE slis_t_fieldcat_alv,
+      fldctcg TYPE slis_t_fieldcat_alv,
+      slayt   TYPE slis_layout_alv,
+      varnt   LIKE disvariant,
+      repid   LIKE sy-repid,
+      tabix   LIKE sy-tabix.
+DATA:BEGIN OF itab OCCURS 0.
+       INCLUDE TYPE ztmm226.
+DATA:select,
+       cb        TYPE char1,
+       zyflxdes  TYPE char40,
+       zjsfsdes  TYPE char40,
+       zdjlxdes  TYPE char40,
+       zztdes    TYPE char40,
+       zfylxdes  TYPE char40,
+       butxt     TYPE butxt,
+       werksname TYPE name1,
+       name1     TYPE name1,
+       post1     TYPE prps-post1,
+       zywydes   TYPE char40,
+     END OF itab.
+DATA:it_zyflx   TYPE TABLE OF dd07v WITH HEADER LINE, "运费类型
+     it_zjsfs   TYPE TABLE OF dd07v WITH HEADER LINE, "费用方式
+     it_zfylx   TYPE TABLE OF dd07v WITH HEADER LINE, "业务类型
+     it_zdjlx   TYPE TABLE OF dd07v WITH HEADER LINE, "单据类型
+     it_zzt     TYPE TABLE OF dd07v WITH HEADER LINE, "单据状态
+     it_ztmm212 TYPE TABLE OF ztmm212 WITH HEADER LINE.
+DATA: BEGIN OF it_tz OCCURS 0,
+        zywdh  TYPE ztmm226-zywdh,
+        lifnr  TYPE ztmm226-lifnr,
+        zwldj  TYPE ztmm226-zwldj,
+        zysje  TYPE ztmm226-zysje,
+        zbz    TYPE char100,
+        zsl    TYPE ztmm226-zsl,
+        zyszrr TYPE ztmm226-zyszrr,
+        zywkh  TYPE ztmm226-zywkh,
+        zxmh   TYPE ztmm226-zxmh,
+        lgobe  TYPE ztmm226-lgobe,
+        zjsfs  TYPE ztmm226-zjsfs,
+        zzl    TYPE ztmm226-zzl,
+        zbhsdj TYPE ztmm226-zbhsdj,
+        zse    TYPE ztmm226-zse,
+        zbhsje TYPE ztmm226-zbhsje,
+        werks  TYPE ztmm226-werks,
+        zysd   TYPE ztmm226-zysd,
+        zsj    TYPE ztmm226-zsj,
+        zsjdd  TYPE ztmm226-zsjdd,
+        zch    TYPE ztmm226-zch,
+        zywy   TYPE ztmm226-zywy,
+        zzdrq  TYPE dats,
+        bcbs   TYPE char1,
+        sel,
+      END OF it_tz.
+DATA:BEGIN OF wa_fphx,"销售发票核销
+       bukrs  TYPE ztmm226-bukrs,
+       butxt  TYPE t001-butxt,
+       lifnr  TYPE ztmm226-lifnr,
+       name1  TYPE lfa1-name1,
+       zysje  TYPE ztmm226-zysje, "含税金额
+       zse    TYPE ztmm226-zse, "税额
+       zbhsje TYPE ztmm226-zbhsje, "不含税金额
+       zzzfp  TYPE ztmm226-zzzfp, "纸质发票号
+       zfprq  TYPE dats, "发票日期
+     END OF wa_fphx.
+DATA:BEGIN OF it_cgfphx OCCURS 0,"采购发票核销
+       zywdh     TYPE ztmm226-zywdh,
+       zhh       TYPE posnr,
+       bukrs     TYPE ztmm226-bukrs,
+       lifnr     TYPE ztmm226-lifnr,
+*       butxt  TYPE t001-butxt,
+*       lifnr  TYPE ztmm226-lifnr,
+*       name1  TYPE lfa1-name1,
+       ebeln     TYPE ebeln,
+       ebelp     TYPE ebelp,
+       zsl       TYPE menge_d,
+*       zysje  TYPE ztmm226-zysje, "含税金额
+*       zse    TYPE ztmm226-zse, "税额
+       zbhsje    TYPE ztmm226-zbhsje, "不含税金额
+       mwskz     TYPE mwskz,
+       zfph      TYPE char100,
+*       zzzfp  TYPE ztmm226-zzzfp, "纸质发票号
+*       zfprq  TYPE dats, "发票日期
+*&  新增类型
+       cond_type TYPE /accgo/e_q_item,
+       select,
+     END OF it_cgfphx.
+DATA:it226 TYPE TABLE OF ztmm226 WITH HEADER LINE.
+
+DATA: lv_zysje TYPE zedb_zysje.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:s_zywdh FOR ztmm226-zywdh MODIF ID m1,
+                 s_zfylx FOR ztmm226-zfylx MODIF ID m1,
+                 s_lgort FOR mard-lgort MODIF ID m1,
+                 s_werks FOR mard-werks MODIF ID m1,
+                 s_zzdrq FOR ztmm226-zzdrq MODIF ID m1,
+                 s_zxmh  FOR ztmm226-zxmh MODIF ID m1,
+                 s_zzt   FOR ztmm226-zzt MODIF ID m1,
+                 s_lifnr FOR ztmm226-lifnr MODIF ID m1,
+                 s_bukrs FOR t001-bukrs MODIF ID m1,
+                 s_zyszrr FOR ztmm226-zyszrr MODIF ID m1,
+                 s_zyflx FOR ztmm226-zyflx MODIF ID m1.
+  PARAMETERS:p_lifnr LIKE ztmm226-lifnr MODIF ID m2,
+             p_bukrs LIKE t001-bukrs MODIF ID m2.
+  SELECT-OPTIONS:s_zfpno FOR ztmm226-zfpno MODIF ID m3.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:p_yfmx   RADIOBUTTON GROUP grd2 USER-COMMAND singleclick DEFAULT 'X',
+             p_yftd   RADIOBUTTON GROUP grd2,
+             p_cgyfhx RADIOBUTTON GROUP grd2,
+             p_xsyfhx RADIOBUTTON GROUP grd2,
+             p_yffpcx RADIOBUTTON GROUP grd2.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+  %_s_zywdh_%_app_%-text = '单号'.
+  %_s_zfylx_%_app_%-text = '费用类项'.
+  %_s_lgort_%_app_%-text = '仓库'.
+  %_s_werks_%_app_%-text = '工厂'.
+  %_s_zzdrq_%_app_%-text = '制单日期'.
+  %_s_zxmh_%_app_%-text = '项目'.
+  %_s_zzt_%_app_%-text = '单据状态'.
+
+  %_s_lifnr_%_app_%-text = '运输公司'.
+  %_s_bukrs_%_app_%-text = '公司'.
+  %_s_zyszrr_%_app_%-text = '运输负责人'.
+  %_s_zyflx_%_app_%-text = '运费类型'.
+
+  %_p_lifnr_%_app_%-text = '运输公司'.
+  %_p_bukrs_%_app_%-text = '公司'.
+  %_s_zfpno_%_app_%-text = '发票号'.
+  t02 = '功能选择'.
+  %_p_yfmx_%_app_%-text = '运费明细'.
+  %_p_yftd_%_app_%-text = '运费提单'.
+  %_p_cgyfhx_%_app_%-text = '采购运费核销'.
+  %_p_xsyfhx_%_app_%-text = '销售运费核销'.
+  %_p_yffpcx_%_app_%-text = '运费发票冲销'.
+
+AT SELECTION-SCREEN.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+    IF p_cgyfhx = 'X'.
+      IF screen-name CS 'S_ZFYLX' .
+        REFRESH s_zfylx.
+        CLEAR s_zfylx.
+        s_zfylx-sign    = 'I'.
+        s_zfylx-option  = 'EQ'.
+        s_zfylx-low     = 'CGYF'.
+        APPEND s_zfylx.
+        screen-input = 0 .
+      ENDIF .
+      IF screen-group1 = 'M2'.
+        screen-active = 1.
+        screen-required = 2.
+      ELSEIF screen-group1 = 'M3'.
+        screen-active = 0.
+      ENDIF.
+    ELSEIF p_xsyfhx = 'X'.
+      IF screen-name CS 'S_ZFYLX' .
+        REFRESH s_zfylx.
+        CLEAR s_zfylx.
+        s_zfylx-sign    = 'I'.
+        s_zfylx-option  = 'EQ'.
+        s_zfylx-low     = 'XSYF'.
+        APPEND s_zfylx.
+        CLEAR s_zfylx.
+        s_zfylx-sign    = 'I'.
+        s_zfylx-option  = 'EQ'.
+        s_zfylx-low     = 'DBYF'.
+        APPEND s_zfylx.
+        screen-input = 0 .
+      ENDIF .
+      IF screen-group1 = 'M2'.
+        screen-active = 1.
+        screen-required = 2.
+      ELSEIF screen-group1 = 'M3'.
+        screen-active = 0.
+      ENDIF.
+    ELSEIF p_yffpcx = 'X'.
+      IF screen-group1 = 'M1' OR screen-group1 = 'M2'.
+        screen-active = 0.
+      ENDIF.
+    ELSE.
+      IF screen-name CS 'S_ZFYLX' .
+        REFRESH s_zfylx.
+        screen-input = 1 .
+      ENDIF .
+      IF screen-group1 = 'M2' OR screen-group1 = 'M3'.
+        screen-active = 0.
+      ENDIF.
+    ENDIF.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+START-OF-SELECTION.
+
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  PERFORM getdata.
+  PERFORM alvshow.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  DATA wherestr TYPE string.
+  IF p_yfmx = 'X'.
+    wherestr = ` z6~zywdh     IN s_zywdh  `
+            && ` AND z6~zfylx IN s_zfylx  `
+            && ` AND z6~lgort IN s_lgort  `
+            && ` AND z6~werks IN s_werks  `
+            && ` AND z6~zzdrq IN s_zzdrq  `
+            && ` AND z6~zxmh  IN s_zxmh   `
+            && ` AND z6~zzt   IN s_zzt    `
+            && ` AND z6~lifnr IN s_lifnr  `
+            && ` AND z6~bukrs IN s_bukrs  `
+            && ` AND z6~zyszrr IN s_zyszrr`
+            && ` AND z6~zyflx   IN s_zyflx`.
+  ELSEIF p_yftd = 'X'.
+    wherestr = ` z6~zywdh     IN s_zywdh  `
+            && ` AND z6~zfylx IN s_zfylx  `
+            && ` AND z6~lgort IN s_lgort  `
+            && ` AND z6~werks IN s_werks  `
+            && ` AND z6~zzdrq IN s_zzdrq  `
+            && ` AND z6~zxmh  IN s_zxmh   `
+            && ` AND z6~zzt   =  '10'     `
+            && ` AND z6~lifnr IN s_lifnr  `
+            && ` AND z6~bukrs IN s_bukrs  `
+            && ` AND z6~zyszrr IN s_zyszrr`
+            && ` AND z6~zyflx   IN s_zyflx`.
+  ELSEIF p_cgyfhx = 'X'.
+    IF p_lifnr IS INITIAL OR p_bukrs IS INITIAL.
+      MESSAGE s004 WITH '公司、运输公司必填.' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+    wherestr = ` z6~zywdh     IN s_zywdh  `
+            && ` AND z6~zfylx IN s_zfylx  `
+            && ` AND z6~lgort IN s_lgort  `
+            && ` AND z6~werks IN s_werks  `
+            && ` AND z6~zzdrq IN s_zzdrq  `
+            && ` AND z6~zxmh  IN s_zxmh   `
+            && ` AND z6~zzt   =  '20'     `
+            && ` AND z6~zdjlx =  'YS'     `
+            && ` AND z6~lifnr =  p_lifnr  `
+            && ` AND z6~bukrs =  p_bukrs  `.
+  ELSEIF p_xsyfhx = 'X'.
+    IF p_lifnr IS INITIAL OR p_bukrs IS INITIAL.
+      MESSAGE s004 WITH '公司、运输公司必填.' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+    wherestr = ` z6~zywdh     IN s_zywdh  `
+            && ` AND z6~zfylx IN s_zfylx  `
+            && ` AND z6~lgort IN s_lgort  `
+            && ` AND z6~werks IN s_werks  `
+            && ` AND z6~zzdrq IN s_zzdrq  `
+            && ` AND z6~zxmh  IN s_zxmh   `
+            && ` AND z6~zzt   =  '20'     `
+            && ` AND z6~lifnr =  p_lifnr  `
+            && ` AND z6~bukrs =  p_bukrs  `.
+  ELSEIF p_yffpcx = 'X'.
+    wherestr = ` z6~zfpno     IN s_zfpno  `
+            && ` AND z6~zfpno_del  NE 'X' `
+            && ` AND z6~zfpno NE  ''      `.
+  ENDIF.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE itab FROM ztmm226 AS z6 WHERE (wherestr).
+  PERFORM getdomain(zpubform) TABLES it_zyflx  USING 'ZD_ZYFLX'.
+  PERFORM getdomain(zpubform) TABLES it_zjsfs  USING 'ZD_ZJFFS'.
+  PERFORM getdomain(zpubform) TABLES it_zdjlx  USING 'ZD_ZDJLX'.
+  PERFORM getdomain(zpubform) TABLES it_zzt  USING 'ZD_ZZT'.
+  PERFORM getdomain(zpubform) TABLES it_zfylx  USING 'ZD_ZFYLX'.
+  LOOP AT itab.
+    READ TABLE it_zyflx WITH KEY domvalue_l = itab-zyflx BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-zyflxdes = it_zyflx-ddtext.
+    ENDIF.
+    READ TABLE it_zjsfs WITH KEY domvalue_l = itab-zjsfs BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-zjsfsdes = it_zjsfs-ddtext.
+    ENDIF.
+    READ TABLE it_zdjlx WITH KEY domvalue_l = itab-zdjlx BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-zdjlxdes = it_zdjlx-ddtext.
+    ENDIF.
+    READ TABLE it_zzt WITH KEY domvalue_l = itab-zzt BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-zztdes = it_zzt-ddtext.
+    ENDIF.
+    READ TABLE it_zfylx WITH KEY domvalue_l = itab-zfylx BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-zfylxdes = it_zfylx-ddtext.
+    ENDIF.
+    SELECT SINGLE butxt INTO itab-butxt FROM t001 WHERE bukrs = itab-bukrs.
+    SELECT SINGLE name1 INTO itab-werksname FROM t001w WHERE werks = itab-werks.
+    DATA(lifnr) = |{ itab-lifnr ALPHA = IN }|.
+    SELECT SINGLE name1 INTO itab-name1 FROM lfa1 WHERE lifnr = lifnr.
+    SELECT SINGLE post1 INTO itab-post1 FROM prps WHERE pspnr = itab-zxmh.
+    SELECT SINGLE name_org1 INTO itab-zywydes FROM but000 WHERE partner = itab-zywy AND bu_sort2 NE '' AND bu_group = 'Z800'.
+    MODIFY itab.
+  ENDLOOP.
+
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1."控制用户布局
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'CB'       ''         ''       '选择',
+'ZYWDH '       'ZTM226'   'ZYWDH '   '业务单号         ',
+'BUKRS '       'ZTM226'   'BUKRS '   '公司             ',
+  'BUTXT '       ''   ' '   '公司描述             ',
+'LIFNR '       'ZTM226'   'LIFNR '   '运输公司         ',
+  'NAME1 '       ''   ' '   '运输公司描述         ',
+'ZYSZRR'       'ZTM226'   'ZYSZRR'   '运输负责人       ',
+'ZYWKH '       'ZTM226'   'ZYWKH '   '业务客户         ',
+'ZXMH  '       'ZTM226'   'ZXMH  '   '项目             ',
+  'POST1  '       'PRPS'   'POST1  '   '项目描述             ',
+'ZFYLX '       'ZTM226'   'ZFYLX '   '费用类型         ',
+  'ZFYLXDES '       ''   ' '   '费用类型描述         ',
+  'ZYFLX '       'ZTM226'   'ZYFLX '   '运费类型         ',
+  'ZYFLXDES '       ''   ' '   '运费类型描述         ',
+'LGORT '       'ZTM226'   'LGORT '   '仓库             ',
+'LGOBE '       'ZTM226'   'LGOBE '   '仓库描述         ',
+'ZJSFS '       'ZTM226'   'ZJSFS '   '费用方式         ',
+  'ZJSFSDES '       ''   ' '   '费用方式描述         ',
+'ZZL   '       ''   ''   '数量             ',
+'ZWLDJ '       ''   ''   '含税单价         ',
+*'ZYSJE '       'ZTM226'   'ZYSJE '   '含税金额         ',
+'ZYSJE '       ''   ''   '含税金额         ',
+'ZSL   '       'ZTM226'   'ZSL   '   '税率             ',
+*'ZBHSDJ'       'ZTM226'   'ZBHSDJ'   '不含税单价       ',
+'ZBHSDJ'       ''   ''   '不含税单价       ',
+'ZSE   '       ''   ''   '税额             ',
+'ZBHSJE'       ''   ''   '不含税金额       ',
+'WERKS '       'ZTM226'   'WERKS '   '工厂             ',
+  'WERKSNAME '       ''   ' '   '工厂描述             ',
+'ZYSD  '       'ZTM226'   'ZYSD  '   '运输目的地/起始地',
+'ZSJ   '       'ZTM226'   'ZSJ   '   '司机             ',
+'ZSJDD '       'ZTM226'   'ZSJDD '   '司机电话         ',
+'ZCH   '       'ZTM226'   'ZCH   '   '车号             ',
+'ZYWY  '       'ZTM226'   'ZYWY  '   '业务员           ',
+  'ZYWYDES  '       ''   '  '   '业务员描述           ',
+'ZYWBM '       'ZTM226'   'ZYWBM '   '业务部门         ',
+'ZXXBM '       'ZTM226'   'ZXXBM '   '详细部门         ',
+'ZBDJL '       'ZTM226'   'ZBDJL '   '百度距离         ',
+'ZZDRQ '       'ZTM226'   'ZZDRQ '   '制单日期         ',
+'ZDJLX '       'ZTM226'   'ZDJLX '   '单据类型         ',
+  'ZDJLXDES '       ''   ' '   '单据类型描述         ',
+'ZZT   '       'ZTM226'   'ZZT   '   '单据状态         ',
+  'ZZTDES   '       ''   '   '   '单据状态描述         ',
+'ZHDR  '       'ZTM226'   'ZHDR  '   '核对人           ',
+'ZHDRQ '       'ZTM226'   'ZHDRQ '   '核对日期         ',
+'ZFPNO '       'ZTM226'   'ZFPNO '   '发票号           ',
+'FISC_YEAR '   'ZTM226'   'FISC_YEAR '   '发票年       '.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = itab[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+  IF p_reffld = 'DATS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+    WHEN 'CB'.
+      ls_fldct-checkbox = 'X'.
+      ls_fldct-edit = 'X'.
+    WHEN 'FISC_YEAR' OR 'ZHDRQ' OR 'ZZDRQ'.
+      ls_fldct-no_zero = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  IF p_yfmx = 'X'.
+    APPEND 'HD' TO rt_extab.
+    APPEND 'TZ' TO rt_extab.
+    APPEND 'FPHX' TO rt_extab.
+    APPEND 'YFFPCX' TO rt_extab.
+    SET TITLEBAR 'TIT1000' WITH '物流对账平台-运费明细'.
+  ELSEIF p_yftd = 'X'.
+    APPEND 'EXCEL' TO rt_extab.
+    APPEND 'HDCZ' TO rt_extab.
+    APPEND 'FPHX' TO rt_extab.
+    APPEND 'YFFPCX' TO rt_extab.
+    SET TITLEBAR 'TIT1000' WITH '物流对账平台-运费提单'.
+  ELSEIF p_cgyfhx = 'X' OR p_xsyfhx = 'X'.
+    APPEND 'HDCZ' TO rt_extab.
+    APPEND 'HD' TO rt_extab.
+    APPEND 'TZ' TO rt_extab.
+    APPEND 'YFFPCX' TO rt_extab.
+    SET TITLEBAR 'TIT1000' WITH '物流对账平台-发票核销'.
+  ELSEIF p_yffpcx = 'X'.
+    APPEND 'EXCEL' TO rt_extab.
+    APPEND 'HDCZ' TO rt_extab.
+    APPEND 'HD' TO rt_extab.
+    APPEND 'TZ' TO rt_extab.
+    APPEND 'FPHX' TO rt_extab.
+    SET TITLEBAR 'TIT1000' WITH '物流对账平台-运费发票冲销'.
+  ENDIF.
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF itab.
+  DATA:filename TYPE string.
+  DATA pdfxstring TYPE xstring.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+        WHEN 'ZYWDH'.
+          IF wa-zfylx = 'CGYF'.
+
+          ELSEIF wa-zfylx = 'XSYF'.
+          ELSEIF wa-zfylx = 'DBYF'.
+            PERFORM showdbd USING wa-zywdh.
+          ENDIF.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'EXCEL'."导出excel
+      PERFORM itabtoexcel(zpubform) TABLES itab USING fldct.
+    WHEN 'HDCZ'."核对重置
+      PERFORM hdcz.
+    WHEN 'HD'."核对
+      PERFORM hd.
+    WHEN 'TZ'."调整
+      PERFORM tz.
+    WHEN 'FPHX'."发票核销
+      PERFORM fphx.
+    WHEN 'YFFPCX'."运费发票冲销
+      PERFORM mir7_del.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+
+FORM hdcz.
+  REFRESH it226.
+  LOOP AT itab WHERE cb = 'X'.
+    IF itab-zzt NE '20'.
+      MESSAGE s004 WITH '请不要选中非核对状态的单据。'.
+      RETURN.
+    ENDIF.
+    CLEAR it226.
+    MOVE-CORRESPONDING itab TO it226.
+    it226-zzt = '10'.
+    APPEND it226.
+  ENDLOOP.
+  IF sy-subrc NE 0.
+    MESSAGE s004 WITH '请选中要核对重置的单据。'.
+    RETURN.
+  ENDIF.
+  MODIFY ztmm226 FROM TABLE it226[].
+  IF sy-subrc EQ 0.
+    COMMIT WORK.
+    MESSAGE s004 WITH '核对重置成功'.
+    "刷新数据
+    PERFORM getdata.
+  ENDIF.
+ENDFORM.
+
+FORM hd.
+  REFRESH it226.
+  LOOP AT itab WHERE cb = 'X'.
+    CLEAR it226.
+    MOVE-CORRESPONDING itab TO it226.
+    it226-zzt = '20'.
+    APPEND it226.
+  ENDLOOP.
+  IF sy-subrc NE 0.
+    MESSAGE s004 WITH '请选中要核对重置的单据。'.
+    RETURN.
+  ENDIF.
+  MODIFY ztmm226 FROM TABLE it226[].
+  IF sy-subrc EQ 0.
+    COMMIT WORK.
+    MESSAGE s004 WITH '核对成功'.
+    "刷新数据
+    PERFORM getdata.
+  ENDIF.
+ENDFORM.
+
+FORM tz.
+  DATA num TYPE i.
+  CLEAR num.
+  REFRESH it_tz.
+  LOOP AT itab WHERE cb = 'X'.
+    num = num + 1.
+    MOVE-CORRESPONDING itab TO it_tz.
+    APPEND it_tz.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选中一行调整' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  CALL SCREEN 900.
+ENDFORM.
+
+FORM fphx.
+  DATA:BEGIN OF it_zfylx OCCURS 0,
+         zfylx TYPE ztmm226-zfylx,
+       END OF it_zfylx,
+       BEGIN OF it_lifnr OCCURS 0,
+         lifnr TYPE ztmm226-lifnr,
+       END OF it_lifnr,
+       BEGIN OF it_bukrs OCCURS 0,
+         bukrs TYPE ztmm226-bukrs,
+       END OF it_bukrs.
+  DATA:BEGIN OF it_zywdh OCCURS 0,
+         zywdh TYPE ztmm226-zywdh,
+       END OF it_zywdh.
+  DATA:num    TYPE i,
+       zysje  TYPE ztmm226-zysje,
+       zse    TYPE ztmm226-zse,
+       zbhsje TYPE ztmm226-zbhsje.
+
+  CONSTANTS constant TYPE ztmm226-zse VALUE '1.09'.
+
+  REFRESH:it_zfylx,it_lifnr,it_bukrs.
+  CLEAR:num,zysje,zse,zbhsje,it_zywdh.
+  LOOP AT itab WHERE cb = 'X'.
+    num = num + 1.
+    CLEAR:it_zfylx,it_lifnr,it_zywdh.
+    it_zfylx-zfylx = itab-zfylx.
+    it_lifnr-lifnr = itab-lifnr.
+    it_bukrs-bukrs = itab-bukrs.
+    it_zywdh-zywdh = itab-zywdh.
+    COLLECT: it_zfylx,it_lifnr,it_bukrs,it_zywdh.
+    zysje = zysje + itab-zysje.
+    zse = zse + itab-zse.
+    zbhsje = zbhsje + itab-zbhsje.
+  ENDLOOP.
+  DELETE it_zfylx WHERE zfylx IS INITIAL.
+  DELETE it_lifnr WHERE lifnr IS INITIAL.
+  DELETE it_bukrs WHERE bukrs IS INITIAL.
+  IF num LT 1.
+    MESSAGE s004 WITH '请至少选择一行！'.
+    RETURN.
+  ENDIF.
+*  IF lines( it_zfylx ) NE 1.
+*    MESSAGE s004 WITH '只能核销一类运费！'.
+*    RETURN.
+*  ENDIF.
+*  IF lines( it_lifnr ) NE 1.
+*    MESSAGE s004 WITH '运输公司不相等！'.
+*    RETURN.
+*  ENDIF.
+*  IF lines( it_bukrs ) NE 1.
+*    MESSAGE s004 WITH '公司不相等！'.
+*    RETURN.
+*  ENDIF.
+*  READ TABLE it_zfylx INDEX 1.
+*  IF it_zfylx-zfylx = 'CGYF'.
+*
+*
+*  ELSE.
+
+*  CALL SCREEN 901 STARTING AT 37 5 ENDING   AT 127 20.
+*  ENDIF.
+  IF p_cgyfhx = 'X'."采购发票核销
+    IF it_zywdh[] IS NOT INITIAL.
+
+*      select z~zdbdh as zywdh,z~zhh as zhh,z~ebeln,z~ebelp,z~zdbsl as zsl,ekko~bukrs
+*        into table @data(lt_221)
+**        from ztmm221 as z
+*        from ztmm220 as head
+*        join ztmm221 as z on z~zdbdh = head~zdbdh
+*        join ekko on z~ebeln = ekko~ebeln
+*        for all entries in @it_zywdh
+*        where head~zdbdh = @it_zywdh-zywdh.
+
+* Luzhenhua
+      SELECT FROM ztmm220  AS head
+        INNER JOIN ztmm221 AS z    ON  head~zdbdh = z~zdbdh
+        INNER JOIN ekko            ON  head~ebeln = ekko~ebeln
+        FIELDS
+        head~ebeln,
+        z~zdbdh AS zywdh,
+        z~zhh   AS zhh,
+        z~zhh   AS ebelp,
+        z~zdbsl AS zsl,
+        ekko~bukrs,
+        bsart      AS zyflx,
+        z~zccf     AS zccf,
+        z~zysje   AS zysje
+        FOR ALL ENTRIES IN @it_zywdh
+        WHERE head~zdbdh = @it_zywdh-zywdh
+        INTO TABLE @DATA(lt_221_swaj).
+*& Luzhenhua
+      DATA: lt_221 LIKE lt_221_swaj WITH HEADER LINE.
+      DATA(lt_221_swap) = lt_221_swaj[].
+
+      LOOP AT itab WHERE cb = 'X'.
+        IF itab-zyflx = '40'.
+          LOOP AT lt_221_swap INTO DATA(ls_221) WHERE zywdh = itab-zywdh.
+            ls_221-zyflx = itab-zyflx.
+            APPEND ls_221 TO lt_221.
+          ENDLOOP.
+        ELSE.
+          LOOP AT lt_221_swap INTO ls_221 WHERE zywdh = itab-zywdh.
+            ls_221-zyflx = itab-zyflx.
+            APPEND ls_221 TO lt_221.
+          ENDLOOP.
+        ENDIF.
+      ENDLOOP.
+*& End  2022-12-20
+
+      SELECT z~zdhdh AS zywdh,z~zdhhh AS zhh,z~ebeln,z~ebelp,z~zjsl AS zsl, z~zysjei,ekko~bukrs
+        INTO TABLE @DATA(lt_202) FROM ztmm202 AS z
+        JOIN ekko ON z~ebeln = ekko~ebeln
+        FOR ALL ENTRIES IN @it_zywdh
+        WHERE z~zdhdh = @it_zywdh-zywdh.
+
+      SELECT z~zwwfno AS zywdh,z~zwwfhh AS zhh,z8~ebeln,z~ebelp,z~menge AS zsl,ekko~bukrs
+        INTO TABLE @DATA(lt_209) FROM ztmm209 AS z
+        JOIN ztmm208 AS z8 ON z~zwwfno = z8~zwwfno
+         JOIN ekko ON z8~ebeln = ekko~ebeln
+        FOR ALL ENTRIES IN @it_zywdh
+        WHERE z~zwwfno = @it_zywdh-zywdh.
+      REFRESH it_cgfphx.
+
+      REFRESH: it_cgfphx,lt_221_swap.
+*调拨单行项目表
+      LOOP AT lt_221 INTO DATA(lw_221).
+        CLEAR it_cgfphx.
+        MOVE-CORRESPONDING lw_221 TO it_cgfphx.
+        it_cgfphx-lifnr  = p_lifnr.
+        IF lw_221-zyflx = '40'.
+          it_cgfphx-cond_type = 'ZF04'.
+          it_cgfphx-zbhsje    = lw_221-zccf / constant.
+        ELSE.
+          it_cgfphx-cond_type = 'ZF01'.
+          it_cgfphx-zbhsje    = lw_221-zysje / constant.
+        ENDIF.
+*        it_cgfphx-zbhsje =  .
+        it_cgfphx-mwskz  = 'J4'.
+        APPEND it_cgfphx.
+      ENDLOOP.
+*到货通知
+      SORT lt_202 BY  zywdh ebeln ebelp.
+      DELETE ADJACENT DUPLICATES FROM lt_202 COMPARING  zywdh ebeln ebelp.
+      LOOP AT lt_202 INTO DATA(lw_202).
+        CLEAR it_cgfphx.
+        MOVE-CORRESPONDING lw_202 TO it_cgfphx.
+        "&运输金额
+        SELECT SINGLE FROM ztmm202
+           FIELDS
+          *
+          WHERE uepos = '00000'
+          AND   zdhdh = @lw_202-zywdh
+          AND   ebeln = @lw_202-ebeln
+          AND   ebelp = @lw_202-ebelp
+          INTO @DATA(ls_ztmm202).
+        IF sy-subrc = 0 .
+          it_cgfphx-zbhsje =  ls_ztmm202-zysjei /  constant.
+        ENDIF.
+
+        "&结算量 Luzhenhua 2022-12-20
+        SELECT SINGLE SUM( zjsl )
+          FROM ztmm202
+          INTO it_cgfphx-zsl
+          WHERE ebeln = lw_202-ebeln
+          AND   ebelp = lw_202-ebelp.
+        it_cgfphx-cond_type = 'ZF01'.
+        READ TABLE itab WITH  KEY zywdh = lw_202-zywdh.
+        IF sy-subrc = 0 .
+          it_cgfphx-lifnr  = itab-lifnr .
+        ENDIF.
+        it_cgfphx-mwskz  = 'J4' .
+        APPEND it_cgfphx.
+      ENDLOOP.
+*委外发料单明细
+      SORT lt_209 BY  zywdh ebeln ebelp.
+      DELETE ADJACENT DUPLICATES FROM lt_209 COMPARING  zywdh ebeln ebelp.
+      LOOP AT lt_209 INTO DATA(lw_209).
+        CLEAR it_cgfphx.
+        MOVE-CORRESPONDING lw_209 TO it_cgfphx.
+        it_cgfphx-lifnr  = p_lifnr.
+*        it_cgfphx-zbhsje =  .
+        "&结算量 Luzhenhua 2022-12-21
+        SELECT SINGLE SUM( 209z~zwlje )
+          FROM ztmm209 AS 209z
+          INNER JOIN ztmm208  AS 208z ON  209z~zwwfno = 208z~zwwfno
+          INTO it_cgfphx-zbhsje
+          WHERE 208z~ebeln = lw_209-ebeln
+          AND   209z~ebelp = lw_209-ebelp
+          AND   209z~uepos = '00000'.
+
+        it_cgfphx-zbhsje = it_cgfphx-zbhsje  / constant.
+        it_cgfphx-cond_type = 'ZF06'.
+        it_cgfphx-mwskz  = 'J4' .
+*        APPEND it_cgfphx.
+        " 采购订单号和行号相同条目合并为一条  27.12.2022 09:37:28 by kkw
+        COLLECT it_cgfphx.
+      ENDLOOP.
+    ENDIF.
+
+    PERFORM cgyfhx."采购发票核销alv
+
+  ELSEIF p_xsyfhx = 'X'."销售发票核销
+    CLEAR wa_fphx.
+    wa_fphx-bukrs = itab-bukrs.
+    SELECT SINGLE butxt INTO wa_fphx-butxt FROM t001 WHERE bukrs = wa_fphx-bukrs.
+    wa_fphx-lifnr = |{ itab-lifnr ALPHA = IN }|.
+    SELECT SINGLE name1 INTO wa_fphx-name1 FROM lfa1 WHERE lifnr = wa_fphx-lifnr .
+    wa_fphx-zysje = zysje.
+    wa_fphx-zse = zse.
+    wa_fphx-zbhsje = zbhsje.
+    wa_fphx-zfprq = sy-datum.
+    CALL SCREEN 901 STARTING AT 37 5 ENDING   AT 127 20.
+  ENDIF.
+
+ENDFORM.
+
+
+FORM showdbd USING zywdh.
+  DATA:s_zdbdh TYPE RANGE OF ztmm220-zdbdh.
+  s_zdbdh = VALUE #( sign = 'I' option = 'EQ'
+  ( low = zywdh )
+  ).
+  SUBMIT zmmd201    WITH s_zdbdh2   IN s_zdbdh
+                    WITH p_cx = 'X'
+                    WITH p_cj = ''
+                    WITH p_wh = ''
+                    AND RETURN.
+ENDFORM.
+
+*&SPWizard: Data incl. inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zmmd204_tz .
+*&SPWizard: Include inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zmmd204_tzpbo .
+INCLUDE zmmd204_tzpai .
+INCLUDE zmmd204_tzform .
+*&---------------------------------------------------------------------*
+*& Module STATUS_0901 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0901 OUTPUT.
+  SET PF-STATUS 'STA901'.
+  SET TITLEBAR 'TIT901' WITH '发票核销'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0901  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0901 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SAVE'.
+      PERFORM mir7.
+  ENDCASE.
+
+  CLEAR:sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form mir7
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM mir7 .
+  DATA: rblgp            TYPE rblgp,
+        headerdata       TYPE bapi_incinv_create_header,
+        invoicedocnumber TYPE bapi_incinv_fld-inv_doc_no,
+        fiscalyear       TYPE bapi_incinv_fld-fisc_year,
+        it_ebeln         TYPE TABLE OF ekbel WITH HEADER LINE,
+        return           TYPE TABLE OF bapiret2 WITH HEADER LINE,
+        glaccountdata    TYPE TABLE OF bapi_incinv_create_gl_account WITH HEADER LINE,
+        itemdata         TYPE TABLE OF bapi_incinv_create_item WITH HEADER LINE,
+        extensionin      TYPE TABLE OF bapiparex WITH HEADER LINE.
+  DATA:belnr TYPE  rbkp-belnr,
+       gjahr TYPE  gjahr,
+       rtmsg TYPE bapi_msg.
+  DATA:rzdh TYPE RANGE OF ztmm226-zdh WITH HEADER LINE.
+  CLEAR:belnr,rblgp,headerdata,invoicedocnumber,fiscalyear,gjahr,rtmsg.
+  REFRESH:glaccountdata,itemdata,return,it_ebeln,extensionin,rzdh.
+
+  READ TABLE itab WITH KEY cb = 'X'.
+  headerdata-invoice_ind = 'X'.
+  headerdata-doc_type = 'RE'.
+  headerdata-doc_date = sy-datum.
+  headerdata-pstng_date = sy-datum.
+  headerdata-bline_date = sy-datum.
+  headerdata-comp_code = itab-bukrs.
+  headerdata-currency = 'CNY'.
+  headerdata-calc_tax_ind = 'X'."自动计算税
+  headerdata-header_txt = ''."抬头文本
+  headerdata-diff_inv = |{ itab-lifnr ALPHA = IN }|.
+*  headerdata-gross_amount = abs( itab-wrbtr * '1.13' ).
+*总账科目
+  LOOP AT itab WHERE cb = 'X'.
+    CLEAR:glaccountdata.
+    ADD 1 TO rblgp.
+*科目
+    glaccountdata-invoice_doc_item = rblgp.
+    IF itab-zdjlx = 'YS'.
+      glaccountdata-gl_account = '1123999902'.
+    ELSE.
+      glaccountdata-gl_account = '6401010000'.
+    ENDIF.
+    glaccountdata-tax_code = itab-mwskz.
+    glaccountdata-db_cr_ind = 'S'.
+    glaccountdata-item_amount = abs( itab-zbhsje ).
+    headerdata-gross_amount = headerdata-gross_amount + glaccountdata-item_amount * itab-zsl + glaccountdata-item_amount.
+    glaccountdata-comp_code = itab-bukrs.
+    glaccountdata-item_text = ''.
+    glaccountdata-wbs_elem = itab-zxmh.
+    glaccountdata-sd_doc = itab-vbeln.
+    glaccountdata-alloc_nmbr = itab-zywdh.
+    APPEND:glaccountdata.
+
+  ENDLOOP.
+*调用BAPI
+  CALL FUNCTION 'BAPI_INCOMINGINVOICE_PARK'
+    EXPORTING
+      headerdata       = headerdata
+    IMPORTING
+      invoicedocnumber = invoicedocnumber
+      fiscalyear       = fiscalyear
+    TABLES
+      itemdata         = itemdata
+      glaccountdata    = glaccountdata
+      return           = return.
+  LOOP AT return WHERE type CA 'AEX'.
+    CONCATENATE return-message rtmsg INTO rtmsg SEPARATED BY '/'.
+  ENDLOOP.
+  IF sy-subrc NE 0
+    AND invoicedocnumber IS NOT INITIAL.
+    belnr = invoicedocnumber.
+    gjahr = fiscalyear.
+    PERFORM bapirun(zpubform) USING 'S'.
+    CONCATENATE 'S:' rtmsg INTO rtmsg.
+    LOOP AT itab WHERE cb = 'X' .
+      itab-zfpno = invoicedocnumber.
+      MODIFY itab.
+      CLEAR rzdh.
+      rzdh-sign = 'I'.
+      rzdh-option = 'EQ'.
+      rzdh-low = itab-zdh.
+      APPEND rzdh.
+    ENDLOOP.
+    IF rzdh[] IS NOT INITIAL.
+      UPDATE ztmm226 SET zfpno = invoicedocnumber fisc_year = fiscalyear WHERE zdh IN rzdh.
+      COMMIT WORK.
+    ENDIF.
+    LEAVE TO SCREEN 0.
+  ELSE.
+    PERFORM bapirun(zpubform) USING 'E'.
+    CONCATENATE 'E:' rtmsg INTO rtmsg.
+    MESSAGE rtmsg TYPE 'E'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form cgyfhx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM cgyfhx .
+  REFRESH fldctcg.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 2."控制用户布局
+
+  PERFORM catlg_set TABLES fldctcg
+                    USING:
+"'CB'       ''         ''       '选择',
+       'ZYWDH '  'ZTMM226'  'ZYWDH '     '业务单号',
+*       'ZHH   '  'ZTMM221'  'ZHH   '     '行号',
+       'BUKRS '  'ZTMM226'  'BUKRS '     '公司',
+       'LIFNR '  'ZTMM226'  'LIFNR '     '运输公司',
+       'EBELN '  'EKPO'     'EBELN '     '采购订单号',
+       'EBELP '  'EKPO'     'EBELP '     '订单行号',
+       'ZSL   '  'ZTMM221'  'ZDBSL'      '数量',
+       'ZBHSJE'  'ZTMM226'  'ZBHSJE'     '不含税金额',
+       'MWSKZ '  'ZTMM226'  'MWSKZ '     '税码',
+       'ZFPH'    ''         ''           '发票号',
+       'COND_TYPE' ''       ''           '条件类型'.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldctcg[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMANDCG'
+      i_callback_pf_status_set = 'SET_STATUSCG'
+*     IT_EVENTS                = GT_EVENTS
+      i_screen_start_column    = 10
+      i_screen_start_line      = 1
+      i_screen_end_column      = 120
+      i_screen_end_line        = 10
+    TABLES
+      t_outtab                 = it_cgfphx[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM set_statuscg USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  SET TITLEBAR 'TITCG' WITH '物流对账平台-采购运费发票核销'.
+  SET PF-STATUS 'STANDARDCG' EXCLUDING rt_extab .
+
+ENDFORM.
+
+FORM user_commandcg USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF it_cgfphx.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE it_cgfphx INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+        WHEN 'ZYWDH'.
+
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'BUT01'.
+      CHECK it_cgfphx[] IS NOT INITIAL.
+      PERFORM zmm203."调用zmmd203功能做运费发票核销
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+
+FORM zmm203.
+  DATA:BEGIN OF wa_zmmd203,
+         invoicedocnumber TYPE bapi_incinv_fld-inv_doc_no,
+         fiscalyear       TYPE bapi_incinv_fld-fisc_year,
+       END OF wa_zmmd203.
+  DATA: BEGIN OF it_zmmd204 OCCURS 0,
+          bukrs  TYPE bukrs,
+          ebeln  TYPE ebeln,
+          ebelp  TYPE ebelp,
+          menge  TYPE menge_d,
+          wrbtr  TYPE wrbtr,
+          mwskz  TYPE mwskz,
+          kschl  TYPE drseg-kschl,
+          meins  TYPE meins,
+          lifnr  TYPE lifnr,
+          zebeln TYPE zebeln,
+        END OF it_zmmd204.
+  REFRESH it_zmmd204.
+  LOOP AT it_cgfphx.
+    CLEAR it_zmmd204.
+    it_zmmd204-bukrs  = it_cgfphx-bukrs.
+    it_zmmd204-ebeln  = it_cgfphx-ebeln.
+    it_zmmd204-ebelp  = it_cgfphx-ebelp.
+    it_zmmd204-menge  = it_cgfphx-zsl.
+    it_zmmd204-wrbtr  = it_cgfphx-zbhsje.
+    it_zmmd204-mwskz  = it_cgfphx-mwskz.
+    it_zmmd204-kschl  = it_cgfphx-cond_type.
+    it_zmmd204-meins  = ''.
+    it_zmmd204-lifnr  = it_cgfphx-lifnr.
+    it_zmmd204-zebeln = it_cgfphx-zfph.
+
+    APPEND it_zmmd204.
+  ENDLOOP.
+* Luzhenhua 2022-12-20
+  EXPORT it_zmmd204[] TO MEMORY ID 'M1'.
+
+  SUBMIT zmmd203  WITH p_sel   = 'X'
+                  WITH p_cgfp  = ' '
+                  WITH p_yffp  = 'X'
+                  AND RETURN.
+  CLEAR wa_zmmd203.
+  "获取zmmd203结果
+  IMPORT wa_zmmd203 FROM MEMORY ID 'ZMMD203'.
+  FREE MEMORY ID 'ZMMD203'.
+  IF wa_zmmd203-invoicedocnumber IS NOT INITIAL.
+    LOOP AT itab WHERE cb = 'X'.
+      itab-zfpno = wa_zmmd203-invoicedocnumber.
+      MODIFY itab.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form mir7_del
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM mir7_del .
+  DATA num TYPE i.
+  CLEAR num.
+  LOOP AT itab WHERE cb = 'X' AND zfpno IS NOT INITIAL AND zfpno_del NE 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选中一行未冲销的冲销' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  DATA:invoicedocnumber TYPE  bapi_incinv_fld-inv_doc_no,
+       fiscalyear       TYPE  bapi_incinv_fld-fisc_year,
+       lt_return        TYPE TABLE OF bapiret2 WITH HEADER LINE.
+  invoicedocnumber = itab-zfpno.
+  fiscalyear = itab-fisc_year.
+  CALL FUNCTION 'BAPI_INCOMINGINVOICE_DELETE'
+    EXPORTING
+      invoicedocnumber = invoicedocnumber
+      fiscalyear       = fiscalyear
+    TABLES
+      return           = lt_return.
+  LOOP AT  lt_return WHERE type CA 'AEX'.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc = 0.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+    PERFORM showmsg(zpubform) TABLES lt_return.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    UPDATE ztmm226 SET zfpno_del = 'X' WHERE zdh = itab-zdh.
+    CONCATENATE '预制发票' invoicedocnumber fiscalyear '删除成功.' INTO DATA(cc).
+    MESSAGE s004 WITH cc.
+    PERFORM getdata.
+  ENDIF.
+ENDFORM.

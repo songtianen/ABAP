@@ -1,0 +1,140 @@
+FUNCTION zfm_gp_wms_pp_consumed.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(ERPNO) TYPE  AUFNR
+*"     VALUE(ZTYPE) TYPE  CHAR10
+*"     VALUE(COMPANY) TYPE  WERKS_D
+*"     VALUE(LIENO) TYPE  CHAR10 OPTIONAL
+*"     VALUE(PERFECTION) TYPE  CHAR10 OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSPP_211
+*"      OUT_TAB STRUCTURE  ZSPP_210
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_WMS_PP_CONSUMED'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+*  DATA: ls_header           TYPE bapi2017_gm_head_01,
+*        ls_code             TYPE bapi2017_gm_code,
+*        lt_item             TYPE STANDARD TABLE OF bapi2017_gm_item_create,
+*        ls_item             TYPE bapi2017_gm_item_create,
+*        lt_return           TYPE STANDARD TABLE OF bapiret2,
+*        ls_return           TYPE bapiret2,
+*        lv_materialdocument TYPE bapi2017_gm_head_ret-mat_doc,
+*        lv_matdocumentyear  TYPE bapi2017_gm_head_ret-doc_year.
+*  erpno = |{ erpno ALPHA = IN }|.
+*  SELECT COUNT( * ) FROM afko WHERE aufnr = erpno.
+*  IF sy-subrc NE 0.
+*    DATA(msg) = 'SAP查无工单:' && erpno.
+*    fill_msg 'F' msg 'X'.
+*  ENDIF.
+*  IF lines( in_tab ) LT 1.
+*    fill_msg 'F' '减账明细不能为空' 'X'.
+*  ENDIF.
+*
+*  READ TABLE in_tab INDEX 1.
+*  " BOM独立、集中  14.10.2022 10:29:40 by kkw
+*  CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+*    EXPORTING
+*      input  = in_tab-productcode
+*    IMPORTING
+*      output = in_tab-productcode
+**     EXCEPTIONS
+**     LENGTH_ERROR       = 1
+**     OTHERS = 2
+*    .
+*  erpno = |{ erpno ALPHA = IN }|.
+*  SELECT SINGLE
+*    marc~sbdkz,
+*    marc~xchpf
+*    INTO ( @DATA(sbdkz),@DATA(xchpf) )
+*    FROM marc
+*    WHERE matnr = @in_tab-productcode AND werks = @company.
+*
+*  SELECT SINGLE
+**    prps~pspnr
+*    prps~posid
+*    INTO ( @DATA(posid) )
+*   FROM resb
+*    JOIN prps ON resb~pspel = prps~pspnr
+*   WHERE aufnr = @erpno.
+*  "抬头数据
+*  ls_header-pstng_date = sy-datum.
+*  ls_header-doc_date = sy-datum.
+*  ls_header-header_txt = '镇江WMS'.
+*  "分配事务代码--过账码
+*  ls_code-gm_code = '05'.
+*
+*  "ITEM
+*  REFRESH:lt_item,lt_return.
+*  LOOP AT in_tab.
+*    CLEAR ls_item.
+*    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+*      EXPORTING
+*        input  = in_tab-productcode
+*      IMPORTING
+*        output = ls_item-material
+**     EXCEPTIONS
+**       LENGTH_ERROR       = 1
+**       OTHERS = 2
+*      .
+*
+**    ls_item-material = in_tab-productcode.             "料号
+*    ls_item-plant = company.                 "工厂
+*    ls_item-stge_loc = in_tab-warehouse.              "库存地点
+*    ls_item-move_type = '261'.                    "移动类型（库存管理）
+*    ls_item-orderid =   erpno.             "工单
+**    ls_item-reserv_no = gs_alv-rsnum.             "预留/相关需求的编号 RESB~RSNUM
+**    ls_item-res_item = gs_alv-rspos.              "预留/相关需求的项目编号 RESB~RSPOS
+**    SELECT SINGLE rsnum rspos INTO ( ls_item-reserv_no, ls_item-res_item ) FROM resb WHERE aufnr = erpno.
+*    IF sbdkz = '1'.
+**      ls_item-wbs_elem = posid.
+*      ls_item-val_wbs_elem = posid.
+*      ls_item-spec_stock = 'Q'.
+*    ENDIF.
+*    ls_item-entry_qnt = in_tab-consumednum.           "发料数量
+*    ls_item-entry_uom = in_tab-meins.             "计量单位
+*
+*    IF xchpf = 'X'.
+**      ls_item-batch = ''.
+*    ENDIF.
+*    APPEND ls_item TO lt_item.
+*  ENDLOOP.
+*
+*  "BAPI
+*  CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+*    EXPORTING
+*      goodsmvt_header  = ls_header
+*      goodsmvt_code    = ls_code
+*    IMPORTING
+*      materialdocument = lv_materialdocument
+*      matdocumentyear  = lv_matdocumentyear
+*    TABLES
+*      goodsmvt_item    = lt_item
+*      return           = lt_return.
+*
+*  IF ( line_exists( lt_return[ type = 'A' ] ) ) OR ( line_exists( lt_return[ type = 'E' ] ) ) OR ( line_exists( lt_return[ type = 'X' ] ) ).
+*    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+*
+*    DATA: lt_msg_tab TYPE esp1_message_tab_type,
+*          wa_msg_tab LIKE LINE OF lt_msg_tab.
+*    DATA:msg1 TYPE bapi_msg.
+*    CLEAR msg1.
+*    LOOP AT lt_return INTO ls_return WHERE type CA 'AEX'.
+*      CONCATENATE '错误：' ls_return-message INTO msg1.
+*    ENDLOOP.
+*    fill_msg 'F' msg1 'X'.
+*  ELSE.
+*    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+*      EXPORTING
+*        wait = 'X'.
+*    DATA(cc) = |'261生产投料成功,凭证号:'{ lv_materialdocument }|.
+*    fill_msg 'S' cc ''.
+*  ENDIF.
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

@@ -1,0 +1,138 @@
+
+*&---------------------------------------------------------------------*
+*& Include IUID_MGD1
+*&---------------------------------------------------------------------*
+
+
+*&---------------------------------------------------------------------*
+*& Module iuid_handling INPUT
+*&---------------------------------------------------------------------*
+*  Konsistenzpr¨¹fung der IUID-Daten
+*----------------------------------------------------------------------*
+
+MODULE iuid_handling INPUT.
+
+  PERFORM iuid_handling.
+
+ENDMODULE.                 " IUID_HANDLING  INPUT
+
+
+*&---------------------------------------------------------------------*
+*& Module iuid_bezeichnungen_lesen OUTPUT
+*&---------------------------------------------------------------------*
+*  IUID-Textfelder f¨¹llen
+*----------------------------------------------------------------------*
+
+MODULE iuid_bezeichnungen_lesen OUTPUT.
+
+* get decription of entered iuid type
+  IF NOT marc-iuid_type IS INITIAL.
+    TRY.
+        CALL METHOD cl_uid_iuid=>get_iuid_type_desc
+          EXPORTING
+            iv_iuid_type      = marc-iuid_type
+          RECEIVING
+            rv_iuid_type_desc = tiuid_type_t-text.
+      CATCH cx_iuid_import_param_missing.
+    ENDTRY.
+  ELSE.
+    CLEAR tiuid_type_t-text.
+  ENDIF.
+
+ENDMODULE.                 " IUID_BEZEICHNUNGEN_LESEN OUTPUT
+
+
+*&---------------------------------------------------------------------*
+*& Form IUID_HANDLING
+*&---------------------------------------------------------------------*
+
+FORM iuid_handling.
+
+* check consistency of iuid data
+  CALL FUNCTION 'MARC_IUID_CHECK'
+    EXPORTING
+      mara                  = mara
+      lmara                 = lmara
+      marc                  = marc
+      lmarc                 = lmarc
+    EXCEPTIONS
+      error_marc_iuid_check = 1.
+
+* error handling
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+** local data declarations
+*  DATA:
+*    lv_iuid_compatible TYPE iuid_compatible,
+*    lv_serpflicht      TYPE serpflicht,
+*    lv_equnr           TYPE equnr.
+*
+** process only on changed input
+*  IF mara-serlv         NE lmara-serlv         OR
+*     marc-sernp         NE lmarc-sernp         OR
+*     marc-iuid_relevant NE lmarc-iuid_relevant OR
+*     marc-iuid_type     NE lmarc-iuid_type.
+*
+**   check for IUID type if material is set IUID relevant
+*    IF NOT marc-iuid_relevant IS INITIAL AND
+*           marc-iuid_type     IS INITIAL.
+*      SET CURSOR FIELD 'MARC-IUID_TYPE'.
+*      MESSAGE e005(iuid).
+*    ENDIF.
+*
+**   check for serial number profile if material is set IUID relevant
+*    IF marc-sernp             IS INITIAL AND
+*       NOT marc-iuid_relevant IS INITIAL.
+*      MESSAGE e004(iuid).
+*    ENDIF.
+*
+**   serial number level must be unequal space for iuid type UID1
+**   reason: if the serial number level is space then the serial number
+**           is only unique on material level, but with iuid type UID1
+**           it has to be unique on client level.
+*    IF marc-iuid_type EQ 'UID1' AND
+*       mara-serlv     EQ space.
+*      MESSAGE e010(iuid).
+*    ENDIF.
+*  ENDIF.
+*
+*  IF NOT marc-iuid_relevant IS INITIAL.
+*
+**   check for iuid compatibility of serial number profile
+*    SELECT SINGLE iuid_compatible FROM t377p
+*                                  INTO lv_iuid_compatible
+*                                 WHERE serail EQ marc-sernp.
+*    IF lv_iuid_compatible NE 'X'.
+*      MESSAGE e002(iuid).
+*    ENDIF.
+*
+**   check for equipment with UII having stock
+*    SELECT SINGLE h~equnr FROM equi AS h
+*                    INNER JOIN eqbs AS p ON p~equnr = h~equnr
+*                          INTO lv_equnr
+*                         WHERE h~matnr  EQ marc-matnr
+*                           AND h~uii    EQ space
+*                           AND p~b_werk EQ marc-werks.
+*    IF sy-subrc EQ 0.
+*      MESSAGE e023(iuid) WITH marc-werks lv_equnr.
+*    ENDIF.
+*
+**   check that the serial number usage is not set automatically
+**   if uii creation is marked as external
+*    IF NOT marc-uid_iea IS INITIAL.
+*      SELECT SINGLE serpflicht FROM t377
+*                               INTO lv_serpflicht
+*                              WHERE serail     EQ marc-sernp
+*                                AND serpflicht EQ '04'.
+*      IF sy-subrc EQ 0.
+*        MESSAGE e014(iuid).
+*      ENDIF.
+*
+*    ENDIF.
+*
+*  ENDIF.
+
+ENDFORM.                    " IUID_HANDLING

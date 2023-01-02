@@ -1,0 +1,16 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZFG_MDM_GP	ZDFLAG	结果标识 成功：Y 失败：N	域	CHAR	000001	000000	
+ZFG_MDM_GP	ZDMESSAGE	返回消息	域	CHAR	000500	000000	
+ZFG_MDM_GP	ZEMM_CZLX	操作类型	数据元素	CHAR	000006	000000	CHAR6
+ZFG_MDM_GP	ZEMM_FLAG	结果标识 成功：Y 失败：N	数据元素	CHAR	000001	000000	ZDFLAG
+ZFG_MDM_GP	ZEMM_MESSAGE	返回消息	数据元素	CHAR	000500	000000	ZDMESSAGE
+ZFG_MDM_GP	ZFMDATA	请不要做任何更改!!不要激活!!	透明表				
+ZFG_MDM_GP	ZFMDATACFG	ZILOG参数	透明表				
+ZFG_MDM_GP	ZSPP_231_INPUT	ZFM_GET_AUSP_FIRST - 特性值反找 AUSP 物料函数 入参结构	结构				
+ZFG_MDM_GP	ZSSD215	MDM下发客户主数据同步结构_通用数据_基本信息视图	结构				
+ZFG_MDM_GP	ZSSD216	MDM下发客户主数据到SAP_公司基本信息视图	结构				
+ZFG_MDM_GP	ZSSD217	MDM下发客户主数据同步结构_销售视图信息	结构				
+ZFG_MDM_GP	ZSSD218	MDM下发客户主数据同步结构_银行基本信息	结构				
+ZFG_MDM_GP	ZTMM_201	SAP 物料001特征与MDM属性字段对应关系	透明表				
+ZFG_MDM_GP	ZTSD204	工厂渠道销售组织关系对映表	透明表				
+ZFG_MDM_GP	ZTSD212	MDM客商编码转换	透明表				

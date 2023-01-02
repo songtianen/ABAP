@@ -1,0 +1,324 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZMMD201_POV.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_LGORT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_lgort INPUT.
+  DATA: return_tab    TYPE ddshretval OCCURS 0,
+        wa_return_tab TYPE ddshretval.
+  REFRESH return_tab.
+  SELECT lgort,lgobe
+    INTO TABLE @DATA(lt_t001l)
+    FROM t001l
+    WHERE werks = @wa_220-werks.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'LGORT'
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = 'IT_221-LGORT'
+      window_title    = '调入库存地'
+      value_org       = 'S' "Structure
+*     callback_program = sy-repid
+*     callback_form   = 'CB_FORM'
+    TABLES
+      value_tab       = lt_t001l[]
+*     field_tab       = l_dfies[]
+      return_tab      = return_tab[]
+*     dynpfld_mapping = l_dselc[]
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_ZJSBG  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_zjsbg INPUT.
+  REFRESH return_tab.
+  SELECT partner AS zjsbg,name_org1,bu_sort1,bu_sort2
+    INTO TABLE @DATA(lt_but000)
+     FROM but000
+    WHERE bu_sort2 NE ''
+    AND bu_group = 'Z800'.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'ZJSBG'
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = 'WA_220-ZJSBG'
+      window_title    = '接收保管'
+      value_org       = 'S' "Structure
+*     callback_program = sy-repid
+*     callback_form   = 'CB_FORM'
+    TABLES
+      value_tab       = lt_but000[]
+*     field_tab       = l_dfies[]
+      return_tab      = return_tab[]
+*     dynpfld_mapping = l_dselc[]
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_MEINS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_meins INPUT.
+  "也可以用单位数量转换函数MD_CONVERT_MATERIAL_UNIT
+  REFRESH return_tab.
+  DATA: l_matnr    LIKE vbap-matnr,
+        l_charg    LIKE mch1-charg,
+        l_clabs    LIKE mard-labst,
+        l_lines_vb TYPE i.
+  DATA:BEGIN OF it_meins OCCURS 0,
+         meins    TYPE  marm-meinh,
+         umrez    TYPE  marm-umrez,
+         umren    TYPE  marm-umren,
+         matnr    TYPE  marm-matnr,
+         atinn    TYPE  marm-atinn,
+         kbetr    TYPE  ze_zhxs,
+         clabs    TYPE  mard-labst,
+         zdbsl    TYPE mard-labst,
+         zdbsl_in TYPE mard-labst,
+       END OF it_meins.
+  DATA:BEGIN OF it_atinn OCCURS 0,
+         atinn TYPE marm-atinn,
+       END OF it_atinn.
+  CLEAR:l_matnr,l_lines_vb.
+  GET CURSOR LINE l_lines_vb.
+  DATA(line) = zdbdwh_con-top_line - 1 + l_lines_vb.
+
+  READ TABLE it_221 INDEX line.
+  CHECK it_221-cpxz NE 'X'."成品不能再修改单位了
+  IF sy-subrc EQ 0.
+    l_matnr = it_221-matnr.
+    l_charg = it_221-charg.
+    l_clabs = it_221-clabs.
+
+    SELECT meinh AS meins,umrez,umren,matnr,atinn
+      INTO CORRESPONDING FIELDS OF TABLE @it_meins
+      FROM marm
+      WHERE matnr = @l_matnr.
+    REFRESH it_atinn.
+    LOOP AT it_meins.
+      CLEAR it_atinn.
+      it_atinn-atinn = it_meins-atinn.
+      APPEND it_atinn.
+    ENDLOOP.
+    IF it_atinn[] IS NOT INITIAL.
+      SELECT mch1~charg,
+             mch1~matnr,
+             ausp~atinn,
+             ausp~atflv
+        INTO TABLE @DATA(lt_ausp)
+        FROM ausp
+        JOIN mch1 ON ausp~objek = mch1~cuobj_bm AND klart = '023'
+        FOR ALL ENTRIES IN @it_atinn
+        WHERE ausp~atinn = @it_atinn-atinn
+        AND mch1~charg = @l_charg.
+    ENDIF.
+    LOOP AT it_meins.
+      READ TABLE lt_ausp INTO DATA(lw_ausp) WITH KEY matnr = it_meins-matnr charg = l_charg atinn = it_meins-atinn.
+      IF sy-subrc EQ 0.
+        it_meins-kbetr = lw_ausp-atflv.
+      ENDIF.
+      IF it_meins-kbetr NE 0.
+        it_meins-clabs = l_clabs * it_meins-kbetr.
+      ELSE.
+        IF it_meins-umrez NE 0.
+          it_meins-kbetr = it_meins-umren / it_meins-umrez.
+          it_meins-clabs = l_clabs * it_meins-umren / it_meins-umrez.
+        ENDIF.
+      ENDIF.
+      MODIFY it_meins.
+    ENDLOOP.
+    DELETE it_meins WHERE clabs EQ 0.
+
+  ENDIF.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     ddic_structure   = 'Z51_STCT' "structure名称
+      retfield         = 'MEINS'
+*     PVALKEY          = ' '
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'IT_221-MEINS_IN'
+*     STEPL            = 0
+      window_title     = '单位选择'
+*     VALUE            = ' '
+      value_org        = 'S' "Structure
+*     MULTIPLE_CHOICE  = ' '
+*     display          = 'F'
+      callback_program = sy-repid
+      callback_form    = 'CB_MEINS'
+*     MARK_TAB         =
+* IMPORTING
+*     USER_RESET       =
+    TABLES
+      value_tab        = it_meins[]
+*     field_tab        = l_dfies[]
+      return_tab       = return_tab[]
+*     dynpfld_mapping  = l_dselc[]
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDMODULE.
+
+FORM cb_meins TABLES record_tab STRUCTURE seahlpres
+            CHANGING shlp TYPE shlp_descr_t
+                     callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+  interface-shlpfield+4(1) = '7'.
+  interface-valfield = 'IT_221-CLABS_IN'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '6'.
+  interface-valfield = 'IT_221-KBETR'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '8'.
+  interface-valfield = 'IT_221-ZDBSL'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '9'.
+  interface-valfield = 'IT_221-ZDBSL_IN'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4-POSID  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4-posid INPUT.
+  REFRESH return_tab.
+  SELECT posid AS zxmh,post1 AS zxmmc
+    INTO TABLE @DATA(lt_prps)
+     FROM prps.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'ZXMH'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'IT_221-ZXMH'
+      window_title     = '项目号'
+      value_org        = 'S' "Structure
+      callback_program = sy-repid
+      callback_form    = 'CB_ZXMMC'
+    TABLES
+      value_tab        = lt_prps[]
+*     field_tab        = l_dfies[]
+      return_tab       = return_tab[]
+*     dynpfld_mapping  = l_dselc[]
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDMODULE.
+
+FORM cb_zxmmc TABLES record_tab STRUCTURE seahlpres
+            CHANGING shlp TYPE shlp_descr_t
+                     callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+  interface-shlpfield+4(1) = '2'.
+  interface-valfield = 'IT_221-ZXMMC'.
+  APPEND interface TO shlp-interface.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_ZCKMC  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_zckmc INPUT.
+  DATA:it_zvtmm215 TYPE TABLE OF zvtmm215 WITH HEADER LINE.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_zvtmm215 FROM zvtmm215.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST' "调用函数
+    EXPORTING
+      retfield         = 'ZCKMC'  "搜索帮助内表要输出的的帮助字段名，注：要大写
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'WA_220-ZCKMC' "屏幕字段
+      value_org        = 'S'
+      callback_program = sy-repid
+      callback_form    = 'CB_ZCKBM'
+    TABLES
+      value_tab        = it_zvtmm215 "存储搜索帮助内容的内表
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDMODULE.
+FORM cb_zckbm TABLES record_tab STRUCTURE seahlpres
+           CHANGING shlp TYPE shlp_descr_t
+                    callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  CLEAR:interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+*选中后自动带出(SHLPFIELD字段结构F0001)
+*  INTERFACE-SHLPFIELD+4(1) = '3'."F0001
+*  INTERFACE-VALFIELD = 'ITAB-ZJUANH'.
+*  APPEND INTERFACE TO SHLP-INTERFACE.
+  interface-shlpfield+4(1) = '4'.
+  interface-valfield = 'WA_220-ZCKDZ'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_LGORT_H  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_lgort_h INPUT.
+  REFRESH return_tab.
+  SELECT lgort,lgobe
+    INTO TABLE @lt_t001l
+    FROM t001l
+    WHERE werks = @wa_220-werks.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'LGORT'
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = 'WA_220-LGORT'
+      window_title    = '调入库存地'
+      value_org       = 'S' "Structure
+*     callback_program = sy-repid
+*     callback_form   = 'CB_FORM'
+    TABLES
+      value_tab       = lt_t001l[]
+*     field_tab       = l_dfies[]
+      return_tab      = return_tab[]
+*     dynpfld_mapping = l_dselc[]
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF return_tab[] IS NOT INITIAL.
+    READ TABLE return_tab INTO wa_return_tab INDEX 1.
+    IF sy-subrc EQ 0.
+      LOOP AT it_221.
+        it_221-lgort = wa_return_tab-fieldval.
+        MODIFY it_221 TRANSPORTING lgort.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.

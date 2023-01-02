@@ -1,0 +1,81 @@
+FUNCTION ZFM_SOSAVECHECK_GP.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(ACTION) TYPE  CHAR10 DEFAULT 'CHECK01'
+*"  TABLES
+*"      XVBAP STRUCTURE  VBAPVB OPTIONAL
+*"      XVBKD STRUCTURE  VBKDVB OPTIONAL
+*"      XVBPA STRUCTURE  VBPAVB OPTIONAL
+*"      XVBUV STRUCTURE  VBUVVB OPTIONAL
+*"      XVBEP STRUCTURE  VBEPVB OPTIONAL
+*"  CHANGING
+*"     REFERENCE(VBAK) TYPE  VBAK OPTIONAL
+*"     REFERENCE(VBAP) TYPE  VBAP OPTIONAL
+*"     REFERENCE(VBKD) TYPE  VBKD OPTIONAL
+*"----------------------------------------------------------------------
+  DATA BEGIN OF IT_CATALOG OCCURS 50.
+  INCLUDE STRUCTURE TCATALOG.
+  DATA END OF IT_CATALOG.
+  DATA:VBAKENH TYPE ZSSD_ENH_VBAK,
+       VBAPENH TYPE TABLE OF ZSSD264 WITH HEADER LINE.
+  DATA:MEMORY_ID(30) VALUE 'SAPLSTXD', "do not change
+       CHEAD         LIKE THEAD,
+       CLINES        LIKE TLINE OCCURS 10 WITH HEADER LINE.
+  CLEAR:VBAKENH,VBAPENH[],IT_CATALOG[],CHEAD,
+  CLINES[].
+  CASE ACTION.
+    WHEN 'SAVE01'.
+********ADD BY DONGPZ BEGIN AT 26.11.2022 13:20:40
+*增强字段内存传值更新
+      IMPORT I_VBAK = VBAKENH
+             T_VBAP = VBAPENH[]
+      FROM MEMORY ID 'MEMO_ZSSDVBAK_VBAP'.
+      IF SY-SUBRC EQ 0.
+        FREE MEMORY ID 'MEMO_ZSSDVBAK_VBAP'.
+        MOVE-CORRESPONDING VBAKENH TO VBAK.
+        IF VBAPENH[] IS NOT INITIAL.
+          SORT VBAPENH BY POSNR.
+          LOOP AT XVBAP.
+            READ TABLE VBAPENH WITH KEY POSNR = XVBAP-POSNR BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              MOVE-CORRESPONDING VBAPENH TO XVBAP.
+              MODIFY XVBAP.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+********ADD BY DONGPZ END AT 26.11.2022 13:20:40
+    WHEN 'CHECK01'.
+*删除时不检查
+      LOOP AT XVBAP WHERE UPDKZ = 'D'.
+        EXIT.
+      ENDLOOP.
+      IF SY-SUBRC NE 0.
+        IMPORT CATALOG = IT_CATALOG FROM MEMORY ID 'SAPLSTXD'.
+        IF SY-SUBRC EQ 0.
+          CASE VBAK-AUART.
+            WHEN 'ZDR' OR 'ZCR'.
+              READ TABLE IT_CATALOG WITH KEY TDOBJECT = 'VBBK'
+                                             TDNAME = VBAK-VBELN
+                                             TDID = 'Z002'
+                                             TDSPRAS = SY-LANGU.
+              IF SY-SUBRC EQ 0.
+                MEMORY_ID+8(6) = IT_CATALOG-ID.
+                IMPORT THEAD TO CHEAD
+                       TLINE TO CLINES
+                 FROM MEMORY ID MEMORY_ID.
+                IF CLINES[] IS INITIAL.
+                  CALL FUNCTION 'BUS_MESSAGE_STORE'
+                    EXPORTING
+                      ARBGB = 'ZMSG_GP'
+                      MSGTY = 'E'
+                      TXTNR = '050'.
+                ENDIF.
+              ENDIF.
+          ENDCASE.
+
+        ENDIF.
+      ENDIF.
+  ENDCASE.
+ENDFUNCTION.

@@ -1,0 +1,7 @@
+*&---------------------------------------------------------------------*
+*& Include ZFI024_11_INCLUDE
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'TC01' ITSELF
+CONTROLS: tc01 TYPE TABLEVIEW USING SCREEN 0100.
+DATA:g_tc01_lines  LIKE sy-loopc.

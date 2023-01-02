@@ -1,0 +1,30 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRSD206	ZE_BCCKJE	本次出库金额	数据元素	CURR	000013	000002	
+ZRSD206	ZE_ZHK	总货款	数据元素	CURR	000011	000002	
+ZRSD206	ZE_ZSXSYJE	授信剩余金额	数据元素	CURR	000013	000002	
+ZRSD206	ZE_ZYFXH	运费序号	数据元素	CHAR	000010	000000	CHAR10
+ZRSD206	ZSFMS_DNCHG	交货单修改	结构				
+ZRSD206	ZSFMS_GETPCTX	获取批次特性	结构				
+ZRSD206	ZSFMS_MIGOPOST	MIGO过账接口	结构				
+ZRSD206	ZSMM202	长文本	结构				
+ZRSD206	ZSPUBS_0001	日期时间通用结构	结构				
+ZRSD206	ZSSD237	库存地	结构				
+ZRSD206	ZSSD252	同步内销库单到WMS结构	结构				
+ZRSD206	ZSSD265	出库单信息打印抬头结构	结构				
+ZRSD206	ZSSD265A	出库单信息打印包明细结构1	结构				
+ZRSD206	ZSSD265B	出库单信息打印包明细结构2	结构				
+ZRSD206	ZSSD265C	出库单信息打印包号位置结构	结构				
+ZRSD206	ZSSD267	合格证信息打印结构	结构				
+ZRSD206	ZSSDCKD	出库单	结构				
+ZRSD206	ZTMM226	运费核销明细表	透明表				
+ZRSD206	ZTPP316	生产包号-尺寸对照	透明表				
+ZRSD206	ZTPP_205	钢品生产排产单主表	透明表				
+ZRSD206	ZTSD204	工厂渠道销售组织关系对映表	透明表				
+ZRSD206	ZTSD205	交货单对应URL	透明表				
+ZRSD206	ZTSD206	产品包内明细表	透明表				
+ZRSD206	ZTSD208	销售自定义角色权限表	透明表				
+ZRSD206	ZTSD213	出库单可引库存配置表	透明表				
+ZRSD206	ZTSD219	SAP->ERP打印编号映射	透明表				
+ZRSD206	ZTSDCKD	出库单抬头表	透明表				
+ZRSD206	ZTSDCKDI	出库单明细	透明表				
+ZRSD206	ZTSD_NXPO	内购内销出库单过账101凭证	透明表				

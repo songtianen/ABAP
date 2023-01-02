@@ -1,0 +1,76 @@
+FUNCTION zfm_gp_pp_mes_reserve.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"     REFERENCE(P_OUTPUT) TYPE  STRING
+*"     REFERENCE(P_STATUS) TYPE  I
+*"     REFERENCE(P_RESULT) TYPE  STRING
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSPP_222 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_PP_MES_RESERVE'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  TYPES: BEGIN OF t_token,
+           login_account TYPE string,
+           login_pwd     TYPE string,
+         END OF t_token.
+  TYPES: BEGIN OF t_token_re,
+           msg         TYPE string,
+           status_code TYPE i,
+         END OF t_token_re.
+  DATA:BEGIN OF meshead OCCURS 0,
+         name  TYPE string,
+         value TYPE string,
+       END OF meshead.
+  DATA: itoken   TYPE t_token,
+        itokenre TYPE t_token_re.
+  DATA:
+    mes_yuliucreate_url   TYPE string,
+    mes_yuliucreatere_str TYPE string,
+    mes_yuliucreate_msg   TYPE string,
+    mes_yuliucreate_sta   TYPE i.
+
+  "调用mes预留创建接口
+  DATA(mes_yuliucreate_str) = /ui2/cl_json=>serialize( data = in_tab[]  compress = abap_true pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+  p_output = mes_yuliucreate_str.
+
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_PP_MES_RESERVE' CHANGING mes_yuliucreate_url.
+  CHECK mes_yuliucreate_url IS NOT INITIAL.
+
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING mes_yuliucreate_url .
+
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = mes_yuliucreate_str
+      url       = mes_yuliucreate_url
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = mes_yuliucreatere_str "返回JSON报文
+      rtmsg     = mes_yuliucreate_msg "消息
+      status    = mes_yuliucreate_sta "HTTP状态
+    EXCEPTIONS
+      OTHERS    = 1.
+*  CHECK mes_yuliucreate_sta = '200'.
+  CLEAR itokenre.
+  /ui2/cl_json=>deserialize( EXPORTING json = mes_yuliucreatere_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case CHANGING data = itokenre ).
+  p_result = mes_yuliucreatere_str.
+  p_status = mes_yuliucreate_sta.
+  IF p_status = '200'.
+    rtype = 'S'.
+    rtmsg = '推送MES成功'.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = itokenre-msg.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

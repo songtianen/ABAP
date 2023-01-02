@@ -1,0 +1,11 @@
+FUNCTION ZFM_ENH_OA_PUSH1.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_ENH_OA_PUSH1'.  zfmdatasave2 'B'.  COMMIT WORK.
+
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

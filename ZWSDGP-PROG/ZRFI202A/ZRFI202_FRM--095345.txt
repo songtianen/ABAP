@@ -1,0 +1,1217 @@
+*&---------------------------------------------------------------------*
+*& Include ZRMM208A_FRM
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*& Form INITLOAD
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM INITLOAD .
+  P_DATBI = SY-DATUM - 1.
+  SELECT * INTO TABLE IT_T001L FROM T001L.
+  SORT IT_T001L BY WERKS LGORT.
+  SELECT * INTO TABLE IT_T001 FROM T001.
+  SORT IT_T001 BY BUKRS.
+  SELECT * INTO TABLE IT_T001W FROM T001W.
+  SORT IT_T001W BY WERKS.
+  SELECT * INTO TABLE IT_SEGMT FROM FAGL_SEGMT WHERE LANGU = SY-LANGU.
+  SORT IT_SEGMT BY SEGMENT.
+  SELECT * INTO TABLE IT_ZTFI203 FROM ZTFI203.
+  SORT IT_ZTFI203 BY WERKS MATKL.
+  SELECT * INTO TABLE IT_ZTFI204 FROM ZTFI204.
+  SORT IT_ZTFI204 BY BUKRS.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_RDSTATE USING 'ZD_RDSTATE'.
+  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_PRSTATE USING 'ZDG_PRSTATE'.
+ENDFORM.
+FORM FILLDATA CHANGING INWA.
+  DATA:BEGIN OF IT_YS OCCURS 0,
+         FIELD1 TYPE FIELDNAME, "编码字段
+         FIELD2 TYPE FIELDNAME, "文本
+         FIELD3 TYPE FIELDNAME, "对应内表
+       END OF IT_YS.
+  FIELD-SYMBOLS:<D_FS1>  TYPE ANY,
+                <D_FS2>  TYPE ANY,
+                <D_FS3>  TYPE ANY,
+                <C_WA1>  TYPE ANY,
+                <C_TAB1> TYPE STANDARD TABLE.
+  CLEAR:IT_YS[],*ZTFIRD_MATDATA.
+  CLEAR IT_YS.
+  IT_YS-FIELD1 = 'PRSTATE'.
+  IT_YS-FIELD2 = 'PRSTATET'.
+  IT_YS-FIELD3 = 'IT_PRSTATE[]'.
+  APPEND IT_YS.
+  CLEAR IT_YS.
+  IT_YS-FIELD1 = 'RDSTATE'.
+  IT_YS-FIELD2 = 'RDSTATET'.
+  IT_YS-FIELD3 = 'IT_RDSTATE[]'.
+  APPEND IT_YS.
+  MOVE-CORRESPONDING INWA TO *ZTFIRD_MATDATA.
+  ASSIGN COMPONENT 'LGOBE' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_T001L WITH KEY WERKS = *ZTFIRD_MATDATA-WERKS
+                                 LGORT = *ZTFIRD_MATDATA-LGORT
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_T001L-LGOBE.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'BUTXT' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_T001 WITH KEY BUKRS = *ZTFIRD_MATDATA-BUKRS BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_T001-BUTXT.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'NAMEW' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_T001W WITH KEY WERKS = *ZTFIRD_MATDATA-WERKS BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_T001W-NAME1.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'INAUFNRT' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_AUFK WITH KEY AUFNR = *ZTFIRD_MATDATA-AUFNR BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_AUFK-KTEXT.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'SEGMT' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_SEGMT WITH KEY SEGMENT = *ZTFIRD_MATDATA-SEGMENT BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_SEGMT-NAME.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'MAKTX' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_MAKT WITH KEY MATNR = *ZTFIRD_MATDATA-MATNR BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_MAKT-MAKTX.
+    ENDIF.
+  ENDIF.
+  ASSIGN COMPONENT 'MATNR_RDT' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_MAKT WITH KEY MATNR = *ZTFIRD_MATDATA-MATNR_RD BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_MAKT-MAKTX.
+    ENDIF.
+  ENDIF.
+
+  ASSIGN COMPONENT 'FLHT' OF STRUCTURE INWA TO <D_FS1>.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_MAKT WITH KEY MATNR = *ZTFIRD_MATDATA-FLH BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      <D_FS1> = IT_MAKT-MAKTX.
+    ENDIF.
+  ENDIF.
+  LOOP AT IT_YS.
+    ASSIGN COMPONENT IT_YS-FIELD1 OF STRUCTURE INWA TO <D_FS1>.
+    IF SY-SUBRC EQ 0.
+      ASSIGN COMPONENT IT_YS-FIELD2 OF STRUCTURE INWA TO <D_FS2>.
+      IF SY-SUBRC EQ 0.
+        ASSIGN (IT_YS-FIELD3) TO <C_TAB1>.
+        IF SY-SUBRC EQ 0.
+          READ TABLE <C_TAB1> ASSIGNING <C_WA1> WITH KEY ('DOMVALUE_L') = <D_FS1>
+                                                         BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            ASSIGN COMPONENT 'DDTEXT' OF STRUCTURE <C_WA1> TO <D_FS3>.
+            IF SY-SUBRC EQ 0.
+              <D_FS2> = <D_FS3>.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9000 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9000 OUTPUT.
+  PERFORM MODIFY9000."按钮与字段可编辑
+  PERFORM SHOWITEM."明细ALV
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form MODIFY9000
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM MODIFY9000 .
+  DATA:LT_EXFCODE LIKE TABLE OF SY-UCOMM WITH HEADER LINE.
+  CLEAR:LT_EXFCODE[].
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      APPEND 'BUT02' TO LT_EXFCODE.
+      APPEND 'BUT03' TO LT_EXFCODE.
+      APPEND 'BUT04' TO LT_EXFCODE.
+      APPEND 'BUT05' TO LT_EXFCODE.
+      APPEND 'BUT06' TO LT_EXFCODE.
+    WHEN TCODE2.
+      APPEND 'BUT04' TO LT_EXFCODE.
+      APPEND 'BUT05' TO LT_EXFCODE.
+      APPEND 'BUT06' TO LT_EXFCODE.
+      CASE 'X'.
+        WHEN P1A.
+*          APPEND 'BUT03' TO LT_EXFCODE.
+        WHEN P1B.
+          APPEND 'BUT02' TO LT_EXFCODE.
+      ENDCASE.
+    WHEN TCODE3.
+      APPEND 'BUT02' TO LT_EXFCODE.
+      APPEND 'BUT03' TO LT_EXFCODE.
+      APPEND 'BUT05' TO LT_EXFCODE.
+      APPEND 'BUT06' TO LT_EXFCODE.
+      IF P2B = 'X'.
+        APPEND 'BUT04' TO LT_EXFCODE.
+      ENDIF.
+    WHEN TCODE4.
+      APPEND 'BUT02' TO LT_EXFCODE.
+      APPEND 'BUT03' TO LT_EXFCODE.
+      APPEND 'BUT04' TO LT_EXFCODE.
+    WHEN TCODE5.
+      APPEND 'BUT02' TO LT_EXFCODE.
+      APPEND 'BUT03' TO LT_EXFCODE.
+      APPEND 'BUT04' TO LT_EXFCODE.
+  ENDCASE.
+  SET PF-STATUS '9000' EXCLUDING LT_EXFCODE.
+
+  SET TITLEBAR '9000'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EXIT INPUT.
+  OK_CODE = SY-UCOMM.
+  PERFORM EXIT USING OK_CODE.
+  CLEAR SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form EXIT
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> OK_CODE
+*&---------------------------------------------------------------------*
+FORM EXIT  USING    P_OK_CODE.
+  CHECK P_OK_CODE+0(5) = 'BUT01'.
+  LEAVE TO SCREEN 0.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_9000 INPUT.
+  OK_CODE = SY-UCOMM.
+  CASE OK_CODE+0(5).
+    WHEN 'BUT01'.
+      PERFORM EXIT USING OK_CODE.
+    WHEN 'BUT02'."项目指定
+      PERFORM BUT02.
+    WHEN 'BUT03'."取消指定
+      PERFORM BUT03.
+    WHEN 'BUT04'."物料创建
+      PERFORM BUT04.
+    WHEN 'BUT05'."过账
+      PERFORM BUT05.
+    WHEN 'BUT06'."冲销
+      PERFORM BUT06.
+  ENDCASE.
+  CLEAR SY-UCOMM.
+  PERFORM REFRESHALV.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form SHOWITEM
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SHOWITEM .
+  "创建容器
+  IF ALVGRID IS INITIAL.
+    CREATE OBJECT CONTAIN
+      EXPORTING
+        CONTAINER_NAME              = 'CONT1'
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+    IF SY-SUBRC NE 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                 WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+    CREATE OBJECT ALVGRID
+      EXPORTING
+        I_PARENT = CONTAIN.
+
+    CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+    CREATE OBJECT LCL_EVENT_RECEIVER1.
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_DOUBLE_CLICK FOR ALVGRID.
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_DATA_CHANGED FOR ALVGRID.
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_HOTSPOT_CLICK FOR ALVGRID."热点点击
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_TOOLBAR FOR ALVGRID."增加按钮
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_COMMAND FOR ALVGRID."按钮响应
+    SET HANDLER LCL_EVENT_RECEIVER1->HANDLE_ON_F4 FOR ALVGRID."按钮响应
+    ALVGRID->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_MODIFIED )."mc_evt_enter
+*    ALVGRID->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_ENTER )."mc_evt_enter
+    ALVGRID->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM CALLALVN.
+  ELSE.
+    PERFORM CALLALVN.
+  ENDIF.
+*刷新ALV
+  PERFORM REFRESHALV.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form REFRESHALV
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM REFRESHALV .
+  IS_STABLE-ROW = 'X'.
+  IS_STABLE-COL = 'X'.
+  IF ALVGRID IS NOT INITIAL.
+    CALL METHOD ALVGRID->REFRESH_TABLE_DISPLAY
+      EXPORTING
+        IS_STABLE = IS_STABLE.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form CALLALVN
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM CALLALVN .
+  DATA:BEGIN OF IT_FIELD1 OCCURS 0,
+         FIELD TYPE DD03L-FIELDNAME,
+       END OF IT_FIELD1.
+  CLEAR:IT_FIELDCAT,IT_FIELD1[].
+  HANDLE = SY-TCODE+3(4).
+*明细级别的字段
+  APPEND 'AUFNR' TO IT_FIELD1.
+  APPEND 'FLH' TO IT_FIELD1.
+  APPEND 'FLHT' TO IT_FIELD1.
+  APPEND 'PLNBEZ' TO IT_FIELD1.
+  APPEND 'PLNBEZT' TO IT_FIELD1.
+  APPEND 'DMBTR_RDDJ' TO IT_FIELD1.
+  APPEND 'HWARE' TO IT_FIELD1.
+  APPEND 'LGORT' TO IT_FIELD1.
+  APPEND 'LGOBE' TO IT_FIELD1.
+*FIELDCAT
+  CASE SY-TCODE.
+    WHEN TCODE1.
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT USING:
+          'PSPNR' 'WBS元素' 'PRPS' '' ,
+          'POSID' '项目定义' 'PRPS' '',
+          'POST1' '项目描述' 'PRPS' '' ,
+          'AUFNR' '生产订单' 'AUFK' '',
+          'PRSTATE' '生产阶段' 'ZTFIRD_MATDATA' '',
+          'PRSTATET' '生产阶段描述' '' '' ,
+          'FLH' '废料号' 'MARA' 'MATNR',
+          'FLHT' '废料号描述' '' '',
+          'MATNR' '生产订单物料' 'MARA' 'MATNR' ,
+          'MAKTX' '生产订单物料描述' '' '',
+          'MEINS' '单位' 'MARA' '',
+          'MENGE' '废料数量' 'EKPO' '',
+          'DMBTR_RDDJ' '预估单价' 'EKPO' 'NETPR',
+          'DMBTR_FLGJ' '预估金额' 'EKPO' 'NETPR',
+          'SEGMENT' '产业公司' 'CEPC' '',
+          'SEGMT' '产业公司描述' '' '' ,
+          'BUKRS' '公司代码' 'T001' '',
+          'BUTXT' '公司描述' '' '',
+          'HWARE' '货币' 'T001' 'WAERS',
+          'WERKS' '工厂' 'T001W' '',
+          'NAMEW' '工厂名称' '' '',
+          'LGORT' '库存地' 'T001L' '',
+          'LGOBE' '库存地描述' '' ''.
+    WHEN OTHERS.
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT USING:
+    'CHBOX' '选择' '' '' ,
+    'ICON' '状态' '' '' ,
+    'MSG' '消息' '' '' ,
+    'PSPNR' 'WBS元素' 'PRPS' '' ,
+    'POSID' '项目定义' 'PRPS' '',
+    'POST1' '项目描述' 'PRPS' '' ,
+    'AUFNR' '生产订单' 'AUFK' '',
+    'DATBI' '截止日期' '' '' ,
+    'DATAB' '开始日期' '' '',
+    'RDNO' '调整单号' '' '',
+    'PRSTATE' '生产阶段' '' '' ,
+    'PRSTATET' '生产阶段描述' '' '' ,
+    'MATNR_RD' '物料号' '' '' ,
+    'MATNR_RDT' '物料描述' '' '' ,
+    'FLH' '废料号' 'MARA' 'MATNR',
+    'FLHT' '废料号描述' '' '',
+    'MATNR' '生产订单物料' 'MARA' 'MATNR' ,
+    'MAKTX' '生产订单物料描述' '' '',
+    'INAUFNR' '内部订单号' 'AUFK' 'AUFNR' ,
+    'INAUFNRT' '订单描述' 'AUFK' 'KTEXT' ,
+    'MENGE' '废料数量' 'EKPO' '',
+     'DMBTR_RDDJ' '预估单价' 'EKPO' 'NETPR',
+     'DMBTR_FLGJ' '预估金额' 'EKPO' 'NETPR',
+     'RATE_RDADJ' '调整比例' 'ZTFIRD_MATDATA' '' ,
+     'DMBTR_RDADJ' '调整金额' 'EKPO' 'NETPR',
+     'SEGMENT' '产业公司' 'CEPC' '',
+     'SEGMT' '产业公司描述' '' '' ,
+     'BUKRS' '公司代码' 'T001' '',
+     'BUTXT' '公司描述' '' '',
+     'HWARE' '货币' 'T001' 'WAERS',
+     'WERKS' '工厂' 'T001W' '',
+     'NAMEW' '工厂名称' '' '',
+     'LGORT' '库存地' 'T001L' '',
+     'LGOBE' '库存地描述' '' '',
+    'RDSTATE' '状态' '' '' ,
+    'RDSTATET' '状态' '' '' ,
+    'ZDATE' '提交日期' '' '' ,
+    'ZTIME' '提交时间' '' '' ,
+    'ZNAME' '操作人' '' '' ,
+    'KALNR' '成本估算号' '' '' ,
+    'MBLNR531' '产出物料凭证' '' '',
+    'MJAHR531' '产出年度' '' '' ,
+    'MBLNR261' '投入物料凭证' '' '' ,
+    'MJAHR261' '投入年度' '' ''.
+  ENDCASE.
+  LOOP AT IT_FIELDCAT INTO WA_FIELDCAT.
+    CASE SY-TCODE.
+      WHEN TCODE2.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'INAUFNR'.
+            IF P1A = 'X'.
+              WA_FIELDCAT-EDIT = 'X'.
+              WA_FIELDCAT-F4AVAILABL = 'X'.
+            ENDIF.
+          WHEN 'MBLNR531' OR 'MJAHR531'
+            OR 'MBLNR261' OR 'MJAHR261' OR 'KALNR'
+            OR 'MATNR_RDT' OR 'MATNR_RD'.
+            WA_FIELDCAT-NO_OUT = 'X'.
+          WHEN OTHERS.
+            READ TABLE IT_FIELD1 WITH KEY FIELD = WA_FIELDCAT-FIELDNAME.
+            IF SY-SUBRC EQ 0.
+              WA_FIELDCAT-NO_OUT = 'X'.
+            ENDIF.
+        ENDCASE.
+      WHEN TCODE3.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'MBLNR531' OR 'MJAHR531'
+            OR 'MBLNR261' OR 'MJAHR261'
+            OR 'KALNR'.
+            WA_FIELDCAT-NO_OUT = 'X'.
+          WHEN OTHERS.
+            READ TABLE IT_FIELD1 WITH KEY FIELD = WA_FIELDCAT-FIELDNAME.
+            IF SY-SUBRC EQ 0.
+              WA_FIELDCAT-NO_OUT = 'X'.
+            ENDIF.
+            CASE WA_FIELDCAT-FIELDNAME.
+              WHEN 'LGORT' OR 'LGOBE'.
+                CLEAR:WA_FIELDCAT-NO_OUT.
+            ENDCASE.
+        ENDCASE.
+      WHEN TCODE4.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'MBLNR261' OR 'MJAHR261'.
+            WA_FIELDCAT-NO_OUT = 'X'.
+        ENDCASE.
+      WHEN TCODE5.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'MBLNR531' OR  'MJAHR531' OR 'KALNR'.
+            WA_FIELDCAT-NO_OUT = 'X'.
+        ENDCASE.
+    ENDCASE.
+    CASE WA_FIELDCAT-FIELDNAME.
+      WHEN 'MBLNR531' OR 'MBLNR261'.
+        WA_FIELDCAT-HOTSPOT = 'X'.
+    ENDCASE.
+    MODIFY IT_FIELDCAT FROM WA_FIELDCAT.
+  ENDLOOP.
+*设置搜索帮助
+  CLEAR:IT_F4.
+  LOOP AT IT_FIELDCAT INTO WA_FIELDCAT WHERE F4AVAILABL = 'X'
+                                         AND EDIT = 'X'.
+    CLEAR:WA_F4.
+    WA_F4-FIELDNAME = WA_FIELDCAT-FIELDNAME.
+    WA_F4-REGISTER = 'X'.
+    WA_F4-GETBEFORE = SPACE.
+    WA_F4-CHNGEAFTER = 'X'.
+    INSERT WA_F4 INTO TABLE IT_F4.
+  ENDLOOP.
+  IF IT_F4 IS NOT INITIAL.
+    CALL METHOD ALVGRID->REGISTER_F4_FOR_FIELDS
+      EXPORTING
+        IT_F4 = IT_F4.
+  ENDIF.
+
+*设置下拉框
+  PERFORM CALLALV(ZPUBFORM) TABLES ITAB
+    USING ALVGRID IT_FIELDCAT HANDLE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form USER_COMMAND_CLS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM USER_COMMAND_CLS  USING    P_E_UCOMM.
+  CASE P_E_UCOMM.
+    WHEN 'ALL'.
+      LOOP AT ITAB ASSIGNING <WA>.
+        ASSIGN COMPONENT 'CHBOX' OF STRUCTURE <WA> TO <FS>.
+        IF SY-SUBRC EQ 0.
+          <FS> = 'X'.
+        ENDIF.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT ITAB ASSIGNING <WA>.
+        ASSIGN COMPONENT 'CHBOX' OF STRUCTURE <WA> TO <FS>.
+        IF SY-SUBRC EQ 0.
+          <FS> = ''.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form F4HELP
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> RETURN_TAB
+*&      --> E_FIELDNAME
+*&      --> P_
+*&      --> WA
+*&---------------------------------------------------------------------*
+FORM F4HELP  TABLES   P_RETURN_TAB STRUCTURE DDSHRETVAL
+             USING    P_E_FIELDNAME
+                      P_INTERTAB
+                      P_INWA.
+  DATA:RETFIELD    TYPE DFIES-FIELDNAME,
+       DYNPROFIELD TYPE DYNFNAM.
+  FIELD-SYMBOLS:<F4_TAB1> TYPE STANDARD TABLE .
+  CLEAR:RETFIELD,DYNPROFIELD,P_RETURN_TAB[],IT_OBJNR[],
+  IT_OUTOBJNR[].
+  CONCATENATE P_INTERTAB '-' P_E_FIELDNAME INTO DYNPROFIELD.
+  RETFIELD = P_E_FIELDNAME.
+  CASE P_E_FIELDNAME.
+    WHEN 'INAUFNR'.
+      SELECT AUFK~AUFNR AS INAUFNR,
+             AUFK~KTEXT,
+             AUFK~OBJNR
+        INTO TABLE @DATA(IT_INAUFNR)
+        FROM AUFK
+        WHERE AUFK~AUART = 'Z002'
+        AND   AUFK~ABKRS = '02'
+        AND   AUFK~BUKRS = @P_BUKRS.
+*检查状态
+      LOOP AT IT_INAUFNR INTO DATA(WA_INAUFNR).
+        CLEAR:IT_OBJNR.
+        IT_OBJNR-OBJNR = WA_INAUFNR-OBJNR.
+        COLLECT IT_OBJNR.
+      ENDLOOP.
+      PERFORM GETSTATUS(ZPUBFORM) TABLES IT_OBJNR IT_OUTOBJNR
+        USING ''.
+      SORT IT_OUTOBJNR BY OBJNR.
+      LOOP AT IT_INAUFNR INTO WA_INAUFNR.
+        READ TABLE IT_OUTOBJNR WITH KEY OBJNR = WA_INAUFNR-OBJNR BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IF IT_OUTOBJNR-TEXT CS 'REL'.
+          ELSE.
+            WA_INAUFNR-INAUFNR = 'DONGPZ'.
+            MODIFY IT_INAUFNR FROM WA_INAUFNR TRANSPORTING INAUFNR.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      DELETE IT_INAUFNR WHERE INAUFNR = 'DONGPZ'.
+      CHECK IT_INAUFNR[] IS NOT INITIAL..
+      ASSIGN IT_INAUFNR TO <F4_TAB1>.
+  ENDCASE.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST' "调用函数
+    EXPORTING
+      RETFIELD        = RETFIELD  "搜索帮助内表要输出的的帮助字段名，注：要大写
+      DYNPPROG        = SY-REPID
+      DYNPNR          = SY-DYNNR
+      DYNPROFIELD     = DYNPROFIELD "屏幕字段
+      VALUE_ORG       = 'S'
+    TABLES
+      VALUE_TAB       = <F4_TAB1> "存储搜索帮助内容的内表
+      RETURN_TAB      = P_RETURN_TAB
+    EXCEPTIONS
+      PARAMETER_ERROR = 1
+      NO_VALUES_FOUND = 2
+      OTHERS          = 3.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GETZTPP213
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM GETZTPP213 .
+  CLEAR:IT_OBJNR[],IT_MATNR[],IT_DETAIL[].
+  SELECT ZTPP_213~AUFNR,
+         ZTPP_213~MATNR AS FLH,
+         ZTPP_213~MENGE,
+         AFPO~PROJN AS PSPNR,
+         AFPO~LGORT,
+         AFPO~MATNR,
+         AFPO~LTRMI,
+         AUFK~WERKS,
+         AUFK~OBJNR,
+         AUFK~IDAT2,
+         PRPS~POSID,
+         PRPS~POST1,
+         PRPS~PRCTR,
+         PRPS~PBUKR,
+         CEPC~SEGMENT,
+         MARA~MATKL,
+         MARA~MEINS
+    INTO TABLE @DATA(IT_TAB)
+    FROM ZTPP_213 INNER JOIN AFPO ON ZTPP_213~AUFNR = AFPO~AUFNR
+                  INNER JOIN AUFK ON AFPO~AUFNR = AUFK~AUFNR
+                  INNER JOIN PRPS ON AFPO~PROJN = PRPS~PSPNR
+                  INNER JOIN MARA ON AFPO~MATNR = MARA~MATNR
+                  INNER JOIN CEPC ON PRPS~PRCTR = CEPC~PRCTR
+                                 AND CEPC~KOKRS = 'WISD'
+    WHERE PRPS~PBUKR = @P_BUKRS
+    AND   CEPC~SEGMENT IN @S_SEGM
+    AND   AFPO~AUFNR IN @S_AUFNR
+    AND   PRPS~POSID IN @S_POSID.
+*    AND   ( AUFK~IDAT2 IN @S_DATUM
+*     OR   AFPO~LTRMI IN @S_DATUM ).
+  SORT IT_TAB BY AUFNR.
+  DELETE ADJACENT DUPLICATES FROM IT_TAB
+  COMPARING AUFNR.
+  LOOP AT IT_TAB INTO DATA(WA_TAB).
+    CLEAR:IT_OBJNR,IT_MATNR.
+    IT_MATNR-MATNR = WA_TAB-MATNR.
+    COLLECT IT_MATNR.
+    IT_MATNR-MATNR = WA_TAB-FLH.
+    IT_OBJNR-OBJNR = WA_TAB-OBJNR.
+    COLLECT:IT_OBJNR, IT_MATNR.
+  ENDLOOP.
+  PERFORM GETSTATUS(ZPUBFORM) TABLES IT_OBJNR IT_OUTOBJNR
+    USING ''.
+  SORT IT_OUTOBJNR BY OBJNR.
+  LOOP AT IT_TAB INTO WA_TAB.
+    CLEAR:IT_DETAIL.
+    READ TABLE IT_OUTOBJNR WITH KEY OBJNR = WA_TAB-OBJNR BINARY SEARCH.
+    IF SY-SUBRC = 0.
+      IF IT_OUTOBJNR-TEXT CS 'TECO'
+        OR IT_OUTOBJNR-TEXT CS 'DLV'.
+        IF WA_TAB-IDAT2 IN S_DATUM
+          OR WA_TAB-LTRMI IN S_DATUM.
+          MOVE-CORRESPONDING WA_TAB TO IT_DETAIL.
+          READ TABLE IT_ZTFI203 WITH KEY WERKS = WA_TAB-WERKS
+                                         MATKL = WA_TAB-MATKL
+                                         BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_DETAIL-PRSTATE = IT_ZTFI203-PRSTATE.
+          ENDIF.
+          IT_DETAIL-HWARE = 'CNY'.
+          IT_DETAIL-BUKRS = P_BUKRS.
+          APPEND IT_DETAIL.
+        ENDIF.
+      ELSE.
+      ENDIF.
+    ELSE.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT02
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT03 .
+  CLEAR:NUM,NUM1,IT_ZTFIRD_MATDATA[].
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    IF ITAB-ICON = 'E'
+      OR ITAB-RDNO IS INITIAL.
+      NUM = NUM + 1.
+    ENDIF.
+    NUM1 = NUM1 + 1.
+  ENDLOOP.
+  IF NUM GT 0
+    OR NUM1 = 0.
+    MESSAGE S003 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    LOOP AT IT_DETAIL WHERE PSPNR = ITAB-PSPNR
+                        AND PRSTATE = ITAB-PRSTATE.
+      CLEAR:IT_ZTFIRD_MATDATA,ZTFIRD_MATDATA.
+      SELECT SINGLE *
+        FROM ZTFIRD_MATDATA
+        WHERE PSPNR = IT_DETAIL-PSPNR
+        AND   AUFNR = IT_DETAIL-AUFNR
+        AND   DATBI = IT_DETAIL-DATBI
+        AND   DATAB = IT_DETAIL-DATAB.
+      IF SY-SUBRC NE 0.
+        ITAB-ICON = RED.
+        ITAB-MSG = '指定记录不存在，无法取消指定'.
+        EXIT.
+      ENDIF.
+      IF ZTFIRD_MATDATA IS NOT INITIAL
+         AND ZTFIRD_MATDATA-RDSTATE NE '0'.
+        ITAB-ICON = RED.
+        ITAB-MSG = '存在已调整记录，禁止取消标记，请检查数据'.
+        EXIT.
+      ENDIF.
+      DELETE FROM ZTFIRD_MATDATA WHERE PSPNR = IT_DETAIL-PSPNR
+                                   AND AUFNR = IT_DETAIL-AUFNR
+                                   AND DATBI  = IT_DETAIL-DATBI
+                                   AND DATAB  = IT_DETAIL-DATAB .
+      CLEAR:ITAB-RDSTATE,ITAB-RDSTATET,ITAB-RDNO,
+      ITAB-ZDATE,ITAB-ZNAME,ITAB-ZTIME.
+      ITAB-ICON = GREEN.
+      ITAB-MSG = '取消指定成功'.
+    ENDLOOP.
+    MODIFY ITAB.
+  ENDLOOP.
+  COMMIT WORK.
+  MESSAGE S007.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT03
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT02 .
+  CLEAR:NUM,NUM1,IT_ZTFIRD_MATDATA[].
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    IF ITAB-FLAG = 'E'
+      OR ITAB-RDNO IS NOT INITIAL.
+      NUM = NUM + 1.
+    ENDIF.
+    NUM1 = NUM1 + 1.
+  ENDLOOP.
+  IF NUM GT 0
+    OR NUM1 = 0.
+    MESSAGE S003 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    LOOP AT IT_DETAIL WHERE PSPNR = ITAB-PSPNR
+                        AND PRSTATE = ITAB-PRSTATE.
+      CLEAR:IT_ZTFIRD_MATDATA,ZTFIRD_MATDATA.
+*生成调整单号
+      CONCATENATE P_BUKRS SY-DATUM+2(6) INTO ITAB-RDNO.
+      IT_DETAIL-RDNO = ITAB-RDNO.
+      IT_DETAIL-DATBI = ITAB-DATBI.
+      IT_DETAIL-DATAB = ITAB-DATAB..
+      IT_DETAIL-INAUFNR = ITAB-INAUFNR.
+      IT_DETAIL-RDSTATE = '0'.
+      IT_DETAIL-ZDATE = SY-DATUM.
+      IT_DETAIL-ZTIME = SY-UZEIT.
+      IT_DETAIL-ZNAME = SY-UNAME.
+      IT_DETAIL-ERDAT = SY-DATUM.
+      IT_DETAIL-ERTIM = SY-UZEIT.
+      IT_DETAIL-ERNAM = SY-UNAME.
+      SELECT SINGLE *
+        FROM ZTFIRD_MATDATA
+        WHERE PSPNR = IT_DETAIL-PSPNR
+        AND   AUFNR = IT_DETAIL-AUFNR
+        AND   DATBI = IT_DETAIL-DATBI
+        AND   DATAB = IT_DETAIL-DATAB.
+      IF SY-SUBRC EQ 0
+         AND ZTFIRD_MATDATA NE '0'.
+        ITAB-ICON = RED.
+        ITAB-MSG = '存在已调整记录，禁止重复标记，请检查数据'.
+        EXIT.
+      ENDIF.
+      MOVE-CORRESPONDING IT_DETAIL TO IT_ZTFIRD_MATDATA.
+      APPEND IT_ZTFIRD_MATDATA.
+      MODIFY IT_DETAIL.
+      ITAB-ICON = GREEN.
+      ITAB-RDSTATE = IT_DETAIL-RDSTATE.
+      READ TABLE IT_RDSTATE WITH KEY DOMVALUE_L = ITAB-RDSTATE BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        ITAB-RDSTATET = IT_RDSTATE-DDTEXT.
+      ENDIF.
+      ITAB-ZDATE = IT_DETAIL-ZDATE.
+      ITAB-ZTIME = IT_DETAIL-ZTIME.
+      ITAB-ZNAME = IT_DETAIL-ZNAME.
+      ITAB-MSG = '指定成功'.
+    ENDLOOP.
+    MODIFY ITAB.
+  ENDLOOP.
+  IF IT_ZTFIRD_MATDATA[] IS NOT INITIAL.
+    MODIFY ZTFIRD_MATDATA FROM TABLE IT_ZTFIRD_MATDATA.
+    COMMIT WORK.
+  ENDIF.
+  MESSAGE S007.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT04
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT04 .
+  DATA:WA_RETURN            TYPE BAPIRET2,
+       MATERIALDESCRIPTION  TYPE TABLE OF  BAPI_MAKT WITH HEADER LINE,
+       UNITSOFMEASURE       TYPE TABLE OF BAPI_MARM WITH HEADER LINE,
+       UNITSOFMEASUREX      TYPE TABLE OF BAPI_MARMX WITH HEADER LINE,
+       TAXCLASSIFICATIONS   TYPE TABLE OF BAPI_MLAN WITH HEADER LINE,
+       RETURNMESSAGES       TYPE TABLE OF BAPI_MATRETURN2 WITH HEADER LINE,
+       HEADDATA             TYPE BAPIMATHEAD,
+       CLIENTDATA           TYPE BAPI_MARA,
+       CLIENTDATAX          TYPE BAPI_MARAX,
+       PLANTDATA            TYPE BAPI_MARC,
+       PLANTDATAX           TYPE BAPI_MARCX,
+       VALUATIONDATA        TYPE BAPI_MBEW,
+       VALUATIONDATAX       TYPE BAPI_MBEWX,
+       SALESDATA            TYPE BAPI_MVKE,
+       SALESDATAX           TYPE BAPI_MVKEX,
+       STORAGELOCATIONDATA  TYPE BAPI_MARD,
+       STORAGELOCATIONDATAX TYPE BAPI_MARDX.
+  CLEAR:NUM,NUM1.
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    IF ITAB-FLAG = 'E'.
+      NUM = NUM + 1.
+    ENDIF.
+    NUM1 = NUM1 + 1.
+  ENDLOOP.
+  IF NUM GT 0
+    OR NUM1 = 0.
+    MESSAGE S003 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  PERFORM CONFIRMACT(ZPUBFORM) USING '物料主数据创建后不可取消，请确认' CHANGING ANSWER.
+  CHECK ANSWER = '1'.
+  LOOP AT ITAB WHERE CHBOX = 'X'
+                 AND FLAG NE 'S'.
+*创建物料-ZTMM_011
+    CLEAR:ZTMM_011,WA_RETURN,HEADDATA,PLANTDATA,
+    PLANTDATAX,VALUATIONDATA,VALUATIONDATAX,SALESDATA,
+    SALESDATAX,STORAGELOCATIONDATA,STORAGELOCATIONDATAX,
+    UNITSOFMEASURE,UNITSOFMEASUREX,RETURNMESSAGES,
+    TAXCLASSIFICATIONS,MATERIALDESCRIPTION,CLIENTDATA,CLIENTDATAX,
+    UNITSOFMEASURE[],UNITSOFMEASUREX[],
+    RETURNMESSAGES[],TAXCLASSIFICATIONS[],MATERIALDESCRIPTION[].
+    SELECT SINGLE *
+      FROM ZTMM_011
+      WHERE WERKS = ITAB-WERKS
+      AND   MATKL = 'ZYF001'.
+    IF SY-SUBRC NE 0.
+      ITAB-ICON = RED.
+      ITAB-MSG = '表ZTMM_011没有相关数据'.
+      MODIFY ITAB.
+      CONTINUE.
+    ENDIF.
+*基础视图
+    HEADDATA-MATERIAL = ITAB-MATNR_RD.
+    HEADDATA-BASIC_VIEW = 'X'.
+    HEADDATA-IND_SECTOR = 'M'."行业类型
+    HEADDATA-PURCHASE_VIEW = 'X'.
+    HEADDATA-MATL_TYPE = 'ZYF1'.
+    CLIENTDATA-MATL_GROUP = ZTMM_011-MATKL."物料组
+    CLIENTDATA-DIVISION = ZTMM_011-SPART."产品组
+    CLIENTDATA-BASE_UOM = ITAB-MEINS."单位
+    IF ZTMM_011-BSTME IS NOT INITIAL.
+      CLIENTDATA-PO_UNIT = ZTMM_011-BSTME."订单单位
+      CLEAR:UNITSOFMEASURE,UNITSOFMEASUREX.
+      UNITSOFMEASURE-ALT_UNIT = ZTMM_011-BSTME.
+      UNITSOFMEASURE-NUMERATOR = 1.
+      UNITSOFMEASURE-DENOMINATR = 1.
+      UNITSOFMEASUREX-ALT_UNIT = ZTMM_011-BSTME.
+      UNITSOFMEASUREX-NUMERATOR = 'X'.
+      UNITSOFMEASUREX-DENOMINATR = 'X'.
+      APPEND:UNITSOFMEASURE,UNITSOFMEASUREX.
+    ENDIF.
+    CLIENTDATA-VAR_ORD_UN = ZTMM_011-VABME."可变单位
+    CLIENTDATA-PUR_VALKEY = ZTMM_011-EKWSL."采购价值代码
+    IF CLIENTDATA IS NOT INITIAL.
+      PERFORM SETBAPIX(ZPUBFORM) USING CLIENTDATA CHANGING CLIENTDATAX.
+    ENDIF.
+*销售视图
+    SALESDATA-SALES_ORG = ZTMM_011-VKORG."销售组织
+    SALESDATA-DISTR_CHAN = ZTMM_011-VTWEG."分销渠道
+    SALESDATA-DELYG_PLNT = ZTMM_011-DWERK."交货工厂
+    SALESDATA-ITEM_CAT = ZTMM_011-MTPOS."项目类别组
+    SALESDATA-ACCT_ASSGT = ZTMM_011-KTGRM."科目设置组
+    IF ZTMM_011-VRKME IS NOT INITIAL.
+      SALESDATA-SALES_UNIT = ZTMM_011-VRKME."销售单位
+      CLEAR:UNITSOFMEASURE,UNITSOFMEASUREX.
+      UNITSOFMEASURE-ALT_UNIT = SALESDATA-SALES_UNIT.
+      UNITSOFMEASURE-NUMERATOR = 1.
+      UNITSOFMEASURE-DENOMINATR = 1.
+      UNITSOFMEASUREX-ALT_UNIT = SALESDATA-SALES_UNIT.
+      UNITSOFMEASUREX-NUMERATOR = 'X'.
+      UNITSOFMEASUREX-DENOMINATR = 'X'.
+      APPEND:UNITSOFMEASURE,UNITSOFMEASUREX.
+    ENDIF.
+    SALESDATA-MATL_GRP_1 = ZTMM_011-MVGR1."物料组 1
+    SALESDATA-MATL_GRP_4 = ZTMM_011-MVGR4."物料组4
+    IF SALESDATA IS NOT INITIAL.
+      HEADDATA-SALES_VIEW = 'X'."销售视图
+      PERFORM SETBAPIX(ZPUBFORM) USING SALESDATA CHANGING SALESDATAX.
+    ENDIF.
+    IF ZTMM_011-TAXKM IS NOT INITIAL.
+      TAXCLASSIFICATIONS-DEPCOUNTRY = 'CN'.
+      TAXCLASSIFICATIONS-TAX_TYPE_1 = 'MWST'.
+      TAXCLASSIFICATIONS-TAXCLASS_1 = ZTMM_011-TAXKM."税分类
+      APPEND TAXCLASSIFICATIONS.
+    ENDIF.
+
+*工作计划视图
+    PLANTDATA-PLANT = ZTMM_011-WERKS.
+    PLANTDATA-MRP_CTRLER = ZTMM_011-DISPO."MRP控制者
+    PLANTDATA-LOTSIZEKEY = ZTMM_011-DISLS."物料计划内批量程序
+    IF ZTMM_011-RGEKZ IS NOT INITIAL.
+      IF ZTMM_011-RGEKZ = 0.
+        PLANTDATA-BACKFLUSH = ''."反冲
+      ELSE.
+        PLANTDATA-BACKFLUSH = ZTMM_011-RGEKZ."反冲
+      ENDIF.
+    ENDIF.
+    PLANTDATA-LOADINGGRP = ZTMM_011-LADGR."装载组
+    PLANTDATA-AVAILCHECK = ZTMM_011-MTVFP."可用性检查
+    PLANTDATA-PROFIT_CTR = ZTMM_011-PRCTR."利润中心
+    PLANTDATA-MRP_TYPE = ZTMM_011-DISMM."MRP类型
+    PLANTDATA-PROC_TYPE = ZTMM_011-BESKZ."采购类型
+    PLANTDATA-BWD_CONS = ZTMM_011-VINT1."消耗期间:逆向
+    PLANTDATA-FWD_CONS = ZTMM_011-VINT2."消耗期间:向前
+    PLANTDATA-CONSUMMODE = ZTMM_011-VRMOD."消耗模式
+    PLANTDATA-PLAN_STRGP = ZTMM_011-STRGR."计划策略组
+    PLANTDATA-SM_KEY = ZTMM_011-FHORI."计划的时界
+    PLANTDATA-PRODPROF = ZTMM_011-SFCPF."生产计划参数文件
+    PLANTDATA-DEP_REQ_ID = ZTMM_011-SBDKZ."对于独立和集中需求的相关需求标识
+    PLANTDATA-INHSEPRODT = ZTMM_011-DZEIT."厂内生产时间
+    IF PLANTDATA IS NOT INITIAL.
+      HEADDATA-WORK_SCHED_VIEW = 'X'."工作计划视图
+      HEADDATA-MRP_VIEW = 'X'."MRP视图
+      PERFORM SETBAPIX(ZPUBFORM) USING PLANTDATA CHANGING PLANTDATAX.
+    ENDIF.
+*仓储视图
+    IF ITAB-LGORT IS NOT INITIAL.
+      STORAGELOCATIONDATA-PLANT           =   ITAB-WERKS.
+      STORAGELOCATIONDATA-STGE_LOC        =   ITAB-LGORT.
+      IF STORAGELOCATIONDATA IS NOT INITIAL.
+        HEADDATA-STORAGE_VIEW  = 'X'.
+        PERFORM SETBAPIX(ZPUBFORM) USING STORAGELOCATIONDATA CHANGING STORAGELOCATIONDATAX.
+      ENDIF.
+    ENDIF.
+*会计视图
+    SELECT SINGLE BWKEY
+      INTO VALUATIONDATA-VAL_AREA
+      FROM T001W
+      WHERE WERKS = ITAB-WERKS."估价范围
+    VALUATIONDATA-ML_SETTLE = ZTMM_011-MLAST."价格确定
+    VALUATIONDATA-VAL_CLASS = ZTMM_011-BKLAS."评估分类
+    VALUATIONDATA-VAL_CAT = ZTMM_011-BWTTY."评估类别
+    VALUATIONDATA-PRICE_CTRL = ZTMM_011-VPRSV."价格控制
+    VALUATIONDATA-VM_SO_STK = ZTMM_011-EKLAS."评估分类
+    VALUATIONDATA-VM_P_STOCK = ZTMM_011-QKLAS."项目评估类
+    VALUATIONDATA-ORIG_GROUP = ZTMM_011-HRKFT."原始组
+    VALUATIONDATA-PLNDPRICE1 = ITAB-DMBTR_RDDJ."单价
+    VALUATIONDATA-PLNDPRDATE1 = P_DATBI+0(6) && '01'."
+    IF VALUATIONDATA IS NOT INITIAL.
+      HEADDATA-COST_VIEW = 'X'."成本视图
+      HEADDATA-ACCOUNT_VIEW = 'X'."视图
+      PERFORM SETBAPIX(ZPUBFORM) USING VALUATIONDATA CHANGING VALUATIONDATAX.
+    ENDIF.
+    "物料短描述
+    CLEAR:MATERIALDESCRIPTION.
+    MATERIALDESCRIPTION-LANGU = SY-LANGU.
+    MATERIALDESCRIPTION-MATL_DESC = ITAB-MATNR_RDT.
+    APPEND MATERIALDESCRIPTION.
+
+    CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+      EXPORTING
+        HEADDATA             = HEADDATA
+        CLIENTDATA           = CLIENTDATA
+        CLIENTDATAX          = CLIENTDATAX
+        PLANTDATA            = PLANTDATA
+        PLANTDATAX           = PLANTDATAX
+        VALUATIONDATA        = VALUATIONDATA
+        VALUATIONDATAX       = VALUATIONDATAX
+        SALESDATA            = SALESDATA
+        SALESDATAX           = SALESDATAX
+        STORAGELOCATIONDATA  = STORAGELOCATIONDATA
+        STORAGELOCATIONDATAX = STORAGELOCATIONDATAX
+      IMPORTING
+        RETURN               = WA_RETURN
+      TABLES
+        RETURNMESSAGES       = RETURNMESSAGES
+        TAXCLASSIFICATIONS   = TAXCLASSIFICATIONS
+        MATERIALDESCRIPTION  = MATERIALDESCRIPTION
+        UNITSOFMEASURE       = UNITSOFMEASURE
+        UNITSOFMEASUREX      = UNITSOFMEASUREX.
+    LOOP AT RETURNMESSAGES WHERE TYPE CA 'AEX'.
+      EXIT.
+    ENDLOOP.
+    IF SY-SUBRC EQ 0
+      OR WA_RETURN-TYPE CA 'AEX'.
+      LOOP AT RETURNMESSAGES WHERE TYPE CA 'AEX'.
+        CONCATENATE RETURNMESSAGES-MESSAGE ITAB-MSG
+        INTO ITAB-MSG SEPARATED BY '/'.
+      ENDLOOP.
+      CONCATENATE WA_RETURN-MESSAGE ITAB-MSG
+INTO ITAB-MSG SEPARATED BY '/'.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      ITAB-ICON = RED.
+    ELSE.
+      ITAB-RDSTATE = '1'.
+      READ TABLE IT_RDSTATE WITH KEY DOMVALUE_L = ITAB-RDSTATE BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        ITAB-RDSTATET = IT_RDSTATE-DDTEXT.
+      ENDIF.
+      UPDATE ZTFIRD_MATDATA
+      SET RDSTATE = ITAB-RDSTATE
+          LGORT = ITAB-LGORT
+          MATNR_RD = ITAB-MATNR_RD
+      WHERE PSPNR = ITAB-PSPNR
+      AND   PRSTATE = ITAB-PRSTATE.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          WAIT = 'X'.
+      ITAB-ICON = GREEN.
+      ITAB-FLAG = 'S'.
+      ITAB-MSG = 'SUCCESS'.
+    ENDIF.
+    MODIFY ITAB.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT06
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT06 .
+  DATA:ITEM TYPE TABLE OF BAPI2017_GM_ITEM_04 WITH HEADER LINE.
+  CLEAR:NUM.
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    CASE SY-TCODE.
+      WHEN TCODE4.
+        IF ITAB-MBLNR531 IS INITIAL.
+          NUM = NUM + 1.
+        ENDIF.
+      WHEN TCODE5.
+        IF ITAB-MBLNR261 IS INITIAL.
+          NUM = NUM + 1.
+        ENDIF.
+    ENDCASE.
+    NUM1 = NUM1 + 1.
+  ENDLOOP.
+  IF NUM GT 0
+  OR NUM1 = 0.
+    MESSAGE S003 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    CASE SY-TCODE.
+      WHEN TCODE4.
+        IF ITAB-MBLNR531 IS NOT INITIAL.
+          PERFORM MBST(ZPUBFORM) TABLES ITEM
+            USING ITAB-MBLNR531 ITAB-MJAHR531 SY-DATUM
+                  CHANGING ITAB-MSG.
+          IF ITAB-MSG+0(1) = 'S'.
+            ITAB-ICON = GREEN.
+            CLEAR:ITAB-MBLNR531,ITAB-MJAHR531.
+            ITAB-RDSTATE = '1'.
+            READ TABLE IT_RDSTATE WITH KEY DOMVALUE_L = ITAB-RDSTATE BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              ITAB-RDSTATET = IT_RDSTATE-DDTEXT.
+            ENDIF.
+            UPDATE ZTFIRD_MATDATA
+            SET MBLNR531 = ITAB-MBLNR531
+                MJAHR531 = ITAB-MJAHR531
+                RDSTATE = ITAB-RDSTATE
+            WHERE AUFNR = ITAB-AUFNR
+            AND   PSPNR = ITAB-PSPNR
+            AND   DATBI = ITAB-DATBI
+            AND   DATAB = ITAB-DATAB.
+            COMMIT WORK.
+          ELSE.
+            ITAB-ICON = RED.
+          ENDIF.
+        ENDIF.
+      WHEN TCODE5.
+        IF ITAB-MBLNR261 IS NOT INITIAL.
+          PERFORM MBST(ZPUBFORM) TABLES ITEM
+            USING ITAB-MBLNR261 ITAB-MJAHR261 SY-DATUM
+                  CHANGING ITAB-MSG.
+          IF ITAB-MSG+0(1) = 'S'.
+            ITAB-ICON = GREEN.
+            CLEAR:ITAB-MBLNR261,ITAB-MJAHR261.
+            ITAB-RDSTATE = '2'.
+            READ TABLE IT_RDSTATE WITH KEY DOMVALUE_L = ITAB-RDSTATE BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              ITAB-RDSTATET = IT_RDSTATE-DDTEXT.
+            ENDIF.
+            UPDATE ZTFIRD_MATDATA
+            SET MBLNR261 = ITAB-MBLNR261
+                MJAHR261 = ITAB-MJAHR261
+                RDSTATE = ITAB-RDSTATE
+            WHERE AUFNR = ITAB-AUFNR
+            AND   PSPNR = ITAB-PSPNR
+            AND   DATBI = ITAB-DATBI
+            AND   DATAB = ITAB-DATAB.
+            COMMIT WORK.
+          ELSE.
+            ITAB-ICON = RED.
+          ENDIF.
+        ENDIF.
+    ENDCASE.
+    MODIFY ITAB.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT05
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT05 .
+  DATA:IT_MIGO TYPE TABLE OF ZSFMS_MIGOPOST WITH HEADER LINE.
+  DATA:CODE  TYPE GM_CODE,
+       BWART TYPE BWART,
+       BKTXT TYPE BKTXT,
+       XBLNR TYPE XBLNR.
+  CLEAR:CODE,BWART.
+
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    CASE SY-TCODE.
+      WHEN TCODE4.
+        IF ITAB-MBLNR531 IS NOT INITIAL
+          OR ITAB-FLAG = 'E'.
+          NUM = NUM + 1.
+        ENDIF.
+        BWART = '531'.
+        CODE = '05'.
+      WHEN TCODE5.
+        IF ITAB-MBLNR261 IS NOT INITIAL
+          OR ITAB-FLAG = 'E'.
+          NUM = NUM + 1.
+        ENDIF.
+        BWART = '261'.
+        CODE = '03'.
+    ENDCASE.
+    NUM1 = NUM1 + 1.
+  ENDLOOP.
+  IF NUM GT 0
+  OR NUM1 = 0.
+    MESSAGE S003 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+  LOOP AT ITAB WHERE CHBOX = 'X'.
+    CLEAR:IT_MIGO[],RETURN[],IT_MIGO,
+    BKTXT,XBLNR.
+    CASE SY-TCODE.
+      WHEN TCODE4.
+        IF ITAB-MBLNR531 IS NOT INITIAL.
+          ITAB-ICON = GREEN.
+          ITAB-MSG = 'SUCCESS'.
+          MODIFY ITAB.
+          CONTINUE.
+        ENDIF.
+        IT_MIGO-MATNR = ITAB-MATNR_RD.
+        IT_MIGO-MENGE = ITAB-MENGE.
+        IT_MIGO-MEINS = ITAB-MEINS.
+        IT_MIGO-WERKS = ITAB-WERKS.
+        IT_MIGO-LGORT = ITAB-LGORT.
+        IT_MIGO-AUFNR = ITAB-AUFNR.
+        APPEND IT_MIGO.
+      WHEN TCODE5.
+        IF ITAB-MBLNR261 IS NOT INITIAL.
+          ITAB-ICON = GREEN.
+          ITAB-MSG = 'SUCCESS'.
+          MODIFY ITAB.
+          CONTINUE.
+        ENDIF.
+        IT_MIGO-MATNR = ITAB-MATNR_RD.
+        IT_MIGO-LGORT = ITAB-LGORT.
+        IT_MIGO-MENGE = ITAB-MENGE.
+        IT_MIGO-MEINS = ITAB-MEINS.
+        IT_MIGO-WERKS = ITAB-WERKS.
+        IT_MIGO-AUFNR = ITAB-AUFNR.
+        APPEND IT_MIGO.
+    ENDCASE.
+    CALL FUNCTION 'ZFMS_01_MIGOPOST'
+      EXPORTING
+        BUDAT  = SY-DATUM
+        BLDAT  = SY-DATUM
+        BKTXT  = BKTXT
+        XBLNR  = XBLNR
+        CODE   = CODE
+        BWART  = BWART
+      IMPORTING
+        RTMSG  = ITAB-MSG
+        MBLNR  = MBLNR
+        MJAHR  = MJAHR
+      TABLES
+        ITEM   = IT_MIGO
+        RETURN = RETURN.
+    IF MBLNR IS NOT INITIAL.
+      CASE SY-TCODE.
+        WHEN TCODE4.
+          ITAB-MBLNR531 = MBLNR.
+          ITAB-MJAHR531 = MJAHR.
+          ITAB-RDSTATE = '2'.
+        WHEN TCODE5.
+          ITAB-MBLNR261 = MBLNR.
+          ITAB-MJAHR261 = MJAHR.
+          ITAB-RDSTATE = '3'.
+      ENDCASE.
+      ITAB-ICON = GREEN.
+      READ TABLE IT_RDSTATE WITH KEY DOMVALUE_L = ITAB-RDSTATE BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        ITAB-RDSTATET = IT_RDSTATE-DDTEXT.
+      ENDIF.
+      UPDATE ZTFIRD_MATDATA
+      SET RDSTATE = ITAB-RDSTATE
+          MBLNR531 = ITAB-MBLNR531
+          MJAHR531 = ITAB-MJAHR531
+          MBLNR261 = ITAB-MBLNR261
+          MJAHR261 = ITAB-MJAHR261
+      WHERE AUFNR = ITAB-AUFNR
+      AND   PSPNR = ITAB-PSPNR
+      AND   DATBI = ITAB-DATBI
+      AND   DATAB = ITAB-DATAB.
+      COMMIT WORK.
+    ELSE.
+      ITAB-ICON = RED.
+    ENDIF.
+    MODIFY ITAB.
+  ENDLOOP.
+
+ENDFORM.

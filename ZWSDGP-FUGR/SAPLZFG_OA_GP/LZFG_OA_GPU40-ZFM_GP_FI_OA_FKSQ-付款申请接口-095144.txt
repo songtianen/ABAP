@@ -1,0 +1,344 @@
+FUNCTION zfm_gp_fi_oa_fksq.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(P_NAME) TYPE  STRING
+*"  EXPORTING
+*"     VALUE(FLAG) TYPE  ZEMM_FLAG
+*"     VALUE(MESSAGE) TYPE  ZEMM_MESSAGE
+*"     VALUE(P_RESULT) TYPE  STRING
+*"     VALUE(P_STATUS) TYPE  I
+*"     VALUE(P_OUTPUT) TYPE  STRING
+*"  TABLES
+*"      INTAB STRUCTURE  ZSFI207
+*"      INTAB1 STRUCTURE  ZSFI209
+*"----------------------------------------------------------------------
+
+  zfmdatasave1 'ZFM_GP_FI_OA_FKSQ'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  TYPES: BEGIN OF zsfksqtochar,
+           zoano     TYPE   char20,
+           zoauser   TYPE   char20,
+           zdept     TYPE   char20,
+           bukrs     TYPE   char4,
+           butxt     TYPE   char25,
+           zpycat    TYPE   char2,
+           bustxt    TYPE   char120,
+           waers     TYPE   char10,
+           ktext     TYPE   char15,
+           paytype   TYPE   char1,
+           text1     TYPE   char30,
+           payform   TYPE   char30,
+           segment   TYPE   char10,
+           name2     TYPE   char50,
+           zpldat    TYPE   dats,
+           lifnr     TYPE   char10,
+           name1     TYPE   char35,
+           zyhzh_k   TYPE   char32,
+           banka_k   TYPE   char60,
+           bankl_t_k TYPE   char60,
+           bankl_k   TYPE   char15,
+           zoait     TYPE   char3,
+           zcont     TYPE   char18,
+           zcontr    TYPE   char40,
+           dmbtr_tal TYPE   char20,
+           dmbtr_pyd TYPE   char20,
+           dmbtr_lft TYPE   char20,
+           dmbtr_pln TYPE   char20,
+           zretx     TYPE   char220,
+           dmbtr_tpp TYPE   char20,
+           dmbtr_rpp TYPE   char20,
+           zyhzh     TYPE   char32,
+           text1_z   TYPE   char50,
+           hkont     TYPE   char10,
+           txt20_h   TYPE   char20,
+           rstgr     TYPE   char3,
+           txt20_r   TYPE   char20,
+           zepsn     TYPE   char1,
+           docsign   TYPE   char20,
+           budat     TYPE   char8,
+           akont     TYPE   char10,
+           txt20     TYPE   char20,
+           zretype   TYPE   char2,
+           wrbtr_zh  TYPE   char30,
+           posid     TYPE ps_posid,
+           post1     TYPE ps_post1,
+         END OF zsfksqtochar,
+         BEGIN OF zsfksq1tochar,
+           zoano    TYPE   char20,
+           zoait_p  TYPE   char3,
+           zbono    TYPE   char30,
+           wrbtr    TYPE   char30,
+           wname    TYPE   char30,
+           wbzog    TYPE   char30,
+           zbana    TYPE   char50,
+           zname1   TYPE   char30,
+           wdate    TYPE   char8,
+           wverd    TYPE   char8,
+           eknam    TYPE   char18,
+           zydate   TYPE   char8,
+           billdate TYPE   char8,
+           accou    TYPE   char32,
+         END OF zsfksq1tochar  .
+
+  DATA:BEGIN OF wa_input1,
+         intab  TYPE TABLE OF zsfksqtochar,
+         intab1 TYPE TABLE OF zsfksq1tochar,
+       END OF wa_input1,
+       BEGIN OF wa_input,
+         data LIKE wa_input1,
+       END OF wa_input,
+       BEGIN OF wa_output1,
+         flag    TYPE zemm_flag,
+         message TYPE zemm_message,
+       END OF wa_output1,
+       BEGIN OF wa_output,
+         data LIKE wa_output1,
+       END OF wa_output.
+
+  DATA :gt_fksq  TYPE TABLE OF zsfksqtochar  WITH HEADER LINE,
+        gt_fksq1 TYPE TABLE OF zsfksq1tochar WITH HEADER LINE.
+
+  DATA:bukrs     TYPE  bukrs,
+       lifnr     TYPE  lifnr,
+       zcont     TYPE  zefi_cont,
+       zhth      TYPE  ze_hth,
+       zpycat    TYPE  zefi_pycat,
+       zpldat    TYPE  zefi_pldat,
+       zdept_oa  TYPE  zefi_dept_oa,
+       waers     TYPE  waers,
+       partner   TYPE  bu_partner,
+       name_org1 TYPE  bu_nameor1,
+       xref1     TYPE  xref1,
+       rtype     TYPE  bapi_mtype,
+       rtmsg     TYPE  bapi_msg,
+       ot_tab    TYPE TABLE OF  zoa_rfc_partner_read_s1 WITH HEADER LINE,
+       ottab     TYPE TABLE OF  zoa_rfc_zcont_jine_read_s1 WITH HEADER LINE,
+       otab      TYPE TABLE OF  zoa_rfc_paytype_read_s1 WITH HEADER LINE.
+
+  IF  intab[] IS INITIAL.
+    flag = 'N'.
+    message = '未输入数据'.
+    zfmdatasave2 'R'.
+    RETURN.
+  ENDIF.
+
+  LOOP AT intab.
+    CLEAR gt_fksq.
+    MOVE-CORRESPONDING intab TO gt_fksq.
+    IF gt_fksq-zpldat CS '0000'.
+      gt_fksq-zpldat = ''.
+    ENDIF.
+    IF gt_fksq-budat CS '0000'.
+      gt_fksq-budat = ''.
+    ENDIF.
+
+    CONDENSE gt_fksq-dmbtr_pln.
+    CONDENSE gt_fksq-dmbtr_tpp.
+    CONDENSE gt_fksq-dmbtr_rpp.
+
+    bukrs     = gt_fksq-bukrs     .
+    zpycat    = gt_fksq-zpycat    .
+    zpldat    = gt_fksq-zpldat    .
+    zdept_oa  = '9999'  .
+    waers     = gt_fksq-waers     .
+    partner   = gt_fksq-lifnr     .
+    name_org1 = ''    .
+    xref1     = ''    .
+    CLEAR:rtype,rtmsg,ot_tab,ot_tab[].
+    CALL FUNCTION 'ZOA_RFC_PARTNER_READ'
+      EXPORTING
+        bukrs     = bukrs
+        zpycat    = zpycat
+        zpldat    = zpldat
+        zdept_oa  = zdept_oa
+        waers     = waers
+        partner   = partner
+        name_org1 = name_org1
+        xref1     = xref1
+      IMPORTING
+        rtype     = rtype
+        rtmsg     = rtmsg
+      TABLES
+        ot_tab    = ot_tab.
+
+    IF sy-subrc = 0 AND rtype = 'S' AND lines( ot_tab[] ) = 1.
+      READ TABLE ot_tab INDEX 1.
+      gt_fksq-wrbtr_zh = ot_tab-wrbtr.
+      CONDENSE gt_fksq-wrbtr_zh .
+      gt_fksq-akont    = ot_tab-akont.
+      gt_fksq-txt20    = ot_tab-txt20.
+    ENDIF.
+
+    bukrs = gt_fksq-bukrs     .
+    lifnr = gt_fksq-lifnr     .
+    zcont = gt_fksq-zcont     .
+    zhth  = ''.
+    CLEAR:rtype,rtmsg,ottab,ottab[].
+    CALL FUNCTION 'ZOA_RFC_ZCONT_JINE_READ'
+      EXPORTING
+        bukrs  = bukrs
+        lifnr  = lifnr
+        zcont  = zcont
+        zhth   = zhth
+      IMPORTING
+        rtype  = rtype
+        rtmsg  = rtmsg
+      TABLES
+        ot_tab = ottab.
+    IF sy-subrc = 0 AND rtype = 'S' AND lines( ottab[] ) = 1.
+      READ TABLE ottab INDEX 1.
+      gt_fksq-dmbtr_tal =  ottab-dmbtr_tal.
+      gt_fksq-dmbtr_pyd =  ottab-dmbtr_pyd.
+      gt_fksq-dmbtr_lft =  ottab-dmbtr_lft.
+      PERFORM shiftsign(zpubform) CHANGING gt_fksq-dmbtr_lft.
+
+    ENDIF.
+
+    bukrs  = gt_fksq-bukrs     .
+    zpycat = gt_fksq-zpycat    .
+    waers  = gt_fksq-waers     .
+    CLEAR:rtype,rtmsg,ottab,ottab[].
+    CALL FUNCTION 'ZOA_RFC_PAYTYPE_READ'
+      EXPORTING
+        bukrs  = bukrs
+        zpycat = zpycat
+        waers  = waers
+      IMPORTING
+        rtype  = rtype
+        rtmsg  = rtmsg
+      TABLES
+        ot_tab = otab.
+    IF sy-subrc = 0 AND rtype = 'S' .
+      READ TABLE otab WITH KEY paytype = gt_fksq-paytype.
+      gt_fksq-zyhzh   = otab-zyhzh   .
+      gt_fksq-text1_z = otab-text1_z .
+      gt_fksq-hkont   = otab-hkont   .
+      gt_fksq-txt20_h = otab-txt20_h .
+      gt_fksq-rstgr   = otab-rstgr   .
+      gt_fksq-txt20_r = otab-txt20_r .
+      gt_fksq-zepsn   = otab-zepsn   .
+
+    ENDIF.
+    CONDENSE gt_fksq-dmbtr_tal.
+    CONDENSE gt_fksq-dmbtr_pyd.
+    CONDENSE gt_fksq-dmbtr_lft.
+    APPEND gt_fksq.
+  ENDLOOP.
+  LOOP AT intab1.
+    CLEAR gt_fksq1.
+    MOVE-CORRESPONDING intab1 TO  gt_fksq1.
+    IF gt_fksq1-wdate CS '0000'.
+      gt_fksq1-wdate = ''.
+    ENDIF.
+    IF gt_fksq1-wverd CS '0000'.
+      gt_fksq1-wverd = ''.
+    ENDIF.
+    IF gt_fksq1-zydate CS '0000'.
+      gt_fksq1-zydate = ''.
+    ENDIF.
+    CONDENSE gt_fksq1-wrbtr.
+    APPEND gt_fksq1.
+  ENDLOOP.
+
+  CLEAR:oastr1,oastr2,oaurl,wa_input,wa_output,
+  oahead[],oasta,oamsg.
+
+*URL改为可配置，ZMM000
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_FI_OA_FKSQ' CHANGING oaurl.
+
+*  CASE SY-SYSID.
+*    WHEN 'DEV'.
+*      OAURL = 'http://192.168.0.88:8080/seeyon/rest/dee/task/SD0075'.
+*    WHEN 'QAS'.
+*    WHEN 'PRD'.
+*  ENDCASE.
+*  CHECK OAURL IS NOT INITIAL.
+  IF oaurl IS INITIAL.
+    flag = 'N'.
+    message = 'OAURL获取失败'.
+    zfmdatasave2 'R'.
+    RETURN.
+  ENDIF.
+*根据传入数据转JSON
+  wa_input-data-intab = gt_fksq[].
+  wa_input-data-intab1 = gt_fksq1[].
+*SAP结构转JSON
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr1
+      data    = wa_input
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  SHIFT oastr1 LEFT  DELETING LEADING  '{'.
+
+  CONCATENATE '{"senderLoginName":"'
+  p_name
+  '",'
+  oastr1 INTO oastr1.
+
+  p_result = oastr1.
+
+*获取TOKEN
+  CALL FUNCTION 'ZFM_GETOATOKEN'
+    IMPORTING
+      output = oastr2
+    EXCEPTIONS
+      OTHERS = 1.
+
+*  CHECK OASTR2 IS NOT INITIAL.
+  IF oastr2 IS INITIAL.
+    flag = 'N'.
+    message = 'OATOKEN获取失败'.
+    zfmdatasave2 'R'.
+    RETURN.
+  ENDIF.
+*填入HEADER
+  CLEAR:oamsg,oasta.
+  REFRESH:oahead.
+  CLEAR oahead.
+  oahead-name = 'token'.
+  oahead-value = oastr2.
+  APPEND oahead.
+*调用函数HTTP
+  CLEAR oastr2.
+
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING oaurl.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = oastr1
+      url       = oaurl
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = oastr2 "返回JSON报文
+      rtmsg     = oamsg "消息
+      status    = oasta "HTTP状态
+    TABLES
+      header    = oahead
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr2
+      data    = wa_output
+    EXCEPTIONS
+      OTHERS  = 1.
+
+
+  IF oasta = '200'.
+    flag =  'Y'.
+    message = '提交OA成功'.
+  ELSE.
+    flag = 'N'.
+    message = '提交OA失败'.
+  ENDIF.
+
+
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*&      Module  SORT  INPUT
+*&---------------------------------------------------------------------*
+MODULE SORT INPUT.
+
+  SORT MEAN_ME_TAB BY MEINH EAN11.
+* Sortierung f¨¹r verschiedene Konsistenzchecks ben#tigt
+
+ENDMODULE.                             " SORT  INPUT

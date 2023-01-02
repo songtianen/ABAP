@@ -1,0 +1,178 @@
+FUNCTION zfm_gp_oa_mm_crtnbpr.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_214
+*"      OT_RESULT STRUCTURE  ZSMM_215 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_MM_CRTNBPR'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:it_eban TYPE eban.
+
+  DATA BEGIN OF itab OCCURS 0.
+  INCLUDE TYPE zsmm_214.
+  DATA:
+       END OF itab.
+  DATA:bnfpo TYPE bnfpo,
+       rtype TYPE bapi_mtype,
+       rtmsg TYPE bapi_msg,
+       banfn TYPE banfn.
+  DATA:prheader      TYPE bapimereqheader,
+       prheaderx     TYPE bapimereqheaderx,
+       return        TYPE TABLE OF bapiret2 WITH HEADER LINE,
+       pritem        TYPE TABLE OF bapimereqitemimp WITH HEADER LINE,
+       pritemx       TYPE TABLE OF bapimereqitemx WITH HEADER LINE,
+       praccount     TYPE TABLE OF bapimereqaccount WITH HEADER LINE,
+       praccountx    TYPE TABLE OF bapimereqaccountx WITH HEADER LINE,
+       prcomponents  TYPE TABLE OF bapimereqcomponent WITH HEADER LINE,
+       prcomponentsx TYPE TABLE OF bapimereqcomponentx WITH HEADER LINE,
+       wa_ext        TYPE bapi_te_mereqitem,
+       wa_extx       TYPE bapi_te_mereqitemx,
+       extensionin   TYPE TABLE OF bapiparex WITH HEADER LINE,
+       number        TYPE bapimereqheader-preq_no,
+       pritemtext    TYPE TABLE OF  bapimereqitemtext WITH HEADER LINE.
+
+
+
+
+
+  DEFINE        fillmsg.
+    CLEAR:ot_result.
+    ot_result-flag = &1.
+    ot_result-message = &2.
+    ot_result-banfn = &3.
+    APPEND ot_result.
+  END-OF-DEFINITION.
+  REFRESH:ot_result.
+  CLEAR:bnfpo.
+
+  itab[] = in_tab[].
+  SORT itab BY bnfpo.
+  CHECK itab[] IS NOT INITIAL.
+
+  READ TABLE itab INDEX 1.
+*抬头数据
+  prheader-pr_type = itab-bsart.
+  PERFORM setbapix(zpubform) USING prheader CHANGING prheaderx.
+
+  LOOP AT itab.
+    ADD 10 TO bnfpo.
+    pritem-preq_item = bnfpo.
+    pritem-material = itab-matnr."物料
+    pritem-pur_group = itab-ekgrp."采购组
+    pritem-plant = itab-werks."工厂
+    pritem-store_loc = itab-lgort."库存地
+    pritem-quantity = itab-menge."数量
+    pritem-unit = itab-meins."单位
+    pritem-preq_name = itab-afnam."申请人姓名
+    pritem-rel_date = itab-frgdt."批准日期
+    pritem-preq_price = itab-preis."评估价格
+    IF itab-zsqlx = '2'.
+      pritem-acctasscat = 'K'.
+      pritem-matl_group = 'ZCBZX'.
+      pritem-short_text = itab-txz01.
+      CLEAR:praccount,praccountx.
+      praccount-preq_item = bnfpo.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = itab-zsqbm
+        IMPORTING
+          output = praccount-costcenter.
+*      praccount-costcenter = itab-zsqbm.
+      praccount-co_area = 'WISD'.
+      praccount-func_area = 'WS02'.
+      praccount-gl_account = '6600010400'.
+      praccount-quantity = itab-menge.
+      praccount-serial_no  = '01'.
+      PERFORM setbapix(zpubform) USING praccount CHANGING praccountx.
+      APPEND:praccount,praccountx.
+*      CLEAR pritemtext.
+*      pritemtext-preq_no     = ''.
+*      pritemtext-preq_item   = banfn.
+*      pritemtext-text_id     = 'B01'.
+*      pritemtext-text_form   = '*'.
+*      pritemtext-text_line   = itab-txz01.
+*      APPEND pritemtext.
+    ENDIF.
+    PERFORM setbapix(zpubform) USING pritem CHANGING pritemx.
+    APPEND:pritem,pritemx.
+*增强字段
+    wa_ext-zcgsl = itab-zcgsl.
+*    wa_ext-zdddw = itab-zdddw.
+    PERFORM setbapix(zpubform) USING wa_ext CHANGING wa_extx.
+    extensionin-structure = 'BAPI_TE_MEREQITEM'.
+    extensionin-valuepart1 = wa_ext.
+    APPEND extensionin.
+    extensionin-structure = 'BAPI_TE_MEREQITEMX'.
+    extensionin-valuepart1 = wa_extx.
+    APPEND extensionin.
+  ENDLOOP.
+
+  SET UPDATE TASK LOCAL.
+  CALL FUNCTION 'BAPI_PR_CREATE'
+    EXPORTING
+      prheader      = prheader
+      prheaderx     = prheaderx
+    IMPORTING
+      number        = number
+    TABLES
+      return        = return
+      pritem        = pritem
+      pritemx       = pritemx
+      praccount     = praccount
+      praccountx    = praccountx
+      prcomponents  = prcomponents
+      prcomponentsx = prcomponentsx
+*     pritemtext    = pritemtext
+    EXCEPTIONS
+      OTHERS        = 1.
+
+  LOOP AT return WHERE type CA 'AEX'.
+    CONCATENATE return-message rtmsg INTO rtmsg
+    SEPARATED BY '/'.
+    fillmsg 'Y' rtmsg  ''.
+  ENDLOOP.
+  IF sy-subrc NE 0
+    AND number IS NOT INITIAL.
+    banfn = number.
+    rtype = 'S'.
+    rtmsg = 'SUCCESS'.
+*审批
+    PERFORM bapirun(zpubform) USING 'S'.
+    PERFORM relpopr(zpubform) USING number
+                                    'Z1'
+                                    ''
+                                    'PR'
+                              CHANGING rtmsg.
+    IF rtmsg+0(1) = 'S'.
+*一级审批后进行二级审批
+      DO .
+        CLEAR it_eban.
+        SELECT SINGLE *
+          INTO it_eban
+          FROM eban
+          WHERE banfn = number
+          AND   frgkz = 'G'.
+        IF sy-subrc EQ 0.
+          EXIT.
+        ENDIF.
+      ENDDO.
+
+      IF it_eban-frgkz = 'G'.
+        PERFORM relpopr(zpubform) USING number
+                                      'Z2'
+                                      ''
+                                      'PR'
+                                CHANGING rtmsg.
+      ENDIF.
+    ENDIF.
+
+
+    fillmsg 'Y' rtmsg number.
+  ELSE.
+    PERFORM bapirun(zpubform) USING 'E'.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

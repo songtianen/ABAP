@@ -1,0 +1,78 @@
+************************************************************************
+* Include MMMGXV29 f¨¹r Festwerte
+* -  Langtext-Handling
+************************************************************************
+
+* -- Objekt-Ids ------------------------------------------------------
+CONSTANTS:   LANGTEXT_OBJEKTID  LIKE THEAD-TDOBJECT VALUE 'MATERIAL',
+        VERTRIEBSTEXT_OBJ  LIKE THEAD-TDOBJECT VALUE 'MVKE',
+        MATNOTIZ_OBJEKTID  LIKE THEAD-TDOBJECT VALUE 'MDTXT'.
+
+*---- Textid's -------------------------------------------------------
+CONSTANTS:   PRUEFTEXT_TDID     LIKE THEAD-TDID     VALUE 'PRUE',
+        VERTRIEBSTEXT_TDID LIKE THEAD-TDID     VALUE '0001',
+        BESTELLTEXT_TDID   LIKE THEAD-TDID     VALUE 'BEST',
+        GRUNDDTEXT_TDID    LIKE THEAD-TDID     VALUE 'GRUN',
+        IVERMTEXT_TDID     LIKE THEAD-TDID     VALUE 'IVER',
+        MATNOTIZ_TDID      LIKE THEAD-TDID     VALUE 'LTXT'.
+
+*---- Textid's der Langtexte zum Material ----------------------------
+CONSTANTS:   INLINE_COUNT_4 LIKE SY-STEPL
+  VALUE 4. "Anzahl Inline_Textzeilen
+
+*--- Standard-Format f¨¹r Langtexte ------------------------------------
+CONSTANTS:   STANDARD_FORMAT LIKE TLINE-TDFORMAT VALUE '*'.
+CONSTANTS:   STANDARD_ZEILE  LIKE TLINE-TDFORMAT VALUE '/'.
+
+* Update-Kennzeichen
+CONSTANTS:   UPDKZ_NEW(1)      VALUE 'I',          "Neu
+        UPDKZ_UPDATE(1)   VALUE 'U',          "Geaendert
+        UPDKZ_DELETE(1)   VALUE 'D',          "L#schen
+        UPDKZ_VORLAGE(1)  VALUE 'V',          "Vorlage
+        UPDKZ_LEER(1)     VALUE 'L'.          "Leereintrag
+
+* Feldnamen
+CONSTANTS: LTEXT_BEST  LIKE T130F-FNAME VALUE 'LTEXT_BEST',
+      LTEXT_VERT  LIKE T130F-FNAME VALUE 'LTEXT_VERT',
+      LTEXT_NOTE  LIKE T130F-FNAME VALUE 'LTEXT_NOTE',
+      ltext_grun LIKE T130F-FNAME value 'LTEXT_GRUN',           "TF 4.6A
+      ltext_iver LIKE T130F-FNAME value 'LTEXT_IVER',           "TF 4.6A
+      ltext_prue LIKE T130F-FNAME value 'LTEXT_PRUE',           "TF 4.6A
+      RM03M_LTEX1 LIKE T130F-FNAME VALUE 'RM03M-LTEX1'.
+
+CONSTANTS: LTXTE_BEST  LIKE T130F-FNAME VALUE 'LTXTE_BEST',
+      LTXTE_VERT  LIKE T130F-FNAME VALUE 'LTXTE_VERT',
+      ltxte_grun LIKE T130F-FNAME value 'LTXTE_GRUN',           "TF 4.6A
+      ltxte_iver LIKE T130F-FNAME value 'LTXTE_IVER',           "TF 4.6A
+      ltxte_prue LIKE T130F-FNAME value 'LTXTE_PRUE'.           "TF 4.6A
+
+* Programmnamen
+CONSTANTS: LTEXT_PROG LIKE SY-REPID VALUE 'SAPLMGMM'.
+
+*Langtexte ab 4.6A
+CONSTANTS: DESC_LANGU_LISTBOX_GDTXT(80) TYPE C
+                VALUE 'DESC_LANGU_GDTXT'.
+CONSTANTS: DESC_LANGU_LISTBOX_PRTXT(80) TYPE C
+                VALUE 'DESC_LANGU_PRTXT'.
+CONSTANTS: DESC_LANGU_LISTBOX_IVERM(80) TYPE C
+                VALUE 'DESC_LANGU_IVERM'.
+CONSTANTS: DESC_LANGU_LISTBOX_BESTELL(80) TYPE C
+                VALUE 'DESC_LANGU_BESTELL'.
+CONSTANTS: DESC_LANGU_LISTBOX_VERTRIEBS(80) TYPE C
+                VALUE 'DESC_LANGU_VERTRIEBS'.
+
+constants: okcode_telo(30) type c value 'TELO'.
+constants: okcode_tean(30) type c value 'TEAN'.
+constants: okcode_ltex(30) type c value 'LTEX'.
+constants: okcode_tlan(30) type c value 'TLAN'.
+
+constants: longtext_container_grundd(30) type c
+           value 'LONGTEXT_GRUNDD'.
+constants: longtext_container_pruef(30) type c
+           value 'LONGTEXT_PRUEF'.
+constants: longtext_container_iverm(30) type c
+           value 'LONGTEXT_IVERM'.
+constants: longtext_container_bestell(30) type c
+           value 'LONGTEXT_BESTELL'.
+constants: longtext_container_vertriebs(30) type c
+           value 'LONGTEXT_VERTRIEBS'.

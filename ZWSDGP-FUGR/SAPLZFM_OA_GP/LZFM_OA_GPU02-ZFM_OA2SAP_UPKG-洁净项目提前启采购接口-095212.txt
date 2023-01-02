@@ -1,0 +1,67 @@
+FUNCTION zfm_oa2sap_upkg.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(IV_PSPID) TYPE  PS_PSPID
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_OA2SAP_UPKG'.  zfmdatasave2 'B'.  COMMIT WORK.
+  DATA: gt_bapiret2 TYPE TABLE OF bapiret2,
+        gt_return   TYPE TABLE OF bapiret1,
+        gs_bapiret2 TYPE bapiret2,
+        gs_return   TYPE bapiret1,
+        lt_result   TYPE STANDARD TABLE OF bapi_status_result,
+        ls_result   TYPE bapi_status_result,
+        lt_return   TYPE STANDARD TABLE OF bapiret2.
+  IF iv_pspid IS   NOT INITIAL.
+    CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+
+    CALL FUNCTION 'BAPI_BUS2001_SET_STATUS'
+      EXPORTING
+        project_definition = iv_pspid
+        "set_system_status  = lv_sys_sta
+        set_user_status    = '开工'
+      TABLES
+        e_result           = lt_result.
+    LOOP AT lt_result INTO ls_result WHERE message_id CA 'AE'.
+    ENDLOOP.
+*    IF sy-subrc EQ 0.
+*      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+*      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+*        EXPORTING
+*          i_precommit_ok = 'Y'.
+*      CHECK sy-subrc NE 0.
+*      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+*        TABLES
+*          et_return = gt_bapiret2.
+*      LOOP AT gt_bapiret2 INTO gs_bapiret2 WHERE type CA 'AE'.
+*      ENDLOOP.
+
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = gs_bapiret2.
+      rtype = 'E'.
+      rtmsg = '开工失败'.
+    ELSE.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        IMPORTING
+          return = gs_bapiret2.
+      rtype = 'S'.
+      rtmsg = '开工成功'.
+    ENDIF.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '项目编码为空'.
+  ENDIF.
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

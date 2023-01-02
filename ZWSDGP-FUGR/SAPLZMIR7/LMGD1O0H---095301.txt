@@ -1,0 +1,45 @@
+*----------------------------------------------------------------------*
+*        Module ANZEIGEN_STEUERTAB OUTPUT                              *
+* Die aktuelle Zeile der STEUERTAB wird ausgegeben mit den             *
+* zugeh#rigen Texten                                                   *
+*                                                                      *
+* Beim Anlegen mit Vorlage werden die Steuerdaten der Vorlage zur      *
+* aktuellen Zeile bestimmt (falls noch nicht geschehen). Falls diese   *
+* vorhanden sind, wird die aktuelle Zeile damit aktualisiert           *
+*----------------------------------------------------------------------*
+MODULE ANZEIGEN_STEUERTAB OUTPUT.
+
+*-------Aufbereiten Daten f¨¹r Loop-Zeile-------------------------
+  MOVE STEUERTAB TO MG03STEUER.
+
+  CALL FUNCTION 'T005T_SINGLE_READ'
+       EXPORTING
+            T005T_SPRAS = SY-LANGU
+            T005T_LAND1 = MG03STEUER-ALAND
+       IMPORTING
+            WT005T      = T005T
+       EXCEPTIONS
+            NOT_FOUND   = 01.
+
+  CALL FUNCTION 'T685T_SINGLE_READ'
+       EXPORTING
+            T685T_SPRAS = SY-LANGU
+            T685T_KVEWE = KVEWEA
+            T685T_KAPPL = KAPPLV
+            T685T_KSCHL = MG03STEUER-TATYP
+       IMPORTING
+            WT685T      = T685T
+       EXCEPTIONS
+            NOT_FOUND   = 01.
+
+  CALL FUNCTION 'TSKMT_SINGLE_READ'
+       EXPORTING
+            TSKMT_SPRAS = SY-LANGU
+            TSKMT_TATYP = MG03STEUER-TATYP
+            TSKMT_TAXKM = MG03STEUER-TAXKM
+       IMPORTING
+            WTSKMT      = TSKMT
+       EXCEPTIONS
+            NOT_FOUND   = 01.
+
+ENDMODULE.                             " ANZEIGEN_STEUERTAB OUTPUT

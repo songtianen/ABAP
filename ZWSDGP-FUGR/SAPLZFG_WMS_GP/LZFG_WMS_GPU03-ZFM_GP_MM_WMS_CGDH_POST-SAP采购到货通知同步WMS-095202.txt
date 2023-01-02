@@ -1,0 +1,210 @@
+FUNCTION ZFM_GP_MM_WMS_CGDH_POST.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(P_OUTPUT) TYPE  STRING
+*"     VALUE(P_STATUS) TYPE  I
+*"     VALUE(P_RESULT) TYPE  STRING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(FLAG) TYPE  BAPI_MTYPE
+*"     VALUE(MESSAGE) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_204
+*"----------------------------------------------------------------------
+
+  ZFMDATASAVE1 'ZFM_GP_MM_WMS_CGDH_POST'.
+  ZFMDATASAVE2 'B'.
+  TYPES: BEGIN OF T_DETAIL_LIST2,
+           APPLY_NO              TYPE STRING,
+           BATCH_NO              TYPE STRING,
+           DETAIL_LINE_OPERATION TYPE STRING,
+           ID                    TYPE I,
+           MAX_QTY               TYPE STRING,
+           PRODUCT_CODE          TYPE STRING,
+           PROJECT_NAME          TYPE STRING,
+           PROJECT_NO            TYPE STRING,
+           QTY                   TYPE STRING,
+           SOURCE_NO             TYPE STRING,
+           UNIT                  TYPE STRING,
+           PKGNO                 TYPE STRING,
+           BLOCKS                TYPE STRING,
+           SELFNUMBER            TYPE STRING,
+           REELNO                TYPE STRING,
+           CONTRACTNO            TYPE STRING,
+         END OF T_DETAIL_LIST2.
+  TYPES: TT_DETAIL_LIST2 TYPE STANDARD TABLE OF T_DETAIL_LIST2 WITH DEFAULT KEY.
+  TYPES: BEGIN OF T_JSON1,
+           CORRELATION_NO      TYPE STRING,
+           CUSTOMER_CODE       TYPE STRING,
+           TYPE                TYPE STRING,
+           WAREHOUSE           TYPE I,
+           WAREHOUSE_NAME      TYPE STRING,
+           WORK_SHOP           TYPE STRING,
+           ORGANIZATION        TYPE I,
+           ORGANIZATION_NAME   TYPE STRING,
+           OUT_DATE_TIME       TYPE STRING,
+           PRODUCT_NAME        TYPE STRING,
+           SENDER              TYPE STRING,
+           SENDER_VEHICLE_CODE TYPE STRING,
+           SINGLE_CODE         TYPE STRING,
+           SINGLE_DATE_TIME    TYPE STRING,
+           SUPPLIER_CODE       TYPE STRING,
+           OPERATION           TYPE STRING,
+           REMARK              TYPE STRING,
+           DETAIL_LIST         TYPE TT_DETAIL_LIST2,
+         END OF T_JSON1.
+
+  TYPES: BEGIN OF T_JSON2,
+           ID         TYPE STRING,
+           ERROR_CODE TYPE STRING,
+           STATUS     TYPE STRING,
+           MSG        TYPE STRING,
+           PDF_URL    TYPE STRING,
+           PRINT_URL  TYPE STRING,
+         END OF T_JSON2.
+
+  DATA:ITAB      TYPE T_JSON1,
+       ITAB_DE   TYPE TABLE OF T_DETAIL_LIST2 WITH HEADER LINE,
+       ITRE      TYPE T_JSON2,
+       WMSURL    TYPE STRING,
+       WMSMSG    TYPE STRING,
+       WMSSTA    TYPE I,
+       WMSSTR_RE TYPE STRING.
+  CLEAR:ITAB,ITRE,ITAB_DE[].
+  CHECK IN_TAB[] IS NOT INITIAL.
+
+  LOOP AT IN_TAB.
+    CLEAR ITAB_DE.
+    ITAB_DE-APPLY_NO               = IN_TAB-BANFN.
+    ITAB_DE-BATCH_NO               = IN_TAB-CHARG.
+    ITAB_DE-DETAIL_LINE_OPERATION  = IN_TAB-ZMXCZ.
+    ITAB_DE-ID                     = |{ IN_TAB-ZDHHH ALPHA = OUT }|.
+    ITAB_DE-MAX_QTY                = IN_TAB-ZZDYS.
+    CONDENSE ITAB_DE-MAX_QTY NO-GAPS.
+    ITAB_DE-PRODUCT_CODE           = IN_TAB-MATNR.
+    ITAB_DE-PROJECT_NAME           = IN_TAB-POST1.
+    ITAB_DE-SELFNUMBER           = IN_TAB-ZZBH.
+    ITAB_DE-REELNO           = IN_TAB-ZJH.
+    ITAB_DE-CONTRACTNO           = IN_TAB-ZXSHTH.
+    CALL FUNCTION 'CONVERSION_EXIT_ABPSP_INPUT'
+      EXPORTING
+        INPUT     = IN_TAB-PSPID
+      IMPORTING
+        OUTPUT    = ITAB_DE-PROJECT_NO
+      EXCEPTIONS
+        NOT_FOUND = 1
+        OTHERS    = 2.
+    PERFORM DELZERO(ZPUBFORM) CHANGING ITAB_DE-PROJECT_NO.
+*    ITAB_DE-PROJECT_NO             = IN_TAB-PSPID."|{ in_tab-pspid ALPHA = OUT }|.
+    ITAB_DE-QTY                    = IN_TAB-ZRKSL.
+    CONDENSE ITAB_DE-QTY NO-GAPS.
+    ITAB_DE-SOURCE_NO              = IN_TAB-EBELN.
+    ITAB_DE-UNIT                   = IN_TAB-MEINS.
+    CASE IN_TAB-ZDHLX.
+      WHEN 'WWHC'.
+        ITAB_DE-PKGNO                   =  IN_TAB-ZBAOHAO .
+        ITAB_DE-BLOCKS                   = '1'.
+      WHEN OTHERS.
+        CLEAR:ITAB_DE-PKGNO,ITAB_DE-BLOCKS.
+    ENDCASE.
+    APPEND ITAB_DE.
+  ENDLOOP.
+  READ TABLE IN_TAB INDEX 1.
+  ITAB-CORRELATION_NO       = IN_TAB-ZDHNO.
+  ITAB-CUSTOMER_CODE        = IN_TAB-KUNNR.
+  "到货类型映射
+  CASE IN_TAB-ZDHLX.
+    WHEN 'CGHC' OR 'GYSHC'.
+      ITAB-TYPE                 = 'DHTZ'.
+    WHEN 'CGGD' OR 'XNRK' OR 'WWGD'.
+      ITAB-TYPE                 = 'CGZF'.
+    WHEN 'WWHC' OR 'WWCL'.
+      ITAB-TYPE                 = 'WXRK'.
+    WHEN OTHERS.
+      FILL_MSGBX 'E' '到货类型错误.' .
+  ENDCASE.
+
+  "库存地点和工厂映射
+  SELECT * INTO TABLE @DATA(LT_ZSAP2WMS) FROM  ZSAP2WMS.
+  READ TABLE LT_ZSAP2WMS INTO DATA(LW_ZSAP2WMS) WITH KEY WERKS = IN_TAB-WERKS LGORT = IN_TAB-LGORT."映射值为空暂不考虑
+  IF SY-SUBRC EQ 0.
+    ITAB-WAREHOUSE            = LW_ZSAP2WMS-ERPLGORT.
+    ITAB-ORGANIZATION         = LW_ZSAP2WMS-ERPJG.
+    ITAB-ORGANIZATION_NAME    = LW_ZSAP2WMS-ERPJGMS.
+  ELSE.
+    DATA(MSG3) = '工厂' && IN_TAB-WERKS && '库存地' && IN_TAB-LGORT && '没有映射关系'.
+    FILL_MSGBX 'E' MSG3 .
+  ENDIF.
+*  itab-warehouse            = in_tab-lgort.
+  ITAB-WAREHOUSE_NAME       = IN_TAB-LGOBE.
+  ITAB-WORK_SHOP            = IN_TAB-ZCJ.
+*  IF in_tab-bukrs NE '3060'.
+*    fill_msgbx 'E' '公司代码必须是3060'.
+*  ENDIF.
+*  itab-organization         = 8.
+*  itab-organization_name    = in_tab-butxt.
+  ITAB-OUT_DATE_TIME        = IN_TAB-ZSHDATE+0(4) && '-' && IN_TAB-ZSHDATE+4(2) &&  '-' && IN_TAB-ZSHDATE+6(2).
+  ITAB-PRODUCT_NAME         = IN_TAB-GROES.
+  ITAB-SENDER               = IN_TAB-ZCZMC.
+  ITAB-SENDER_VEHICLE_CODE  = IN_TAB-ZCH.
+  ITAB-SINGLE_CODE          = IN_TAB-ZZDR.
+  ITAB-SINGLE_DATE_TIME     = IN_TAB-ZZDATE+0(4) && '-' && IN_TAB-ZZDATE+4(2) &&  '-' && IN_TAB-ZZDATE+6(2).
+  ITAB-SUPPLIER_CODE        = IN_TAB-LIFNR.
+  ITAB-OPERATION            = IN_TAB-ZDJCZ.
+  ITAB-REMARK               = IN_TAB-ZBZ.
+
+  ITAB-DETAIL_LIST = ITAB_DE[].
+
+  PERFORM GETDATA(ZPUB_DATA) USING 'ZFM_GP_MM_WMS_CGDH_POST' CHANGING WMSURL.
+  CHECK WMSURL IS NOT INITIAL.
+  DATA(WMSSTR) = /UI2/CL_JSON=>SERIALIZE( DATA = ITAB  COMPRESS = ABAP_FALSE PRETTY_NAME = /UI2/CL_JSON=>PRETTY_MODE-CAMEL_CASE ).
+  P_OUTPUT = WMSSTR.
+
+*调用函数HTTP
+
+  PERFORM REPLACE(ZPUBFORM) USING 'https' 'http' CHANGING WMSURL.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      INPUT     = WMSSTR
+      URL       = WMSURL
+      REQMETHOD = 'POST' "HTTP 方法
+      HTTP1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      OUTPUT    = WMSSTR_RE "返回JSON报文
+      RTMSG     = WMSMSG "消息
+      STATUS    = WMSSTA "HTTP状态
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+*{
+*    "id": null,
+*    "errorCode": "",
+*    "status": "success",
+*    "msg": "操作成功！",
+*    "pdfUrl": null,
+*    "printUrl": null
+*}
+
+*{
+*    "id": null,
+*    "errorCode": "",
+*    "status": "fail",
+*    "msg": "入库单开始收货，不允许修改！",
+*    "pdfUrl": null,
+*    "printUrl": null
+*}
+
+  /UI2/CL_JSON=>DESERIALIZE( EXPORTING JSON = WMSSTR_RE PRETTY_NAME = /UI2/CL_JSON=>PRETTY_MODE-CAMEL_CASE CHANGING DATA = ITRE ).
+
+  P_STATUS = WMSSTA.
+  P_RESULT = WMSSTR_RE.
+
+  RTYPE = ITRE-STATUS.
+  RTMSG = ITRE-MSG.
+
+
+  ZFMDATASAVE2 'R'.
+
+
+ENDFUNCTION.

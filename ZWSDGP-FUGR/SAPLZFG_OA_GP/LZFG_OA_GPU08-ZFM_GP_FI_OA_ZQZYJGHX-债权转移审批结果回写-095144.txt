@@ -1,0 +1,508 @@
+FUNCTION ZFM_GP_FI_OA_ZQZYJGHX.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  TABLES
+*"      INTAB STRUCTURE  ZSFI203
+*"      OTTAB STRUCTURE  ZSMM_015
+*"----------------------------------------------------------------------
+
+
+  ZFMDATASAVE1 'ZFM_GP_FI_OA_ZQZYJGHX'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+
+*SAP接收审批结果后处理逻辑：根据单据编号、代收付交易单号和审批结果，更新标识字段ZSIGN，审批通过直接生成凭证。
+*更新逻辑：单据编号为“DFK*”，至表ZTFI_PAYEEDOC-DFKNO匹配，更新；单据编号为“DDK*、ZQZY*”，至表ZTFI_SPLITCONT-ZDJBH匹配，更新。
+
+  DATA: ZSIGN   TYPE ZTFI_PAYEEDOC-ZSIGN,
+        UPDFLAG TYPE CHAR1 VALUE '1'.
+
+  TYPES: BEGIN OF ZSZHKM,
+           ACCTNO TYPE  ZEFI_ACCTNO,
+           HKONT  TYPE HKONT,
+         END OF ZSZHKM.
+  DATA: BUDAT   TYPE BUDAT,
+        BLART   TYPE BLART,
+        BUKRS   TYPE BUKRS,
+        BKTXT   TYPE BKTXT,
+        WAERS   TYPE WAERS,
+        BELNR   TYPE BELNR_D,
+        RTMSG   TYPE BAPI_MSG,
+        CHGNO_D TYPE ZTFI_PAYEEDOC-CHGNO_D,
+        BNKFLW  TYPE ZTFI_PAYEEDOC-BNKFLW,
+        ACCTNO  TYPE  ZEFI_ACCTNO,
+        FITAB   TYPE TABLE OF ZSFMS_FIPOST WITH HEADER LINE,
+        GT_ZHKM TYPE TABLE OF ZSZHKM WITH HEADER LINE.
+  DATA: ZPYCAT  TYPE ZTFI_PAYEEDOC-ZPYCAT.
+  BUDAT = SY-DATUM.
+  IF INTAB[] IS INITIAL.
+    OTTAB-FLAG = 'N'.
+    OTTAB-MESSAGE = '未输入数据！'.
+    APPEND OTTAB.
+    ZFMDATASAVE2 'R'.
+    RETURN.
+  ENDIF.
+
+  OTTAB-FLAG = 'Y'.
+
+  SELECT
+    *
+    INTO TABLE @DATA(IT_T012K)
+    FROM T012K.
+  LOOP AT IT_T012K INTO DATA(WA_T012K).
+    GT_ZHKM-ACCTNO  = WA_T012K-BANKN && WA_T012K-REFZL.
+    GT_ZHKM-HKONT   = WA_T012K-HKONT.
+    COLLECT GT_ZHKM.
+  ENDLOOP.
+  SORT GT_ZHKM BY ACCTNO.
+
+  SELECT
+    ZTFI_SPLITCONT~CHGNO_D,
+*    ZTFI_SPLITCONT~POSNR,"利用FOR ALL ENTRIES IN 去重
+    ZTFI_SPLITCONT~BUKRS  ,
+    ZTFI_PAYEEDOC~HWAER   ,
+    ZTFI_SPLITCONT~ZDJBH
+  INTO TABLE @DATA(IT_CONT)
+  FROM ZTFI_SPLITCONT
+  INNER JOIN ZTFI_PAYEEDOC ON ZTFI_PAYEEDOC~CHGNO_D = ZTFI_SPLITCONT~CHGNO_D
+  FOR ALL ENTRIES IN @INTAB
+  WHERE ZTFI_SPLITCONT~ZDJBH = @INTAB-ZDJBH
+   .
+  SORT IT_CONT BY ZDJBH.
+  SELECT
+    ZTFI_PAYEEDOC~CHGNO_D,
+    ZTFI_PAYEEDOC~BUKRS  ,
+    ZTFI_PAYEEDOC~HWAER  ,
+    ZTFI_PAYEEDOC~DFKNO
+  INTO TABLE @DATA(IT_DOC)
+  FROM ZTFI_PAYEEDOC
+  FOR ALL ENTRIES IN @INTAB
+  WHERE ZTFI_PAYEEDOC~DFKNO = @INTAB-ZDJBH
+   .
+  SORT IT_DOC BY DFKNO.
+
+
+  LOOP AT INTAB.
+*单据编号为“DFK*”，至表ZTFI_PAYEEDOC-DFKNO匹配，更新
+    IF INTAB-ZDJBH+0(3) = 'DFK'.
+
+      READ TABLE IT_DOC INTO DATA(WA_DOC) WITH KEY DFKNO = INTAB-ZDJBH BINARY SEARCH.
+      IF SY-SUBRC = 0.
+        CASE INTAB-ZSPJG.
+          WHEN '1' .
+            ZSIGN = '1' .
+
+
+            BLART = 'DZ'.
+            BUKRS = WA_DOC-BUKRS.
+            BKTXT = '客户货款'.
+            WAERS = WA_DOC-HWAER.
+
+            CLEAR:FITAB,FITAB[],BELNR,RTMSG.
+
+            FITAB-POSNR = '10'.
+            SELECT  SINGLE
+              ZTFI_PAYEEDOC~BUKRS
+              ZTFI_PAYEEDOC~SEGMENT
+              ZTFI_PAYEEDOC~CHGNO_D
+              ZTFI_PAYEEDOC~BNKFLW
+              ZTFI_PAYEEDOC~DMBTR
+              ZTFI_PAYEEDOC~ZPYCAT
+              ZTFI_PAYEEDOC~PARTNER
+              ZTFI_PAYEEDOC~ACCTNO
+              ZTFI_PAYEEDOC~CURRENCY
+              PRPS~PSPNR
+              INTO (FITAB-BUKRS,FITAB-SEGMENT,CHGNO_D,BNKFLW,FITAB-DMBTR,FITAB-XREF2,FITAB-KUNNR,ACCTNO,FITAB-WAERS,FITAB-PROJK)
+              FROM ZTFI_PAYEEDOC
+*              LEFT JOIN PRPS ON PRPS~POSID = ZTFI_PAYEEDOC~PSPID
+              LEFT JOIN PRPS ON PRPS~PSPNR = ZTFI_PAYEEDOC~PSPNR
+              WHERE ZTFI_PAYEEDOC~DFKNO = INTAB-ZDJBH
+              .
+            IF FITAB-XREF2 = 'D2'.
+              ZPYCAT = 'D2'.
+              FITAB-BSCHL = '01'.
+              SELECT SINGLE
+                ZTFI_DEALTYPE~HKONT_S
+                INTO FITAB-HKONT
+                FROM ZTFI_DEALTYPE
+                WHERE ZTFI_DEALTYPE~ZPYCAT = FITAB-XREF2
+                .
+              SELECT SINGLE
+                  BUKRS,
+                  ACCTNO,
+                  BILNUM
+                INTO  ( @DATA(ZBUKRS), @DATA(ZACCTNO), @DATA(ZBILNUM) )
+                FROM ZTFI_PAYEEDOC
+                WHERE ZTFI_PAYEEDOC~DFKNO = @INTAB-ZDJBH
+                .
+            ELSE.
+              FITAB-BSCHL = '40'.
+              READ TABLE GT_ZHKM WITH KEY ACCTNO = ACCTNO BINARY SEARCH.
+              FITAB-HKONT = GT_ZHKM-HKONT.
+            ENDIF.
+            FITAB-RSTGR = '101'.
+            FITAB-SGTXT = CHGNO_D && '/' && BNKFLW .
+            APPEND FITAB.
+
+            CLEAR FITAB.
+
+            FITAB-POSNR = '20'.
+            SELECT  SINGLE
+              ZTFI_PAYEEDOC~BUKRS
+              KNB1~AKONT
+              ZTFI_PAYEEDOC~SEGMENT
+              ZTFI_PAYEEDOC~CHGNO_D
+              ZTFI_PAYEEDOC~BNKFLW
+              ZTFI_PAYEEDOC~DMBTR
+              ZTFI_PAYEEDOC~ZPYCAT
+              ZTFI_PAYEEDOC~PARTNER
+              ZTFI_PAYEEDOC~CURRENCY
+              PRPS~PSPNR
+              INTO (FITAB-BUKRS,FITAB-HKONT,FITAB-SEGMENT,CHGNO_D,BNKFLW,FITAB-DMBTR,FITAB-XREF2,FITAB-KUNNR,FITAB-WAERS,FITAB-PROJK)
+              FROM ZTFI_PAYEEDOC
+              LEFT JOIN KNB1 ON KNB1~KUNNR = ZTFI_PAYEEDOC~PARTNER
+*              LEFT JOIN PRPS ON PRPS~POSID = ZTFI_PAYEEDOC~PSPID
+              LEFT JOIN PRPS ON PRPS~PSPNR = ZTFI_PAYEEDOC~PSPNR
+              WHERE ZTFI_PAYEEDOC~DFKNO = INTAB-ZDJBH
+              .
+            FITAB-BSCHL = '11'.
+            FITAB-SGTXT = CHGNO_D && '/' && BNKFLW .
+            APPEND FITAB.
+
+            CALL FUNCTION 'ZFMS_13_FIPOST'
+              EXPORTING
+                BUKRS = BUKRS
+                BKTXT = BKTXT
+                BUDAT = BUDAT
+                BLART = BLART
+                WAERS = WAERS
+                BLDAT = SY-DATUM
+                UNAME = SY-UNAME
+              IMPORTING
+                BELNR = BELNR
+                RTMSG = RTMSG
+              TABLES
+                INTAB = FITAB.
+            IF RTMSG+0(1) = 'E' .
+              OTTAB-FLAG = 'N'.
+              CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '创建会计凭证失败！'  INTO OTTAB-MESSAGE.
+              CONTINUE.
+            ELSE.
+              OTTAB-MESSAGE = '凭证编号：' &&   BELNR .
+            ENDIF.
+            UPDATE ZTFI_PAYEEDOC
+               SET ZTFI_PAYEEDOC~ZSIGN    = ZSIGN
+                   ZTFI_PAYEEDOC~BELNR_ZT = BELNR
+                   ZTFI_PAYEEDOC~GJAHR_ZT = SY-DATUM(4)
+                   ZTFI_PAYEEDOC~BUDAT_ZT = SY-DATUM
+               WHERE ZTFI_PAYEEDOC~DFKNO  = INTAB-ZDJBH.
+            IF SY-SUBRC <> 0 .
+              OTTAB-FLAG = 'N'.
+              CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '状态更新失败！' RTMSG INTO OTTAB-MESSAGE.
+              CONTINUE.
+            ENDIF.
+            UPDATE ZTFI_PYREDAZ
+             SET BELNR_ZT = BELNR
+                 GJAHR_ZT = SY-DATUM(4)
+                 ZSIGN    = ZSIGN
+              WHERE ZTFI_PYREDAZ~ZDJBH  = INTAB-ZDJBH.
+
+            IF ZPYCAT = 'D2'.
+              UPDATE ZBSED
+               SET BELNR = BELNR
+                   GJAHR = SY-DATUM(4)
+                   BUZEI = '10'
+                   BUDAT = SY-DATUM
+                WHERE BUKRS = ZBUKRS
+                  AND ACCOU = ZACCTNO
+                  AND ZBONO = ZBILNUM
+                     .
+            ENDIF.
+
+            COMMIT WORK.
+          WHEN OTHERS.
+            ZSIGN = '0' .
+            UPDATE ZTFI_PAYEEDOC
+               SET ZTFI_PAYEEDOC~ZSIGN    = ZSIGN
+               WHERE ZTFI_PAYEEDOC~DFKNO  = INTAB-ZDJBH.
+            IF SY-SUBRC <> 0 .
+              OTTAB-FLAG = 'N'.
+              CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '状态更新失败！' RTMSG INTO OTTAB-MESSAGE.
+              CONTINUE.
+            ENDIF.
+            UPDATE ZTFI_PYREDAZ
+             SET ZSIGN     = ZSIGN
+             WHERE ZTFI_PYREDAZ~ZDJBH  = INTAB-ZDJBH.
+            COMMIT WORK.
+        ENDCASE.
+      ELSE .
+        OTTAB-FLAG = 'N'.
+        CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '未查询到！'  INTO OTTAB-MESSAGE.
+      ENDIF.
+    ENDIF.
+
+*单据编号为“DDK*、ZQZY*”，至表ZTFI_SPLITCONT-ZDJBH匹配，更新
+    IF INTAB-ZDJBH+0(3) = 'DDK' OR  INTAB-ZDJBH+0(4) = 'ZQZY' .
+      READ TABLE IT_CONT INTO DATA(WA_CONT) WITH KEY ZDJBH = INTAB-ZDJBH BINARY SEARCH.
+      IF SY-SUBRC = 0.
+        CASE INTAB-ZSPJG.
+          WHEN 1 .
+            ZSIGN = '1' .
+
+            IF INTAB-ZDJBH+0(3) = 'DDK' .
+
+              BLART = 'DZ'.
+              BUKRS = WA_CONT-BUKRS.
+              BKTXT = '代垫款转代付款'.
+              WAERS = WA_CONT-HWAER.
+              CLEAR:FITAB,FITAB[],BELNR,RTMSG.
+
+              FITAB-POSNR = '10'.
+              SELECT  SINGLE
+                ZTFI_PAYEEDOC~BUKRS
+*                KNB1~AKONT
+                ZTFI_DEALTYPE~HKONT_H
+                ZTFI_PAYEEDOC~SEGMENT
+                ZTFI_PAYEEDOC~CHGNO_D
+                ZTFI_PAYEEDOC~BNKFLW
+                ZTFI_PAYEEDOC~DMBTR
+                ZTFI_PAYEEDOC~ZPYCAT
+                ZTFI_PAYEEDOC~PARTNER
+                ZTFI_PAYEEDOC~CURRENCY
+                PRPS~PSPNR
+                INTO (FITAB-BUKRS,FITAB-HKONT,FITAB-SEGMENT,CHGNO_D,BNKFLW,FITAB-DMBTR,FITAB-XREF2,FITAB-KUNNR,FITAB-WAERS,FITAB-PROJK)
+                FROM ZTFI_PAYEEDOC
+                INNER JOIN ZTFI_SPLITCONT ON ZTFI_SPLITCONT~CHGNO_D = ZTFI_PAYEEDOC~CHGNO_D
+                LEFT JOIN KNB1            ON KNB1~KUNNR             = ZTFI_PAYEEDOC~PARTNER
+                LEFT JOIN ZTFI_DEALTYPE   ON ZTFI_DEALTYPE~ZPYCAT   = ZTFI_PAYEEDOC~ZPYCAT
+*                LEFT JOIN PRPS            ON PRPS~POSID             = ZTFI_SPLITCONT~PSPID
+                LEFT JOIN PRPS            ON PRPS~PSPNR             = ZTFI_SPLITCONT~PSPNR
+                WHERE ZTFI_SPLITCONT~ZDJBH = INTAB-ZDJBH
+                .
+
+              IF FITAB-HKONT IS INITIAL.
+                OTTAB-FLAG = 'N'.
+                OTTAB-MESSAGE = '业务类型贷方科目未配置！'  .
+                EXIT.
+              ENDIF.
+              FITAB-BSCHL = '01'.
+              FITAB-SGTXT = CHGNO_D && '/' && BNKFLW.
+              APPEND FITAB.
+
+              CLEAR FITAB.
+
+              FITAB-POSNR = '20'.
+              SELECT  SINGLE
+                ZTFI_PAYEEDOC~BUKRS
+                KNB1~AKONT
+                ZTFI_PAYEEDOC~SEGMENT
+                ZTFI_PAYEEDOC~CHGNO_D
+                ZTFI_PAYEEDOC~BNKFLW
+                ZTFI_PAYEEDOC~DMBTR
+                ZTFI_PAYEEDOC~ZPYCAT
+                ZTFI_PAYEEDOC~KUNWE
+                ZTFI_PAYEEDOC~CURRENCY
+                PRPS~PSPNR
+                INTO (FITAB-BUKRS,FITAB-HKONT,FITAB-SEGMENT,CHGNO_D,BNKFLW,FITAB-DMBTR,FITAB-XREF2,FITAB-KUNNR,FITAB-WAERS,FITAB-PROJK)
+                FROM ZTFI_PAYEEDOC
+                INNER JOIN ZTFI_SPLITCONT ON ZTFI_SPLITCONT~CHGNO_D = ZTFI_PAYEEDOC~CHGNO_D
+                LEFT JOIN KNB1 ON KNB1~KUNNR = ZTFI_PAYEEDOC~KUNWE
+*                LEFT JOIN PRPS ON PRPS~POSID = ZTFI_SPLITCONT~PSPID
+                LEFT JOIN PRPS ON PRPS~PSPNR = ZTFI_SPLITCONT~PSPNR
+                WHERE ZTFI_SPLITCONT~ZDJBH = INTAB-ZDJBH
+                .
+              FITAB-BSCHL = '11'.
+              FITAB-SGTXT = CHGNO_D && '/'  && BNKFLW.
+              APPEND FITAB.
+
+
+            ELSEIF INTAB-ZDJBH+0(4) = 'ZQZY' .
+
+              BLART = 'ZT'.
+              BUKRS = WA_CONT-BUKRS.
+              BKTXT = '债权转移凭证调整'.
+              WAERS = WA_CONT-HWAER.
+              CLEAR:FITAB,FITAB[],BELNR,RTMSG.
+
+              FITAB-POSNR = '10'.
+              SELECT  SINGLE
+                ZTFI_SPLITCONT~BUKRS
+                KNB1~AKONT
+                ZTFI_SPLITCONT~SEGMENT
+                ZTFI_SPLITCONT~CHGNO_D
+                ZTFI_SPLITCONT~DMBTR
+                ZTFI_SPLITCONT~PARTNER
+                ZTFI_PAYEEDOC~CURRENCY
+*                ZTFI_SPLITCONT~PSPID
+                ZTFI_SPLITCONT~ZDJBH
+                PRPS~PSPNR
+                INTO (FITAB-BUKRS,FITAB-HKONT,FITAB-SEGMENT,CHGNO_D,FITAB-DMBTR,FITAB-KUNNR,FITAB-WAERS,FITAB-ZUONR,FITAB-PROJK)
+                FROM ZTFI_PAYEEDOC
+                INNER JOIN ZTFI_SPLITCONT ON ZTFI_SPLITCONT~CHGNO_D = ZTFI_PAYEEDOC~CHGNO_D
+                LEFT JOIN KNB1            ON KNB1~KUNNR             = ZTFI_PAYEEDOC~PARTNER
+*                LEFT JOIN PRPS            ON PRPS~POSID             = ZTFI_SPLITCONT~PSPID
+                LEFT JOIN PRPS            ON PRPS~PSPNR             = ZTFI_SPLITCONT~PSPNR
+                WHERE ZTFI_SPLITCONT~ZDJBH = INTAB-ZDJBH
+                 AND  ZTFI_SPLITCONT~DMBTR < 0
+                .
+              FITAB-BSCHL = '01'.
+              FITAB-SGTXT = CHGNO_D  .
+              FITAB-DMBTR = ABS( FITAB-DMBTR ) .
+              APPEND FITAB.
+
+              CLEAR FITAB.
+
+              FITAB-POSNR = '20'.
+              SELECT  SINGLE
+                ZTFI_SPLITCONT~BUKRS
+                KNB1~AKONT
+                ZTFI_SPLITCONT~SEGMENT
+                ZTFI_SPLITCONT~CHGNO_D
+                ZTFI_SPLITCONT~DMBTR
+                ZTFI_SPLITCONT~PARTNER
+                ZTFI_PAYEEDOC~CURRENCY
+*                ZTFI_SPLITCONT~PSPID
+                ZTFI_SPLITCONT~ZDJBH
+                 PRPS~PSPNR
+                INTO (FITAB-BUKRS,FITAB-HKONT,FITAB-SEGMENT,CHGNO_D,FITAB-DMBTR,FITAB-KUNNR,FITAB-WAERS,FITAB-ZUONR,FITAB-PROJK)
+                FROM ZTFI_PAYEEDOC
+                INNER JOIN ZTFI_SPLITCONT ON ZTFI_SPLITCONT~CHGNO_D = ZTFI_PAYEEDOC~CHGNO_D
+                LEFT JOIN KNB1            ON KNB1~KUNNR             = ZTFI_PAYEEDOC~PARTNER
+*                LEFT JOIN PRPS            ON PRPS~POSID             = ZTFI_SPLITCONT~PSPID
+                LEFT JOIN PRPS ON PRPS~PSPNR = ZTFI_SPLITCONT~PSPNR
+                WHERE ZTFI_SPLITCONT~ZDJBH = INTAB-ZDJBH
+                 AND  ZTFI_SPLITCONT~DMBTR > 0
+                .
+              FITAB-BSCHL = '11'.
+              FITAB-SGTXT = CHGNO_D  .
+              FITAB-DMBTR = ABS( FITAB-DMBTR ) .
+              APPEND FITAB.
+
+            ENDIF.
+
+            CALL FUNCTION 'ZFMS_13_FIPOST'
+              EXPORTING
+                BUKRS = BUKRS
+                BKTXT = BKTXT
+                BUDAT = BUDAT
+                BLART = BLART
+                WAERS = WAERS
+                BLDAT = SY-DATUM
+                UNAME = SY-UNAME
+              IMPORTING
+                BELNR = BELNR
+                RTMSG = RTMSG
+              TABLES
+                INTAB = FITAB.
+            IF RTMSG+0(1) = 'E' .
+              OTTAB-FLAG = 'N'.
+              CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '创建会计凭证失败：'  RTMSG INTO OTTAB-MESSAGE.
+              CONTINUE.
+            ELSE.
+              OTTAB-MESSAGE = '凭证编号：' &&   BELNR .
+            ENDIF.
+
+            UPDATE ZTFI_SPLITCONT
+               SET ZTFI_SPLITCONT~ZSIGN   = ZSIGN
+                   ZTFI_SPLITCONT~BELNR   = BELNR
+                   ZTFI_SPLITCONT~GJAHR   = SY-DATUM(4)
+*                   ZTFI_SPLITCONT~BUDAT_ZT = SY-DATUM
+               WHERE ZTFI_SPLITCONT~ZDJBH = INTAB-ZDJBH.
+            IF SY-SUBRC <> 0 .
+              OTTAB-FLAG = 'N'.
+              CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '状态更新失败！'  INTO OTTAB-MESSAGE.
+              CONTINUE.
+            ENDIF.
+            UPDATE ZTFI_PYREDAZ
+             SET BELNR_ZT = BELNR
+                 GJAHR_ZT = SY-DATUM(4)
+                 ZSIGN     = ZSIGN
+              WHERE ZTFI_PYREDAZ~ZDJBH  = INTAB-ZDJBH.
+            COMMIT WORK.
+
+            IF  INTAB-ZDJBH+0(3) = 'DDK'.
+              SELECT SINGLE
+                ZTFI_SPLITCONT~PARTNER,
+                ZTFI_SPLITCONT~PSPNR,
+                ZTFI_SPLITCONT~DMBTR
+                INTO ( @DATA(PARTNER) , @DATA(PSPNR) , @DATA(DMBTR) )
+                FROM ZTFI_SPLITCONT
+                WHERE ZTFI_SPLITCONT~ZDJBH  = @INTAB-ZDJBH.
+
+              "增加授信核销的逻辑
+              CALL FUNCTION 'ZFM_ZFI025UPDSX'
+                EXPORTING
+                  KUNNR = PARTNER
+                  PSPNR = PSPNR
+*                 POSID = POSID
+                  CX    = ''
+                  DMBTR = DMBTR
+*                IMPORTING
+*                 RTYPE = RTYPE
+*                 RTMSG = RTMSG
+                .
+
+            ELSEIF INTAB-ZDJBH+0(4) = 'ZQZY'.
+
+              SELECT
+                ZTFI_SPLITCONT~PARTNER,
+                ZTFI_SPLITCONT~PSPNR,
+                ZTFI_SPLITCONT~DMBTR
+                INTO TABLE @DATA(IT_ZQZY)
+                FROM ZTFI_SPLITCONT
+                WHERE ZTFI_SPLITCONT~ZDJBH  = @INTAB-ZDJBH.
+              "增加授信核销的逻辑
+              LOOP AT IT_ZQZY INTO DATA(WA_ZQZY).
+                CALL FUNCTION 'ZFM_ZFI025UPDSX'
+                  EXPORTING
+                    KUNNR = WA_ZQZY-PARTNER
+                    PSPNR = WA_ZQZY-PSPNR
+*                    POSID = POSID
+                    CX    = ''
+                    DMBTR = WA_ZQZY-DMBTR
+*                IMPORTING
+*                   RTYPE = RTYPE
+*                   RTMSG = RTMSG
+                  .
+
+              ENDLOOP.
+            ENDIF.
+
+
+          WHEN OTHERS.
+            ZSIGN = '0' .
+            UPDATE ZTFI_SPLITCONT
+               SET ZTFI_SPLITCONT~ZSIGN   = ZSIGN
+               WHERE ZTFI_SPLITCONT~ZDJBH = INTAB-ZDJBH.
+            IF SY-SUBRC <> 0 .
+              OTTAB-FLAG = 'N'.
+              CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '状态更新失败！'  INTO OTTAB-MESSAGE.
+              CONTINUE.
+            ENDIF.
+            UPDATE ZTFI_PYREDAZ
+             SET ZSIGN     = ZSIGN
+             WHERE ZTFI_PYREDAZ~ZDJBH  = INTAB-ZDJBH.
+            COMMIT WORK.
+        ENDCASE.
+      ELSE .
+        OTTAB-FLAG = 'N'.
+        CONCATENATE OTTAB-MESSAGE '单据编号：' INTAB-ZDJBH '未查询到！'  INTO OTTAB-MESSAGE.
+      ENDIF.
+
+
+
+    ENDIF.
+
+  ENDLOOP.
+
+
+  APPEND OTTAB.
+  ZFMDATASAVE2 'R'.
+
+ENDFUNCTION.
+
+*&---------------------------------------------------------------------*
+*& Form CRETE_DOC
+*&---------------------------------------------------------------------*
+*& 创建会计凭证
+*&---------------------------------------------------------------------*

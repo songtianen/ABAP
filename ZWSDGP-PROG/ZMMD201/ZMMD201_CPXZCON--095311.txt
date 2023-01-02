@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201_CPXZCON
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZCPXZ_CON' ITSELF
+CONTROLS: ZCPXZ_CON TYPE TABLEVIEW USING SCREEN 0600.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZCPXZ_CON'
+DATA:     G_ZCPXZ_CON_LINES  LIKE SY-LOOPC.

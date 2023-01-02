@@ -1,0 +1,11 @@
+************************************************************************
+* Include MMMGXV03 f¨¹r Festwerte
+************************************************************************
+*--- Maximale Anzahl Pflegestatus  ------------------------------------
+CONSTANTS:   PSTAT_MAX       LIKE SY-TABIX VALUE '15'.
+*--- Maximale Anzahl Werksstatus   ------------------------------------
+CONSTANTS:   PSTAT_MAX_WRK   LIKE SY-TABIX VALUE '13'.
+*--- Maximaler Materialstatus -----------------------------------------
+CONSTANTS:   PSTAT_KOMPLETT  LIKE T130M-PSTAT VALUE 'ABCDEFGKLPQSVXZ'.
+*--- Maximaler Werksstatus --------------------------------------------
+CONSTANTS:   PSTAT_WRK_KOMP      LIKE T130M-PSTAT VALUE 'ABDEFGLPQSVXZ'.

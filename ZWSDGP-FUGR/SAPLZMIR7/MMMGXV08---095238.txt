@@ -1,0 +1,180 @@
+************************************************************************
+* Include MMMGXV08 f¨¹r Festwerte
+* -  Funktionscodes
+************************************************************************
+
+*---- Fcodes----------------------------------------------------------
+CONSTANTS:
+         FCODE_ABR   LIKE T133D-FCODE VALUE 'ABR ', "Abbrechen
+         FCODE_ABBR  LIKE T133D-FCODE VALUE 'ABBR', "Abbrechen Popup
+         FCODE_AEND  LIKE T133D-FCODE VALUE 'AEND', "#nderungen anzeigen
+*        fcode_eabr  like t133d-fcode value 'EABR', "Abbrechen Popup
+         FCODE_AUSW  LIKE T133D-FCODE VALUE 'AUSW', "Sichtenauswahl
+         FCODE_BILD  LIKE T133D-FCODE VALUE 'BILD',
+         FCODE_BU    LIKE T133D-FCODE VALUE 'BU',   "Sichern
+         FCODE_BABA  LIKE T133D-FCODE VALUE 'BABA', "Zur¨¹ck
+         FCODE_BABE  LIKE T133D-FCODE VALUE 'BABE', "cfo/1.4.97 Zur¨¹ck
+                                       "auf Einstiegsbild
+         FCODE_BMEE  LIKE T133D-FCODE VALUE 'BMEE', "Fehlerliste
+         FCODE_BMEW  LIKE T133D-FCODE VALUE 'BMEW', "Warnungs-Popup
+         FCODE_BACK  LIKE T133D-FCODE VALUE 'BACK', "Anderes Material
+         FCODE_DETA  LIKE T133D-FCODE VALUE 'DETA', "Details
+         FCODE_DELE  LIKE T133D-FCODE VALUE 'DELE', "L#schen Eintrag
+         FCODE_EMAZ  LIKE T133D-FCODE VALUE 'EMAZ', "Anzeigen Material
+         FCODE_EMHZ  LIKE T133D-FCODE VALUE 'EMHZ', "Anlegen  Material
+         FCODE_EMAE  LIKE T133D-FCODE VALUE 'EMAE', "#ndern   Material
+         FCODE_EMLO  LIKE T133D-FCODE VALUE 'EMLO', "L#schen  Material
+         FCODE_EMAK  LIKE T133D-FCODE VALUE 'EMAK', "Anzeigen Mat. Stich
+         FCODE_EMHP  LIKE T133D-FCODE VALUE 'EMHP', "Anlegen  Mat. plan
+         FCODE_EMAP  LIKE T133D-FCODE VALUE 'EMAP', "#ndern   Mat. plan
+         FCODE_MD04  LIKE T133D-FCODE VALUE 'MD04', "akt.Bed.Best.Liste
+         FCODE_MMBE  LIKE T133D-FCODE VALUE 'MMBE', "Bestands¨¹bersicht
+         FCODE_MUSS  LIKE T133D-FCODE VALUE 'MUSS', "Fehlerliste Buchen
+         FCODE_NEBE  LIKE T133D-FCODE VALUE 'NEBE', "N#chstes Bild
+         FCODE_NEWE  LIKE T133D-FCODE VALUE 'NEWE', "Neuen Eint. Detail
+         FCODE_ENDE  LIKE T133D-FCODE VALUE 'ENDE', "Beenden
+         FCODE_ENTR  LIKE T133D-FCODE VALUE 'ENTR', "ENTER auf PopUP
+*        FCODE_EF15  LIKE T133D-FCODE VALUE 'EF15', "Beenden
+*        FCODE_EF03  LIKE T133D-FCODE VALUE 'EF03', "Zur¨¹ck
+         FCODE_F03   LIKE T133D-FCODE VALUE '/03',  "Zur¨¹ck
+         FCODE_F06   LIKE T133D-FCODE VALUE '/06',          "
+         FCODE_F07   LIKE T133D-FCODE VALUE '/00 ', "Standard-Absatz
+         FCODE_F11   LIKE T133D-FCODE VALUE '/11',  "Sichern
+         FCODE_F23   LIKE T133D-FCODE VALUE '/23',  "N#chste Seite
+         FCODE_ABWO  LIKE T133D-FCODE VALUE 'ABWO', "//JH 01.08.96
+                                       "abweich. OrgEbenen
+         FCODE_MITO  LIKE T133D-FCODE VALUE 'MITO', "//JH 08.10.96
+                                       "mitgepfl. OrgEbenen
+*Funktionscodes f¨¹r Langtexte
+         FCODE_TELO  LIKE T133D-FCODE VALUE 'TELO', "Langtext l#schen
+         FCODE_TEAN  LIKE T133D-FCODE VALUE 'TEAN', "Langtext anlegen
+         FCODE_LTEX  LIKE T133D-FCODE VALUE 'LTEX', "Langtextbild aufr.
+         FCODE_LTFP  LIKE T133D-FCODE VALUE 'LTFP', "1. Seite
+         FCODE_LTNP  LIKE T133D-FCODE VALUE 'LTNP', "n#chste Seite
+         FCODE_LTPP  LIKE T133D-FCODE VALUE 'LTPP', "vorige Seite
+         FCODE_LTLP  LIKE T133D-FCODE VALUE 'LTLP', "letzte Seite
+         FCODE_TLAN  LIKE T133D-FCODE VALUE 'TLAN', "TF 4.6A
+         FCODE_RLVA  LIKE T133D-FCODE VALUE 'RLVA', "TF 4.6A
+         FCODE_RLVP  LIKE T133D-FCODE VALUE 'RLVP', "TF 4.6A
+*
+         FCODE_NEXT  LIKE T133D-FCODE VALUE 'NEXT', "N#chster Eintrag
+         FCODE_PAG1  LIKE T133D-FCODE VALUE 'P-- ', "1. Seite
+*mk/4.0 fcode_pag+ zu 4.0 identisch mit fcode_pag (Basis), deswegen
+*Umbenennen von fcode_pag+ und _pag-
+*        fcode_pag+  like t133d-fcode value 'P+  ', "n#chste Seite
+*        fcode_pag-  like t133d-fcode value 'P-  ', "vorige Seite
+         FCODE_PAGN  LIKE T133D-FCODE VALUE 'P+  ', "n#chste Seite
+         FCODE_PAGP  LIKE T133D-FCODE VALUE 'P-  ', "vorige Seite
+         FCODE_PAGL  LIKE T133D-FCODE VALUE 'P++ ', "letzte Seite
+         FCODE_PF14  LIKE T133D-FCODE VALUE 'PF14', "L#schen Kurztext/ME
+         FCODE_PPZU  LIKE T133D-FCODE VALUE 'PPZU', "Prognoseprofil
+         FCODE_PREV  LIKE T133D-FCODE VALUE 'PREV', "Voriger Eintrag
+         FCODE_PRZU  LIKE T133D-FCODE VALUE 'PRZU', "Dispoprofil
+         FCODE_SPACE LIKE T133D-FCODE VALUE '    ',
+         FCODE_SCHL  LIKE T133D-FCODE VALUE 'SCHL', "OrgEbenenbild
+         FCODE_VA05  LIKE T133D-FCODE VALUE 'VA05', "Umfeld Vertrieb
+         FCODE_VA15  LIKE T133D-FCODE VALUE 'VA15', "Umfeld Vertrieb
+         FCODE_VA25  LIKE T133D-FCODE VALUE 'VA25', "Umfeld Vertrieb
+         FCODE_VA35  LIKE T133D-FCODE VALUE 'VA35', "Umfeld Vertrieb
+         FCODE_VA45  LIKE T133D-FCODE VALUE 'VA45', "Umfeld Vertrieb
+         FCODE_VA55  LIKE T133D-FCODE VALUE 'VA55', "Umfeld Vertrieb
+         FCODE_VF05  LIKE T133D-FCODE VALUE 'VF05', "Umfeld Vertrieb
+         FCODE_VL05  LIKE T133D-FCODE VALUE 'VL05', "Umfeld Vertrieb
+         FCODE_WEIT  LIKE T133D-FCODE VALUE 'WEIT', "Weitere Eintr#ge
+         FCODE_3     LIKE T133D-FCODE VALUE 'F3',           "F3
+         FCODE_8     LIKE T133D-FCODE VALUE 'F8',           "F8
+         FCODE_11    LIKE T133D-FCODE VALUE 'F11',          "F11
+         FCODE_12    LIKE T133D-FCODE VALUE 'F12',          "F12
+         FCODE_15    LIKE T133D-FCODE VALUE 'F15',          "F15
+         FCODE_KTPP  LIKE T133D-FCODE VALUE 'KTPP', "Kurztexte P-
+         FCODE_KTFP  LIKE T133D-FCODE VALUE 'KTFP', "Kurztexte P--
+         FCODE_KTNP  LIKE T133D-FCODE VALUE 'KTNP', "Kurztexte P+
+         FCODE_KTLP  LIKE T133D-FCODE VALUE 'KTLP', "Kurztexte P++
+         FCODE_KTDE  LIKE T133D-FCODE VALUE 'KTDE', "Kurztext L#schen
+         FCODE_STPP  LIKE T133D-FCODE VALUE 'STPP', "Steuern P-
+         FCODE_STFP  LIKE T133D-FCODE VALUE 'STFP', "Steuern P--
+         FCODE_STNP  LIKE T133D-FCODE VALUE 'STNP', "Steuern P+
+         FCODE_STLP  LIKE T133D-FCODE VALUE 'STLP', "Steuern P++
+         FCODE_STDE  LIKE T133D-FCODE VALUE 'STDE', "Steuern L#schen
+         FCODE_VWPP  LIKE T133D-FCODE VALUE 'VWPP', "Verbrauch  P-
+         FCODE_VWFP  LIKE T133D-FCODE VALUE 'VWFP', "Verbrauch  P--
+         FCODE_VWNP  LIKE T133D-FCODE VALUE 'VWNP', "Verbrauch  P+
+         FCODE_VWLP  LIKE T133D-FCODE VALUE 'VWLP', "Verbrauch  P++
+         FCODE_GESV  LIKE T133D-FCODE VALUE 'GESV', "Ges.-Verbrauch
+         FCODE_UNGV  LIKE T133D-FCODE VALUE 'UNGV', "Ungepl.-Verbrauch
+         FCODE_MEDE  LIKE T133D-FCODE VALUE 'MEDE', "ME L#schen
+         FCODE_MEGR  LIKE T133D-FCODE VALUE 'MEGR', "ME-Gruppe
+                                       "JW/21.01.99/4.6A
+         FCODE_MEPP  LIKE T133D-FCODE VALUE 'MEPP', "Mengeneinheiten P-
+         FCODE_MEFP  LIKE T133D-FCODE VALUE 'MEFP', "Mengeneinheiten P--
+         FCODE_MENP  LIKE T133D-FCODE VALUE 'MENP', "Mengeneinheiten P+
+         FCODE_MELP  LIKE T133D-FCODE VALUE 'MELP', "Mengeneinheiten P++
+         FCODE_PWPP  LIKE T133D-FCODE VALUE 'PWPP', "Prognose  P-
+         FCODE_PWFP  LIKE T133D-FCODE VALUE 'PWFP', "Prognose  P--
+         FCODE_PWNP  LIKE T133D-FCODE VALUE 'PWNP', "Prognose  P+
+         FCODE_PWLP  LIKE T133D-FCODE VALUE 'PWLP', "Prognose  P++
+         FCODE_EADE  LIKE T133D-FCODE VALUE 'EADE', "EAN L#schen
+         FCODE_EAPP  LIKE T133D-FCODE VALUE 'EAPP', "EAN P-
+         FCODE_EAFP  LIKE T133D-FCODE VALUE 'EAFP', "EAN P--
+         FCODE_EANP  LIKE T133D-FCODE VALUE 'EANP', "EAN P+
+         FCODE_EALP  LIKE T133D-FCODE VALUE 'EALP', "EAN P++
+* AHE: 01.03.96 - A
+         FCODE_PGDE  LIKE T133D-FCODE VALUE 'PGDE', "Plaz.Grp. L#schen
+         FCODE_PGPP  LIKE T133D-FCODE VALUE 'PGPP', "Plaz.Grp. P-
+         FCODE_PGFP  LIKE T133D-FCODE VALUE 'PGFP', "Plaz.Grp. P--
+         FCODE_PGNP  LIKE T133D-FCODE VALUE 'PGNP', "Plaz.Grp. P+
+         FCODE_PGLP  LIKE T133D-FCODE VALUE 'PGLP', "Plaz.Grp. P++
+* AHE: 01.03.96 - E
+         FCODE_NSCH  LIKE T133D-FCODE VALUE 'NSCH', "Wechsel OrgEbenen
+*br/100696
+         FCODE_VOBI  LIKE T133D-FCODE VALUE 'VOBI', "vorheriges Bild
+* mk/15.05.96
+         FCODE_PPSH  LIKE T133D-FCODE VALUE 'PPSH', "Prognoseprofil anz.
+         FCODE_DPSH  LIKE T133D-FCODE VALUE 'DPSH', "Dispoprofil anz.
+         FCODE_DPUS  LIKE T133D-FCODE VALUE 'DPUS', "Dispoprofil-Verwen.
+* NS/23.05.96
+         FCODE_BEIR  LIKE T133D-FCODE VALUE 'BEIR', "Insert Row Bon/Etik
+* AHE: 25.01.99 - A (4.6a)
+         FCODE_BIPR LIKE T133D-FCODE VALUE 'BIPR', " Bilddaten pr¨¹fen
+* AHE: 25.01.99 - E
+         fcode_clck like t133d-fcode value 'CLCK',  "Doppel-click wk/99a
+
+*mk/3.0F/G Achtung: es darf nicht auf ZU- bzw. PB-Fcodes direkt codiert
+*werden (ZU-Funktionen sind konfigurierbar und m¨¹ssen ¨¹ber die
+*zugeh#rigen Ok-Code-Routinen deaktiviert werden, frei positionierbare
+*Drucktasten werden vom PF-Status ¨¹berhaupt nicht erfa#t, sondern
+*m¨¹ssen ¨¹ber die Feldauswahl deaktiviert werden)
+
+*---- Fcodes BTCI ----------------------------------------------------
+         FCODE_KTBT  LIKE T133D-FCODE VALUE 'KTBT', "Kurztexte
+         FCODE_KACT  LIKE T133D-FCODE VALUE 'KACT', "Kalkulation intern
+         FCODE_PGCT  LIKE T133D-FCODE VALUE 'PGCT', "Produktgrp. intern
+         FCODE_MEBT  LIKE T133D-FCODE VALUE 'MEBT', "Umrechn. StandardMe
+         FCODE_MABT  LIKE T133D-FCODE VALUE 'MABT', "Umrechn. and. ME's
+         FCODE_PRBT  LIKE T133D-FCODE VALUE 'PRBT', "Prognosewerte
+         FCODE_VBBT  LIKE T133D-FCODE VALUE 'VBBT', "Verbrauchswerte
+         FCODE_STBT  LIKE T133D-FCODE VALUE 'STBT', "Steuern
+*wk/4.0
+         FCODE_KAU   LIKE T133D-FCODE VALUE 'KAU ', "Einst. Org.Ebnen
+         FCODE_KBR   LIKE T133D-FCODE VALUE 'KBR ', " " Branche
+         FCODE_KSC   LIKE T133D-FCODE VALUE 'KSC ', " " Sichten
+
+*---- FCODES f¨¹r die Bearbeitung von Anteils-/variablen ME -------------
+* jh/4.0
+      FCODE_WSDE  LIKE T133D-FCODE VALUE 'WSDE', "L#schen Ant./var. ME
+      FCODE_WSDC  LIKE T133D-FCODE VALUE 'WSDC', "L#schen Merkmalszuordn
+      FCODE_WSPR  LIKE T133D-FCODE VALUE 'WSPR', "Merkmalsvorschlag
+      FCODE_WSNN  LIKE T133D-FCODE VALUE 'WS%%', "Info Button TC-Zeile
+* FCODES for setting defaults. wk/99a
+      FCODE_DEF  LIKE T133D-FCODE VALUE 'DEF', "Set as default
+* FCode f¨¹r R¨¹cksprung von Zusatzdaten auf Hauptdaten     ch/4.6
+      fcode_main like t133d-fcode value 'MAIN',   "->Hauptdaten
+*---- FCODES f¨¹rs Bl#ttern bei den Klassifizierungsmerkmalen  ch/4.6  -
+      fcode_clpp like t133d-fcode value 'CLPP',   "-> P-
+      fcode_clfp like t133d-fcode value 'CLFP',   "-> P--
+      fcode_clnp like t133d-fcode value 'CLNP',   "-> P+
+      fcode_cllp like t133d-fcode value 'CLLP'.   "-> P++
+
+*---- FCODEs f¨¹r externe Objekte ---------------------------------------
+INCLUDE AEMM_FCODES.                   "cfo/4.0 Additionals
+INCLUDE WRPP_FCODES.                   "cfo/4.0C Bedarfsgruppen

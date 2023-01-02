@@ -1,0 +1,85 @@
+*&---------------------------------------------------------------------*
+*& Include ZPS208_1_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODUL FOR TC 'TC01'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE tc01_mark INPUT.
+  DATA: g_TC01_wa2 LIKE LINE OF it_upload.
+  IF tc01-line_sel_mode = 1
+  AND it_upload-sel = 'X'.
+    LOOP AT it_upload INTO g_TC01_wa2
+      WHERE sel = 'X'.
+      g_TC01_wa2-sel = ''.
+      MODIFY it_upload
+        FROM g_TC01_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_upload
+    FROM it_upload
+    INDEX tc01-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+MODULE user_command_0100 INPUT.
+  save_ok = sy-ucomm.
+  CASE save_ok.
+    WHEN 'YLPP'.
+      PERFORM read_it_alv.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'  .
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.
+
+FORM read_it_alv.
+  DATA: lt_head TYPE STANDARD TABLE OF ztps013a WITH HEADER LINE,
+        lt_item TYPE STANDARD TABLE OF ztps013b WITH HEADER LINE.
+  IF p1 = 'X'.
+    SELECT SINGLE pspid
+      INTO @DATA(ls_pspid)
+      FROM ztps013a
+      WHERE pspid = @p_pspid.
+    IF  sy-subrc = 0.
+      MESSAGE '请勿重复导入' TYPE 'E'.
+      RETURN.
+    ENDIF.
+
+  ENDIF.
+  LOOP AT item.
+    MOVE-CORRESPONDING item TO lt_head.
+    APPEND lt_head.
+    CLEAR: item, lt_head.
+  ENDLOOP.
+  IF lt_head[] IS NOT INITIAL.
+    MODIFY ztps013a FROM TABLE lt_head.
+  ENDIF.
+  LOOP AT zboitem.
+    MOVE-CORRESPONDING zboitem TO lt_item.
+    lt_item-pspid = p_pspid.
+    CLEAR: ls_ysl, ls_zyscb, ls_zdw.
+    SELECT SINGLE ysl zyscb zdw
+    INTO (ls_ysl, ls_zyscb, ls_zdw)
+    FROM ztps013b
+    WHERE pspid = lt_item-pspid
+    AND zdtbh = lt_item-zdtbh
+    AND zrwbh = lt_item-zrwbh
+    AND zcpbh = lt_item-zcpbh
+    AND zbbh = lt_item-zbbh.
+    IF sy-subrc = 0.
+      IF lt_item-ysl <> ls_ysl OR lt_item-zyscb <> ls_zyscb OR lt_item-zdw <> ls_zdw.
+        lt_item-zbbh = lt_item-zbbh + 1.
+      ENDIF.
+    ENDIF.
+    APPEND lt_item.
+    CLEAR: lt_item, zboitem.
+  ENDLOOP.
+  IF lt_item[] IS NOT INITIAL.
+    MODIFY ztps013b FROM TABLE lt_item.
+    IF sy-subrc = 0.
+      MESSAGE '更新成功' TYPE 'S'.
+    ELSE.
+      MESSAGE '更新失败' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+ENDFORM.

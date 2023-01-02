@@ -1,0 +1,44 @@
+*----------------------------------------------------------------------*
+*       Module  AUFNEHMEN_STEUERTAB                                    *
+* Aufnahme der Eingaben in die interne Tabelle STEUERTAB.              *
+* Vorher wird noch gepr¨¹ft, ob die Kombination Steuertyp/              *
+* Materialklassifikation nach Tabelle TSKM erlaubt ist.                *
+*----------------------------------------------------------------------*
+MODULE AUFNEHMEN_STEUERTAB.
+
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+  IF SY-STEPL = 1.
+    ST_BILDFLAG_OLD = BILDFLAG.
+  ENDIF.
+
+  ST_AKT_ZEILE = ST_ERSTE_ZEILE + SY-STEPL.
+
+* CHECK NOT MG03STEUER-TAXKM IS INITIAL.                   "BE/170496
+
+*----Pr¨¹fen Eingabe-------------------------------------------------
+  IF NOT MG03STEUER-TAXKM IS INITIAL.  "BE/170496
+    CALL FUNCTION 'TSKM_SINGLE_READ'
+         EXPORTING
+              TSKM_TATYP = MG03STEUER-TATYP
+              TSKM_TAXKM = MG03STEUER-TAXKM
+         IMPORTING
+              WTSKM      = TSKM
+         EXCEPTIONS
+              NOT_FOUND  = 01.
+
+    IF SY-SUBRC NE 0.
+      MESSAGE E014 WITH T685T-VTEXT MG03STEUER-TAXKM.
+    ENDIF.
+  ENDIF.                               "BE/170496
+
+*----Lesen aktuellen Eintrag----------------------------------------
+  READ TABLE STEUERTAB INDEX ST_AKT_ZEILE.
+
+*----Aktualisieren interne Tabelle----------------------------------
+  IF SY-SUBRC = 0.
+    MOVE MG03STEUER-TAXKM TO STEUERTAB-TAXKM.
+    MODIFY STEUERTAB INDEX ST_AKT_ZEILE.
+  ENDIF.
+
+ENDMODULE.                             " AUFNEHMEN_STEUERTAB

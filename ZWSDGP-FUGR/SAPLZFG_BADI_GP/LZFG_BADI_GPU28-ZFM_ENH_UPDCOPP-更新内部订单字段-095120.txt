@@ -1,0 +1,32 @@
+FUNCTION ZFM_ENH_UPDCOPP.
+*"----------------------------------------------------------------------
+*"*"更新函数模块：
+*"
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(AUART) TYPE  AUFK-AUART
+*"     VALUE(AUFNR) TYPE  AUFK-AUFNR
+*"     VALUE(PSPNR) TYPE  AUFK-PSPEL
+*"----------------------------------------------------------------------
+  DATA:OBJNR TYPE AUFK-OBJNR.
+  CLEAR:OBJNR.
+  CHECK AUFNR IS NOT INITIAL
+    AND AUART IS NOT INITIAL
+    AND PSPNR IS NOT INITIAL.
+  CONCATENATE 'OR' AUFNR INTO OBJNR.
+  CASE AUART.
+    WHEN 'ZCO1'.
+      UPDATE AFPO
+      SET KNTTP = 'Q'
+          SOBKZ = 'Q'
+          KZVBR = 'P'
+          KZBWS = 'M'
+          WHERE AUFNR = AUFNR.
+      UPDATE COBRB
+      SET    PS_PSP_PNR = PSPNR
+      WHERE OBJNR = OBJNR.
+  ENDCASE.
+
+
+
+ENDFUNCTION.

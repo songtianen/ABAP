@@ -1,0 +1,7 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRFI201	ZBSED_P	票据批号存储	透明表				
+ZRFI201	ZSFI201	批号上传	结构				
+ZRFI201	ZSFMS_FIPOST	创建会计凭证结构	结构				
+ZRFI201	ZSPUBS_0001	日期时间通用结构	结构				
+ZRFI201	ZTFI0002	凭证关联表	透明表				
+ZRFI201	ZTNUMS_UPDATE	按工厂流水（日/年/月/周清零）	透明表				

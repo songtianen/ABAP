@@ -1,0 +1,21 @@
+************************************************************************
+*
+* Data Structures for the adoption of the material master
+* (used in SAPMM03M und RMMMBIM0)
+*
+************************************************************************
+
+*--Support Additional views or plants etc. for a material which has
+*--been created in the same session with an internal number
+DATA:    MATNR_ERW     LIKE MARA-MATNR  VALUE '0                 '.
+DATA:    MATNR_ERW_INT LIKE MARA-MATNR.  "internal sight of '0      '
+DATA:    MATNR_LAST    LIKE MARA-MATNR.  "Material number
+
+********************************************************************
+* mk/11.08.94 2.1H:
+*  If this flag is initial, the database updates will be done directly
+*  during background maintenance instead of using a separate update
+*  task. (no usage of this flag in dialogue mode!)
+********************************************************************
+ DATA: DBUPDATE_VB(1) VALUE ' '.       "note 306628
+ data: matsync type mat_sync. "wk/99a no update in dialog if called

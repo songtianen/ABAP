@@ -1,0 +1,163 @@
+FUNCTION zfm_gp_get_ausp .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(IT_AUSPCONDS) TYPE  ZTTPP_231_INPUT OPTIONAL
+*"     VALUE(IP_WERKS) TYPE  WERKS_D OPTIONAL
+*"  EXPORTING
+*"     VALUE(ET_RETDATA) TYPE  ZTTPP_231_OUTPUT
+*"----------------------------------------------------------------------
+  DATA ls_retdata LIKE LINE OF et_retdata.
+
+  CLEAR gt_ausp[].
+
+  READ TABLE it_auspconds
+  INTO DATA(ls_auspconds) INDEX 1.
+  CHECK sy-subrc = 0.
+
+  RANGES: ra_objek FOR ausp-objek,
+          ra_atinn FOR ausp-atinn.
+
+*先通过一个特性 找出对应物料清单
+  SELECT
+    objek AS low
+    INTO CORRESPONDING FIELDS OF TABLE ra_objek
+    FROM ausp
+    WHERE atinn = ls_auspconds-atinn
+      AND atwrt = ls_auspconds-atwrt
+
+      AND EXISTS (
+          SELECT
+          *
+          FROM mara
+          WHERE matnr = ausp~objek
+            AND lvorm = ''
+    )
+      AND EXISTS (
+          SELECT
+          *
+          FROM marc
+          WHERE matnr = ausp~objek
+            AND werks = ip_werks
+            AND lvorm = ''
+    )
+    .
+
+  IF sy-subrc = 0.
+
+    ra_objek-sign = 'I'.
+    ra_objek-option = 'EQ'.
+    MODIFY ra_objek
+    TRANSPORTING sign option
+    WHERE sign = ''.
+
+  ELSE.
+    RETURN.
+
+  ENDIF.
+
+  LOOP AT it_auspconds
+    INTO ls_auspconds.
+
+    ra_atinn-low = ls_auspconds-atinn.
+    ra_atinn-sign = 'I'.
+    ra_atinn-option = 'EQ'.
+    APPEND ra_atinn.
+    CLEAR ra_atinn.
+
+  ENDLOOP.
+
+  SELECT
+    objek,
+    atinn,
+*    ATNAM
+    atzhl,
+    mafid,
+    klart,
+    adzhl,
+    atwrt
+    INTO TABLE @DATA(lt_ausp)
+    FROM ausp
+    WHERE objek IN @ra_objek
+      AND atinn IN @ra_atinn.
+
+  IF sy-subrc NE 0.
+    RETURN.
+
+  ENDIF.
+
+  SORT lt_ausp BY objek atinn atwrt.
+*  BREAK cuijunhu.
+
+*  LOOP AT it_auspconds
+*    INTO ls_auspconds.
+*
+**    DELETE lt_ausp
+**    WHERE atinn = ls_auspconds-atinn
+**      AND atwrt NE ls_auspconds-atwrt.
+*    LOOP AT lt_ausp
+*      INTO DATA(ls_ausp)
+*      WHERE atinn = ls_auspconds-atinn
+*      AND atwrt NE ls_auspconds-atwrt.
+*      DELETE lt_ausp
+*      WHERE objek = ls_ausp-objek.
+*
+*    ENDLOOP.
+**    IF sy-subrc = 0.
+**      DELETE lt_ausp
+**      WHERE objek = ls_ausp-objek.
+**
+**    ENDIF.
+*  ENDLOOP.
+
+*反过滤 所有条件必须完全符合
+  DATA(lt_idnrk) = lt_ausp[].
+  DELETE ADJACENT DUPLICATES FROM lt_idnrk
+  COMPARING objek.
+
+  LOOP AT lt_idnrk INTO DATA(ls_idnrk).
+
+    LOOP AT it_auspconds
+      INTO ls_auspconds.
+
+      READ TABLE lt_ausp
+      TRANSPORTING NO FIELDS
+      WITH KEY objek = ls_idnrk-objek
+               atinn = ls_auspconds-atinn
+               atwrt = ls_auspconds-atwrt
+               BINARY SEARCH
+               .
+      IF sy-subrc NE 0.
+        DELETE lt_ausp
+        WHERE objek = ls_idnrk-objek.
+*
+        DATA(lv_delete) = 'X'.
+        EXIT.
+      ENDIF.
+
+    ENDLOOP.
+    IF lv_delete = 'X'.
+      CLEAR lv_delete.
+      CONTINUE.
+    ENDIF.
+  ENDLOOP.
+
+
+  LOOP AT lt_ausp INTO DATA(ls_ausp).
+    MOVE-CORRESPONDING ls_ausp TO ls_retdata.
+
+    READ TABLE it_auspconds
+    INTO ls_auspconds
+    WITH KEY atinn = ls_ausp-atinn.
+    IF sy-subrc = 0.
+      ls_retdata-atnam = ls_auspconds-atnam.
+    ENDIF.
+    APPEND ls_retdata TO et_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+*如果 找不到 物料， 说明需要通过 传入的 特性 新建
+
+
+ENDFUNCTION.

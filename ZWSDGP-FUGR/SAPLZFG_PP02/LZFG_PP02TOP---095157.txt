@@ -1,0 +1,17 @@
+FUNCTION-POOL ZFG_PP02.                     "MESSAGE-ID ..
+
+* INCLUDE LZFG_PP02D...                      " Local class definition
+
+
+TYPE-POOLS: ole2.
+
+TYPES: ty_d_itabvalue TYPE zsmm_excel-value,
+       ty_t_itab      TYPE zsmm_excel OCCURS 0,
+
+       BEGIN OF ty_s_senderline,
+         line(4096) TYPE c,
+       END OF ty_s_senderline,
+
+       ty_t_sender TYPE ty_s_senderline  OCCURS 0.
+
+CONSTANTS:  gc_esc              VALUE '"'.

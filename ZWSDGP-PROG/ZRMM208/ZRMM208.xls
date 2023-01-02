@@ -1,0 +1,12 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRMM208	ZSFMS_GETCGWQ	采购未清	结构				
+ZRMM208	ZSMM202	长文本	结构				
+ZRMM208	ZSMM203	委外发料单	结构				
+ZRMM208	ZSMM205	结构	结构				
+ZRMM208	ZSMMKNUMV	结构	结构				
+ZRMM208	ZSPUBS_0001	日期时间通用结构	结构				
+ZRMM208	ZSPUBS_0002	创建日期结构	结构				
+ZRMM208	ZSPUBS_FIELD	公共字段结构	结构				
+ZRMM208	ZTMM208	委外发料单	透明表				
+ZRMM208	ZTMM209	委外发料单明细	透明表				
+ZRMM208	ZTMM212	运输公司及责任人对照表	透明表				

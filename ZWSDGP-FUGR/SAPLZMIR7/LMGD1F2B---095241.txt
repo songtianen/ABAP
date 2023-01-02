@@ -1,0 +1,59 @@
+*-------------------------------------------------------------------
+***INCLUDE LMGD1FXX .
+*-------------------------------------------------------------------
+*&---------------------------------------------------------------------*
+*&      Form  Init_Baustein
+* Einstieg in das Programm, dem der Bildbaustein zugeordnet ist
+* - Holen der zentralen Steuerungsparameter beim 1. Aufruf des Programms
+* - Holen der Steuerungsdaten f¨¹r den Bildbaustein
+*&---------------------------------------------------------------------*
+FORM INIT_BAUSTEIN.
+
+*--- Holen zentrale Programm-Parameter beim 1. Aufruf des Programms ---
+  IF KZ_INIT IS INITIAL.
+    PERFORM MAIN_PARAMETER_GET.
+    IF T130M-AKTYP ne AKTYPH.  "note 372428
+      KZ_INIT = X.
+    ENDIF.
+  ENDIF.
+
+
+*--- Holen bildbausteinspezifische Steuerungsparameter und Zur¨¹cksetzen
+*--- des Kennz. Bildbeginn im Puffer
+  CALL FUNCTION 'MAIN_PARAMETER_GET_DYNPROPARAM'
+       IMPORTING
+            WT133A           = T133A
+            KZ_EIN_PROGRAMM  = KZ_EIN_PROGRAMM
+            ANZ_SUBSCREENS   = ANZ_SUBSCREENS
+            KZ_BILDBEGINN    = KZ_BILDBEGINN
+            BILDFLAG         = BILDFLAG
+            TRAEGER_PROGRAMM = TRAEGER_PROGRAMM
+            TRAEGER_DYNPRO   = TRAEGER_DYNPRO
+            KZ_KTEXT_ON_DYNP = KZ_KTEXT_ON_DYNP
+            BILDTAB          = BILDTAB
+            AKTVSTATUS       = AKTVSTATUS  "BE/020695
+            WRMMG1           = RMMG1   "BE/130695
+            CURS_FELD        = RMMZU-CURS_FELD  "CFO/271095
+            BILDPROZ         = RMMZU-BILDPROZ   "CFO/271095
+            T001_WAERS       = T001-WAERS       "MK/3.0D
+            T001_PERIV       = T001-PERIV       "MK/3.0D
+            WT001W           = T001W            "MK/3.0D
+            FLAG_BILDFOLGE   = RMMZU-BILDFOLGE  "mk/13.08.96
+       TABLES
+            MTAB             = PTAB.   "BE/020695
+* SET_CURSOR f¨¹r den jeweiligen Bildbaustein.
+
+ if not anz_subscreens is initial and t130m-aktyp eq aktyph.
+  perform zusatzdaten_get_sub.
+ endif.
+  IF RMMZU-CURS_FELD NE SPACE.                   " erweitert //br160496
+    IF RMMZU-CURS_LINE NE SPACE.                              "
+      SET CURSOR FIELD RMMZU-CURS_FELD LINE RMMZU-CURS_LINE.  "
+    ELSE.                                                     "
+      SET CURSOR FIELD RMMZU-CURS_FELD.                       "
+    ENDIF.                                                    "
+  ELSEIF t130m-aktyp eq aktypa OR t130m-aktyp eq aktypz.
+    SET CURSOR FIELD RMMG1_MATNR.                "note 1074145
+  ENDIF.                                                      "
+
+ENDFORM.

@@ -1,0 +1,35 @@
+*----------------------------------------------------------------------*
+***INCLUDE LBADI_EXAMPLE_FDCB_BASI01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  receive_actual_data  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module receive_actual_data input.
+
+*  object created  ?
+  CHECK NOT o_badi_fdcb_subbas01 IS INITIAL.
+
+* get data from main screen
+  CALL METHOD o_badi_fdcb_subbas01->get_data_from_screen_object
+    IMPORTING
+      ex_invfo  = invfo.
+
+
+endmodule.                 " receive_actual_data  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module USER_COMMAND_0100 input.
+
+ CHECK NOT o_badi_fdcb_subbas01 IS INITIAL.
+
+* put data to main screen
+  CALL METHOD o_badi_fdcb_subbas01->put_data_to_screen_object
+    EXPORTING
+      im_invfo  = invfo.
+
+endmodule.                 " USER_COMMAND_0100  INPUT

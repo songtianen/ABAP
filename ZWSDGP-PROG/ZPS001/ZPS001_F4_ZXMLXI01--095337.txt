@@ -1,0 +1,64 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPS001_F4_ZXMLXI01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  F4_ZXMLX  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE F4_ZXMLX INPUT.
+  SELECT
+    PROFL,
+    PROFI_TXT
+    "profl
+    INTO TABLE @DATA(GT_TAB)
+    FROM ZTPS002A
+    WHERE PRART IN ( 'C1' , 'C2' ).
+  SORT GT_TAB BY PROFL.
+  DELETE ADJACENT DUPLICATES FROM GT_TAB COMPARING ALL FIELDS.
+
+*将取到的值通过函数显示在搜索帮助显示框中
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     DDIC_STRUCTURE  = ' '
+      RETFIELD        = 'PROFL'            "这个参数为帮助表中返回到选择屏幕的字段的参数
+*     pvalkey         = 'PROFI_TXT'
+      DYNPPROG        = SY-REPID           "当前程序，不写会有问题
+      DYNPNR          = SY-DYNNR           "当前屏幕，不写会有问题
+      DYNPROFIELD     = 'ZXMLX'       "选择屏幕上需要加F4帮助的字段
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      VALUE_ORG       = 'S'                "默认为C但是此处不用S不行
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     callback_program = sy-repid
+*     callback_form   = 'CB_FORM1'
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*  IMPORTING
+*     USER_RESET      =
+    TABLES
+      VALUE_TAB       = GT_TAB           "F4帮助值的表
+*     FIELD_TAB       =
+*     RETURN_TAB      =
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      PARAMETER_ERROR = 1
+      NO_VALUES_FOUND = 2
+      OTHERS          = 3.
+ENDMODULE.
+FORM CB_FORM1 TABLES RECORD_TAB STRUCTURE SEAHLPRES
+           CHANGING SHLP TYPE SHLP_DESCR_T
+                    CALLCONTROL LIKE DDSHF4CTRL.
+  DATA: INTERFACE LIKE LINE OF SHLP-INTERFACE.
+  CLEAR:INTERFACE.
+  READ TABLE SHLP-INTERFACE INTO INTERFACE INDEX 1.
+*选中后自动带出(SHLPFIELD字段结构F0001)
+*  INTERFACE-SHLPFIELD+4(1) = '3'."F0001
+*  INTERFACE-VALFIELD = 'ITAB-ZJUANH'.
+*  APPEND INTERFACE TO SHLP-INTERFACE.
+  INTERFACE-SHLPFIELD+4(1) = '2'.
+  INTERFACE-VALFIELD = 'ZXLMI'.
+  APPEND INTERFACE TO SHLP-INTERFACE.
+ENDFORM.

@@ -1,0 +1,28 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV12                                                   *
+*----------------------------------------------------------------------*
+
+*---- Beschaffungskennzeichen ----------------------------------------
+CONSTANTS:   BESKZX LIKE MARC-BESKZ  VALUE 'X', "Beschaffung X
+        BESKZE LIKE MARC-BESKZ  VALUE 'E', "Beschaffung E
+        BESKZF LIKE MARC-BESKZ  VALUE 'F', "Beschaffung F
+*mk/27.06.96 auch Beschaffung ' ' aufnehmen
+        BESKZN LIKE MARC-BESKZ  VALUE ' ', "Keine Beschaffung
+        BESCH_N LIKE T134-BSINT VALUE '0', "Beschaffung nach T134: nein
+        BESCH_W LIKE T134-BSINT VALUE '1', "Beschaffung nach T134: warn
+        BESCH_J LIKE T134-BSINT VALUE '2'. "Beschaffung nach T134: ja
+
+
+* AHE: 29.01.97 - A (zu 3.1G)
+*---- Sonderbeschaffungsarten ------------------------------------------
+CONSTANTS:  SOBES_D  LIKE T460A-SOBES VALUE 'D', " Dummybaugruppe
+       SOBES_E  LIKE T460A-SOBES VALUE 'E', " Eigen
+       SOBES_M  LIKE T460A-SOBES VALUE 'M', " Direktfertigung
+       SOBES_P  LIKE T460A-SOBES VALUE 'P', " Produktion fremd
+       SOBES_R  LIKE T460A-SOBES VALUE 'R', " Reserviert anderes Werk
+       SOBES_V  LIKE T460A-SOBES VALUE 'V', " Dummy Vorplanung
+       SOBES_IN LIKE T460A-SOBES VALUE '0', " Initial fremd
+       SOBES_K  LIKE T460A-SOBES VALUE '2', " Konsignation
+       SOBES_L  LIKE T460A-SOBES VALUE '3', " Lohnbearbeitung
+       SOBES_U  LIKE T460A-SOBES VALUE '7'. " Umlagerung
+* AHE: 29.01.97 - E

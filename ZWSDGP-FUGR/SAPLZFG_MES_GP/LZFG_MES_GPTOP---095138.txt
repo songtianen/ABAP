@@ -1,0 +1,40 @@
+FUNCTION-POOL ZFG_MES_GP.                   "MESSAGE-ID ..
+INCLUDE ZFMDATASAVE.
+* INCLUDE LZFG_MES_GPD...                    " Local class definition
+TABLES:VBAK.
+DEFINE:FILL_MSG.
+  CLEAR out_tab.
+  out_tab-ret_code = &1.
+  out_tab-err_msg = &2.
+  out_tab-ret_time = sy-datum && sy-uzeit.
+  APPEND out_tab.
+  IF &3 = 'X'.
+    zfmdatasave2 'R'.
+    EXIT.
+  ENDIF.
+END-OF-DEFINITION.
+
+DEFINE:FILL_MSGBX.
+  flag = &1.
+  message = &2.
+  rtype = flag.
+  rtmsg = message.
+   IF &1 = 'E'.
+     zfmdatasave2 'R'.
+     RETURN.
+   ENDIF.
+END-OF-DEFINITION.
+
+DATA:BEGIN OF IT_VBELN OCCURS 0,
+       VBELN TYPE VBELN,
+       BSTKD TYPE BSTKD,
+     END OF IT_VBELN.
+
+DEFINE:FILL_RTYPE.
+  rtype = &1.
+  rtmsg = &2.
+   IF &1 = 'E'.
+     zfmdatasave2 'R'.
+     RETURN.
+   ENDIF.
+END-OF-DEFINITION.

@@ -1,0 +1,392 @@
+FUNCTION zfm_gp_mm_cgxxjl.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IT_INFORECORD STRUCTURE  ZSMM_228
+*"      ET_RETURN STRUCTURE  ZSMM_229
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MM_CGXXJL'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+* 逻辑处理参数
+  DATA:
+    lv_meins      TYPE meins,
+    ls_inforecord TYPE zsmm_228,
+    ls_return_e   TYPE zsmm_229,
+    lv_message    TYPE bapi_msg.
+
+* BAPI创建参数
+  DATA:
+    lt_eina          TYPE mewieina_mig_t,         "一般数据
+    ls_eina          TYPE mewieina_mig,           "一般数据
+    lt_einax         TYPE mewieinax_t,
+    ls_einax         TYPE mewieinax_ty,
+    lt_eine          TYPE mewieine_t,             "采购组织数据
+    ls_eine          TYPE mewieine_ty,            "采购组织数据
+    lt_einex         TYPE mewieinex_t,
+    ls_einex         TYPE mewieinex_ty,
+    lt_cond_validity TYPE mewivalidity_tt,        "条件有效期
+    ls_cond_validity TYPE mewivalidity_ty,        "条件有效期
+    lt_condition     TYPE mewicondition_tt,       "条件明细
+    ls_condition     TYPE mewicondition_ty,       "条件明细
+    lt_eina_e        TYPE mewieina_mig_t,         "创建返回-一般数据
+    lt_eine_e        TYPE mewieine_t,             "创建返回-采购组织数据
+    lt_return        TYPE fs4mig_t_bapiret2.      "创建返回消息
+  IF it_inforecord[] IS INITIAL.
+    rtype = 'E'.
+    rtmsg = 'it_inforecord[]不能为空'.
+    zfmdatasave2 'B'.
+    EXIT.
+  ENDIF.
+
+* 获取物料单位
+  SELECT a~matnr,                                 "物料号
+*         b~werks,                                 "工厂
+         a~meins,                                 "基本单位
+         a~bstme,                                 "采购单位,订单单位
+         b~plifz                                  "计划交货时间（天）
+    INTO TABLE @DATA(lt_mara)
+    FROM mara AS a
+   INNER JOIN marc AS b
+      ON a~matnr = b~matnr
+     FOR ALL ENTRIES IN @it_inforecord
+   WHERE a~matnr = @it_inforecord-matnr
+*     AND b~werks = @it_inforecord-werks
+    .
+*计划交货时间,若取不到，默认赋值“7”
+  LOOP AT lt_mara INTO DATA(lw_mara).
+    IF lw_mara-plifz IS INITIAL.
+      lw_mara-plifz = '7'.
+    ENDIF.
+    MODIFY lt_mara FROM lw_mara.
+  ENDLOOP.
+* 获取历史采购信息记录
+  SELECT a~infnr,
+         a~matnr,                                 "物料
+         a~lifnr,                                 "供应商
+         b~ekorg,                                 "采购组织
+         b~esokz                                 "信息类别
+*         b~werks                                  "工厂
+    INTO TABLE @DATA(lt_inforec_old)
+    FROM eina AS a
+   INNER JOIN eine AS b
+      ON a~infnr = b~infnr
+     FOR ALL ENTRIES IN @it_inforecord
+   WHERE a~matnr = @it_inforecord-matnr
+     AND a~lifnr = @it_inforecord-lifnr
+     AND b~ekorg = @it_inforecord-ekorg
+     AND b~esokz = @it_inforecord-esokz
+*     AND b~werks = @it_inforecord-werks
+    .
+
+* 获取历史条件价格信息，采购组织级别，工厂级别是a017
+  SELECT a~lifnr,                                 "供应商
+         a~matnr,                                 "物料
+         a~ekorg,                                 "采购组织
+*         a~werks,                                 "工厂
+         a~esokz,                                 "信息类型
+         a~datab,                                 "有效期自
+         a~datbi,                                 "有效期至
+         a~knumh,                                 "条件记录编号
+         b~kopos                                  "条件序列号
+    INTO TABLE @DATA(lt_a018)
+    FROM a018 AS a
+   INNER JOIN konp AS b
+      ON a~knumh = b~knumh
+     FOR ALL ENTRIES IN @it_inforecord
+   WHERE a~matnr = @it_inforecord-matnr
+     AND a~lifnr = @it_inforecord-lifnr
+     AND a~ekorg = @it_inforecord-ekorg
+     AND a~esokz = @it_inforecord-esokz
+*     AND a~werks = @it_inforecord-werks
+     AND a~datab = @it_inforecord-datab
+     AND a~datbi = @it_inforecord-datbi.
+
+  SORT lt_mara        BY matnr ASCENDING
+*                         werks ASCENDING
+                         .
+  SORT lt_inforec_old BY matnr ASCENDING
+                         lifnr ASCENDING
+                         ekorg ASCENDING
+                         esokz ASCENDING
+*                         werks ASCENDING
+                         .
+  SORT lt_a018        BY lifnr ASCENDING
+                         matnr ASCENDING
+                         ekorg ASCENDING
+*                         werks ASCENDING
+                         esokz ASCENDING
+                         datab ASCENDING
+                         datbi ASCENDING.
+
+  LOOP AT it_inforecord INTO ls_inforecord.
+    READ TABLE lt_mara INTO DATA(ls_mara)
+      WITH KEY matnr = ls_inforecord-matnr
+        BINARY SEARCH.
+    IF sy-subrc = 0."不管采购单位，优先取传过来的单位，没传的话取基本单位
+*      IF ls_mara-bstme IS NOT INITIAL.
+*        lv_meins = ls_mara-bstme.
+*      ELSE.
+      lv_meins = ls_mara-meins.
+*    ENDIF.
+
+      CALL FUNCTION 'CONVERSION_EXIT_CUNIT_INPUT'
+        EXPORTING
+          input          = ls_inforecord-bprme
+          language       = sy-langu
+        IMPORTING
+          output         = ls_inforecord-bprme
+        EXCEPTIONS
+          unit_not_found = 1
+          OTHERS         = 2.
+
+*      IF ls_inforecord-bprme <> lv_meins.
+*        rtype = 'E'.
+*
+*        ls_return_e-type = 'E'.
+**       物料&1的价格单位为&2，请修正导入数据单位！
+*        MESSAGE e013(zmsg01) WITH ls_inforecord-matnr
+*                                  lv_meins
+*                             INTO lv_message.
+*        ls_return_e-message = lv_message.
+*      ENDIF.
+      IF ls_inforecord-bprme IS NOT INITIAL.
+        lv_meins = ls_inforecord-bprme.
+      ENDIF.
+
+      IF ls_inforecord-werks IS NOT INITIAL.
+        READ TABLE lt_mara INTO ls_mara
+          WITH KEY matnr = ls_inforecord-matnr
+*                   werks = ls_inforecord-werks
+                   BINARY SEARCH.
+        IF sy-subrc = 0.
+          IF ls_mara-plifz IS INITIAL.
+            rtype = 'E'.
+
+            ls_return_e-type = 'E'.
+*           物料&1计划交货时间未维护，请维护后再操作！
+            MESSAGE e015(zmsg01) WITH ls_inforecord-matnr
+                                 INTO lv_message.
+            ls_return_e-message = ls_return_e-message && lv_message.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+*     判断是否存在历史采购信息记录
+      READ TABLE lt_inforec_old INTO DATA(ls_inforec_old)
+        WITH KEY matnr = ls_inforecord-matnr
+                 lifnr = ls_inforecord-lifnr
+                 ekorg = ls_inforecord-ekorg
+                 esokz = ls_inforecord-esokz
+*                 werks = ls_inforecord-werks
+                 BINARY SEARCH.
+*     存在记录
+      IF sy-subrc = 0.
+        IF ls_inforecord-zstatus = 'V' OR         "V:校验
+           ls_inforecord-zstatus = 'C'.           "C:创建
+
+          rtype          = 'E'.
+          ls_return_e-type = 'E'.
+
+*         采购信息记录已存在！
+          MESSAGE e207(zmsg01) INTO lv_message.
+          ls_return_e-message = ls_return_e-message && lv_message.
+        ENDIF.
+      ELSE.
+        IF ls_inforecord-zstatus = 'U'.           "U:更新
+
+          rtype          = 'E'.
+          ls_return_e-type = 'E'.
+
+*         采购信息记录不存在！
+          MESSAGE e208(zmsg01) INTO lv_message.
+          ls_return_e-message = ls_return_e-message && lv_message.
+        ENDIF.
+      ENDIF.
+
+      IF rtype <> 'E'.
+        READ TABLE lt_a018 INTO DATA(ls_a018)
+          WITH KEY lifnr = ls_inforecord-lifnr
+                   matnr = ls_inforecord-matnr
+                   ekorg = ls_inforecord-ekorg
+*                   werks = ls_inforecord-werks
+                   esokz = ls_inforecord-esokz
+                   datab = ls_inforecord-datab
+                   datbi = ls_inforecord-datbi
+                   BINARY SEARCH.
+
+*       更新-基本数据
+        ls_eina-info_rec           = ls_inforec_old-infnr. "采购信息记录编号
+        ls_einax-info_recn         = ls_inforec_old-infnr. "采购信息记录编号
+
+*       更新-采购数据
+        ls_eine-info_rec           = ls_inforec_old-infnr. "采购信息记录编号
+        ls_einex-info_recn         = ls_inforec_old-infnr. "采购信息记录编号
+
+*       更新-条件价格有效期
+        ls_cond_validity-info_rec  = ls_inforec_old-infnr. "采购信息记录编号
+        ls_cond_validity-serial_id = ls_a018-knumh.        "条件记录编号
+
+*       更新-条件价格信息
+        ls_condition-info_rec      = ls_inforec_old-infnr. "采购信息记录编号
+        ls_condition-serial_id     = ls_a018-knumh.        "条件记录编号
+        ls_condition-cond_count    = ls_a018-kopos.        "条件序列号
+
+*       条件价格信息更新标识
+        IF ls_a018-knumh IS NOT INITIAL.
+          ls_condition-change_id     = 'U'.
+        ENDIF.
+
+*       创建&更新-基本数据
+        ls_eina-material = ls_inforecord-matnr.                  "物料号
+        ls_eina-vendor   = |{ ls_inforecord-lifnr ALPHA = IN }|. "供应商
+        APPEND ls_eina TO lt_eina.
+
+        ls_einax-material = 'X'.
+        ls_einax-vendor   = 'X'.
+        APPEND ls_einax TO lt_einax.
+
+*       创建&更新-采购数据
+        ls_eine-eine_indx  = '01'.                    "顺序编号
+        ls_eine-purch_org  = ls_inforecord-ekorg.     "采购组织
+        ls_eine-plnd_delry = ls_mara-plifz.           "计划交货时间（天）
+        ls_eine-info_type  = ls_inforecord-esokz.     "采购信息记录分类
+*        ls_eine-plant      = ls_inforecord-werks.     "工厂
+        ls_eine-orderpr_un = ls_inforecord-bprme.     "订单价格单位(采购)
+        ls_eine-price_unit = ls_inforecord-peinh.     "价格单位
+        ls_eine-currency   = ls_inforecord-waers.     "货币码
+        ls_eine-tax_code   = ls_inforecord-mwskz.     "销售/购买税代码
+        APPEND ls_eine TO lt_eine.
+
+        ls_einex-eine_indx  = '01'.
+        ls_einex-purch_org  = 'X'.
+        ls_einex-plnd_delry = 'X'.
+        ls_einex-info_type  = 'X'.
+*        ls_einex-plant      = 'X'.
+        ls_einex-orderpr_un = 'X'.
+        ls_einex-price_unit = 'X'.
+        ls_einex-currency   = 'X'.
+        ls_einex-tax_code   = 'X'.
+        APPEND ls_einex TO lt_einex.
+
+*       创建&更新-条件有效期
+        IF ls_inforecord-datab IS INITIAL.
+          rtype = 'E'.
+          ls_return_e-type = 'E'.
+*         有效期起始时间不能为空！
+          MESSAGE e120(zmsg01) INTO lv_message.
+          ls_return_e-message = ls_return_e-message && lv_message.
+        ENDIF.
+
+        IF ls_inforecord-datbi IS INITIAL.
+          ls_inforecord-datbi = '99991231'.
+        ENDIF.
+
+        ls_cond_validity-eine_indx  = '01'.                "顺序编号
+*        ls_cond_validity-plant      = ls_inforecord-werks. "工厂
+        ls_cond_validity-valid_from = ls_inforecord-datab. "有效期从
+        ls_cond_validity-valid_to   = ls_inforecord-datbi. "有效期至
+        APPEND ls_cond_validity TO lt_cond_validity.
+
+*       创建&更新-条件明细
+        ls_condition-eine_indx  = '01'.               "顺序编号
+        ls_condition-cond_type  = 'PB00'.             "条件类型
+        ls_condition-cond_value = ls_inforecord-pbxx. "净价
+        ls_condition-currency   = ls_inforecord-waers."货币码
+        ls_condition-cond_p_unt = ls_inforecord-peinh."条件定价单位
+        ls_condition-cond_unit  = ls_inforecord-bprme."条件单位
+        APPEND ls_condition TO lt_condition.
+
+*       采购信息记录创建&更新
+        IF rtype <> 'E'.
+          CALL FUNCTION 'ME_INFORECORD_MAINTAIN_MULTI'
+            IMPORTING
+              et_eina       = lt_eina_e
+              et_eine       = lt_eine_e
+            TABLES
+              t_eina        = lt_eina
+              t_einax       = lt_einax
+              t_eine        = lt_eine
+              t_einex       = lt_einex
+              cond_validity = lt_cond_validity
+              condition     = lt_condition
+              return        = lt_return.
+
+          LOOP AT lt_return INTO DATA(ls_return) WHERE type CA 'EAX'.
+            rtype = 'E'.
+
+            IF ls_return_e-message IS INITIAL.
+              ls_return_e-message = ls_return-message.
+            ELSE.
+              ls_return_e-message = ls_return_e-message &&
+                                    '；' &&
+                                    ls_return-message.
+            ENDIF.
+          ENDLOOP.
+
+          IF sy-subrc = 0.
+            CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+            ls_return_e-type = 'E'.
+          ELSE.
+            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+            READ TABLE lt_eina_e INTO DATA(ls_eina_e) INDEX 1.
+
+            ls_return_e-type  = 'S'.
+            ls_return_e-infnr = ls_eina_e-info_rec."采购信息号
+
+*           采购信息记录&1维护成功！
+            MESSAGE s014(zmsg01) WITH ls_eina_e-info_rec
+                                 INTO ls_return_e-message.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+**      ls_return_e-zoaitem = ls_inforecord-zoaitem."OA行项目编码
+      APPEND ls_return_e TO et_return.
+    ELSE.
+*       没有获取到物料&1的单位！
+      MESSAGE e016(zmsg01) WITH ls_inforecord-matnr
+                           INTO lv_message.
+      ls_return_e-message = lv_message.
+      ls_return_e-type = 'E'.
+      rtype = 'E'.
+      APPEND ls_return_e TO et_return.
+    ENDIF.
+
+    CLEAR:
+      lt_eina_e,
+      lt_eine_e,
+      ls_eina,
+      lt_eina,
+      ls_einax,
+      lt_einax,
+      ls_eine,
+      lt_eine,
+      ls_einex,
+      lt_einex,
+      ls_cond_validity,
+      lt_cond_validity,
+      ls_condition,
+      lt_condition,
+      lt_return,
+      ls_return_e,
+      lv_message,
+      ls_inforec_old,
+      ls_a018.
+  ENDLOOP.
+
+  IF rtype = 'E'.
+    rtmsg = '本次创建包含错误条目！'.
+  ELSE.
+    rtype = 'S'.
+    rtmsg = '本次创建全部成功！'.
+  ENDIF.
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

@@ -1,0 +1,536 @@
+FUNCTION zfm_gp_mm_mdm_material_save.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(IS_MARA) TYPE  MARA OPTIONAL
+*"     VALUE(IT_AUSPCONDS) TYPE  ZTTPP_231_INPUT OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(RT_MATNR) TYPE  MATNR
+*"  TABLES
+*"      T_ZTMM201 STRUCTURE  ZTMM_201 OPTIONAL
+*"      T_MARM STRUCTURE  MARM OPTIONAL
+*"----------------------------------------------------------------------
+
+*  IF sy-uname NE 'CUIJUNHU'.
+*
+*    RETURN.
+*
+*  ENDIF.
+
+  zfmdatasave1 'ZFM_GP_MM_MDM_MATERIAL_SAVE' .
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  TYPES:
+    BEGIN OF typ_control,
+      ifid          TYPE char32,
+      sdate         TYPE char10,
+      source_system TYPE char10,
+      target_system TYPE char10,
+      erp_isapprove TYPE char10,
+
+    END OF typ_control,
+
+    BEGIN OF typ_header,
+
+*基础属性
+      category_code                 TYPE string,
+      category_desc                 TYPE string,
+      creator                       TYPE string,
+      mat_color                     TYPE string,
+      mat_delete_flag               TYPE string,
+      mat_desc_full                 TYPE string,
+      mat_desc_short                TYPE string,
+      mat_file                      TYPE string,
+      mat_id                        TYPE string,
+      mat_itemname                  TYPE string,
+      mat_itemname_id               TYPE string,
+      mat_level1_name               TYPE string,
+      mat_level1_no                 TYPE string,
+      mat_level2_name               TYPE string,
+      mat_level2_no                 TYPE string,
+      mat_level3_name               TYPE string,
+      mat_level3_no                 TYPE string,
+      mat_measuring_unit            TYPE string,
+      mat_model                     TYPE string,
+      mat_ply                       TYPE string,
+      mat_texture                   TYPE string,
+
+*分类属性
+*MDM字段名 必须与 映射表一致 [ZTMM_201]
+      materials_bulk_density        TYPE  string, "前缀拼接用 mat_core_
+      mat_core_materials_origin     TYPE  string,
+      mat_core_materials_variety    TYPE  string,
+      mat_inner_table_coating       TYPE  string,
+      mat_inner_table_color         TYPE  string,
+      mat_inner_table_film_mulching TYPE  string,
+      mat_inner_table_form          TYPE  string,
+      mat_inner_table_plate         TYPE  string,
+      mat_inner_table_plates_ply    TYPE  string,
+      mat_inner_table_production    TYPE  string,
+      mat_inner_table_strength      TYPE  string,
+      mat_inner_table_texture       TYPE  string,
+      mat_outer_table_coating       TYPE  string,
+      mat_outer_table_color         TYPE  string,
+      mat_outer_table_film_mulching TYPE  string,
+      mat_outer_table_form          TYPE  string,
+      mat_outer_table_plate         TYPE  string,
+      mat_outer_table_plates_ply    TYPE  string,
+      mat_outer_table_production    TYPE  string,
+      mat_outer_table_strength      TYPE  string,
+      mat_outer_table_texture       TYPE  string,
+      mat_plate_cut                 TYPE  string,
+      mat_plates_ply                TYPE  string,
+      mat_plates_width              TYPE  string,
+      mat_burning_level             TYPE  string,
+      mat_plates_width_desc         TYPE  string,
+      mat_edge_banding              TYPE  string,
+      mat_reinforcing_rib           TYPE  string,
+      mat_corner_type               TYPE  string,
+      mat_kee_type                  TYPE  string,
+      mat_keel_ply                  TYPE  string,
+      mat_sus_measure_ply           TYPE  string,
+      mat_plasterboard_brand        TYPE  string,
+      mat_plasterboard_ip_degree    TYPE  string,
+      mat_aluminum_honeycomb_size   TYPE  string,
+      mat_door_frame_platethick     TYPE  string,
+      mat_door_frame_thick          TYPE  string,
+      mat_door_size                 TYPE  string,
+      mat_door_ssa                  TYPE  string,
+      mat_door_type                 TYPE  string,
+      mat_door_winedge              TYPE  string,
+      mat_door_winglass             TYPE  string,
+      mat_doorleaf_filler           TYPE  string,
+      mat_doorleaf_platethick       TYPE  string,
+      mat_lock                      TYPE  string,
+      mat_spray_effect              TYPE  string,
+      mat_spray_olor                TYPE  string,
+      mat_spray_powder_type         TYPE  string,
+      mat_sweeping_strip            TYPE  string,
+      mat_door_frame_width          TYPE  string,
+      mat_door_frame_height         TYPE  string,
+      mat_doorleaf_color            TYPE  string,
+      mat_doorleaf_spraycolor       TYPE  string,
+      mat_doorleaf_sprayp_type      TYPE  string,
+      mat_doorleaf_spraypanel       TYPE  string,
+      mat_doorleaf_protech          TYPE  string,
+      mat_door_frame_insmeth        TYPE  string,
+      mat_dooropen_high             TYPE  string,
+      mat_dooropen_width            TYPE  string,
+      mat_wallthick                 TYPE  string,
+      mat_wall_type                 TYPE  string,
+      mat_door_frame_type           TYPE  string,
+      mat_built_in_desiccant        TYPE  string,
+      mat_glass_parameter           TYPE  string,
+      mat_glass_thick               TYPE  string,
+      mat_leakproofness             TYPE  string,
+      mat_window_high               TYPE  string,
+      mat_window_printed_edge       TYPE  string,
+      mat_window_texture            TYPE  string,
+      mat_window_thick              TYPE  string,
+      mat_window_width              TYPE  string,
+      mat_winframe_thick            TYPE  string,
+      mat_winframe_type             TYPE  string,
+      mat_winframe_wallrhick        TYPE  string,
+      mat_open_high                 TYPE  string,
+      mat_open_thick                TYPE  string,
+      mat_open_width                TYPE  string,
+      mat_place_of_production       TYPE  string,
+      mat_length                    TYPE  string,
+      mat_width                     TYPE  string,
+*      mat_ply                       TYPE  string,
+      mat_strength_grade            TYPE  string,
+      mat_content_of_coating        TYPE  string,
+*      mat_color                     TYPE  string,
+      mat_coating                   TYPE  string,
+      mat_coating_structure         TYPE  string,
+      mat_coat                      TYPE  string,
+      mat_film_type                 TYPE  string,
+      mat_back_oil_paint            TYPE  string,
+*      mat_texture                   TYPE  string,
+      mat_surface_treatment         TYPE  string,
+      mat_dimensions                TYPE  string,
+*      mat_model                     TYPE  string,
+      mat_raw_material_width        TYPE  string,
+      mat_specifications_model      TYPE  string,
+      mat_height                    TYPE  string,
+      mat_groove_deep               TYPE  string,
+      mat_size_dimensions           TYPE  string,
+      mat_ip_degree                 TYPE  string,
+      mat_packing_unit              TYPE  string,
+      mat_groove_width              TYPE  string,
+      mat_purity                    TYPE  string,
+      mat_gram_weight               TYPE  string,
+      mat_illuminant                TYPE  string,
+      mat_aluminum_foil_ply         TYPE  string,
+      mat_bore_diameter             TYPE  string,
+      mat_cross_sectional_shape     TYPE  string,
+      mat_processing_method         TYPE  string,
+      mat_mesh_number               TYPE  string,
+      mat_power_meter               TYPE  string,
+      mat_hydrophobic_nature        TYPE  string,
+      mat_assort                    TYPE  string,
+      mat_circular_arc              TYPE  string,
+      mat_inner_height              TYPE  string,
+      mat_viscosity                 TYPE  string,
+      mat_lettering                 TYPE  string,
+      mat_printed_edge_width        TYPE  string,
+      mat_wainscot                  TYPE  string,
+      mat_silk_screen_type          TYPE  string,
+      mat_brand                     TYPE  string,
+      mat_bulk_density              TYPE  string,
+      mat_melting_point             TYPE  string,
+      mat_printed_edge_color        TYPE  string,
+      mat_head_type                 TYPE  string,
+      mat_outer_height              TYPE  string,
+      mat_glass_type                TYPE  string,
+      mat_sus_surface_treatment     TYPE  string,
+      mat_lock_texture              TYPE  string,
+      mat_print_req                 TYPE  string,
+      mat_coating_type              TYPE  string,
+      mat_int_diameter              TYPE  string,
+      mat_coating_function          TYPE  string,
+      mat_punching_req              TYPE  string,
+      mat_coating_standard          TYPE  string,
+      mat_component_type            TYPE  string,
+      mat_waterproof                TYPE  string,
+      mat_diameter                  TYPE  string,
+      mat_side_length               TYPE  string,
+      mat_exp_rel_value             TYPE  string,
+      mat_zinc_content              TYPE  string,
+      mat_swallowtail_type          TYPE  string,
+      mat_hread_requirements        TYPE  string,
+      mat_skylight_type             TYPE  string,
+      mat_opening_form              TYPE  string,
+      mat_throat_size               TYPE  string,
+      mat_insulation_require        TYPE  string,
+      mat_door_winprocess           TYPE  string,
+      mat_purpose                   TYPE  string,
+      mat_plys                      TYPE  string,
+      mat_wall_thickness            TYPE  string,
+      mat_use_company               TYPE  string,
+      mat_voltage                   TYPE  string,
+      mat_imp_standard              TYPE  string,
+      mat_secondary_voltage         TYPE  string,
+      mat_frame_insmeth             TYPE  string,
+      mat_primary_voltage           TYPE  string,
+      mat_pole_number               TYPE  string,
+      mat_heat_resistance           TYPE  string,
+      mat_output_voltage            TYPE  string,
+      mat_max_working_voltage       TYPE  string,
+      mat_rated_torque              TYPE  string,
+      mat_deceleration_ratio        TYPE  string,
+      mat_electric_current          TYPE  string,
+      mat_figure_number             TYPE  string,
+      mat_tensile_strength          TYPE  string,
+      mat_out_diameter              TYPE  string,
+      mat_span_ammeter              TYPE  string,
+      mat_gloss                     TYPE  string,
+      mat_ponder                    TYPE  string,
+      mat_reprocessing              TYPE  string,
+      mat_back_coating_type         TYPE  string,
+      mat_film_thicknes             TYPE  string,
+      mat_packing_instruction       TYPE  string,
+      mat_trimming                  TYPE  string,
+      mat_back_color                TYPE  string,
+      mat_basilar_plate             TYPE  string,
+      mat_surface_structure         TYPE  string,
+      mat_code_spraying             TYPE  string,
+      mat_material_properties       TYPE  string,
+      mat_keel_number               TYPE  string,
+      mat_floor_type                TYPE  string,
+      mat_doorleaf_type             TYPE  string,
+*      mat_door_type                 TYPE  string,
+      mat_window_type               TYPE  string,
+      mat_glass_requirements        TYPE  string,
+      mat_screen_requirements       TYPE  string,
+      mat_guardrail_requirements    TYPE  string,
+      mat_ceiling_requirements      TYPE  string,
+      mat_floor_requirements        TYPE  string,
+      mat_sealing_requirements      TYPE  string,
+      mat_return_air_function       TYPE  string,
+      mat_function_selection        TYPE  string,
+
+
+    END OF typ_header,
+
+    BEGIN OF typ_unit,
+      mat_conversion_coefficient TYPE string,
+      mat_conversion_unit        TYPE string,
+      mat_source_coefficient     TYPE string,
+      mat_source_unit            TYPE string,
+
+    END OF typ_unit,
+    tt_typ_unit TYPE TABLE OF typ_unit.
+
+*请求
+  DATA: BEGIN OF ls_requst,
+          control              TYPE typ_control,
+          header               TYPE typ_header,
+
+*前缀拼接用 mdm_material_
+          conversion_unit_list TYPE tt_typ_unit,
+
+          mat_no               TYPE  string,
+        END OF ls_requst.
+
+
+*返回
+  DATA: BEGIN OF ls_response,
+          code      TYPE string,
+          interact  TYPE string,
+          message   TYPE string,
+*          mat_no    TYPE string,
+          result    LIKE ls_requst,
+          success   TYPE boole_d,
+          timestamp TYPE ltr2_kb_timestamp,
+
+        END OF ls_response.
+
+  DATA:lv_str TYPE string.
+
+*接口用
+  DATA:url    TYPE string,
+       token  TYPE string,
+       input  TYPE string,
+       output TYPE string,
+       status TYPE i.
+*
+  DATA:BEGIN OF it_header OCCURS 0,
+         name  TYPE string,
+         value TYPE string,
+       END OF it_header.
+
+
+*& URL
+  PERFORM getdata(zpub_data)
+  USING 'ZFM_GP_MM_MDM_MATERIAL_SAVE' CHANGING url.
+  IF url IS INITIAL.
+    ret_message 'E' '未找到URL，请检查配置表!' 'X' 'X'.
+
+  ENDIF.
+
+*& control信息
+  PERFORM get_guid_32 CHANGING ls_requst-control-ifid."唯一标识
+  ls_requst-control-sdate = sy-datum.  "当前日期
+  ls_requst-control-source_system = 'SAP'.  "源系统 洁净CRM：CRM_JJ/钢品CRM：CRM_GP
+  ls_requst-control-target_system = 'MDM'. "目标系统
+  ls_requst-control-erp_isapprove = '0'. "无需审批
+
+*& 报文头
+  it_header-name = 'Content-Type'.
+  it_header-value = 'application/json;charset=utf-8'.
+  APPEND it_header.
+  CLEAR: it_header.
+*
+
+  SORT t_ztmm201 BY atnam.
+
+
+  DATA ls_unit TYPE typ_unit.
+
+
+*基本信息
+  ls_requst-header-creator = is_mara-ernam.
+  IF ls_requst-header-creator = ''.
+    ls_requst-header-creator = 'mdmbus'."MDM账号
+
+  ENDIF.
+  ls_requst-header-category_code = is_mara-matkl.
+
+*转换成为 外部码
+  CALL FUNCTION 'CONVERSION_EXIT_CUNIT_OUTPUT'
+    EXPORTING
+      input          = is_mara-meins
+      language       = '1'
+    IMPORTING
+      long_text      = ls_requst-header-mat_measuring_unit
+*     OUTPUT         =
+*     SHORT_TEXT     =
+    EXCEPTIONS
+      unit_not_found = 1
+      OTHERS         = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+  ls_requst-header-mat_delete_flag = '1'.
+*  ls_requst-header-mat_use_company = '3020'.
+  ls_requst-header-mat_itemname = is_mara-zzl1. "品名描述
+  ls_requst-header-mat_itemname_id = is_mara-zzl. "品名ID
+*  ls_requst-header-mat_inner_table_film_mulching = '覆白膜'. "品名ID
+*  ls_requst-header-mat_inner_table_strength = 'TS300GD'. "品名ID
+*  ls_requst-header-mat_outer_table_film_mulching = '覆白膜'. "品名ID
+*  ls_requst-header-mat_level1_no = ls_ztmm001-dl. "大类
+*  ls_requst-header-mat_level1_name = ls_ztmm001-dlt. "大类描述
+*  ls_requst-header-mat_level2_no = is_mara-zzlms. "中类
+*  ls_requst-header-mat_level2_name = is_mara-zzl. "中类描述
+*  ls_requst-header-mat_level3_no = is_mara-matkl+3(2). "小类
+
+*  IF ls_requst-header-mat_level3_no = '00'.
+*    ls_requst-header-mat_level3_name = '-'. "小类描述
+*
+*  ENDIF.
+
+
+*先确定基本计量单位
+  READ TABLE t_marm
+  INTO DATA(ls_marm)
+  WITH KEY meinh = is_mara-meins.
+  IF sy-subrc = 0.
+    DELETE t_marm INDEX sy-tabix.
+
+    ls_unit-mat_source_coefficient = ls_marm-umrez.
+    CONDENSE ls_unit-mat_source_coefficient NO-GAPS.
+
+*转换成为 外部码
+    CALL FUNCTION 'CONVERSION_EXIT_CUNIT_OUTPUT'
+      EXPORTING
+        input          = ls_marm-meinh
+        language       = '1'
+      IMPORTING
+        long_text      = ls_unit-mat_source_unit
+*       OUTPUT         =
+*       SHORT_TEXT     =
+      EXCEPTIONS
+        unit_not_found = 1
+        OTHERS         = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+  ENDIF.
+
+  IF t_marm[] IS INITIAL.
+    ls_unit-mat_source_coefficient = '1'.
+    ls_unit-mat_conversion_coefficient = '1'.
+
+  ELSE.
+
+    LOOP AT t_marm INTO ls_marm.
+
+      ls_unit-mat_conversion_coefficient = ls_marm-umrez.
+
+      CONDENSE ls_unit-mat_conversion_coefficient NO-GAPS.
+*      ls_unit-mat_conversion_unit        = ls_marm-meinh.
+
+      CALL FUNCTION 'CONVERSION_EXIT_CUNIT_OUTPUT'
+        EXPORTING
+          input          = ls_marm-meinh
+          language       = '1'
+        IMPORTING
+          long_text      = ls_unit-mat_conversion_unit
+*         OUTPUT         =
+*         SHORT_TEXT     =
+        EXCEPTIONS
+          unit_not_found = 1
+          OTHERS         = 2.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+
+      APPEND ls_unit TO ls_requst-conversion_unit_list.
+
+    ENDLOOP.
+
+  ENDIF.
+
+*循环 特性表, 利用映射关系赋值
+  LOOP AT it_auspconds
+    INTO DATA(is_auspconds)
+    WHERE atwrt NE ''.
+
+    READ TABLE t_ztmm201
+    INTO DATA(ls_ztmm201)
+    WITH KEY atnam = is_auspconds-atnam
+    BINARY SEARCH.
+    IF sy-subrc = 0.
+
+      ASSIGN COMPONENT ls_ztmm201-zmdmfield
+      OF STRUCTURE ls_requst-header
+      TO FIELD-SYMBOL(<fs_mdm_header>).
+      IF <fs_mdm_header> IS ASSIGNED.
+        <fs_mdm_header> = is_auspconds-atwrt.
+        UNASSIGN <fs_mdm_header>.
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+*&数据转JSON
+  CLEAR:input.
+  CALL FUNCTION 'ZFMS_14_JSON'
+    EXPORTING
+      pretty_name = 'L'
+    CHANGING
+      jsonstr     = input
+      data        = ls_requst
+    EXCEPTIONS
+      OTHERS      = 1.
+
+*超长（30位）字段名 拼接
+  REPLACE ALL OCCURRENCES OF
+  '"conversion_unit_list"'
+  IN input
+  WITH '"mdm_material_conversion_unit_list"'
+  IN CHARACTER MODE.
+
+  REPLACE ALL OCCURRENCES OF
+  '"materials_bulk_density"'
+  IN input
+  WITH '"mat_core_materials_bulk_density"'
+  IN CHARACTER MODE.
+
+  REPLACE ALL OCCURRENCES OF
+  '"erp_isapprove"'
+  IN input
+  WITH '"erp_isApprove"'
+  IN CHARACTER MODE.
+
+
+
+*& 向MDM推送报文
+
+
+
+*& 调用函数HTTP
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = input
+      url       = url
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = output "返回JSON报文
+      rtmsg     = lv_str  "消息
+      status    = status "HTTP状态
+    TABLES
+      header    = it_header
+    EXCEPTIONS
+      OTHERS    = 1.
+
+*返回报文结果
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = output
+      data    = ls_response
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  rt_matnr = ls_response-result-mat_no.
+
+  rtmsg = ls_response-message.
+  IF ls_response-success = abap_true.
+    rtype = 'S'.
+
+  ELSE.
+    rtype = 'E'.
+
+  ENDIF.
+
+*接口日志结束
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

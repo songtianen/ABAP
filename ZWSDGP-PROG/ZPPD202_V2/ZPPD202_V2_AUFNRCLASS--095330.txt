@@ -1,0 +1,506 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD202_V2_AUFNRCLASS
+*&---------------------------------------------------------------------*
+DATA:alv_grid1      TYPE REF TO cl_gui_alv_grid, "容器的实例
+     alv_container1 TYPE REF TO cl_gui_docking_container,
+     alv_grid2      TYPE REF TO cl_gui_alv_grid, "容器的实例
+     alv_container2 TYPE REF TO cl_gui_docking_container.
+CLASS alv_event_gd DEFINITION.
+  PUBLIC SECTION.
+    "工单修改
+    METHODS handle_data_changed_1 FOR EVENT data_changed OF cl_gui_alv_grid"数据改动事件
+      IMPORTING er_data_changed e_onf4 e_onf4_before e_onf4_after e_ucomm.
+    METHODS handle_double_click_1 FOR EVENT double_click  OF cl_gui_alv_grid"双击事件
+      IMPORTING e_row e_column es_row_no.
+    METHODS handle_on_f4_1 FOR EVENT onf4 OF cl_gui_alv_grid"F4
+      IMPORTING e_fieldname e_fieldvalue es_row_no er_event_data et_bad_cells e_display.
+    METHODS handle_user_command_1 FOR EVENT user_command OF cl_gui_alv_grid"用户按钮事件
+      IMPORTING e_ucomm.
+    METHODS handle_hotspot_click_1 FOR EVENT hotspot_click OF cl_gui_alv_grid"热区单击事件
+      IMPORTING e_row_id e_column_id es_row_no.
+    METHODS handle_toolbar_1 FOR EVENT toolbar OF cl_gui_alv_grid"工具条事件
+      IMPORTING e_object e_interactive.
+    "工单创建
+    METHODS handle_data_changed_2 FOR EVENT data_changed OF cl_gui_alv_grid"数据改动事件
+      IMPORTING er_data_changed e_onf4 e_onf4_before e_onf4_after e_ucomm.
+    METHODS handle_double_click_2 FOR EVENT double_click  OF cl_gui_alv_grid"双击事件
+      IMPORTING e_row e_column es_row_no.
+    METHODS handle_on_f4_2 FOR EVENT onf4 OF cl_gui_alv_grid"F4
+      IMPORTING e_fieldname e_fieldvalue es_row_no er_event_data et_bad_cells e_display.
+    METHODS handle_user_command_2 FOR EVENT user_command OF cl_gui_alv_grid"用户按钮事件
+      IMPORTING e_ucomm.
+    METHODS handle_hotspot_click_2 FOR EVENT hotspot_click OF cl_gui_alv_grid"热区单击事件
+      IMPORTING e_row_id e_column_id es_row_no.
+    METHODS handle_toolbar_2 FOR EVENT toolbar OF cl_gui_alv_grid"工具条事件
+      IMPORTING e_object e_interactive.
+ENDCLASS.
+CLASS alv_event_gd IMPLEMENTATION.
+  "工单修改
+  METHOD handle_data_changed_1.        "数据改动事件
+    PERFORM frm_handle_data_changed_1 USING er_data_changed.
+    PERFORM frm_refresh_alv_1.
+  ENDMETHOD.
+  METHOD handle_double_click_1 .      "双击事件
+    PERFORM frm_double_click_1 USING e_row e_column es_row_no.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD handle_on_f4_1.              "F4
+    PERFORM frm_alv_on_f4_1 USING  e_fieldname e_fieldvalue es_row_no er_event_data e_display.
+    PERFORM frm_refresh_alv_1.
+  ENDMETHOD.
+  METHOD handle_user_command_1.       "用户按钮事件
+    PERFORM frm_handle_user_command_1 USING e_ucomm.
+    PERFORM frm_refresh_alv_1.
+  ENDMETHOD.
+  METHOD handle_hotspot_click_1.       "热区单击事件
+    PERFORM handle_hotspot_click_1 USING e_row_id e_column_id es_row_no.
+    PERFORM frm_refresh_alv_1.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  handle_toolbar_1.            "工具条事件
+    PERFORM frm_handle_toolbar_1 USING e_object e_interactive."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+  "工单创建
+  METHOD handle_data_changed_2.        "数据改动事件
+    PERFORM frm_handle_data_changed_2 USING er_data_changed.
+    PERFORM frm_refresh_alv_2.
+  ENDMETHOD.
+  METHOD handle_double_click_2 .      "双击事件
+    PERFORM frm_double_click_2 USING e_row e_column es_row_no.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD handle_on_f4_2.              "F4
+    PERFORM frm_alv_on_f4_2 USING  e_fieldname e_fieldvalue es_row_no er_event_data e_display.
+    PERFORM frm_refresh_alv_2.
+  ENDMETHOD.
+  METHOD handle_user_command_2.       "用户按钮事件
+    PERFORM frm_handle_user_command_2 USING e_ucomm.
+    PERFORM frm_refresh_alv_2.
+  ENDMETHOD.
+  METHOD handle_hotspot_click_2.       "热区单击事件
+    PERFORM handle_hotspot_click_2 USING e_row_id e_column_id es_row_no.
+    PERFORM frm_refresh_alv_2.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  handle_toolbar_2.            "工具条事件
+    PERFORM frm_handle_toolbar_2 USING e_object e_interactive."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+ENDCLASS.
+DATA:lcl_event_receiver_1 TYPE REF TO alv_event_gd,
+     lcl_event_receiver_2 TYPE REF TO alv_event_gd.
+**********************************************************************
+" 工单事件 by kkw 26.12.2022 00:05:18
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM frm_handle_data_changed_1 USING p_er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+  DATA:mod_data    TYPE lvc_t_modi,
+       wa_mod_data TYPE lvc_s_modi.
+  CLEAR:mod_data,wa_mod_data.
+  mod_data = p_er_data_changed->mt_mod_cells.
+  LOOP AT mod_data INTO wa_mod_data.
+    READ TABLE itab INDEX wa_mod_data-row_id.
+    CHECK sy-subrc = 0.
+    CASE wa_mod_data-fieldname.
+      WHEN 'PSKS'.
+        ASSIGN COMPONENT wa_mod_data-fieldname OF STRUCTURE itab TO FIELD-SYMBOL(<fs>).
+        IF sy-subrc EQ 0.
+          PERFORM delqfw(zpubform) CHANGING wa_mod_data-value.
+          <fs> = wa_mod_data-value.
+          CASE itab-werks.
+            WHEN '3000' OR '3002' OR '3060' OR '3062' OR '3090'.
+              itab-psmng = itab-zcd * wa_mod_data-value * itab-zxishu / 1000.
+            WHEN OTHERS.
+              itab-psmng = itab-zcd * wa_mod_data-value.
+          ENDCASE.
+          MODIFY itab  INDEX wa_mod_data-row_id TRANSPORTING psks psmng.
+        ENDIF.
+
+    ENDCASE.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM frm_double_click_1  USING    p_e_row
+                                  p_e_column
+                                  p_es_row_no.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM frm_alv_on_f4_1  USING    p_e_fieldname
+                               p_e_fieldvalue
+                               p_es_row_no  TYPE lvc_s_roid
+                               p_er_event_data  TYPE REF TO cl_alv_event_data
+                               p_e_display.
+  p_er_event_data->m_event_handled = 'X'.
+  ASSIGN p_er_event_data->m_data->* TO <it_modi>.
+  CASE p_e_fieldname.
+    WHEN 'DAUAT'.
+      PERFORM f4help TABLES return_tab USING  p_e_fieldname 'ITAB' wa_tab.
+  ENDCASE.
+  IF return_tab[] IS NOT INITIAL.
+    READ TABLE return_tab INTO wa_return_tab INDEX 1.
+    IF sy-subrc EQ 0.
+      wa_modi-row_id = p_es_row_no-row_id.
+      wa_modi-fieldname = p_e_fieldname.
+      wa_modi-value = wa_return_tab-fieldval.
+      APPEND wa_modi TO <it_modi>.
+    ENDIF.
+*    READ TABLE return_tab INTO wa_return_tab INDEX 2.
+*    IF sy-subrc EQ 0.
+*      wa_modi-row_id = p_es_row_no-row_id.
+*      wa_modi-fieldname = 'ARBPL'.
+*      wa_modi-value = wa_return_tab-fieldval.
+*      APPEND wa_modi TO <it_modi>.
+*    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM frm_handle_user_command_1  USING    p_e_ucomm.
+  CASE p_e_ucomm.
+    WHEN 'ALL'.
+      LOOP AT itab.
+        itab-chbox = 'X'.
+        MODIFY itab TRANSPORTING chbox.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT itab.
+        itab-chbox = ''.
+        MODIFY itab TRANSPORTING chbox.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM handle_hotspot_click_1  USING    p_e_row_id
+                                      p_e_column_id
+                                      p_es_row_no.
+  DATA:wa LIKE LINE OF itab.
+  FIELD-SYMBOLS:<fse> TYPE any,
+                <wae> TYPE any.
+  CONDENSE p_e_row_id     NO-GAPS.
+  CONDENSE p_e_column_id  NO-GAPS.
+  READ TABLE itab ASSIGNING <wae> INDEX p_e_row_id.
+  ASSIGN COMPONENT p_e_column_id OF STRUCTURE <wae> TO <fse>.
+  CHECK sy-subrc = 0.
+  IF <fse> = 'X'.
+    <fse> = ''.
+  ELSE.
+    <fse> = 'X'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM frm_handle_toolbar_1  USING    p_e_object  TYPE REF TO cl_alv_event_toolbar_set
+                                    p_e_interactive.
+  DATA: ls_toolbar TYPE stb_button.
+  CLEAR: ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+  CLEAR ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'ALL'.    " 功能码
+  ls_toolbar-icon = '@4B@'.  " 图标名称
+  ls_toolbar-quickinfo = '全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'SAL'.    " 功能码
+  ls_toolbar-icon = '@4D@'.  " 图标名称
+  ls_toolbar-quickinfo = '取消全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '取消全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_refresh_alv_1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_refresh_alv_1 .
+  DATA: lt_celltab TYPE lvc_t_styl,
+        ls_celltab TYPE lvc_s_styl,
+        ls_stable  TYPE lvc_s_stbl.
+
+  ls_stable-row = 'X'.  "固定行
+  ls_stable-col = 'X'.  "固定列
+
+  CHECK alv_grid1 IS NOT INITIAL.
+
+  CALL METHOD alv_grid1->refresh_table_display
+    EXPORTING
+      is_stable = ls_stable
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      finished  = 1
+      OTHERS    = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM.
+**********************************************************************
+
+**********************************************************************
+" 工单创建事件开始 by kkw 26.12.2022 21:20:57
+**********************************************************************
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM frm_handle_data_changed_2  USING    p_er_data_changed.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM frm_double_click_2  USING    p_e_row
+                                  p_e_column
+                                  p_es_row_no.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM frm_alv_on_f4_2  USING    p_e_fieldname
+                               p_e_fieldvalue
+                               p_es_row_no  TYPE lvc_s_roid
+                               p_er_event_data  TYPE REF TO cl_alv_event_data
+                               p_e_display.
+  p_er_event_data->m_event_handled = 'X'.
+  ASSIGN p_er_event_data->m_data->* TO <it_modi>.
+  CASE p_e_fieldname.
+    WHEN 'DAUAT'.
+      PERFORM f4help TABLES return_tab USING  p_e_fieldname 'IT_CRTAUFNR' wa_tabaufnr.
+  ENDCASE.
+  IF return_tab[] IS NOT INITIAL.
+    READ TABLE return_tab INTO wa_return_tab INDEX 1.
+    IF sy-subrc EQ 0.
+      wa_modi-row_id = p_es_row_no-row_id.
+      wa_modi-fieldname = p_e_fieldname.
+      wa_modi-value = wa_return_tab-fieldval.
+      APPEND wa_modi TO <it_modi>.
+    ENDIF.
+*    READ TABLE return_tab INTO wa_return_tab INDEX 2.
+*    IF sy-subrc EQ 0.
+*      wa_modi-row_id = p_es_row_no-row_id.
+*      wa_modi-fieldname = 'ARBPL'.
+*      wa_modi-value = wa_return_tab-fieldval.
+*      APPEND wa_modi TO <it_modi>.
+*    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM frm_handle_user_command_2  USING    p_e_ucomm.
+  CASE p_e_ucomm.
+    WHEN 'ALL'.
+      LOOP AT it_crtaufnr.
+        it_crtaufnr-chbox = 'X'.
+        MODIFY it_crtaufnr TRANSPORTING chbox.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT it_crtaufnr.
+        it_crtaufnr-chbox = ''.
+        MODIFY it_crtaufnr TRANSPORTING chbox.
+      ENDLOOP.
+    WHEN 'FILLDAUAT'.
+      PERFORM filldauat.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM handle_hotspot_click_2  USING    p_e_row_id
+                                      p_e_column_id
+                                      p_es_row_no.
+  DATA:wa LIKE LINE OF it_crtaufnr.
+  FIELD-SYMBOLS:<fse> TYPE any,
+                <wae> TYPE any.
+  CONDENSE p_e_row_id     NO-GAPS.
+  CONDENSE p_e_column_id  NO-GAPS.
+  READ TABLE it_crtaufnr ASSIGNING <wae> INDEX p_e_row_id.
+  ASSIGN COMPONENT p_e_column_id OF STRUCTURE <wae> TO <fse>.
+  CHECK sy-subrc = 0.
+  IF <fse> = 'X'.
+    <fse> = ''.
+  ELSE.
+    <fse> = 'X'.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM frm_handle_toolbar_2  USING    p_e_object  TYPE REF TO cl_alv_event_toolbar_set
+                                    p_e_interactive.
+  DATA: ls_toolbar TYPE stb_button.
+  CLEAR: ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+  CLEAR ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'ALL'.    " 功能码
+  ls_toolbar-icon = '@4B@'.  " 图标名称
+  ls_toolbar-quickinfo = '全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'SAL'.    " 功能码
+  ls_toolbar-icon = '@4D@'.  " 图标名称
+  ls_toolbar-quickinfo = '取消全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '取消全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'FILLDAUAT'.    " 功能码
+  ls_toolbar-icon = '@HB@'.  " 图标名称
+  ls_toolbar-quickinfo = '批量填充工单类型'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '批量填充工单类型'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_refresh_alv_2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_refresh_alv_2 .
+  DATA: lt_celltab TYPE lvc_t_styl,
+        ls_celltab TYPE lvc_s_styl,
+        ls_stable  TYPE lvc_s_stbl.
+
+  ls_stable-row = 'X'.  "固定行
+  ls_stable-col = 'X'.  "固定列
+
+  CHECK alv_grid2 IS NOT INITIAL.
+
+  CALL METHOD alv_grid2->refresh_table_display
+    EXPORTING
+      is_stable = ls_stable
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      finished  = 1
+      OTHERS    = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM.
+**********************************************************************
+" 工单修改事件结束 by kkw 26.12.2022 21:23:42
+*********************************
+*&---------------------------------------------------------------------*
+*& Form filldauat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM filldauat .
+  READ TABLE it_crtaufnr WITH KEY chbox = 'X'.
+  IF sy-subrc NE 0.
+    MESSAGE i004 WITH '请选择要填充工单版本的明细行'.
+    EXIT.
+  ENDIF.
+  LOOP AT it_crtaufnr WHERE chbox = 'X'.
+    it_crtaufnr-dauat = 'ZP15'.
+    MODIFY it_crtaufnr TRANSPORTING dauat.
+  ENDLOOP.
+
+ENDFORM.

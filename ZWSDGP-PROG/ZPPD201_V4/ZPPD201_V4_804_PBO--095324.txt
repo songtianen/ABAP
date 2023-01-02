@@ -1,0 +1,46 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_V3_802_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TS 'Z802_YQ'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: SETS ACTIVE TAB
+MODULE Z804_YQ_ACTIVE_TAB_SET OUTPUT.
+  Z804_YQ-ACTIVETAB = G_Z804_YQ-PRESSED_TAB.
+  CASE G_Z804_YQ-PRESSED_TAB.
+    WHEN C_Z804_YQ-TAB1.
+      CASE GV_SUBSCREEN_800.
+        WHEN '0802'.
+          G_Z804_YQ-SUBSCREEN = '9106'."小屏幕
+        WHEN OTHERS.
+          G_Z804_YQ-SUBSCREEN = '9105'."大屏幕
+      ENDCASE.
+    WHEN C_Z804_YQ-TAB2.
+      G_Z804_YQ-SUBSCREEN = '9103'.
+    WHEN C_Z804_YQ-TAB3.
+      G_Z804_YQ-SUBSCREEN = '9109'.
+    WHEN OTHERS.
+*&SPWIZARD:      DO NOTHING
+  ENDCASE.
+*檩条物料能显示冲孔屏幕
+  CLEAR MARA.
+  SELECT SINGLE *
+    FROM MARA
+    WHERE MATNR = WA_GGZD-MATNR.
+  LOOP AT SCREEN.
+    CASE SCREEN-GROUP1.
+      WHEN 'C1'.
+        CASE GCBS.
+          WHEN 'B'.
+            SCREEN-ACTIVE = 0.
+          WHEN 'A'.
+*只有檩条才能冲孔
+            CASE MARA-MATKL.
+              WHEN 'B0106'.
+              WHEN OTHERS.
+                SCREEN-ACTIVE = 0.
+            ENDCASE.
+        ENDCASE.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+ENDMODULE.

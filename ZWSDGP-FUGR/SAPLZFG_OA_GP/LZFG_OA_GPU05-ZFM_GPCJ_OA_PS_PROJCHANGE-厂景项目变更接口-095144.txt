@@ -1,0 +1,30 @@
+FUNCTION zfm_gpcj_oa_ps_projchange.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZTPS_200
+*"      OUT_TAB STRUCTURE  ZSMM_017 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GPCJ_OA_PS_PROJCHANGE'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:it_ztps_200 TYPE TABLE OF ztps_200 WITH HEADER LINE.
+  CHECK in_tab[] IS NOT INITIAL.
+  REFRESH: it_ztps_200,out_tab.
+  it_ztps_200[] = in_tab[].
+
+  INSERT ztps_200 FROM TABLE it_ztps_200[].
+  IF sy-subrc EQ 0.
+    COMMIT WORK.
+    out_tab-flag = 'S'.
+    out_tab-message = '保存ztps_200成功'.
+    APPEND out_tab.
+  ELSE.
+    ROLLBACK WORK.
+    out_tab-flag = 'E'.
+    out_tab-message = '保存ztps_200失败'.
+    APPEND out_tab.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

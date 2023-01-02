@@ -1,0 +1,33 @@
+FUNCTION zfm_oa2sap_rbtb.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_HEAD STRUCTURE  ZTPS012A
+*"      IN_BODY STRUCTURE  ZTPS012B
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_OA2SAP_RBTB' .
+  zfmdatasave2 'B'.
+  IF in_head[] IS INITIAL OR in_body[] IS INITIAL.
+    rtype = 'E'.
+    rtmsg = '输入内容为空'.
+    EXIT.
+  ENDIF.
+  IF in_head[] IS NOT INITIAL AND in_body[] IS NOT INITIAL.
+    LOOP AT in_head .
+      in_head-zrbrq = sy-datum.
+      MODIFY in_head.
+    ENDLOOP.
+    MODIFY ztps012a FROM TABLE in_head.
+    MODIFY ztps012b FROM TABLE in_body.
+    rtype = 'S'.
+    rtmsg = '更新成功'.
+  ENDIF.
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

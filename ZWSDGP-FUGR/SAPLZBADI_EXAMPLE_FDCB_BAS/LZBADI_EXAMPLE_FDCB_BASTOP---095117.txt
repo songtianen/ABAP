@@ -1,0 +1,9 @@
+FUNCTION-POOL ZBADI_EXAMPLE_FDCB_BAS.        "MESSAGE-ID ..
+
+tables: invfo.
+
+data: o_badi_fdcb_subbas01  type ref to if_ex_badi_fdcb_subbas01.
+
+constants:
+      exit_name_fdcb_subbas01   type exit_def
+                                value 'BADI_FDCB_SUBBAS01'.

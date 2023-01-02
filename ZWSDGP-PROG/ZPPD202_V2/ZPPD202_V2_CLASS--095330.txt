@@ -1,0 +1,617 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD202_V2_CLASS
+*&---------------------------------------------------------------------*
+DATA:alv_grid_pcd      TYPE REF TO cl_gui_alv_grid, "容器的实例
+     alv_container_pcd TYPE REF TO cl_gui_custom_container, "ALV container容器 需要画屏幕容器
+     alv_grid_jhd      TYPE REF TO cl_gui_alv_grid,
+     alv_container_jhd TYPE REF TO cl_gui_custom_container.
+CLASS alv_event DEFINITION.
+  PUBLIC SECTION.
+    "排产单事件
+    METHODS handle_data_changed_pcd FOR EVENT data_changed OF cl_gui_alv_grid"数据改动事件
+      IMPORTING er_data_changed e_onf4 e_onf4_before e_onf4_after e_ucomm.
+    METHODS handle_double_click_pcd FOR EVENT double_click  OF cl_gui_alv_grid"双击事件
+      IMPORTING e_row e_column es_row_no.
+    METHODS handle_on_f4_pcd FOR EVENT onf4 OF cl_gui_alv_grid"F4
+      IMPORTING e_fieldname e_fieldvalue es_row_no er_event_data et_bad_cells e_display.
+    METHODS handle_user_command_pcd FOR EVENT user_command OF cl_gui_alv_grid"用户按钮事件
+      IMPORTING e_ucomm.
+    METHODS handle_hotspot_click_pcd FOR EVENT hotspot_click OF cl_gui_alv_grid"热区单击事件
+      IMPORTING e_row_id e_column_id es_row_no.
+    METHODS handle_toolbar_pcd FOR EVENT toolbar OF cl_gui_alv_grid"工具条事件
+      IMPORTING e_object e_interactive.
+    "计划单事件
+    METHODS handle_data_changed_jhd FOR EVENT data_changed OF cl_gui_alv_grid"数据改动事件
+      IMPORTING er_data_changed e_onf4 e_onf4_before e_onf4_after e_ucomm.
+    METHODS handle_double_click_jhd FOR EVENT double_click  OF cl_gui_alv_grid"双击事件
+      IMPORTING e_row e_column es_row_no.
+    METHODS handle_on_f4_jhd FOR EVENT onf4 OF cl_gui_alv_grid"F4
+      IMPORTING e_fieldname e_fieldvalue es_row_no er_event_data et_bad_cells e_display.
+    METHODS handle_user_command_jhd FOR EVENT user_command OF cl_gui_alv_grid"用户按钮事件
+      IMPORTING e_ucomm.
+    METHODS handle_hotspot_click_jhd FOR EVENT hotspot_click OF cl_gui_alv_grid"热区单击事件
+      IMPORTING e_row_id e_column_id es_row_no.
+    METHODS handle_toolbar_jhd FOR EVENT toolbar OF cl_gui_alv_grid"工具条事件
+      IMPORTING e_object e_interactive.
+
+ENDCLASS.
+CLASS alv_event IMPLEMENTATION.
+  "排产单
+  METHOD handle_data_changed_pcd.        "数据改动事件
+    PERFORM frm_handle_data_changed_pcd USING er_data_changed.
+    PERFORM frm_refresh_alv_pcd.
+  ENDMETHOD.
+  METHOD handle_double_click_pcd .      "双击事件
+    PERFORM frm_double_click_pcd USING e_row e_column es_row_no.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD handle_on_f4_pcd.              "F4
+    PERFORM frm_alv_on_f4_pcd USING  e_fieldname e_fieldvalue es_row_no er_event_data e_display.
+  ENDMETHOD.
+  METHOD handle_user_command_pcd.       "用户按钮事件
+    PERFORM frm_handle_user_command_pcd USING e_ucomm.
+    PERFORM frm_refresh_alv_pcd.
+  ENDMETHOD.
+  METHOD handle_hotspot_click_pcd.       "热区单击事件
+    PERFORM handle_hotspot_click_pcd USING e_row_id e_column_id es_row_no.
+    PERFORM frm_refresh_alv_pcd.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  handle_toolbar_pcd.            "工具条事件
+    PERFORM frm_handle_toolbar_pcd USING e_object e_interactive."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+  "计划单
+  METHOD handle_data_changed_jhd.        "数据改动事件
+    PERFORM frm_handle_data_changed_jhd USING er_data_changed.
+    PERFORM frm_refresh_alv_jhd.
+  ENDMETHOD.
+  METHOD handle_double_click_jhd .      "双击事件
+    PERFORM frm_double_click_jhd USING e_row e_column es_row_no.
+  ENDMETHOD.                    "HANDLE_USER_COMMAND
+  METHOD handle_on_f4_jhd.              "F4
+    PERFORM frm_alv_on_f4_jhd USING  e_fieldname e_fieldvalue es_row_no er_event_data e_display.
+  ENDMETHOD.
+  METHOD handle_user_command_jhd.       "用户按钮事件
+    PERFORM frm_handle_user_command_jhd USING e_ucomm.
+    PERFORM frm_refresh_alv_jhd.
+  ENDMETHOD.
+  METHOD handle_hotspot_click_jhd.       "热区单击事件
+    PERFORM handle_hotspot_click_jhd USING e_row_id e_column_id es_row_no.
+    PERFORM frm_refresh_alv_jhd.
+  ENDMETHOD.                    "handle_hotspot_click
+  METHOD  handle_toolbar_jhd.            "工具条事件
+    PERFORM frm_handle_toolbar_jhd USING e_object e_interactive."设置工具条图标
+  ENDMETHOD.                    "HANDLE_DOUBLE_CLICK
+ENDCLASS.
+DATA:lcl_event_receiver_pcd TYPE REF TO alv_event,
+     lcl_event_receiver_jhd TYPE REF TO alv_event.
+
+**********************************************************************
+" 排产单事件开始 by kkw 12.12.2022 11:29:13
+**********************************************************************
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM frm_handle_data_changed_pcd  USING    p_er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM frm_double_click_pcd  USING    p_e_row
+                                    p_e_column
+                                    p_es_row_no.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM frm_alv_on_f4_pcd  USING    p_e_fieldname
+                                 p_e_fieldvalue
+                                 p_es_row_no
+                                 p_er_event_data
+                                 p_e_display.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM frm_handle_user_command_pcd  USING    p_e_ucomm.
+  DATA:BEGIN OF it_tabix OCCURS 0,
+         tabix TYPE sy-tabix,
+       END OF it_tabix.
+*筛选后全选问题-IT_FILTER中存放被隐藏的数据
+  CLEAR:it_tabix[],it_filter.
+  CALL METHOD alv_grid_pcd->get_filtered_entries
+    IMPORTING
+      et_filtered_entries = it_filter.
+  CASE p_e_ucomm.
+    WHEN 'ALL'."全选
+      IF it_filter IS INITIAL.
+        LOOP AT it_pcd.
+          it_pcd-chbox = 'X'.
+          MODIFY it_pcd TRANSPORTING chbox.
+        ENDLOOP.
+      ELSE.
+        LOOP AT it_filter ASSIGNING <wa>.
+          CLEAR:it_tabix.
+          it_tabix-tabix = <wa>.
+          APPEND it_tabix.
+        ENDLOOP.
+        SORT it_tabix BY tabix.
+        LOOP AT it_pcd.
+          tabix = sy-tabix.
+          READ TABLE it_tabix WITH KEY tabix = tabix BINARY SEARCH.
+          IF sy-subrc NE 0.
+            it_pcd-chbox = 'X'.
+            MODIFY it_pcd TRANSPORTING chbox.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    WHEN 'SAL'."取消全选
+      IF it_filter IS INITIAL.
+        LOOP AT it_pcd.
+          it_pcd-chbox = ''.
+          MODIFY it_pcd TRANSPORTING chbox.
+        ENDLOOP.
+      ELSE.
+        LOOP AT it_filter ASSIGNING <wa>.
+          CLEAR:it_tabix.
+          it_tabix-tabix = <wa>.
+          APPEND it_tabix.
+        ENDLOOP.
+        SORT it_tabix BY tabix.
+        LOOP AT it_pcd.
+          tabix = sy-tabix.
+          READ TABLE it_tabix WITH KEY tabix = tabix BINARY SEARCH.
+          IF sy-subrc NE 0.
+            it_pcd-chbox = ''.
+            MODIFY it_pcd TRANSPORTING chbox.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM handle_hotspot_click_pcd  USING    p_e_row_id
+                                        p_e_column_id
+                                        p_es_row_no.
+  DATA:wa LIKE LINE OF it_pcd.
+  FIELD-SYMBOLS:<fse> TYPE any,
+                <wae> TYPE any.
+  CONDENSE p_e_row_id     NO-GAPS.
+  CONDENSE p_e_column_id  NO-GAPS.
+  READ TABLE it_pcd ASSIGNING <wae> INDEX p_e_row_id.
+  ASSIGN COMPONENT p_e_column_id OF STRUCTURE <wae> TO <fse>.
+  CHECK sy-subrc = 0.
+  IF <fse> = 'X'.
+    <fse> = ''.
+  ELSE.
+    <fse> = 'X'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM frm_handle_toolbar_pcd  USING    p_e_object TYPE REF TO cl_alv_event_toolbar_set
+                                      p_e_interactive.
+  DATA: ls_toolbar TYPE stb_button.
+  CLEAR: ls_toolbar.
+
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+  CLEAR ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'ALL'.    " 功能码
+  ls_toolbar-icon = '@4B@'.  " 图标名称
+  ls_toolbar-quickinfo = '全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'SAL'.    " 功能码
+  ls_toolbar-icon = '@4D@'.  " 图标名称
+  ls_toolbar-quickinfo = '取消全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '取消全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+ENDFORM.
+FORM frm_refresh_alv_pcd .
+  DATA: lt_celltab TYPE lvc_t_styl,
+        ls_celltab TYPE lvc_s_styl,
+        ls_stable  TYPE lvc_s_stbl.
+
+  ls_stable-row = 'X'.  "固定行
+  ls_stable-col = 'X'.  "固定列
+
+  CHECK alv_grid_pcd IS NOT INITIAL.
+
+  CALL METHOD alv_grid_pcd->refresh_table_display
+    EXPORTING
+      is_stable = ls_stable
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      finished  = 1
+      OTHERS    = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM.
+**********************************************************************
+" 排产单事件结束 by kkw 12.12.2022 13:14:22
+**********************************************************************
+
+**********************************************************************
+" 计划单事件开始 by kkw 24.12.2022 22:24:00
+**********************************************************************
+*&---------------------------------------------------------------------*
+*& Form frm_handle_data_changed_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM frm_handle_data_changed_jhd  USING    p_er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+  DATA:mod_data    TYPE lvc_t_modi,
+       wa_mod_data TYPE lvc_s_modi.
+  CLEAR:mod_data,wa_mod_data.
+  mod_data = p_er_data_changed->mt_mod_cells.
+  LOOP AT mod_data INTO wa_mod_data.
+    READ TABLE it_jhd INDEX wa_mod_data-row_id.
+    CHECK sy-subrc = 0.
+    CASE wa_mod_data-fieldname.
+      WHEN 'ZKS_JHD'.
+        ASSIGN COMPONENT wa_mod_data-fieldname OF STRUCTURE it_jhd TO FIELD-SYMBOL(<fs>).
+        IF sy-subrc EQ 0.
+          PERFORM delqfw(zpubform) CHANGING wa_mod_data-value.
+          <fs> = wa_mod_data-value.
+          MODIFY it_jhd  INDEX wa_mod_data-row_id TRANSPORTING zks_jhd.
+        ENDIF.
+*        IF wa_ggzd-zzljsfs = 'Z型钢' OR wa_ggzd-zzljsfs = 'C型钢'.
+*          it_jhd-gsmng = it_jhd-zcd * '7.85' * it_jhd-zbckd * it_jhd-zzwhd / 1000000  * wa_mod_data-value.
+*        ELSE.
+*          it_jhd-gsmng = it_jhd-zcd * it_jhd-zxishu / 1000  * wa_mod_data-value.
+*        ENDIF.
+        " 改为按照物料组计算数量  01.01.2023 03:17:07 by kkw
+
+        CASE wa_ggzd-matkl.
+          WHEN 'B0106'.
+            CLEAR:jssl.
+            jssl = it_jhd-zcd * '7.85' * it_jhd-zyczk_quan * it_jhd-zhd_quan / 1000000.
+            it_jhd-gsmng = wa_mod_data-value * jssl.
+*            it_jhd-gsmng = '7.85' * it_jhd-zcd * it_jhd-zhd_quan * it_jhd-zyczk_quan / 1000000 * wa_mod_data-value.
+          WHEN OTHERS.
+            IF it_jhd-zwllx = '半成品' AND it_jhd-meins = 'EA'.
+              it_jhd-gsmng = wa_mod_data-value.
+            ELSE.
+              it_jhd-gsmng = it_jhd-zcd * it_jhd-zxishu / 1000  * wa_mod_data-value.
+            ENDIF.
+        ENDCASE.
+        it_jhd-zzms = it_jhd-zcd * wa_mod_data-value / 1000.
+        MODIFY it_jhd INDEX wa_mod_data-row_id.
+    ENDCASE.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW
+*&      --> E_COLUMN
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM frm_double_click_jhd  USING    p_e_row
+                                    p_e_column
+                                    p_es_row_no.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_alv_on_f4_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_FIELDNAME
+*&      --> E_FIELDVALUE
+*&      --> ES_ROW_NO
+*&      --> ER_EVENT_DATA
+*&      --> E_DISPLAY
+*&---------------------------------------------------------------------*
+FORM frm_alv_on_f4_jhd  USING    p_e_fieldname
+                                 p_e_fieldvalue
+                                 p_es_row_no
+                                 p_er_event_data
+                                 p_e_display.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_user_command_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM frm_handle_user_command_jhd  USING    p_e_ucomm.
+  CASE p_e_ucomm.
+    WHEN 'ALL'.
+      LOOP AT it_pcd.
+        it_pcd-chbox = 'X'.
+        MODIFY it_pcd TRANSPORTING chbox.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT it_pcd.
+        it_pcd-chbox = ''.
+        MODIFY it_pcd TRANSPORTING chbox.
+      ENDLOOP.
+    WHEN 'DEL'."删除行
+      READ TABLE it_jhd WITH KEY chbox  = 'X'.
+      IF sy-subrc NE 0.
+        MESSAGE s022 DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      LOOP AT it_jhd WHERE chbox = 'X'.
+        DELETE it_jhd.
+      ENDLOOP.
+      IF sy-subrc EQ 0.
+        CALL METHOD cl_gui_cfw=>set_new_ok_code
+          EXPORTING
+            new_code = 'PAI'.
+      ENDIF.
+      " 这块逻辑废弃了  31.12.2022 18:55:25 by kkw
+*****    WHEN 'ZBOM'."一键展计划单屏幕半成品
+*****      IF it_jhd[] IS INITIAL.
+*****        MESSAGE i004 WITH '请先引生产明细后再操作'.
+*****        EXIT.
+*****      ENDIF.
+*****      READ TABLE it_jhd WITH KEY zwllx = '半成品'.
+*****      IF sy-subrc EQ 0.
+*****        MESSAGE i004 WITH '已展过半成品了' .
+*****        EXIT.
+*****      ENDIF.
+*****      REFRESH return.
+*****      posnr1000 = 1000.
+*****      REFRESH:it_out.
+*****      LOOP AT it_jhd.
+*****        PERFORM insert_bcp_pl USING sy-tabix posnr1000.
+*****      ENDLOOP.
+*****      IF return[] IS NOT INITIAL.
+*****        PERFORM showmsg(zpubform) TABLES return.
+*****        EXIT.
+*****      ENDIF.
+*****      " 如果存在短板则计算所需长板信息  29.12.2022 00:08:18 by kkw
+*****      IF it_out[] IS NOT INITIAL.
+*****        PERFORM dbpj TABLES it_out[]."计算短板拼接的长板长度
+*****      ENDIF.
+*****      SORT it_jhd BY zwllx DESCENDING stufe wegxx." 先成品再半成品  半成品按照 BOM展开层级排序
+*****      SORT it_bcp BY matnr.
+
+    WHEN 'BCPVERID'."维护半成品生产版本信息
+***      IF it_bcp[] IS INITIAL.
+***        MESSAGE i004 WITH '没有半成品可以操作'.
+***        EXIT.
+***      ENDIF.
+***      CALL SCREEN 920 STARTING AT 37 5 ENDING   AT 135 15.
+**********************************************************************
+      " 修改半成品展bom逻辑 by kkw 29.12.2022 22:23:50
+      IF it_jhd[] IS INITIAL.
+        MESSAGE i004 WITH '请先引生产明细后再操作'.
+        RETURN.
+      ENDIF.
+*      READ TABLE it_jhd WITH KEY zwllx = '半成品'.
+*      IF sy-subrc EQ 0.
+*        MESSAGE i004 WITH '已展过半成品了' .
+*        EXIT.
+*      ENDIF.
+      CASE it_pcd_alv-zzl1.
+        WHEN '丽彩鼎' OR '丽彩金' OR '丽彩钻'.
+          IF wa_cbtc-arbpl IS INITIAL.
+            MESSAGE i004 WITH '请先维护长板生产版本后再操作'.
+            RETURN.
+          ENDIF.
+      ENDCASE.
+      REFRESH it_bcp.
+      PERFORM fill_bcp."获取成品的可选生产版本
+      SORT it_bcp BY matnr.
+      IF it_bcp[] IS INITIAL.
+        MESSAGE i004 WITH '没有半成品可以操作'.
+        EXIT.
+      ENDIF.
+      CALL SCREEN 920 STARTING AT 37 5 ENDING   AT 135 15.
+**********************************************************************
+
+    WHEN 'DBPJ'."展示短板拼接的长板关系
+      PERFORM showdbpj.
+    WHEN 'CBVERID'."维护长板生产版本
+      PERFORM cbverid.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form handle_hotspot_click_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_ROW_ID
+*&      --> E_COLUMN_ID
+*&      --> ES_ROW_NO
+*&---------------------------------------------------------------------*
+FORM handle_hotspot_click_jhd  USING    p_e_row_id
+                                        p_e_column_id
+                                        p_es_row_no.
+  DATA:wa LIKE LINE OF it_jhd.
+  FIELD-SYMBOLS:<fse> TYPE any,
+                <wae> TYPE any.
+  CONDENSE p_e_row_id     NO-GAPS.
+  CONDENSE p_e_column_id  NO-GAPS.
+  READ TABLE it_jhd ASSIGNING <wae> INDEX p_e_row_id.
+  ASSIGN COMPONENT p_e_column_id OF STRUCTURE <wae> TO <fse>.
+  CHECK sy-subrc = 0.
+  IF <fse> = 'X'.
+    <fse> = ''.
+  ELSE.
+    <fse> = 'X'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_handle_toolbar_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_OBJECT
+*&      --> E_INTERACTIVE
+*&---------------------------------------------------------------------*
+FORM frm_handle_toolbar_jhd  USING    p_e_object TYPE REF TO cl_alv_event_toolbar_set
+                                      p_e_interactive.
+  DATA: ls_toolbar  TYPE stb_button,
+        disabled    TYPE char1,
+        disabled_sh TYPE char1,
+        disabled3   TYPE char1.
+  CLEAR: ls_toolbar.
+
+  IF p_scjh = 'X' AND p_xg = 'X'.
+    disabled = 'X'.
+    disabled3 = 'X'.
+  ELSEIF p_scjh = 'X' AND p_sh = 'X'.
+    disabled_sh = 'X'.
+    disabled3 = 'X'.
+  ELSE.
+    disabled = ''.
+    disabled_sh = ''.
+    disabled3 = ''.
+  ENDIF.
+
+
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+  CLEAR ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'ALL'.    " 功能码
+  ls_toolbar-icon = '@4B@'.  " 图标名称
+  ls_toolbar-quickinfo = '全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = disabled_sh.        " X表示灰色，不可用
+  ls_toolbar-text = '全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'SAL'.    " 功能码
+  ls_toolbar-icon = '@4D@'.  " 图标名称
+  ls_toolbar-quickinfo = '取消全选'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = disabled_sh.        " X表示灰色，不可用
+  ls_toolbar-text = '取消全选'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'DEL'.    " 功能码
+  ls_toolbar-icon = '@18@'.  " 图标名称
+  ls_toolbar-quickinfo = '删除明细'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = disabled3.        " X表示灰色，不可用
+  ls_toolbar-text = '删除明细'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+*  CLEAR: ls_toolbar.
+*  ls_toolbar-function = 'ZBOM'.    " 功能码
+*  ls_toolbar-icon = '@HW@'.  " 图标名称
+*  ls_toolbar-quickinfo = '展半成品'.   " 图标的提示信息
+*  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+*  ls_toolbar-disabled = disabled.        " X表示灰色，不可用
+*  ls_toolbar-text = '展半成品'.       " 按钮上显示的文本
+*  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'BCPVERID'.    " 功能码
+  ls_toolbar-icon = '@ND@'.  " 图标名称
+  ls_toolbar-quickinfo = '维护半成品生产版本'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = disabled_sh.        " X表示灰色，不可用
+  ls_toolbar-text = '维护半成品生产版本'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'CBVERID'.    " 功能码
+  ls_toolbar-icon = '@ND@'.  " 图标名称
+  ls_toolbar-quickinfo = '维护长板生产版本'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = disabled_sh.        " X表示灰色，不可用
+  ls_toolbar-text = '维护长板生产版本'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'DBPJ'.    " 功能码
+  ls_toolbar-icon = '@BO@'.  " 图标名称
+  ls_toolbar-quickinfo = '查看短板拼接情况'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '查看短板拼接情况'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+
+ENDFORM.
+FORM frm_refresh_alv_jhd .
+  DATA: lt_celltab TYPE lvc_t_styl,
+        ls_celltab TYPE lvc_s_styl,
+        ls_stable  TYPE lvc_s_stbl.
+
+  ls_stable-row = 'X'.  "固定行
+  ls_stable-col = 'X'.  "固定列
+
+  CHECK alv_grid_jhd IS NOT INITIAL.
+
+  CALL METHOD alv_grid_jhd->refresh_table_display
+    EXPORTING
+      is_stable = ls_stable
+*     I_SOFT_REFRESH = 'X'
+    EXCEPTIONS
+      finished  = 1
+      OTHERS    = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  CALL METHOD cl_gui_cfw=>flush.
+ENDFORM.
+**********************************************************************
+" 计划单事件结束 by kkw 24.12.2022 22:25:38
+**********************************************************************
+*************************************

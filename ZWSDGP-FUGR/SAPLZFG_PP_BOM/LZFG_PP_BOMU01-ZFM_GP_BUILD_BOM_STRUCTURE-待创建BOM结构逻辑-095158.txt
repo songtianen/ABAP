@@ -1,0 +1,15 @@
+FUNCTION zfm_gp_build_bom_structure .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(IT_DATA) TYPE  ZTTPP_228_INPUT OPTIONAL
+*"  EXPORTING
+*"     VALUE(E_TYPE) TYPE  BAPI_MTYPE
+*"     VALUE(E_MESSAGE) TYPE  BAPI_MSG
+*"     VALUE(ET_RETDATA) TYPE  ZTTPP_228_OUTPUT
+*"----------------------------------------------------------------------
+
+
+
+
+ENDFUNCTION.

@@ -1,0 +1,555 @@
+FUNCTION zfm_gp_build_bom_structure_a .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(IT_DATA) TYPE  ZTTPP_228_INPUT OPTIONAL
+*"  EXPORTING
+*"     VALUE(E_TYPE) TYPE  BAPI_MTYPE
+*"     VALUE(E_MESSAGE) TYPE  BAPI_MSG
+*"     VALUE(ET_RETDATA) TYPE  ZTTPP_228_OUTPUT
+*"----------------------------------------------------------------------
+
+  DATA: ls_data LIKE LINE OF it_data,
+        ls_ret  LIKE LINE OF et_retdata.
+
+  DATA:
+    lv_objectname      TYPE  bapi1003_key-object,
+    lv_objecttable     TYPE  bapi1003_key-objecttable,
+    lv_classnum        TYPE bapi1003_key-classnum,
+    lv_classtype       TYPE bapi1003_key-classtype,
+    lv_status          TYPE bapi1003_key-status,
+    lv_standardclass   TYPE bapi1003_key-stdclass,
+    lt_alloclist       TYPE TABLE OF bapi1003_alloc_list,
+    lt_allocvaluesnum  TYPE TABLE OF bapi1003_alloc_values_num,
+    lt_allocvalueschar TYPE TABLE OF bapi1003_alloc_values_char,
+    lt_allocvaluescurr TYPE TABLE OF bapi1003_alloc_values_curr,
+    lt_return          TYPE TABLE OF bapiret2.
+
+  DATA: BEGIN OF ls_datalist.
+          INCLUDE TYPE zspp_228_input.
+  DATA:
+          status        TYPE bapi1003_key-status,
+          standardclass TYPE bapi1003_key-stdclass,
+          numc          TYPE numeric_allocation_tt,
+          char          TYPE char_allocation_tt,
+          curr          TYPE currency_allocation_tt,
+
+        END OF ls_datalist,
+        lt_datalist LIKE TABLE OF ls_datalist.
+
+  DATA: lv_object    TYPE thead-tdobject VALUE 'MATERIAL',
+        lv_tdid      TYPE thead-tdid VALUE 'GRUN',
+        lv_spras     TYPE thead-tdspras VALUE '1',
+        ra_names     TYPE tspsrname WITH HEADER LINE,
+        lt_texttable TYPE text_lh.
+
+  lv_objecttable = 'MARA'.
+  lv_classtype = '001'.
+
+  LOOP AT it_data INTO ls_data.
+
+    lv_objectname = ls_data-matnr.
+
+    CLEAR: lt_alloclist[], lt_return[].
+*找到该物料的分类
+    CALL FUNCTION 'BAPI_OBJCL_GETCLASSES'
+      EXPORTING
+        objectkey_imp   = lv_objectname
+        objecttable_imp = lv_objecttable
+        classtype_imp   = lv_classtype
+*       READ_VALUATIONS =
+*       KEYDATE         = SY-DATUM
+*       LANGUAGE        = SY-LANGU
+*       OBJECTKEY_IMP_LONG       =
+      TABLES
+        alloclist       = lt_alloclist
+        return          = lt_return.
+
+
+    CLEAR: lt_return[].
+
+
+*1、通过物料号 获取 特性值 信息
+*多进程 异步等待结果返回
+    LOOP AT lt_alloclist INTO DATA(ls_alloclist).
+
+      lv_classnum = ls_alloclist-classnum.
+
+      CALL FUNCTION 'BAPI_OBJCL_GETDETAIL'
+        EXPORTING
+          objectkey       = lv_objectname
+          objecttable     = lv_objecttable
+          classnum        = lv_classnum
+          classtype       = lv_classtype
+          language        = '1'
+        IMPORTING
+          status          = lv_status
+          standardclass   = lv_standardclass
+        TABLES
+          allocvaluesnum  = lt_allocvaluesnum
+          allocvalueschar = lt_allocvalueschar
+          allocvaluescurr = lt_allocvaluescurr
+          return          = lt_return.
+
+      MOVE-CORRESPONDING ls_data TO ls_datalist.
+
+      ls_datalist-status = lv_status.
+      ls_datalist-standardclass = lv_standardclass.
+      APPEND LINES OF lt_allocvaluesnum TO ls_datalist-numc.
+      APPEND LINES OF lt_allocvalueschar TO ls_datalist-char.
+
+      SORT ls_datalist-char BY charact.
+
+      APPEND LINES OF lt_allocvaluescurr TO ls_datalist-curr.
+
+      APPEND ls_datalist TO lt_datalist.
+      CLEAR ls_datalist.
+
+      CLEAR: lv_objectname, lt_allocvaluesnum[], lt_allocvalueschar[],
+             lt_allocvaluescurr[], lt_return[], lv_status, lv_standardclass.
+
+    ENDLOOP.
+
+  ENDLOOP.
+
+*提前获取配置表 主键， 作为循环找对应逻辑动态
+  RANGES: ra_tabnames FOR dd03l-tabname.
+  RANGES: ra_excfields FOR dd03l-fieldname. "需要过滤的字段
+*  DATA: lv_cxtab TYPE dd03l-tabname VALUE 'ZTPP_260D'.
+
+  FIELD-SYMBOLS <fs_set> TYPE any.
+
+*通过CABN 获取 内码
+  SELECT
+    *
+    INTO TABLE @DATA(lt_cabn)
+    FROM cabn
+    .
+  IF sy-subrc = 0.
+    SORT lt_cabn BY atnam.
+
+  ENDIF.
+*
+*  ENDIF.
+
+  DATA(lt_matkl) = it_data[].
+  SORT lt_matkl BY werks matkl.
+  DELETE ADJACENT DUPLICATES FROM lt_matkl
+  COMPARING werks matkl.
+
+*芯材
+*查询芯材表条件组合
+
+  DATA ls_xc TYPE ztpp_260d.
+
+  DATA: lt_ztpp260d    TYPE TABLE OF ztpp_260d,
+        lt_ztpp260n    TYPE TABLE OF ztpp_260n,
+        lt_ztpp260j    TYPE TABLE OF ztpp_260j,
+        lt_ztpp260i    TYPE TABLE OF ztpp_260i,
+        lt_ztpp260h    TYPE TABLE OF ztpp_260h,
+        lt_ztpp260g    TYPE TABLE OF ztpp_260g,
+        lt_ztpp260m    TYPE TABLE OF ztpp_260m,
+        lt_ztpp260e    TYPE TABLE OF ztpp_260e,
+        lt_ztpp260c    TYPE TABLE OF ztpp_260c,
+        lt_retztpp260c TYPE TABLE OF ztpp_260c,
+        lt_ztpp260b    TYPE TABLE OF ztpp_260b,
+        lt_ztpp260a    TYPE TABLE OF ztpp_260a,
+        lt_ztpp260l    TYPE TABLE OF ztpp_260l,
+        lt_ztpp260p    TYPE TABLE OF ztpp_260p,
+        lt_ztpp260q    TYPE TABLE OF ztpp_260q,
+        lt_ztpp260r    TYPE TABLE OF ztpp_260r,
+        lt_ztpp260s    TYPE TABLE OF ztpp_260s,
+        lt_ztpp260t    TYPE TABLE OF ztpp_260t,
+        lt_ztpp260o    TYPE TABLE OF ztpp_260o,
+        lt_ztpp260u    TYPE TABLE OF ztpp_260u,
+        lt_ztpp260a5   TYPE TABLE OF ztpp_260a5
+        .
+
+*获取配置表
+  PERFORM frm_get_configs
+  TABLES lt_matkl
+         lt_ztpp260d
+         lt_ztpp260n
+         lt_ztpp260j
+         lt_ztpp260i
+         lt_ztpp260h
+         lt_ztpp260g
+         lt_ztpp260m
+         lt_ztpp260e
+         lt_ztpp260c
+         lt_ztpp260l
+         lt_ztpp260b
+         lt_ztpp260a
+         lt_ztpp260p
+         lt_ztpp260q
+         lt_ztpp260r
+         lt_ztpp260s
+         lt_ztpp260t
+         lt_ztpp260o
+         lt_ztpp260u
+         lt_ztpp260a5
+         .
+
+  DATA: lt_retdata TYPE zttpp_228_retdata,
+        ls_retdata LIKE LINE OF lt_retdata.
+  DATA: lv_type    TYPE bapi_mtype,
+        lv_message TYPE bapi_msg.
+
+  BREAK cuijunhu.
+*如果失效的 数据 要返回报错
+  LOOP AT lt_datalist INTO ls_datalist.
+
+    CLEAR lt_retztpp260c[].
+
+*物料组=B0101-B0106（压型板）
+    IF ls_datalist-matkl =  'B0101'
+      OR ls_datalist-matkl = 'B0102'
+      OR ls_datalist-matkl = 'B0103'
+      OR ls_datalist-matkl = 'B0104'
+      OR ls_datalist-matkl = 'B0105'
+      OR ls_datalist-matkl = 'B0106'
+      .
+
+      PERFORM frm_yxb
+      TABLES ls_datalist-char
+             lt_retdata
+             lt_cabn
+             lt_ztpp260d
+             lt_ztpp260n
+             lt_ztpp260j
+             lt_ztpp260i
+             lt_ztpp260h
+             lt_ztpp260g
+             lt_ztpp260m
+             lt_ztpp260e
+             lt_ztpp260c
+             lt_ztpp260l
+             lt_ztpp260b
+             lt_ztpp260a
+             lt_ztpp260p
+             lt_ztpp260q
+             lt_ztpp260r
+             lt_ztpp260s
+             lt_ztpp260t
+             lt_ztpp260u
+      USING ls_datalist-matkl
+            ls_datalist-werks
+    CHANGING lv_type
+             lv_message
+             .
+
+
+    ELSEIF ls_datalist-matkl =  'B0201'
+      OR ls_datalist-matkl = 'B0202'
+      OR ls_datalist-matkl = 'B0203'
+      OR ls_datalist-matkl = 'B0204'
+      .
+      DATA lv_zxt TYPE ztpp_260c-zxt.
+
+      IF ls_datalist-matkl =  'B0201'
+      OR ls_datalist-matkl = 'B0202'
+      OR ls_datalist-matkl = 'B0203'.
+        lv_zxt = '折弯'.
+
+      ELSEIF ls_datalist-matkl = 'B0204'.
+        lv_zxt = '冲压'.
+
+      ENDIF.
+*半成品
+*      gv_index = gv_index + 1.
+      PERFORM frm_bcp_process
+      TABLES lt_ztpp260a
+             lt_retdata
+      USING ls_datalist-werks
+            ls_datalist-matkl
+            lv_zxt
+            .
+      DATA ls_retztpp260c2 TYPE ztpp_260c.
+
+      ls_retztpp260c2-werks = ls_datalist-werks.
+      ls_retztpp260c2-zxt = lv_zxt.
+
+*BOM序号与产品对应表
+      PERFORM frm_bomxh_process
+      TABLES lt_ztpp260r
+             lt_retdata
+      USING ls_retztpp260c2.
+
+
+
+    ELSE.
+
+
+
+*内外板展宽 最初区分 线体的逻辑
+      PERFORM frm_zhank_process
+      TABLES ls_datalist-char
+             lt_ztpp260c
+             lt_retztpp260c
+             lt_retdata
+
+      USING ls_datalist-matkl
+            ls_datalist-werks
+      CHANGING lv_type
+               lv_message.
+
+*依据ZXT线体循环创建BOM
+      LOOP AT lt_retztpp260c
+        INTO DATA(ls_retztpp260c).
+
+*序号
+        CLEAR gv_index.
+
+        CASE ls_retztpp260c-matkl.
+
+          WHEN 'A0100'."（丽彩鼎）
+            PERFORM frm_lcd
+            TABLES ls_datalist-char
+                   lt_retdata
+                   lt_cabn
+                   lt_ztpp260d
+                   lt_ztpp260n
+                   lt_ztpp260j
+                   lt_ztpp260i
+                   lt_ztpp260h
+                   lt_ztpp260g
+                   lt_ztpp260m
+                   lt_ztpp260e
+                   lt_ztpp260c
+                   lt_ztpp260l
+                   lt_ztpp260b
+                   lt_ztpp260a
+                   lt_ztpp260p
+                   lt_ztpp260q
+                   lt_ztpp260r
+                   lt_ztpp260s
+                   lt_ztpp260t
+                   lt_ztpp260u
+             USING ls_retztpp260c
+          CHANGING lv_type
+                   lv_message
+                   .
+
+          WHEN 'A0200'."（丽彩金）
+            PERFORM frm_lcj
+            TABLES ls_datalist-char
+                   lt_retdata
+                   lt_cabn
+                   lt_ztpp260d
+                   lt_ztpp260n
+                   lt_ztpp260j
+                   lt_ztpp260i
+                   lt_ztpp260h
+                   lt_ztpp260g
+                   lt_ztpp260m
+                   lt_ztpp260e
+                   lt_ztpp260c
+                   lt_ztpp260l
+                   lt_ztpp260b
+                   lt_ztpp260a
+                   lt_ztpp260p
+                   lt_ztpp260q
+                   lt_ztpp260r
+                   lt_ztpp260s
+                   lt_ztpp260t
+                   lt_ztpp260u
+             USING ls_retztpp260c
+          CHANGING lv_type
+                   lv_message
+                   .
+
+          WHEN 'A0300'."（丽彩晶）
+            PERFORM frm_lcjing
+            TABLES ls_datalist-char
+                   lt_retdata
+                   lt_cabn
+                   lt_ztpp260d
+                   lt_ztpp260n
+                   lt_ztpp260j
+                   lt_ztpp260i
+                   lt_ztpp260h
+                   lt_ztpp260g
+                   lt_ztpp260m
+                   lt_ztpp260e
+                   lt_ztpp260c
+                   lt_ztpp260l
+                   lt_ztpp260b
+                   lt_ztpp260a
+                   lt_ztpp260p
+                   lt_ztpp260q
+                   lt_ztpp260r
+                   lt_ztpp260s
+                   lt_ztpp260t
+                   lt_ztpp260u
+                   lt_ztpp260a5
+             USING ls_retztpp260c
+          CHANGING lv_type
+                   lv_message
+                   .
+
+          WHEN 'A0400'."（丽彩钻）
+            PERFORM frm_lcz
+            TABLES ls_datalist-char
+                   lt_retdata
+                   lt_cabn
+                   lt_ztpp260d
+                   lt_ztpp260n
+                   lt_ztpp260j
+                   lt_ztpp260i
+                   lt_ztpp260h
+                   lt_ztpp260g
+                   lt_ztpp260m
+                   lt_ztpp260e
+                   lt_ztpp260c
+                   lt_ztpp260l
+                   lt_ztpp260b
+                   lt_ztpp260a
+                   lt_ztpp260p
+                   lt_ztpp260q
+                   lt_ztpp260r
+                   lt_ztpp260s
+                   lt_ztpp260t
+                   lt_ztpp260u
+             USING ls_retztpp260c
+          CHANGING lv_type
+                   lv_message
+                   .
+
+          WHEN 'A0500'."（丽彩幕）
+            PERFORM frm_lcm
+            TABLES ls_datalist-char
+                   lt_retdata
+                   lt_cabn
+                   lt_ztpp260d
+                   lt_ztpp260n
+                   lt_ztpp260j
+                   lt_ztpp260i
+                   lt_ztpp260h
+                   lt_ztpp260g
+                   lt_ztpp260m
+                   lt_ztpp260e
+                   lt_ztpp260c
+                   lt_ztpp260l
+                   lt_ztpp260b
+                   lt_ztpp260a
+                   lt_ztpp260p
+                   lt_ztpp260q
+                   lt_ztpp260r
+                   lt_ztpp260s
+                   lt_ztpp260t
+                   lt_ztpp260o
+                   lt_ztpp260u
+             USING ls_retztpp260c
+          CHANGING lv_type
+                   lv_message
+                   .
+
+          WHEN 'A0901'."（复合板）
+            PERFORM frm_fhb
+            TABLES ls_datalist-char
+                   lt_retdata
+                   lt_cabn
+                   lt_ztpp260d
+                   lt_ztpp260n
+                   lt_ztpp260j
+                   lt_ztpp260i
+                   lt_ztpp260h
+                   lt_ztpp260g
+                   lt_ztpp260m
+                   lt_ztpp260e
+                   lt_ztpp260c
+                   lt_ztpp260l
+                   lt_ztpp260b
+                   lt_ztpp260a
+                   lt_ztpp260p
+                   lt_ztpp260q
+                   lt_ztpp260r
+                   lt_ztpp260s
+                   lt_ztpp260t
+                   lt_ztpp260u
+             USING ls_retztpp260c
+          CHANGING lv_type
+                   lv_message
+                   .
+
+        ENDCASE.
+
+*瓦楞白料
+        gv_index = gv_index + 1.
+        PERFORM frm_wlbl_process
+        TABLES ls_datalist-char
+               lt_ztpp260s
+               lt_retdata
+        USING ls_retztpp260c.
+
+**预制金属板压瓦
+*  gv_index = gv_index + 1.
+*  PERFORM frm_yzjsbyw_process
+*  TABLES pt_char
+*         pt_ztpp260t
+*         pt_retdata
+*  USING pu_retztpp260c.
+
+*特殊无纺布
+        gv_index = gv_index + 1.
+        PERFORM frm_tswfb_process
+        TABLES ls_datalist-char
+               lt_ztpp260u
+               lt_retdata
+        USING ls_retztpp260c.
+
+
+*半成品
+*        gv_index = gv_index + 1.
+        PERFORM frm_bcp_process
+        TABLES lt_ztpp260a
+               lt_retdata
+        USING ls_retztpp260c-werks
+              ls_retztpp260c-matkl
+              ls_retztpp260c-zxt
+              .
+
+
+*BOM序号与产品对应表
+        PERFORM frm_bomxh_process
+        TABLES lt_ztpp260r
+               lt_retdata
+        USING ls_retztpp260c.
+
+      ENDLOOP.
+
+    ENDIF.
+
+*
+*
+**通过 特性值 反找 组件物料
+**外板属性
+*    PERFORM frm_wbsx_process
+*    TABLES ls_datalist-char
+*           lt_retztpp260c
+*           lt_ztpp260l
+*           lt_retdata
+*           lt_cabn
+*    USING ls_datalist-matkl
+*    CHANGING lv_type
+*             lv_message.
+
+
+
+    MOVE-CORRESPONDING ls_datalist TO ls_ret.
+
+    IF ls_ret-message NE ''.
+      ls_ret-type = 'E'.
+
+    ENDIF.
+
+    SORT lt_retdata BY zindex zxt idnrk.
+    APPEND LINES OF lt_retdata[] TO ls_ret-data.
+
+    APPEND ls_ret TO et_retdata.
+    CLEAR: lt_retdata[], ls_ret.
+  ENDLOOP.
+*
+
+
+ENDFUNCTION.

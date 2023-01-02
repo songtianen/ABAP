@@ -1,0 +1,206 @@
+FUNCTION ZFM_ENH_VF01CRTFIDOCU.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(I_VBRK) TYPE  VBRK OPTIONAL
+*"     VALUE(I_BKPF) TYPE  BKPF OPTIONAL
+*"     VALUE(CX) TYPE  ZE_CXBS OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(BELNR) TYPE  BELNR_D
+*"     VALUE(GJAHR) TYPE  GJAHR
+*"  TABLES
+*"      T_VBRP STRUCTURE  VBRP OPTIONAL
+*"      T_BSEG STRUCTURE  BSEG OPTIONAL
+*"----------------------------------------------------------------------
+  DATA BEGIN OF IT_VBAP OCCURS 0.
+  INCLUDE STRUCTURE VBAP.
+  DATA:AUART TYPE VBAK-AUART,
+       KNUMV TYPE VBAK-KNUMV,
+       END OF IT_VBAP,
+       IT_VBAPC LIKE TABLE OF IT_VBAP WITH HEADER LINE,
+       IT_VBAPG LIKE TABLE OF IT_VBAP WITH HEADER LINE.
+  DATA:L_SEGMENT TYPE  CEPC-SEGMENT,
+       L_PRCTR   TYPE CEPC-PRCTR.
+  CLEAR:RTMSG,RTYPE,IT_FIPOST[],XBLNR,BSEG,
+  BELNR,GJAHR.
+
+  ZFMDATASAVE1 'ZFM_ENH_VF01CRTFIDOCU'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+
+*区分过账冲销
+  IF CX NE 'X'.
+    IF I_VBRK-FKSTO IS INITIAL
+      AND I_VBRK-SFAKN IS INITIAL.
+      IF I_VBRK IS INITIAL
+        OR T_VBRP[] IS INITIAL.
+        FILLMSG 'E' '无数据' 'X' 'X'.
+      ENDIF.
+*查找合同
+      CASE I_VBRK-INCOV.
+        WHEN 'CIF'.
+          SORT T_VBRP BY AUBEL AUPOS.
+          SELECT VBAP~*,
+                 VBAK~AUART,
+                 VBAK~KNUMV
+            INTO TABLE @IT_VBAPC
+            FROM VBAP INNER JOIN VBAK ON VBAP~VBELN = VBAK~VBELN
+            FOR ALL ENTRIES IN @T_VBRP
+            WHERE VBAP~VBELN = @T_VBRP-AUBEL
+            AND   VBAP~POSNR = @T_VBRP-AUPOS.
+          IF SY-SUBRC NE 0.
+            FILLMSG 'E' '未取得发货通知单' 'X' 'X'.
+          ENDIF.
+*取业务合作伙伴
+          SORT IT_VBAPC BY VBELN POSNR.
+          SELECT *
+            INTO TABLE @DATA(IT_VBPAC)
+            FROM VBPA
+            FOR ALL ENTRIES IN @IT_VBAPC
+            WHERE VBELN = @IT_VBAPC-VBELN
+            AND   PARVW = 'TV'.
+          IF SY-SUBRC NE 0.
+            FILLMSG 'E' '未取得TV供应商' 'X' 'X'.
+          ENDIF.
+          SORT IT_VBPAC BY VBELN PARVW.
+*取价格条件
+          SORT IT_VBAPC BY KNUMV.
+          SELECT *
+            INTO TABLE @DATA(IT_KONV)
+            FROM V_KONV_CDS
+            FOR ALL ENTRIES IN @IT_VBAPC
+            WHERE KNUMV = @IT_VBAPC-KNUMV
+            AND   KSCHL = 'ZWF1'.
+          IF SY-SUBRC NE 0.
+            FILLMSG 'E' '未取得ZWF1运保费' 'X' 'X'.
+          ENDIF.
+          SORT IT_KONV BY KNUMV KPOSN KSCHL.
+*取合同信息
+          SORT IT_VBAPC BY VGBEL VGPOS.
+          SELECT VBAP~*,
+                 VBAK~AUART,
+                 VBAK~KNUMV
+            INTO TABLE @IT_VBAPG
+            FROM VBAP INNER JOIN VBAK ON VBAP~VBELN = VBAK~VBELN
+            FOR ALL ENTRIES IN @IT_VBAPC
+            WHERE VBAP~VBELN = @IT_VBAPC-VGBEL
+            AND   VBAP~POSNR = @IT_VBAPC-VGPOS.
+          CLEAR:IT_VBAPC, IT_VBAPG,TVKO.
+          READ TABLE IT_VBAPG INDEX 1.
+          READ TABLE IT_VBAPC INDEX 1.
+          READ TABLE IT_VBPAC INTO DATA(WA_VBPA) WITH KEY VBELN =  IT_VBAPC-VBELN
+                                                          PARVW = 'TV'.
+          READ TABLE IT_KONV INTO DATA(WA_KONV) WITH KEY KNUMV = IT_VBAPC-KNUMV
+                                                         KPOSN = '000000'
+                                                         KSCHL = 'ZWF1'.
+          CASE IT_VBAPG-AUART.
+            WHEN 'ZWM1'."外销合同
+              READ TABLE T_BSEG INTO BSEG INDEX 1.
+*取项目信息
+              SELECT SINGLE CEPC~SEGMENT
+              CEPC~PRCTR
+              INTO ( L_SEGMENT,L_PRCTR )
+              FROM CEPC INNER JOIN PRPS ON CEPC~PRCTR = PRPS~PRCTR
+              WHERE CEPC~KOKRS = 'WISD'
+              AND   PRPS~PSPNR = BSEG-PROJK.
+              IF SY-SUBRC NE 0.
+                FILLMSG 'E' '未取得段' 'X' 'X'.
+              ENDIF.
+              CLEAR IT_FIPOST.
+              IT_FIPOST-BSCHL = '01'.
+              IT_FIPOST-KUNNR = I_VBRK-KUNRG.
+              APPEND IT_FIPOST.
+              CLEAR IT_FIPOST.
+              IT_FIPOST-BSCHL = '31'.
+              IT_FIPOST-NEWKO = '2241080000'.
+              IT_FIPOST-LIFNR = WA_VBPA-LIFNR.
+              APPEND IT_FIPOST.
+
+              LOOP AT IT_FIPOST.
+                IT_FIPOST-PROJK = BSEG-PROJK.
+                IT_FIPOST-ZZFI03 = 'WY/CIF运保费'.
+                IT_FIPOST-SEGMENT = L_SEGMENT.
+                IT_FIPOST-PRCTR = L_PRCTR.
+                IT_FIPOST-DMBTR = WA_KONV-KBETR.
+                IT_FIPOST-ZUONR = IT_VBAPC-VGBEL.
+                MODIFY IT_FIPOST.
+              ENDLOOP.
+              DELETE IT_FIPOST WHERE DMBTR IS INITIAL.
+              IF IT_FIPOST[] IS INITIAL.
+                FILLMSG 'E' '凭证金额为零' 'X' 'X'.
+              ENDIF.
+
+              XBLNR = I_VBRK-VBELN.
+              CLEAR:ZTFI201.
+              CALL FUNCTION 'ZFMS_13_FIPOST'
+                EXPORTING
+                  BUKRS = I_VBRK-BUKRS
+                  BKTXT = ''
+                  BLART = 'RE'
+                  WAERS = I_VBRK-WAERK
+                  BLDAT = I_VBRK-FKDAT
+                  XBLNR = XBLNR
+                IMPORTING
+                  BELNR = BELNR
+                  RTMSG = RTMSG
+                  GJAHR = GJAHR
+                TABLES
+                  INTAB = IT_FIPOST.
+              *ZTFI201-BUKRS = BKPF-BUKRS.
+              *ZTFI201-BELNR = BKPF-BELNR.
+              *ZTFI201-GJAHR = BKPF-GJAHR.
+              *ZTFI201-VBELP = I_VBRK-VBELN.
+              *ZTFI201-BELNR_R = BELNR.
+              *ZTFI201-GJAHR_R = GJAHR.
+              IF BELNR IS NOT INITIAL.
+                RTYPE = 'S'.
+                CLEAR:*ZTFI201-CX.
+              ELSE.
+                RTYPE = 'E'.
+              ENDIF.
+              ZTFI201-RTYPE = RTYPE.
+              ZTFI201-RTMSG = RTMSG.
+              MODIFY ZTFI201 FROM *ZTFI201.
+          ENDCASE.
+      ENDCASE.
+    ENDIF.
+  ELSE.
+*冲销
+    CLEAR:ZTFI201.
+    IF I_VBRK-VBELN IS NOT INITIAL.
+      SELECT SINGLE *
+        FROM ZTFI201
+        WHERE VBELP = I_VBRK-VBELN
+        AND   CX NE 'X'.
+    ENDIF.
+    IF I_BKPF-STBLG IS NOT INITIAL.
+      SELECT SINGLE *
+        FROM ZTFI201
+        WHERE BELNR = I_BKPF-STBLG
+        AND   BUKRS = I_BKPF-BUKRS
+        AND   CX NE 'X'.
+    ENDIF.
+    IF ZTFI201 IS NOT INITIAL.
+      PERFORM FB08(ZPUBFORM) USING ZTFI201-BELNR_R
+                                   ZTFI201-GJAHR_R
+                                   ZTFI201-BUKRS
+                                   ''
+                                   SY-DATUM
+                             CHANGING RTMSG.
+      RTYPE = RTMSG+0(1).
+      IF RTYPE = 'S'.
+        UPDATE ZTFI201
+        SET CX = 'X'
+            RTYPE = RTYPE
+            RTMSG = RTMSG
+        WHERE BUKRS = ZTFI201-BUKRS
+        AND   BELNR_R = ZTFI201-BELNR_R
+        AND   GJAHR_R = ZTFI201-GJAHR_R.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  COMMIT WORK.
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

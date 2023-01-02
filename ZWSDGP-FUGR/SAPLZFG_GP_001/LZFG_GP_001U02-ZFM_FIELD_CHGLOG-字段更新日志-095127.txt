@@ -1,0 +1,149 @@
+FUNCTION ZFM_FIELD_CHGLOG.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(P_TYPE) TYPE  CHAR1
+*"     REFERENCE(TABNAME) TYPE  ZTSDZDLOG-TABNAME OPTIONAL
+*"     REFERENCE(FIELDNAME) TYPE  ZTSDZDLOG-FIELDNAME OPTIONAL
+*"     REFERENCE(VALUE_O) OPTIONAL
+*"     REFERENCE(VALUE_N) OPTIONAL
+*"     REFERENCE(SAPNO) OPTIONAL
+*"     VALUE(SHOW) TYPE  BAPI_FLAG OPTIONAL
+*"     VALUE(DEL) TYPE  BAPI_FLAG OPTIONAL
+*"  TABLES
+*"      INTAB STRUCTURE  ZSSDZDLOG OPTIONAL
+*"      OUTTAB STRUCTURE  ZSSDZDLOG1 OPTIONAL
+*"----------------------------------------------------------------------
+  DATA:FIELDCAT TYPE SLIS_T_FIELDCAT_ALV.
+  DATA: CXROOT TYPE REF TO CX_ROOT,
+        MSG    TYPE BAPI_MSG.
+  CLEAR:*ZTSDZDLOG,MSG,OUTTAB[],FIELDCAT.
+  CHECK P_TYPE IS NOT INITIAL.
+  CASE P_TYPE.
+    WHEN 'I'.
+      CHECK VALUE_O NE VALUE_N.
+      SELECT SINGLE COUNT(*)
+        FROM DD03L
+        WHERE TABNAME = TABNAME
+        AND   FIELDNAME = FIELDNAME.
+      CHECK SY-SUBRC = 0.
+      *ZTSDZDLOG-SAPNO = SAPNO.
+      *ZTSDZDLOG-TABNAME = TABNAME.
+      *ZTSDZDLOG-FIELDNAME = FIELDNAME.
+      *ZTSDZDLOG-VALUE_O = VALUE_O.
+      *ZTSDZDLOG-VALUE_N = VALUE_N.
+      *ZTSDZDLOG-DEL = DEL.
+      *ZTSDZDLOG-ZDATE = SY-DATUM.
+      *ZTSDZDLOG-ZTIME = SY-UZEIT.
+      *ZTSDZDLOG-ZNAME = SY-UNAME.
+      *ZTSDZDLOG-TCODE = SY-TCODE.
+      TRY .
+          CALL METHOD CL_SYSTEM_UUID=>IF_SYSTEM_UUID_STATIC~CREATE_UUID_C22
+            RECEIVING
+              UUID = *ZTSDZDLOG-GUID. "产生唯一GUID KEY值
+          IF *ZTSDZDLOG-GUID IS NOT INITIAL.
+            INSERT ZTSDZDLOG FROM *ZTSDZDLOG.
+          ENDIF.
+        CATCH  CX_ROOT INTO CXROOT.
+          MSG =  CXROOT->GET_TEXT( ).
+      ENDTRY.
+      IF MSG IS INITIAL.
+        COMMIT WORK.
+      ENDIF.
+    WHEN 'O'.
+      DELETE INTAB WHERE SAPNO IS INITIAL.
+      CHECK INTAB[] IS NOT INITIAL.
+      SORT INTAB BY SAPNO.
+      SELECT *
+        INTO TABLE OUTTAB
+        FROM ZTSDZDLOG
+        FOR ALL ENTRIES IN INTAB
+        WHERE SAPNO = INTAB-SAPNO.
+      CHECK SY-SUBRC = 0.
+      SORT OUTTAB BY TABNAME FIELDNAME.
+      SELECT *
+        INTO TABLE @DATA(IT_DD03L)
+        FROM DD03L
+        FOR ALL ENTRIES IN @OUTTAB
+        WHERE TABNAME = @OUTTAB-TABNAME
+        AND   FIELDNAME = @OUTTAB-FIELDNAME
+        AND   AS4LOCAL = 'A'.
+      SORT IT_DD03L BY TABNAME FIELDNAME.
+      LOOP AT OUTTAB.
+        SELECT SINGLE DDTEXT
+          INTO OUTTAB-ZDMS
+          FROM DD03T
+          WHERE TABNAME = OUTTAB-TABNAME
+          AND   FIELDNAME = OUTTAB-FIELDNAME
+          AND   DDLANGUAGE = SY-LANGU
+          AND   AS4LOCAL = 'A'.
+        IF SY-SUBRC NE 0.
+          SELECT SINGLE DDTEXT
+            INTO OUTTAB-ZDMS
+            FROM DD03M
+            WHERE TABNAME = OUTTAB-TABNAME
+            AND   FIELDNAME = OUTTAB-FIELDNAME
+            AND   DDLANGUAGE = SY-LANGU
+            AND   FLDSTAT = 'A'.
+        ENDIF.
+        READ TABLE IT_DD03L INTO DATA(WA_DD03L) WITH KEY TABNAME = OUTTAB-TABNAME
+                                                         FIELDNAME = OUTTAB-FIELDNAME
+                                                         BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IF WA_DD03L-DOMNAME IS NOT INITIAL.
+            SELECT SINGLE DDTEXT
+              INTO OUTTAB-VALUE_OT
+              FROM DD07V
+              WHERE DOMNAME = WA_DD03L-DOMNAME
+              AND   DOMVALUE_L = OUTTAB-VALUE_O
+              AND   DDLANGUAGE = SY-LANGU.
+            SELECT SINGLE DDTEXT
+              INTO OUTTAB-VALUE_NT
+              FROM DD07V
+              WHERE DOMNAME = WA_DD03L-DOMNAME
+              AND   DOMVALUE_L = OUTTAB-VALUE_N
+              AND   DDLANGUAGE = SY-LANGU.
+          ENDIF.
+        ENDIF.
+        MODIFY OUTTAB.
+      ENDLOOP.
+      SORT OUTTAB BY SAPNO ZDATE ZTIME.
+      IF SHOW = 'X'.
+        PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT USING:
+        'SAPNO' '单据号' '' '' '' '',
+        'TABNAME' '表名' '' '' '' '',
+        'FIELDNAME' '字段名' '' '' '' '',
+        'ZDMS' '字段描述' '' '' '' '',
+        'VALUE_O' '旧值' '' '' '' '',
+        'VALUE_OT' '旧值描述' '' '' '' '',
+        'VALUE_N' '新值' '' '' '' '',
+        'VALUE_NT' '新值描述' '' '' '' '',
+        'TCODE' '事务代码' '' '' '' '',
+        'DEL' '删除标记' '' '' '' '',
+        'ZDATE' '更新日期' '' '' '' '',
+        'ZNAME' '更新人' '' '' '' '',
+        'ZTIME' '更新时间' '' '' '' ''.
+*        PERFORM ALVFM TABLES OUTTAB FIELDCAT USING '' ''.
+
+
+        CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+          EXPORTING
+            I_CALLBACK_PROGRAM    = SY-REPID
+            IT_FIELDCAT           = FIELDCAT[]
+            I_SAVE                = 'A' "控制缺省/特定用户
+*           IS_LAYOUT             = IS_LAYOUT
+*           IS_VARIANT            = IS_VARIANT
+            I_SCREEN_START_COLUMN = 45
+            I_SCREEN_END_COLUMN   = 120
+            I_SCREEN_START_LINE   = 10
+            I_SCREEN_END_LINE     = 20
+          TABLES
+            T_OUTTAB              = OUTTAB[]
+          EXCEPTIONS
+            PROGRAM_ERROR         = 1
+            OTHERS                = 2.
+      ENDIF.
+  ENDCASE.
+
+
+ENDFUNCTION.

@@ -1,0 +1,59 @@
+FUNCTION zfm_gp_fi_oa_kjkm.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(OATYPE) TYPE  CHAR01
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZFI65
+*"      T_RESULT STRUCTURE  ZSMM_017
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_FI_OA_KJKM'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA: ls_output     TYPE string,
+        ls_status     TYPE i,
+        "ls_result     TYPE string,
+        account_coa   TYPE glaccount_coa,
+        msg           TYPE bapi_msg,
+        account_names TYPE  glaccount_name_table WITH HEADER LINE,
+        return        TYPE STANDARD TABLE OF  bapiret2 WITH HEADER LINE,
+        ls_result     TYPE zssd_014.
+  "lt_result     LIKE TABLE OF zsmm_017 WITH HEADER LINE.
+
+  IF in_tab[] IS INITIAL.
+    fillmsg 'E' '传入数据不能为空' 'X' 'X'.
+  ENDIF.
+
+
+  CALL FUNCTION 'ZFM_GP_FI_MDM_KJKM_POST'
+    EXPORTING
+      oatype    = oatype
+    IMPORTING
+      p_output  = ls_output
+      p_status  = ls_status
+      "p_result = ls_result
+      ls_result = ls_result
+    TABLES
+      in_tab    = in_tab.
+  "t_result  = lt_result.
+  IF ls_result IS INITIAL.
+    rtype = 'E'.
+    rtmsg = 'MDM返回信息为空'.
+    zfmdatasave2 'R'.
+    RETURN.
+  ENDIF.
+  DATA: wa_result LIKE LINE OF ls_result-result.
+  READ TABLE ls_result-result INTO wa_result  INDEX 1.
+  IF wa_result-flag = 'S'.
+    rtype = 'S'.
+    rtmsg = wa_result-message.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = wa_result-message.
+  ENDIF.
+  zfmdatasave2 'R'.
+
+ENDFUNCTION.

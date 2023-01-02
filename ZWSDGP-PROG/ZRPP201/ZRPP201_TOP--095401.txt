@@ -1,0 +1,146 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZRPP201_TOP
+*&---------------------------------------------------------------------*
+
+
+TABLES: sscrfields.
+
+*&---------------------------------------------------------------------*
+*&全局变量
+*&---------------------------------------------------------------------*
+CONSTANTS gv_sec TYPE p DECIMALS 2 VALUE '0.5'.
+
+DATA: BEGIN OF gs_list,
+        ck      TYPE c,
+        message LIKE bapireturn-message,
+*        gjahr   LIKE zfit027-gjahr,
+*        monat   LIKE zfit027-monat,
+*        prctr   LIKE zfit027-prctr,
+*        ktext   LIKE cepct-ktext,
+*        mvgr1   LIKE zfit027-mvgr1,
+*        bezei   LIKE tvm1t-bezei,
+*        ww001   LIKE zfit027-ww001,
+*        bezek   LIKE t25a0-bezek,
+*        zzdxl   LIKE zfit027-zzdxl,
+        style   TYPE lvc_t_styl,  "将该字段设置为保存编辑状态的字段
+*        flag    TYPE c,
+      END OF gs_list,
+      gt_list LIKE TABLE OF gs_list.
+
+FIELD-SYMBOLS <fs_line> LIKE LINE OF gt_list.
+FIELD-SYMBOLS <fs_list> TYPE STANDARD TABLE.
+
+DATA  values_tab TYPE TABLE OF dd07v.
+
+DATA: gs_style TYPE lvc_s_styl,
+      gt_style LIKE TABLE OF gs_style.
+
+CONSTANTS:tcode1  TYPE sy-tcode VALUE 'TCODE1',
+          tcode2  TYPE sy-tcode VALUE 'TCODE2',
+          tcode3  TYPE sy-tcode VALUE 'TCODE3',
+          tcode4  TYPE sy-tcode VALUE 'TCODE4',
+          tcode5  TYPE sy-tcode VALUE 'TCODE5',
+          tcode6  TYPE sy-tcode VALUE 'TCODE6',
+          tcode7  TYPE sy-tcode VALUE 'TCODE7',
+          tcode8  TYPE sy-tcode VALUE 'TCODE8',
+          tcode9  TYPE sy-tcode VALUE 'TCODE9',
+          tcode10 TYPE sy-tcode VALUE 'TCODE10',
+          tcode11 TYPE sy-tcode VALUE 'TCODE11',
+          tcode12 TYPE sy-tcode VALUE 'TCODE12',
+          tcode13 TYPE sy-tcode VALUE 'TCODE13',
+          tcode14 TYPE sy-tcode VALUE 'TCODE14',
+          tcode15 TYPE sy-tcode VALUE 'TCODE15',
+          tcode16 TYPE sy-tcode VALUE 'TCODE16',
+          tcode17 TYPE sy-tcode VALUE 'TCODE17',
+          tcode18 TYPE sy-tcode VALUE 'TCODE18',
+          tcode19 TYPE sy-tcode VALUE 'TCODE19',
+          tcode20 TYPE sy-tcode VALUE 'TCODE20',
+          tcode21 TYPE sy-tcode VALUE 'TCODE21',
+          tcode22 TYPE sy-tcode VALUE 'TCODE22',
+          tcode23 TYPE sy-tcode VALUE 'TCODE23',
+          tcode24 TYPE sy-tcode VALUE 'TCODE24',
+          tcode25 TYPE sy-tcode VALUE 'TCODE25',
+          tcode26 TYPE sy-tcode VALUE 'TCODE26',
+          tcode27 TYPE sy-tcode VALUE 'TCODE27',
+          tcode28 TYPE sy-tcode VALUE 'TCODE28',
+          tcode29 TYPE sy-tcode VALUE 'TCODE29',
+          tcode30 TYPE sy-tcode VALUE 'TCODE30',
+          tcode31 TYPE sy-tcode VALUE 'TCODE31',
+          tcode32 TYPE sy-tcode VALUE 'TCODE32',
+          tcode33 TYPE sy-tcode VALUE 'TCODE33'.
+
+*&---------------------------------------------------------------------*
+*&BDC
+*&---------------------------------------------------------------------*
+DATA: v_ctu_params TYPE ctu_params,
+      bdcdata      LIKE bdcdata    OCCURS 0 WITH HEADER LINE,
+      messtab      LIKE bdcmsgcoll OCCURS 0 WITH HEADER LINE.
+
+*&---------------------------------------------------------------------*
+*& ALV 控件
+*&---------------------------------------------------------------------*
+DATA: gs_layout       TYPE lvc_s_layo, "布局结构定义
+      gt_sort         TYPE lvc_t_sort, "LVC 控件字段属性结构定义
+      gs_sort         LIKE LINE OF gt_sort,
+      gt_fieldcat     TYPE lvc_t_fcat, "LVC 控件字段属性结构定义
+      gs_fieldcat     LIKE LINE OF gt_fieldcat,
+      gt_fieldcat_alv TYPE slis_t_fieldcat_alv, "非LVC 控件字段属性结构定义
+      gs_fieldcat_alv LIKE LINE OF gt_fieldcat_alv
+      .
+
+DATA: BEGIN OF gs_ctr,
+        strname TYPE slis_tabname,
+        tabname TYPE slis_tabname,
+      END OF gs_ctr.
+
+DATA: gt_events TYPE  slis_t_event,
+      gs_events TYPE  slis_alv_event.
+
+DATA: g_container        TYPE scrfname VALUE 'RESULT_LIST',
+      alv_grid           TYPE REF TO cl_gui_alv_grid,
+      g_custom_container TYPE REF TO cl_gui_custom_container.
+
+
+DATA: gv_bdate TYPE sy-datum,
+      gv_edate TYPE sy-datum.
+
+DATA gv_exit_caused_by_user TYPE slis_exit_by_user.
+
+DATA: g_con01  TYPE REF TO cl_gui_custom_container.
+DATA: g_grid01 TYPE REF TO cl_gui_alv_grid.
+CONSTANTS: g_cus01 TYPE scrfname VALUE 'CONT'.
+
+DATA: gs_layout02   TYPE lvc_s_layo, "布局结构定义
+      gt_fieldcat02 TYPE lvc_t_fcat, "LVC 控件字段属性结构定义
+      gs_fieldcat02 LIKE LINE OF gt_fieldcat02.
+
+DATA gv_con_diabox TYPE REF TO cl_gui_dialogbox_container. "定义容器
+DATA gv_alv_popup TYPE REF TO cl_gui_alv_grid.             "定义弹出的ALV
+
+*定义事件：
+
+CLASS lcl_event_receiver DEFINITION.
+  PUBLIC SECTION.
+    METHODS:
+      on_close
+        FOR EVENT close OF cl_gui_dialogbox_container
+        IMPORTING sender.
+    METHODS handle_data_changed
+      FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING
+        er_data_changed
+        e_onf4
+        e_onf4_before
+        e_onf4_after
+        e_ucomm
+      .
+    METHODS handle_data_changed_fini
+      FOR EVENT data_changed_finished OF cl_gui_alv_grid
+      IMPORTING
+        e_modified
+        et_good_cells
+      .
+ENDCLASS.
+
+
+DATA gv_event_receiver TYPE REF TO lcl_event_receiver.

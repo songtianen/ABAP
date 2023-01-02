@@ -1,0 +1,28 @@
+FUNCTION zfm_oa_getsegment.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(BUKRS) TYPE  BUKRS OPTIONAL
+*"  TABLES
+*"      OUTTAB STRUCTURE  /O OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_OA_GETSEGMENT'.
+  zfmdatasave2 'B'.
+  RANGES:s_bukrs FOR t001-bukrs.
+  CLEAR:outtab[],s_bukrs[].
+  IF bukrs IS NOT INITIAL.
+    CLEAR s_bukrs.
+    s_bukrs+0(3) = 'IEQ'.
+    s_bukrs-low = bukrs.
+    APPEND s_bukrs.
+  ENDIF.
+  SELECT *
+    INTO TABLE outtab
+    FROM ztfi_sbukrs
+    WHERE bukrs IN s_bukrs.
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

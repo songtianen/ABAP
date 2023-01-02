@@ -1,0 +1,110 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV11                                                   *
+*----------------------------------------------------------------------*
+
+*----- Globale Konstanten------------------------------
+CONSTANTS:   TITELNR LIKE TITLE-DDNR VALUE
+  '001'.   " Titelnummer Standard
+CONSTANTS:   FLG_UEBERNAHME  VALUE ' ',              " Dialogprogramm
+        FLG_PRUEFDUNKEL VALUE ' '.              " Dialogprogramm
+
+*--- Konstante f¨¹r Auswahlgruppe des 1. Einstiegsbildes -------------
+CONSTANTS:   AUSWG_EIN LIKE T133A-AUSWG
+  VALUE '01'. "Auswahlgruppe Einstieg
+
+*--- Konstante f¨¹r Bild 0079 (Periodenkennzeichen)
+*--- wegen hartem CALL SCREEN in OKCODE_VERBRAUCH (Rahmenprogramm)
+CONSTANTS:   AUSWG_0079 LIKE T133A-AUSWG VALUE 'PK',   "Auswahlgruppe,
+        BILD_0079  LIKE SY-DYNNR    VALUE '0079'. "Dynpro-Nummer
+
+*--- Konstante des Bildes 0081 (Neueingabe Schl¨¹sselfelder)
+*--- wegen CALL SCREEN ¨¹ber FB "CALL_SCREEN_DIRECT_..      "
+CONSTANTS:   AUSWG_0081 LIKE T133A-AUSWG VALUE 'OE',   "Auswahlgruppe,
+        BILD_0081  LIKE SY-DYNNR    VALUE '0081'. "Dynpro-Nummer
+
+*--- Main-Programm f¨¹r interne Perform's aus FB's heraus ------------
+DATA:   MAIN_PGM LIKE SY-REPID VALUE
+  'SAPLMGMM'. "Name Main-Programm
+
+*--- Konstante f¨¹r leeren Baustein ----------------------------------
+CONSTANTS:   SUB_LEER LIKE SY-DYNNR VALUE '0001'.
+
+* Maximale Anzahl von Springen-Funktionen (d.h. Hauptbildern) je
+* Bildsequenz
+
+* AHE: 23.06.98 - A (4.0c)
+* constants: MAX_SP_FUNK LIKE SY-TABIX VALUE '29'.
+CONSTANTS: MAX_SP_FUNK LIKE SY-TABIX VALUE '43'.
+* AHE: 23.06.98 - E
+
+* Maximale Anzahl von Zus#tze-Funktionen (d.h. Zusatzbildern) je
+* Bildsequenz
+CONSTANTS: MAX_ZU_FUNK LIKE SY-TABIX VALUE '15'.
+* Ersten zwei Zeichen der Gui-Funktion zum Anspringen der Hauptbilder
+CONSTANTS: PRAE_FUNK_SPRINGEN(2)     VALUE 'SP'.
+* Ersten zwei Zeichen der Gui-Funktion zum Anspringen der Zusatzbilder
+CONSTANTS: PRAE_FUNK_ZUSATZ(2)           VALUE 'ZU'.
+* GUI-Status f¨¹r Langtext-Hauptbilder
+CONSTANTS: GUI_DATELTEX LIKE T133A-GUIST VALUE 'DATELTEX',
+      GUI_DATELT00 LIKE T133A-GUIST VALUE 'DATELT00'.       "cfo/4.0C
+* GUI-Status f¨¹r Popup's
+CONSTANTS: GUI_STATUS_POPUP(4)           VALUE 'DIAL'.
+* GUI-Funktion (2-stellig) f¨¹r Zusatzbild / Pushbutton / Springen
+CONSTANTS: GUI_FUNKTION_ZU(2)            VALUE 'ZU'.
+CONSTANTS: GUI_FUNKTION_PB(2)            VALUE 'PB'.
+CONSTANTS: GUI_FUNKTION_SP(2)            VALUE 'SP'.
+* Auswahlgruppe Steuern - Sonderlogik Bildfolgesteuerung
+CONSTANTS:  AUSWG_STEUERN  LIKE T133A-AUSWG VALUE '52'.
+* Festgelegtes Intervall in dem die Kurztextdynpros liegen m¨¹ssen
+CONSTANTS:  KTEXT_DYNP_VON LIKE T133C-DYPNB VALUE '8000'.
+CONSTANTS:  KTEXT_DYNP_BIS LIKE T133C-DYPNB VALUE '8010'.
+* Festgelegtes Dynpro f¨¹r Klassifizierung
+CONSTANTS:  KLASS_DYNP     LIKE T133C-DYPNB VALUE '3020',
+            KLASS_DYNP_TAB LIKE T133C-DYPNB VALUE '4020'.
+
+* Form-Routinen
+CONSTANTS:  FORM_DVS  LIKE T133D-ROUTN       VALUE 'OKCODE_DOKUMENT',
+*<<<<<<<<<<<<<BEGIN OF INSERTION NOTE 384672<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+       FORM_DVS_DUMMY  LIKE T133D-ROUTN VALUE 'OKCODE_DOKUMENT_DUMMY',
+*<<<<<<<<<<<<<END OF INSERTION NOTE 384672<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+       FORM_VERB LIKE T133D-ROUTN       VALUE 'OKCODE_VERBRAUCH',
+       FORM_PLVB LIKE T133D-ROUTN       VALUE 'OKCODE_PLVB',
+       FORM_CSPL LIKE T133D-ROUTN       VALUE 'OKCODE_CSPL',
+       FORM_BDT  LIKE T133D-ROUTN       VALUE 'OKCODE_BDT', "HB 070396
+       FORM_IT   LIKE T133D-ROUTN       VALUE 'OKCODE_IT',  "...
+       FORM_IC   LIKE T133D-ROUTN       VALUE 'OKCODE_IC',  "...
+*mk/3.1G ab hier neue Deklarationen
+       FORM_QMPD LIKE T133D-ROUTN       VALUE 'OKCODE_QM_PRUEFDATEN',
+       FORM_PRGD LIKE T133D-ROUTN       VALUE 'OKCODE_PROG_DIALOG',
+       FORM_PRGW LIKE T133D-ROUTN       VALUE 'OKCODE_PROG_WERTE',
+       FORM_PRGWO LIKE T133D-ROUTN      VALUE 'OKCODE_PROGWERTE',
+       FORM_KONA  LIKE T133D-ROUTN      VALUE 'OKCODE_KONA',
+       FORM_KONF  LIKE T133D-ROUTN      VALUE 'OKCODE_KONF',
+       FORM_KONV  LIKE T133D-ROUTN      VALUE 'OKCODE_KONV',
+       FORM_KUSA  LIKE T133D-ROUTN      VALUE 'OKCODE_KUSA',
+       FORM_STEU  LIKE T133D-ROUTN      VALUE 'OKCODE_STEUERN',
+*mk/4.0A ab hier neue Deklarationen
+       FORM_UOM  LIKE T133D-ROUTN       VALUE 'OKCODE_MENGENEINHEITEN',
+       FORM_EAN  LIKE T133D-ROUTN       VALUE 'OKCODE_ZUS_EAN',
+       FORM_BVP  LIKE T133D-ROUTN       VALUE 'OKCODE_BEST_VPER',
+* fde: 24.03.00 - A (Mercury) HW 208328
+       FORM_PRGD_VZ LIKE T133D-ROUTN VALUE 'OKCODE_PROG_DIALOG_VZ_RET',
+       FORM_PRGD_FI LIKE T133D-ROUTN VALUE 'OKCODE_PROG_DIALOG_FIL_RET',
+* fde: 24.03.00 - E
+* cfo/4.0B ab hier neue Deklarationen
+       FORM_AVME LIKE T133D-ROUTN       VALUE 'OKCODE_ANTVAR_ME',
+* AHE: 23.04.98 - A (4.0c)
+* 4.0c ab hier neue Deklarationen
+       FORM_DIBER LIKE T133D-ROUTN       VALUE 'OKCODE_DISPOBEREICHE',
+       FORM_PLPAR LIKE T133D-ROUTN       VALUE 'OKCODE_PLANPARAMETER',
+       FORM_QM_FI LIKE T133D-ROUTN  VALUE 'OKCODE_QM_PRUEFDATEN_FIL_RT',
+       FORM_QM_VZ LIKE T133D-ROUTN  VALUE 'OKCODE_QM_PRUEFDATEN_VZ_RT',
+       FORM_MKAL LIKE T133D-ROUTN        VALUE 'OKCODE_MKAL',
+       FORM_KONF_RT LIKE T133D-ROUTN     VALUE 'OKCODE_KONF_RT',
+       FORM_KONV_RT LIKE T133D-ROUTN     VALUE 'OKCODE_KONV_RT',
+       FORM_KONA_RT LIKE T133D-ROUTN     VALUE 'OKCODE_KONA_RT',
+       FORM_KUSA_RT LIKE T133D-ROUTN     VALUE 'OKCODE_KUSA_RT'.
+* AHE: 23.04.98 - E
+* Erweiterung zu R/3 Enterprise (4.70); EH&S
+constants: FORM_DGP3 LIKE T133D-ROUTN  VALUE 'OKCODE_DGP3',
+           FCODE_DGP3(2)               VALUE 'DG'.

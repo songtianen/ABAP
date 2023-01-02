@@ -1,0 +1,207 @@
+FUNCTION ZFM_GP_WMS_MM_WXRK_MIGO .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(ZDHNO) TYPE  ZE_ZDHNO
+*"     VALUE(ZDHHH) TYPE  ZE_ZDHHH
+*"     VALUE(MBLNR) TYPE  MBLNR
+*"     VALUE(MJAHR) TYPE  MJAHR
+*"     VALUE(ZEILE) TYPE  MBLPO
+*"     VALUE(EBELN) TYPE  EBELN
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_205
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_XMD_ECP_CGDH_GET'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+*  DATA BEGIN OF itab OCCURS 0.
+*  INCLUDE TYPE zsmm_205.
+*  DATA     END OF itab.
+*  DATA:
+*    BEGIN OF it_check1 OCCURS 0,
+*      lifnr TYPE lifnr,
+*      ekorg TYPE ekorg,
+*      werks TYPE werks_d,
+*      n     TYPE i,
+*    END OF it_check1,
+*    BEGIN OF it_lgort OCCURS 0,
+*      lgort TYPE lgort_d,
+*      n     TYPE i,
+*    END OF it_lgort,
+*    it_ebeln     TYPE TABLE OF zspubs_field WITH HEADER LINE,
+*    it_ztmm_pctx TYPE TABLE OF ztmm_pctx WITH HEADER LINE,
+*    it_mara      TYPE TABLE OF mara WITH HEADER LINE,
+*    it_dd07l     TYPE TABLE OF dd07l WITH HEADER LINE,
+*    wa_tab       LIKE LINE OF itab.
+*  DATA:
+*    nocheck TYPE char1,
+*    num     TYPE i.
+*  DATA:bktxt   TYPE bktxt,
+*       xblnr   TYPE xblnr,
+*       p_type  TYPE bapi_mtype,
+*       datum   TYPE sy-datum,
+*       p_msg   TYPE bapi_msg,
+*       znumber TYPE char10,
+*       atinn   TYPE atinn.
+*  CONSTANTS:ekorg TYPE ekorg VALUE '1000'.
+*  REFRESH:it_ebeln,it_ekpo,it_ekko,
+*  it_char,it_curr,
+*  it_ztmm_pctx,it_dd07l,itab,
+*  it_lgort.
+*  CLEAR:wa_tab,zdhhh,num,nocheck.
+*
+*  DEFINE fillmsg.
+*    CASE &1.
+*      WHEN 'S'.
+*        rtype = 'S'.
+*        rtmsg = 'SUCCESS,' && &2.
+*      WHEN 'X'.
+*        rtype = 'S'.
+*        rtmsg = 'SUCCESS，但已存在批次,' && &2.
+*      WHEN OTHERS.
+*        rtype = 'E' .
+*        rtmsg = 'ERROR,' && &2.
+*    ENDCASE.
+*    mblnr = &3.
+*    ebeln = &4.
+*    IF &5 = 'X'.
+*      zfmdatasave2 'R'.
+*      RETURN.
+*    ENDIF.
+*  END-OF-DEFINITION.
+*  DEFINE getno.
+*    CLEAR:znumber.
+*    CALL FUNCTION 'ZNUMS_UPDATE'
+*      EXPORTING
+*        repid    = 'ZMMD002'
+*        flag     = 'D'
+*        weishu   = 4
+*      IMPORTING
+*        znumber  = znumber
+*      EXCEPTIONS
+*        overflow = 1
+*        OTHERS   = 2.
+*  END-OF-DEFINITION.
+*  IF in_tab[] IS INITIAL.
+*    fillmsg 'E' '无数据' '' '' 'X'.
+*  ENDIF.
+**数据检查
+**  SELECT *
+**    INTO TABLE it_dd07l
+**    FROM dd07l
+**    WHERE domname = 'ZD_ZDHLX'
+**    AND   as4local = 'A'.
+**  DELETE it_dd07l WHERE domvalue_l = 'WTCK'.
+*
+*  LOOP AT in_tab.
+*    CLEAR :itab,it_lgort.
+*    IF in_tab-zdhlx IS INITIAL.
+*      fillmsg 'E' '到货类型必填' '' '' 'X'.
+*    ENDIF.
+*    IF in_tab-zdhno IS NOT INITIAL.
+*      IF in_tab-zdhhh IS INITIAL.
+*        fillmsg 'E' '到货单行号必须回传' '' '' 'X'.
+*      ENDIF.
+*    ENDIF.
+*    MOVE-CORRESPONDING in_tab TO itab.
+*    APPEND itab.
+**判断回传工厂的有效性
+*    SELECT SINGLE COUNT(*)
+*      FROM t001w
+*      WHERE werks = itab-werks.
+*    IF sy-subrc NE 0.
+*      fillmsg 'E' '工厂必须回传' '' '' 'X'.
+*    ENDIF.
+*
+*    SELECT SINGLE COUNT(*)
+*      FROM t001l
+*      WHERE werks = itab-werks
+*      AND   lgort = itab-lgort.
+*    IF sy-subrc NE 0.
+*      fillmsg 'E' '库存地未在工厂下维护' '' '' 'X'.
+*    ENDIF.
+*  ENDLOOP.
+*
+*  LOOP AT itab.
+*    CLEAR:bktxt,xblnr.
+*    CASE itab-zdhlx.
+*      WHEN 'CG'.
+*        bktxt = itab-zdhno && ',' && 'WMS到厂收货'.
+*      WHEN 'LL'.
+*        bktxt = itab-zdhno && ',' && 'WMS来料收货'.
+*      WHEN 'WW'.
+*        bktxt = itab-zdhno && ',' && 'WMS委外收货'.
+*    ENDCASE.
+*    " 采购订单信息暂时无法取出  08.10.2022 15:58:16 by kkw
+*    READ TABLE it_ekpo WITH KEY ebeln = itab-ebeln
+*                                ebelp = itab-ebelp
+*                                BINARY SEARCH.
+*    IF sy-subrc EQ 0.
+*      it_migo-matnr = it_ekpo-matnr.
+*      it_migo-werks = it_ekpo-werks.
+*      it_migo-menge = itab-zrksl.
+*      it_migo-meins = it_ekpo-meins.
+*      it_migo-ebeln = it_ekpo-ebeln.
+*      it_migo-ebelp = it_ekpo-ebelp.
+*      it_migo-lgort = it_lgort-lgort.
+*      CONCATENATE it_migo-matnr itab-zdhno itab-zdhhh INTO it_migo-sgtxt
+*      SEPARATED BY '-'.
+*      APPEND it_migo.
+*      fillpctx it_migo-sgtxt 'Z01' itab-zwgjpc.
+*    ENDIF.
+*  ENDLOOP.
+*  READ TABLE itab INTO wa_tab INDEX 1.
+*  datum = sy-datum.
+*
+****
+**  CALL FUNCTION 'CS_BOM_EXPL_MAT_V2'
+**      EXPORTING
+**        capid                 = 'PP01'
+**        datuv                 = sy-datum
+**        emeng                 = 1 "用量
+**        mtnrv                 = l_matnr
+**        mdmps                 = ' '
+**        mehrs                 = 'X' " 多阶
+**        werks                 = l_werks
+**        stlan                 = '1'
+**        stlal                 = '01'
+**      IMPORTING
+**        topmat                = ls_cstmat
+**      TABLES
+**        stb                   = lt_stb
+**        matcat                = lt_matcat
+**      EXCEPTIONS
+**        alt_not_found         = 1
+**        call_invalid          = 2
+**        material_not_found    = 3
+**        missing_authorization = 4
+**        no_bom_found          = 5
+**        no_plant_data         = 6
+**        no_suitable_bom_found = 7
+**        OTHERS                = 8.
+****
+*  IF wa_tab-zdhlx = 'WW' .
+*    CALL FUNCTION 'ZFMS_01_MIGOPOST'
+*      EXPORTING
+*        budat  = datum
+*        bktxt  = bktxt
+*        xblnr  = xblnr
+**        code   = '01'
+*        bwart  = '543'
+*      IMPORTING
+*        rtype  = p_type
+*        rtmsg  = p_msg
+*        mblnr  = mblnr
+*        mjahr  = mjahr
+*      TABLES
+*        item   = it_migo
+*      EXCEPTIONS
+*        OTHERS = 1.
+*    fillmsg p_type p_msg mblnr it_ebeln-ebeln ''.
+*  ENDIF.
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

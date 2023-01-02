@@ -1,0 +1,46 @@
+*----------------------------------------------------------------------*
+* Program ID  : zrpp201
+* Title       : 自动创建BOM平台
+* Created By  : CUIJH
+* Created On  : 2022.11.20
+* Frequency   :
+* Category    :
+* Description :
+*----------------------------------------------------------------------*
+* Change History
+*----------------------------------------------------------------------*
+* Mod. # |Date       |Developer |Description(Reason)
+*----------------------------------------------------------------------*
+REPORT zrpp201.
+
+INCLUDE zrpp201_top.
+INCLUDE zrpp201_scr.
+INCLUDE zrpp201_f01.
+
+INITIALIZATION.
+  PERFORM frm_init.
+
+AT SELECTION-SCREEN.
+
+  PERFORM frm_tcode_trans.
+*&---------------------------------------------------------------------*
+*& 屏幕控制
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+*  PERFORM frm_screen.
+
+*&---------------------------------------------------------------------*
+*& 开始
+*&---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+*  PERFORM frm_check_input.
+*  PERFORM frm_get_data.
+*  PERFORM frm_get_global.
+*  PERFORM frm_make_data.
+
+*&---------------------------------------------------------------------*
+*& 输出
+*&---------------------------------------------------------------------*
+END-OF-SELECTION.
+*  PERFORM frm_show_data.

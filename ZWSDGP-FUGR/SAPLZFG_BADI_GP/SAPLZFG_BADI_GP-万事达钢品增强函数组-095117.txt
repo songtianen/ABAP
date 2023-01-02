@@ -1,0 +1,15 @@
+*******************************************************************
+*   System-defined Include-files.                                 *
+*******************************************************************
+  INCLUDE LZFG_BADI_GPTOP.                   " Global Declarations
+  INCLUDE LZFG_BADI_GPUXX.                   " Function Modules
+
+*******************************************************************
+*   User-defined Include-files (if necessary).                    *
+*******************************************************************
+* INCLUDE LZFG_BADI_GPF...                   " Subroutines
+* INCLUDE LZFG_BADI_GPO...                   " PBO-Modules
+* INCLUDE LZFG_BADI_GPI...                   " PAI-Modules
+* INCLUDE LZFG_BADI_GPE...                   " Events
+* INCLUDE LZFG_BADI_GPP...                   " Local class implement.
+* INCLUDE LZFG_BADI_GPT99.                   " ABAP Unit tests

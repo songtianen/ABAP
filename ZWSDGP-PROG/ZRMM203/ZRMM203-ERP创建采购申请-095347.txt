@@ -1,0 +1,61 @@
+*&---------------------------------------------------------------------*
+*& Report ZRMM203
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZRMM203.
+TABLES:ZTSAP_PUBDATA.
+TYPE-POOLS: VRM.
+DATA:LIST    TYPE   VRM_VALUES WITH HEADER LINE.
+
+PARAMETERS:P_LIANJ(15) AS LISTBOX VISIBLE LENGTH 50 OBLIGATORY.
+SELECTION-SCREEN COMMENT: /1(70) T1,"声明文本
+  /1(70) T2.
+
+AT SELECTION-SCREEN OUTPUT.
+  T1 = `若要增加/更改新的调整链接，请在ZMM000-【SAP默认值配置】 `.
+  T2 = ` 中配置主键开头为'ZMM203'的数据，'键值'填链接，'主键描述'填文本 `.
+  %_P_LIANJ_%_APP_%-TEXT = '链接'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR P_LIANJ.
+  CLEAR:LIST[].
+  SELECT *
+    FROM ZTSAP_PUBDATA
+    WHERE ZJ LIKE 'ZMM203%'
+    AND   SXBS NE 'X'.
+    CLEAR LIST.
+    LIST-KEY = ZTSAP_PUBDATA-ZJ.
+    LIST-TEXT = ZTSAP_PUBDATA-ZJMS.
+    APPEND LIST.
+  ENDSELECT.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      ID     = 'P_LIANJ'
+      VALUES = LIST[].
+
+START-OF-SELECTION.
+  SELECT SINGLE *
+    FROM ZTSAP_PUBDATA
+  WHERE ZJ = P_LIANJ.
+  IF ZTSAP_PUBDATA-JZ IS INITIAL.
+    MESSAGE S000(OO) WITH '请用ZMM000配置链接' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+  PERFORM REPLACE(ZPUBFORM) USING 'https' 'http' CHANGING ZTSAP_PUBDATA-JZ.
+  PERFORM REPLACE(ZPUBFORM) USING 'HTTPS' 'HTTP' CHANGING ZTSAP_PUBDATA-JZ.
+
+  CALL FUNCTION 'CALL_BROWSER'
+    EXPORTING
+      URL                    = ZTSAP_PUBDATA-JZ
+      NEW_WINDOW             = 'X'
+*     BROWSER_TYPE           =
+*     CONTEXTSTRING          =
+    EXCEPTIONS
+      FRONTEND_NOT_SUPPORTED = 1
+      FRONTEND_ERROR         = 2
+      PROG_NOT_FOUND         = 3
+      NO_BATCH               = 4
+      UNSPECIFIED_ERROR      = 5
+      OTHERS                 = 6.

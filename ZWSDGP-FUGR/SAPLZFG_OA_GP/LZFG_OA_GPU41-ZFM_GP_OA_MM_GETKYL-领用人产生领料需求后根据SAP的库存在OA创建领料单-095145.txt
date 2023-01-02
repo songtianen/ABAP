@@ -1,0 +1,322 @@
+FUNCTION zfm_gp_oa_mm_getkyl.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"     VALUE(LGORT) TYPE  LGORT_D
+*"     VALUE(MAKTX) TYPE  MAKTX OPTIONAL
+*"  EXPORTING
+*"     VALUE(FLAG) TYPE  CHAR1
+*"     VALUE(MESSAGE) TYPE  CHAR200
+*"  TABLES
+*"      OT_STOCK STRUCTURE  ZSMM_217
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_MM_GETKYL'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+**********************************************************************
+  DATA:BEGIN OF itab OCCURS 0.
+         INCLUDE TYPE zsmm_217.
+  DATA:  xchpf TYPE marc-xchpf,
+         labst TYPE mard-labst,
+         vprsv TYPE mbew-vprsv,
+         stprs TYPE mbew-stprs,
+         verpr TYPE mbew-verpr,
+         bstme TYPE mara-bstme,
+       END OF itab.
+
+  DATA:BEGIN OF izsdl OCCURS 0,
+         zlydh  TYPE ztmm230-zlydh,
+         zlydhh TYPE ztmm230-zlydhh,
+         werks  TYPE ztmm230-werks,
+         matnr  TYPE ztmm230-matnr,
+         lgort  TYPE ztmm230-lgort,
+         zlyl   TYPE ztmm230-zlyl,
+         charg  TYPE ztmm230-charg,
+       END OF izsdl.
+
+
+
+  DATA:it_t006a TYPE TABLE OF t006a,
+       wa_t006a TYPE t006a.
+
+  DATA:it_marm TYPE TABLE OF marm,
+       wa_marm TYPE marm.
+
+  "获取单位描述
+  SELECT msehi
+         msehl
+    INTO CORRESPONDING FIELDS OF TABLE it_t006a
+    FROM t006a
+    WHERE t006a~spras = sy-langu
+    .
+  DATA:smaktx TYPE char50.
+  CONCATENATE '%' maktx '%' INTO smaktx.
+
+  "启用批次管理物料数据处理
+
+  SELECT
+      mard~werks
+      mard~lgort
+      mard~matnr
+      makt~maktx
+      mard~lgpbe
+      marc~xchpf
+      mara~meins
+      mara~bstme
+      mchb~clabs AS zkcl
+      mchb~charg
+      mbew~vprsv
+      mbew~stprs
+      mbew~verpr
+      INTO CORRESPONDING FIELDS OF TABLE itab FROM mard
+      JOIN makt ON mard~matnr = makt~matnr AND makt~spras = sy-langu
+      JOIN marc ON mard~werks = marc~werks AND mard~matnr = marc~matnr AND marc~xchpf = 'X'
+      JOIN mara ON mard~matnr = mara~matnr
+      JOIN mchb ON mard~matnr = mchb~matnr AND mard~werks = mchb~werks AND mard~lgort = mchb~lgort AND mchb~clabs > 0
+      JOIN mbew ON mchb~matnr = mbew~matnr AND mchb~werks = mbew~bwkey "AND mchb~charg = mbew~bwtar
+      WHERE mard~werks = werks
+      AND mard~lgort = lgort
+      AND makt~maktx LIKE smaktx
+
+      .
+
+  IF itab[] IS NOT INITIAL.
+    SELECT matnr
+           meinh
+           umrez"分子
+           umren"分母
+      INTO CORRESPONDING FIELDS OF TABLE it_marm
+      FROM marm
+      FOR ALL ENTRIES IN itab
+      WHERE matnr = itab-matnr AND kzwso = 'B'.
+  ENDIF.
+
+
+  IF itab[] IS NOT INITIAL.
+    flag = 1.
+    message = '查询成功'.
+    CLEAR:itab.
+    SORT itab BY werks matnr lgort charg.
+    "*计算锁定量和可用量
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE izsdl FROM ztmm230 FOR ALL ENTRIES IN itab WHERE
+     ztmm230~werks = itab-werks AND
+     ztmm230~matnr = itab-matnr AND
+     ztmm230~lgort = itab-lgort AND
+     ztmm230~charg = itab-charg AND
+     ztmm230~zdel NE 'X'
+      AND ztmm230~mblnr EQ space.
+
+    LOOP AT itab.
+***按照下列要求确定ZDANJ
+***IF MBEW-VPRSV=S，ZDANJ=MBEW-STPRS;
+***IF MBEW-VPRSV=V，ZDANJ=MBEW-VERPR;
+      IF itab-vprsv = 'S'.
+        itab-zdanj = itab-stprs.
+      ELSEIF itab-vprsv = 'V'.
+        itab-zdanj = itab-verpr.
+      ENDIF.
+      CLEAR:izsdl.
+      "*求和计算zsdl
+      LOOP AT izsdl WHERE werks = itab-werks AND matnr = itab-matnr AND lgort = itab-lgort AND charg = itab-charg.
+        itab-zsdl = itab-zsdl + izsdl-zlyl.
+      ENDLOOP.
+      "*可用量ZKYL=库存数量LABST-锁定量ZSDL
+      itab-zkyl = itab-zkcl - itab-zsdl.
+
+      "优先取marm-kzwso = 'B'的单位，为空再用mara的
+
+      "如果单位转换，相关数量也要做转换
+      SORT it_marm BY matnr meinh.
+      READ TABLE it_marm INTO wa_marm WITH KEY matnr = itab-matnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF wa_marm-umren <> 0.
+          itab-meins = wa_marm-meinh.
+          itab-zkcl = itab-zkcl * wa_marm-umrez / wa_marm-umren.
+          itab-zkyl = itab-zkyl * wa_marm-umrez / wa_marm-umren.
+          itab-zsdl = itab-zsdl * wa_marm-umrez / wa_marm-umren.
+          itab-zdanj = itab-zdanj *  wa_marm-umrez / wa_marm-umren.
+        ENDIF.
+      ENDIF.
+
+*      IF itab-bstme IS NOT INITIAL.
+*        itab-meins = itab-bstme.
+*        "如果单位转换，相关数量也要做转换
+*        SORT it_marm BY matnr meinh.
+*        READ TABLE it_marm INTO wa_marm WITH KEY matnr = itab-matnr
+*                                                 meinh = itab-meins
+*                                                 BINARY SEARCH
+*                                                 .
+*        IF sy-subrc = 0.
+*          IF wa_marm-umrez <> 0.
+*            itab-zkcl = itab-zkcl / wa_marm-umrez.
+*            itab-zkyl = itab-zkyl / wa_marm-umrez.
+*            itab-zsdl = itab-zsdl / wa_marm-umrez.
+*            itab-zdanj = itab-zdanj * wa_marm-umrez.
+*          ENDIF.
+*        ENDIF.
+*
+*      ELSE.
+*        itab-meins = itab-meins.
+*      ENDIF.
+
+      CLEAR wa_t006a.
+      READ TABLE it_t006a INTO wa_t006a WITH KEY msehi = itab-meins.
+      IF sy-subrc = 0.
+        itab-msehl = wa_t006a-msehl.
+      ENDIF.
+
+      MODIFY itab.
+      MOVE-CORRESPONDING itab TO ot_stock.
+      APPEND ot_stock.
+      CLEAR : ot_stock,itab.
+    ENDLOOP.
+  ENDIF.
+**********************************************************************
+  "未启用批次管理物料数据处理
+  CLEAR:itab,itab[],izsdl,izsdl[],it_marm,it_marm[].
+  SELECT
+        mard~werks
+        mard~lgort
+        mard~matnr
+        makt~maktx
+        mard~lgpbe
+        marc~xchpf
+        mara~meins
+        mara~bstme
+        mard~labst AS zkcl
+        mbew~vprsv
+        mbew~stprs
+        mbew~verpr
+        INTO CORRESPONDING FIELDS OF TABLE itab FROM mard
+        JOIN makt ON mard~matnr = makt~matnr AND makt~spras = sy-langu
+        JOIN marc ON mard~werks = marc~werks AND mard~matnr = marc~matnr AND marc~xchpf = ''
+        JOIN mara ON mard~matnr = mara~matnr
+        JOIN mbew ON mard~matnr = mbew~matnr AND mard~werks = mbew~bwkey AND  mbew~bwtar = ''
+        WHERE mard~labst > 0
+        AND mard~werks = werks
+        AND mard~lgort = lgort
+        AND makt~maktx LIKE smaktx
+        .
+  IF itab[] IS NOT INITIAL.
+
+    SELECT matnr
+           meinh
+           umrez"分子
+           umren"分母
+      INTO CORRESPONDING FIELDS OF TABLE it_marm
+      FROM marm
+      FOR ALL ENTRIES IN itab
+      WHERE matnr = itab-matnr AND meinh = itab-bstme.
+
+    flag = 1.
+    message = '查询成功'.
+    CLEAR:itab.
+    "*计算锁定量和可用量
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE izsdl FROM ztmm230 FOR ALL ENTRIES IN itab WHERE
+     ztmm230~werks = itab-werks AND
+     ztmm230~matnr = itab-matnr AND
+     ztmm230~lgort = itab-lgort AND
+     ztmm230~charg = '' AND
+     ztmm230~mblnr EQ '' AND
+      ztmm230~zdel NE 'X'
+      .
+    LOOP AT itab.
+***按照下列要求确定ZDANJ
+***IF MBEW-VPRSV=S，ZDANJ=MBEW-STPRS;
+***IF MBEW-VPRSV=V，ZDANJ=MBEW-VERPR;
+      IF itab-vprsv = 'S'.
+        itab-zdanj = itab-stprs.
+      ELSEIF itab-vprsv = 'V'.
+        itab-zdanj = itab-verpr.
+      ENDIF.
+      CLEAR:izsdl.
+      "*求和计算zsdl
+      LOOP AT izsdl WHERE werks = itab-werks AND matnr = itab-matnr .
+        itab-zsdl = itab-zsdl + izsdl-zlyl.
+      ENDLOOP.
+      "*可用量ZKYL=库存数量LABST-锁定量ZSDL
+      itab-zkyl = itab-zkcl - itab-zsdl.
+
+
+      SORT it_marm BY matnr meinh.
+      READ TABLE it_marm INTO wa_marm WITH KEY matnr = itab-matnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF wa_marm-umren <> 0.
+          itab-meins = wa_marm-meinh.
+          itab-zkcl = itab-zkcl * wa_marm-umrez / wa_marm-umren.
+          itab-zkyl = itab-zkyl * wa_marm-umrez / wa_marm-umren.
+          itab-zsdl = itab-zsdl * wa_marm-umrez / wa_marm-umren.
+          itab-zdanj = itab-zdanj *  wa_marm-umrez / wa_marm-umren.
+        ENDIF.
+      ENDIF.
+
+*      "如果bstme不为空，单位取bstme，如果为空取meins BY CL 20220116
+*      IF itab-bstme IS NOT INITIAL.
+*        itab-meins = itab-bstme.
+*        "如果单位转换，相关数量也要做转换
+*        SORT it_marm BY matnr meinh.
+*        READ TABLE it_marm INTO wa_marm WITH KEY matnr = itab-matnr
+*                                                 meinh = itab-meins
+*                                                 BINARY SEARCH
+*                                                 .
+*        IF sy-subrc = 0.
+*          IF wa_marm-umrez <> 0.
+*            itab-zkcl = itab-zkcl / wa_marm-umrez.
+*            itab-zkyl = itab-zkyl / wa_marm-umrez.
+*            itab-zsdl = itab-zsdl / wa_marm-umrez.
+*            itab-zdanj = itab-zdanj * wa_marm-umrez.
+*          ENDIF.
+*        ENDIF.
+*      ELSE.
+*        itab-meins = itab-meins.
+*      ENDIF.
+
+      CLEAR wa_t006a.
+      READ TABLE it_t006a INTO wa_t006a WITH KEY msehi = itab-meins.
+      IF sy-subrc = 0.
+        itab-msehl = wa_t006a-msehl.
+
+      ENDIF.
+
+      MODIFY itab.
+      MOVE-CORRESPONDING itab TO ot_stock.
+      APPEND ot_stock.
+      CLEAR : ot_stock,itab.
+    ENDLOOP.
+  ENDIF.
+
+  LOOP AT ot_stock.
+    CALL FUNCTION 'CONVERSION_EXIT_CUNIT_OUTPUT'
+      EXPORTING
+        input    = ot_stock-meins
+        language = sy-langu
+      IMPORTING
+*       LONG_TEXT            =
+        output   = ot_stock-meins
+*       SHORT_TEXT           =
+*     EXCEPTIONS
+*       UNIT_NOT_FOUND       = 1
+*       OTHERS   = 2
+      .
+    IF sy-subrc <> 0.
+*     Implement suitable error handling here
+    ENDIF.
+
+    MODIFY ot_stock.
+
+  ENDLOOP.
+
+  IF ot_stock[] IS INITIAL.
+    flag = 0.
+    message = '传入数据查无信息，请核实。'.
+  ENDIF.
+
+**********************************************************************
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

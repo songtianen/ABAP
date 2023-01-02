@@ -1,0 +1,70 @@
+FUNCTION zfm_gpbx_mes_pp_scfl.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(FLAG) TYPE  BAPI_MTYPE
+*"     VALUE(MESSAGE) TYPE  BAPI_MSG
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZTPP_213
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GPBX_MES_PP_SCFL'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:itab TYPE TABLE OF ztpp_213 WITH HEADER LINE.
+  DATA id TYPE int4.
+  IF in_tab[] IS INITIAL.
+    fill_msgbx 'E' '废料明细表不能为空' .
+  ENDIF.
+  itab[] = in_tab[].
+  SELECT * INTO TABLE @DATA(lt_213) FROM ztpp_213 AS z
+  FOR ALL ENTRIES IN @itab
+    WHERE z~aufnr = @itab-aufnr
+    .
+  SELECT * INTO TABLE @DATA(lt_206) FROM ztpp_206 AS z
+  FOR ALL ENTRIES IN @itab
+    WHERE z~aufnr = @itab-aufnr
+    .
+
+  SORT lt_213 BY aufnr ASCENDING id DESCENDING.
+  DELETE ADJACENT DUPLICATES FROM lt_213 COMPARING aufnr id.
+
+  SORT lt_206 BY aufnr.
+
+  SORT itab BY aufnr.
+
+  LOOP AT itab.
+    itab-id = 0.
+    AT NEW aufnr.
+      id = 0.
+    ENDAT.
+    id = id + 1.
+    itab-id = id.
+
+    itab-mandt = ''.
+    READ TABLE lt_213 INTO DATA(lw_213) WITH KEY aufnr = itab-aufnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-id = lw_213-id + id.
+    ENDIF.
+    READ TABLE lt_206 INTO DATA(lw_206) WITH KEY aufnr = itab-aufnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      itab-zpcdh = lw_206-zpcdh.
+    ENDIF.
+    MODIFY itab.
+  ENDLOOP.
+
+  INSERT ztpp_213 FROM TABLE itab[].
+  IF sy-subrc EQ 0.
+    COMMIT WORK.
+    fill_msgbx 'S' '保存成功' .
+  ELSE.
+    ROLLBACK WORK.
+    fill_msgbx 'E' '保存失败' .
+  ENDIF.
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

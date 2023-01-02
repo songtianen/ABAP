@@ -1,0 +1,13 @@
+*----------------------------------------------------------------------*
+*        Module ST_MAX_SEITE_ERMITTELN OUTPUT                          *
+* Aufbereitung f¨¹r Eintragsanzeige : ' Eintr#ge ___ / ___ '            *
+*----------------------------------------------------------------------*
+MODULE ST_MAX_SEITE_ERMITTELN OUTPUT.
+
+  ST_EINTRAEGE_C   = ST_LINES.
+  IF ST_LINES = 0.
+    ST_ERSTE_ZEILE_C = 0.
+  ELSE.
+    ST_ERSTE_ZEILE_C = ST_ERSTE_ZEILE + 1.
+  ENDIF.
+ENDMODULE.                             " ST_MAX_SEITE_ERMITTELN  OUTPUT

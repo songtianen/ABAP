@@ -1,0 +1,51 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201B_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZXMKC_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zxmkc_con_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_222 LINES zxmkc_con-lines.
+  DATA:ls_col LIKE LINE OF zxmkc_con-cols.
+  LOOP AT zxmkc_con-cols INTO ls_col.
+    IF zsf = '1'.
+      IF ls_col-screen-name EQ 'IT_222-ZXXMH'." OR ls_col-screen-name EQ 'IT_222-ZSDR' .
+        ls_col-invisible = 1.
+      ENDIF.
+    ELSE.
+      ls_col-invisible = 0.
+    ENDIF.
+
+    MODIFY zxmkc_con-cols  FROM ls_col INDEX sy-tabix.
+  ENDLOOP.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZXMKC_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zxmkc_con_get_lines OUTPUT.
+  g_zxmkc_con_lines = sy-loopc.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0900 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0900 OUTPUT.
+  SET PF-STATUS 'STA900'.
+  SET TITLEBAR 'TIT900' WITH '项目库存释放与转移'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module MDL_CHANGE_INPUT OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE mdl_change_input OUTPUT.
+  IF it_222-cpxz = 'X'.
+    LOOP AT SCREEN .
+      IF screen-name = 'IT_222-MEINS' OR screen-name = 'IT_222-ZSL'.
+        screen-input = 0 .   "可输入状态
+        MODIFY SCREEN .
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDMODULE.

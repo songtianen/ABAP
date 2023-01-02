@@ -1,0 +1,944 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD201B
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd210b MESSAGE-ID zgp_msg.
+INCLUDE zdbpt.
+TABLES:mara,mard,mcha,prps,ausp.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields.
+DATA: fldct    TYPE slis_t_fieldcat_alv,
+      fldct_wh TYPE slis_t_fieldcat_alv,
+      fldctcp  TYPE slis_t_fieldcat_alv,
+      slayt    TYPE slis_layout_alv,
+      slaytcp  TYPE slis_layout_alv,
+      varnt    LIKE disvariant,
+      repid    LIKE sy-repid,
+      tabix    LIKE sy-tabix.
+DATA:BEGIN OF it_222 OCCURS 0.
+       INCLUDE TYPE ztmm222.
+DATA:sel,
+       cpxz  TYPE char1,
+       post1 TYPE prps-post1,
+       z13   TYPE atwrt, "锁定人
+       z01   TYPE atwrt, "自编号
+       z25   TYPE atwrt,
+       z26   TYPE atwrt,
+       z09   TYPE atwrt,
+       z02   TYPE atwrt,
+       z20   TYPE atwrt,
+     END OF it_222.
+DATA:flag TYPE bapi_mtype,
+     msg  TYPE bapi_msg.
+DATA:BEGIN OF it_wh OCCURS 0.
+       INCLUDE TYPE ztmm222.
+DATA:  cb     TYPE char1,
+       select,
+     END OF it_wh.
+DATA:BEGIN OF it_cpxz_hz OCCURS 0,"汇总成品选择的总数量
+       matnr    TYPE matnr,
+       charg    TYPE charg_d,
+       werks    TYPE werks_d,
+       zbh      TYPE ztpp316-zbh,
+       zdbsl_in TYPE ztmm221-zdbsl, "转换调拨数量
+     END OF it_cpxz_hz.
+DATA:BEGIN OF it_cpxz OCCURS 0,
+*       vbeln TYPE vbeln,
+*       posnr TYPE posnr,
+       werks TYPE werks_d,
+       matnr TYPE matnr,
+       charg TYPE charg_d,
+       zbh   TYPE ztpp316-zbh,
+       menge TYPE menge_d,
+     END OF it_cpxz.
+DATA:BEGIN OF it316 OCCURS 0.
+       INCLUDE TYPE ztpp316.
+DATA:  zdbsl_in TYPE ztmm221-zdbsl, "转换调拨数量
+       meins_in TYPE ztmm221-meins, "转换单位
+       zzk_in   TYPE ztpp316-zzk, "调拨块数
+       sel,
+     END OF it316.
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  PARAMETERS:p_zdcgc  LIKE mard-werks MEMORY ID b01,
+             p_zwllx  LIKE ztmm222-zdbwllx MEMORY ID b03 OBLIGATORY,
+             p_zdckcd LIKE mard-lgort MEMORY ID b02 MODIF ID m1.
+  SELECT-OPTIONS:s_matnr FOR mara-matnr,
+  s_matkl FOR mara-matkl,
+  s_charg FOR mcha-charg.
+  PARAMETERS:p_kcfl LIKE mska-sobkz AS LISTBOX VISIBLE LENGTH 10.
+  SELECT-OPTIONS:s_posid FOR prps-posid,
+                 s_z13 FOR ausp-atwrt.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:p_cj RADIOBUTTON GROUP grd1  DEFAULT 'X' USER-COMMAND singleclick MODIF ID p,
+             p_wh RADIOBUTTON GROUP grd1  MODIF ID p,
+             p_cx RADIOBUTTON GROUP grd1 MODIF ID p.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+
+  %_p_zdcgc_%_app_%-text    = '工厂'.
+  %_p_zdckcd_%_app_%-text   = '库存地'.
+  %_p_zwllx_%_app_%-text    = '调拨物料类型'.
+  %_s_matnr_%_app_%-text    = '物料编号'.
+  %_s_matkl_%_app_%-text    = '物料组'.
+  %_s_charg_%_app_%-text    = '批次号'.
+  %_p_kcfl_%_app_%-text     = '库存分类'.
+  %_s_posid_%_app_%-text    = '项目'.
+  %_s_z13_%_app_%-text      = '锁定人'.
+
+  t02 = '功能选择'.
+  %_p_cj_%_app_%-text    = '引库存创建'.
+  %_p_cx_%_app_%-text    = '查询'.
+  %_p_wh_%_app_%-text    = '维护'.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN .
+    IF screen-name = 'P_KCFL' .
+      CASE sy-tcode.
+        WHEN 'ZMM210E'.
+          p_kcfl = 'Q'.
+        WHEN 'ZMM210F'.
+          p_kcfl = ''.
+      ENDCASE.
+      screen-input = 0 .
+      MODIFY SCREEN .
+    ENDIF .
+    CASE sy-tcode.
+      WHEN 'ZMM210E' OR 'ZMM210F'.
+        CASE screen-group1.
+          WHEN 'M1'.
+            screen-required = '2'.
+            MODIFY SCREEN.
+        ENDCASE.
+    ENDCASE.
+  ENDLOOP .
+
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_pspnr-low .
+*  PERFORM f4_pspnr.
+*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_pspnr-high .
+*  PERFORM f4_pspnr.
+*
+*FORM f4_pspnr.
+*  DATA: return_tab TYPE ddshretval OCCURS 0 .
+*  SELECT posid,post1 INTO TABLE @DATA(lt_pspnr) FROM prps.
+*
+*  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+*    EXPORTING
+*      retfield         = 'PSPNR'
+*      dynpprog         = sy-repid
+*      dynpnr           = sy-dynnr
+*      dynprofield      = 'S_PSPNR'
+*      value_org        = 'S'
+*      callback_program = sy-repid
+**     callback_form    = 'CB_FORM'
+*      display          = 'S'   " <– Force
+*    TABLES
+*      value_tab        = lt_pspnr
+*      return_tab       = return_tab
+*    EXCEPTIONS
+*      parameter_error  = 1
+*      no_values_found  = 2
+*      OTHERS           = 3.
+*ENDFORM.
+
+START-OF-SELECTION.
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  IF p_cj = 'X'.
+    CASE sy-tcode.
+      WHEN 'ZMM210E' OR 'ZMM210F'.
+        IF p_zdckcd IS INITIAL.
+          MESSAGE s000(oo) WITH '锁定库存地必填' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+    ENDCASE.
+    PERFORM getdata.
+    PERFORM alvshow.
+  ELSE.
+    PERFORM getdata_wh.
+    PERFORM alvshow_wh.
+  ENDIF.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  DATA:
+       s_vbeln TYPE RANGE OF vbap-vbeln WITH HEADER LINE.
+  IF p_kcfl = 'Q'.
+    PERFORM ztmm006_memory(zmmd201) TABLES s_matnr s_matkl s_charg s_posid s_vbeln it006
+    USING p_zdckcd p_zdcgc 'X' '' ''.
+  ELSEIF p_kcfl = ''.
+    PERFORM ztmm006_memory(zmmd201) TABLES s_matnr s_matkl s_charg s_posid s_vbeln it006
+  USING p_zdckcd p_zdcgc '' '' 'X'.
+  ENDIF.
+  LOOP AT it006.
+    ASSIGN COMPONENT 'Z13' OF STRUCTURE it006 TO FIELD-SYMBOL(<fs_atwrt>).
+    IF sy-subrc EQ 0 AND <fs_atwrt> NOT IN s_z13.
+      DELETE it006.
+      CONTINUE.
+    ENDIF.
+    it006-zdbwllx = p_zwllx.
+    SELECT SINGLE post1
+      INTO it006-post1
+      FROM prps
+      WHERE pspnr = it006-pspnr.
+    MODIFY it006.
+  ENDLOOP.
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1."控制用户布局
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'CB'       ''         ''       '选择',
+'WERKS'    'EBAN'     'WERKS'       '工厂',
+'ZDCKCD'   'MARD'     'LGORT'       '库存地 ',
+'LGOBE'    'T001L'     'LGOBE'      '库存地名称',
+'MATNR'    'ZTMM220'     'MATNR'    '物料编码',
+'ZDBWLLX'    'ZTMM222'     'ZDBWLLX'    '调拨物料类型',
+'WLCMS'    'ZTMM220'     'ZWLCMS'   '物料长描述',
+'CHARG'    'MCHB'     'CHARG'       '批次',
+'CLABS'    'MCHB'     'CLABS'       '非限制数量',
+'MEINS'    'MRAR'     'MEINS'       '单位',
+'MATKL'    'MARA'     'MATKL'       '物料组',
+'WGBEZ'    'T023T'     'WGBEZ'      '物料组描述',
+'Z01'      'AUSP'     'ATWRT'    '自编号',
+'Z02'      'AUSP'     'ATWRT'    '卷号',
+'ZZYH'     'AUSP'     'ATWRT'    '资源号',
+'Z05'     'AUSP'     'ATWRT'    '产地',
+*'Z09'      'AUSP'     'ATWRT'       '项目号',
+'POSID'      'PRPS'     'POSID'       '项目号',
+'POST1'      'PRPS'     'POST1'       '项目描述',
+'Z25'      'AUSP'     'ATWRT'    '销售订单号',
+'Z20'      'AUSP'     'ATWRT'    '包号',
+'Z08'      'AUSP'     'ATWRT'    '库位',
+'Z13'      'AUSP'     'ATWRT'    '锁定人'.
+
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+      i_callback_top_of_page   = 'TOP_OF_PAGE'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = it006[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM getdata_wh.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_wh FROM ztmm222.
+ENDFORM.
+
+FORM alvshow_wh.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 2."控制用户布局
+
+  PERFORM catlg_set TABLES fldct_wh
+                    USING:
+'CB'       ''         ''       '选择',
+'ZDH   '      'ZTMM222'     'ZDH   '         '单号              ',
+'WERKS '      'ZTMM222'     'WERKS '         '工厂              ',
+'LGORT '      'ZTMM222'     'LGORT '         '存储地点          ',
+'MATNR '      'ZTMM222'     'MATNR '         '物料编号          ',
+'ZWLCMS'      'ZTMM222'     'ZWLCMS'         '物料描述          ',
+'CHARG '      'ZTMM222'     'CHARG '         '批次编号          ',
+'ZXMH  '      'ZTMM222'     'ZXMH  '         '项目号            ',
+'ZSL   '      'ZTMM222'     'ZSL   '         '数量              ',
+'MEINS '      'ZTMM222'     'MEINS '         '基本计量单位      ',
+'ZXXMH '      'ZTMM222'     'ZXXMH '         '转入项目号        ',
+'BUDAT '      'ZTMM222'     'BUDAT '         '凭证中的过账日期  ',
+'MBLNR '      'ZTMM222'     'MBLNR '         '物料凭证编号      ',
+'MJAHR '      'ZTMM222'     'MJAHR '         '物料凭证的年份    ',
+'ZXMZT '      'ZTMM222'     'ZXMZT '         '项目状态          ',
+'USR09 '      'ZTMM222'     'USR09 '         '项目结束时间      ',
+'ZSDR  '      'ZTMM222'     'ZSDR  '         '锁定人            ',
+'ZGXSJ '      'ZTMM222'     'ZGXSJ '         '锁定更新时间      ',
+'ZBZ   '      'ZTMM222'     'ZBZ   '         '备注              ',
+'ZKH   '      'ZTMM222'     'ZKH   '         '客户              ',
+'SMBLN '      'ZTMM222'     'SMBLN '         '冲销物料凭证编号  ',
+'SJAHR '      'ZTMM222'     'SJAHR '         '冲销物料凭证的年份'.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct_wh[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+      i_callback_top_of_page   = 'TOP_OF_PAGE_WH'
+    TABLES
+      t_outtab                 = it_wh[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+    WHEN 'CB'.
+      ls_fldct-hotspot   = 'X'.
+      ls_fldct-edit   = 'X'.
+      ls_fldct-checkbox   = 'X'.
+      ls_fldct-fix_column   = 'X'.
+    WHEN 'ZZK_IN'.
+      ls_fldct-edit   = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+*  data: wa_extab type line of slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  CASE  sy-tcode.
+    WHEN 'ZMM210E'."创建、维护、查询
+      SET TITLEBAR 'TIT1000' WITH '项目库存释放与转移'.
+      IF p_cj = 'X'.
+        APPEND 'CX' TO rt_extab.
+
+      ELSE.
+        APPEND 'XMKCSF' TO rt_extab.
+        APPEND 'XMKCZY' TO rt_extab.
+
+      ENDIF.
+      APPEND 'SDXM' TO rt_extab.
+
+    WHEN 'ZMM210F'."锁定项目、冲销
+      SET TITLEBAR 'TIT1000' WITH '项目库存锁定'.
+      IF p_cj = 'X'.
+        APPEND 'CX' TO rt_extab.
+        SET TITLEBAR 'TIT1000' WITH '项目库存锁定'.
+      ELSE.
+        APPEND 'SDXM' TO rt_extab.
+        SET TITLEBAR 'TIT1000' WITH '项目库存冲销'.
+      ENDIF.
+      APPEND 'XMKCSF' TO rt_extab.
+      APPEND 'XMKCZY' TO rt_extab.
+  ENDCASE.
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+ENDFORM.
+DATA zsf TYPE char1."用于判断按钮来隐藏列
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF it006.
+  DATA wa_wh LIKE LINE OF it_wh.
+  DATA:filename TYPE string.
+
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      IF p_cj = 'X'.
+        READ TABLE it006 INTO wa INDEX rs_selfield-tabindex.
+        CASE rs_selfield-fieldname.
+          WHEN 'CB'.
+            IF wa-cb = ''.
+              wa-cb = 'X'.
+            ELSE.
+              wa-cb = ''.
+            ENDIF.
+            MODIFY it006 FROM wa INDEX rs_selfield-tabindex.
+          WHEN OTHERS.
+        ENDCASE.
+      ELSE.
+        READ TABLE it_wh INTO wa_wh INDEX rs_selfield-tabindex.
+        CASE rs_selfield-fieldname.
+          WHEN 'CB'.
+            IF wa_wh-cb = ''.
+              wa_wh-cb = 'X'.
+            ELSE.
+              wa_wh-cb = ''.
+            ENDIF.
+            MODIFY it_wh FROM wa_wh INDEX rs_selfield-tabindex.
+          WHEN OTHERS.
+        ENDCASE.
+      ENDIF.
+    WHEN 'XMKCSF' OR 'XMKCZY' OR 'SDXM'.
+      CLEAR zsf.
+      IF r_ucomm = 'XMKCSF'.
+        zsf = '1'.
+      ELSEIF r_ucomm = 'XMKCZY'.
+        zsf = '0'.
+      ELSEIF r_ucomm = 'SDXM'.
+        zsf = '2'.
+      ENDIF.
+      PERFORM plcpxz."先找成品信息
+      PERFORM init_data CHANGING flag.
+      IF flag = 'S'.
+        CALL SCREEN 900.
+      ENDIF.
+    WHEN 'CX'.
+      PERFORM cx.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+
+FORM top_of_page_wh.
+  DATA:it_list_commentary TYPE slis_t_listheader,
+       wa_list_commentary TYPE slis_listheader,
+       sjtms              TYPE i.
+  CLEAR:wa_list_commentary,sjtms.
+  REFRESH:it_list_commentary.
+
+  sjtms = lines( it_wh ).
+
+  wa_list_commentary-typ = 'S'.
+  wa_list_commentary-key = '条目数:'.
+  wa_list_commentary-info = sjtms.
+  APPEND wa_list_commentary TO it_list_commentary.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = it_list_commentary[]
+    EXCEPTIONS
+      OTHERS             = 1.
+ENDFORM.
+
+FORM top_of_page.
+  DATA:it_list_commentary TYPE slis_t_listheader,
+       wa_list_commentary TYPE slis_listheader,
+       sjtms              TYPE i.
+  CLEAR:wa_list_commentary,sjtms.
+  REFRESH:it_list_commentary.
+
+  sjtms = lines( it006 ).
+
+  wa_list_commentary-typ = 'S'.
+  wa_list_commentary-key = '条目数:'.
+  wa_list_commentary-info = sjtms.
+  APPEND wa_list_commentary TO it_list_commentary.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = it_list_commentary[]
+    EXCEPTIONS
+      OTHERS             = 1.
+ENDFORM.
+
+*&SPWizard: Data incl. inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zmmd201b_con .
+*&SPWizard: Include inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zmmd201b_pbo .
+INCLUDE zmmd201b_pai .
+INCLUDE zmmd201b_form .
+*&---------------------------------------------------------------------*
+*& Form init_data
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- FLAG
+*&---------------------------------------------------------------------*
+FORM init_data  CHANGING p_flag TYPE char1.
+  DATA: num TYPE i.
+  DATA: it_mchas TYPE TABLE OF mcha WITH HEADER LINE,
+        it_pctx  TYPE TABLE OF zsfms_getpctx WITH HEADER LINE.
+  CLEAR: num,it_222,it_222[],it_mchas[],it_pctx[].
+
+  SELECT SINGLE name_textc INTO @DATA(name) FROM user_addr WHERE bname = @sy-uname.
+  LOOP AT it006 WHERE cb = 'X'.
+    CLEAR:it_mchas.
+    num = num + 1.
+    MOVE-CORRESPONDING it006 TO it_222.
+*取项目描述与自编号
+    SELECT SINGLE post1
+      INTO it_222-post1
+      FROM prps
+      WHERE pspnr = it006-pspnr.
+    it_222-lgort = it006-zdckcd.
+    it_222-zxmh  = it006-posid.
+    IF it006-cpxz = 'X'.
+      it_222-meins = it006-vrkme.
+      it_222-zsl = it006-zdbsl_in.
+    ENDIF.
+    it_222-zsdr = sy-uname.
+    it_222-name_org1 = name.
+    APPEND it_222.
+    it_mchas-charg = it006-charg.
+    it_mchas-werks = it006-werks.
+    it_mchas-matnr = it006-matnr.
+    COLLECT it_mchas.
+  ENDLOOP.
+*取批次特征
+  CALL FUNCTION 'ZFMS_05_GETPCTX'
+    EXPORTING
+      atnam  = 'Z01,Z25,Z09,Z02,Z20,Z26'
+    TABLES
+      intab  = it_mchas
+      outtab = it_pctx.
+  SORT it_pctx BY matnr charg atnam.
+  LOOP AT it_222.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                                charg = it_222-charg
+                                atnam = 'Z01'
+                                BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-zzbh = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                            charg = it_222-charg
+                            atnam = 'Z02'
+                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z02 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                            charg = it_222-charg
+                            atnam = 'Z09'
+                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z09 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                            charg = it_222-charg
+                            atnam = 'Z25'
+                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z25 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                        charg = it_222-charg
+                        atnam = 'Z20'
+                        BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z20 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                        charg = it_222-charg
+                        atnam = 'Z26'
+                        BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z26 = it_pctx-atwrt.
+    ENDIF.
+    MODIFY it_222.
+  ENDLOOP.
+  IF num LT 1.
+    MESSAGE s004 WITH '请选择明细行.' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  p_flag = 'S'.
+ENDFORM.
+DATA:return              TYPE TABLE OF bapiret2 WITH HEADER LINE,
+     li_goodsmvt_headret TYPE bapi2017_gm_head_ret. "生成的物料凭证
+FORM cx.
+  DATA num TYPE i.
+  CLEAR num.
+  LOOP AT it_wh WHERE cb = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num NE 1.
+    MESSAGE s004 WITH '请选中一行操作.' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  IF it_wh-werks = '3060' OR it_wh-werks = '3062'.
+    CLEAR: flag,msg.
+    PERFORM wms_synccontract_cx CHANGING flag msg.
+    IF flag NE 'S'.
+      MESSAGE i004 WITH msg.
+      RETURN.
+    ENDIF.
+    CLEAR:it_222,it_222[].
+  ENDIF.
+  PERFORM goodsmvt_cancle TABLES return  USING it_wh-mblnr it_wh-mjahr  CHANGING li_goodsmvt_headret .
+  IF li_goodsmvt_headret IS NOT INITIAL.
+    UPDATE ztmm222 SET smbln = li_goodsmvt_headret-mat_doc sjahr = li_goodsmvt_headret-doc_year WHERE ztmm222~zdh = it_wh-zdh.
+    COMMIT WORK.
+    MESSAGE s034 WITH li_goodsmvt_headret.
+  ELSE.
+    PERFORM showmsg(zpubform) TABLES return.
+  ENDIF.
+
+ENDFORM.
+
+FORM plcpxz .
+  REFRESH it_cpxz.
+
+  LOOP AT it006 WHERE cb = 'X' AND z20 IS NOT INITIAL.
+    SELECT SINGLE vrkme INTO it006-vrkme FROM vbap WHERE vbeln = it006-vbeln AND posnr = it006-posnr.
+    IF it006-vrkme IS NOT INITIAL.
+      CLEAR:it_cpxz.
+      it_cpxz-werks = it006-werks.
+      it_cpxz-matnr = it006-matnr.
+      it_cpxz-charg = it006-charg.
+      it_cpxz-zbh   = it006-z20.
+*      it_cpxz-vbeln = it006-vbeln.
+*      it_cpxz-posnr = it006-posnr.
+      it_cpxz-menge = ''.
+      COLLECT it_cpxz.
+    ENDIF.
+  ENDLOOP.
+
+  IF it_cpxz[] IS NOT INITIAL.
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE it316
+      FROM ztpp316
+      FOR ALL ENTRIES IN it_cpxz
+        WHERE matnr = it_cpxz-matnr
+          AND charg = it_cpxz-charg
+          AND werks = it_cpxz-werks
+          AND zbh   = it_cpxz-zbh
+      .
+
+    LOOP AT it316.
+      it316-zzk_in = it316-zzk.
+      MODIFY it316 TRANSPORTING zzk_in.
+    ENDLOOP.
+  ENDIF.
+
+  IF it316[] IS NOT INITIAL.
+    PERFORM show_cpalv.
+  ELSE.
+
+  ENDIF.
+ENDFORM.
+
+FORM show_cpalv.
+  REFRESH fldctcp.
+  slaytcp-colwidth_optimize = 'X'. "  colwidth_optimize
+  slaytcp-zebra             = 'X'.
+  slaytcp-box_fieldname     = 'SEL'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 3."控制用户布局
+
+  PERFORM catlg_set TABLES fldctcp
+                    USING:
+'ZZK_IN   '    'ZTPP316'   'ZZK      '   '调拨块数    ',
+'WERKS    '    'ZTPP316'   'WERKS    '   '工厂        ',
+'MATNR    '    'ZTPP316'   'MATNR    '   '物料编号    ',
+'CHARG    '    'ZTPP316'   'CHARG    '   '批次编号    ',
+'ZCC      '    'ZTPP316'   'ZCC      '   '尺寸        ',
+'ZBH      '    'ZTPP316'   'ZBH      '   '包号        ',
+'PLNUM    '    'ZTPP316'   'PLNUM    '   '计划订单    ',
+'PLNUMHH  '    'ZTPP316'   'PLNUMHH  '   '计划单行号  ',
+'AUFNR    '    'ZTPP316'   'AUFNR    '   '订单编号    ',
+'ZZK      '    'ZTPP316'   'ZZK      '   '块数        ',
+'ZKD      '    'ZTPP316'   'ZKD      '   '宽度数值    ',
+'ZCD      '    'ZTPP316'   'ZCD      '   '长度        ',
+'ZTXBH    '    'ZTPP316'   'ZTXBH    '   '图形编号    ',
+'ZZHANKUAN'    'ZTPP316'   'ZZHANKUAN'   '展宽        ',
+'ZZHESHU  '    'ZTPP316'   'ZZHESHU  '   '折数        ',
+'ZXS      '    'ZTPP316'   'ZXS      '   '系数        ',
+'ZSL      '    'ZTPP316'   'ZSL      '   '数量        '.
+*'ZDBSL_IN '    'ZTPP316'   'ZDBSL_IN '   '转换调拨数量',
+*'MEINS_IN '    'ZTPP316'   'MEINS_IN '   '转换单位    '.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldctcp[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slaytcp
+      i_callback_user_command  = 'USER_COMMANDCP'
+      i_callback_pf_status_set = 'SET_STATUSCP'
+*     IT_EVENTS                = GT_EVENTS
+      i_screen_start_column    = 10
+      i_screen_start_line      = 1
+      i_screen_end_column      = 120
+      i_screen_end_line        = 10
+    TABLES
+      t_outtab                 = it316[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+ENDFORM.
+FORM set_statuscp USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  SET TITLEBAR 'TITCP' WITH '成品选择'.
+  SET PF-STATUS 'STANDARDCP' EXCLUDING rt_extab .
+
+ENDFORM.
+
+FORM user_commandcp USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF it316.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE it316 INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+        WHEN ''.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'BUT01'.
+      REFRESH it_cpxz_hz.
+      LOOP AT it316 WHERE sel = 'X'.
+        CLEAR it_cpxz_hz.
+        it_cpxz_hz-matnr      = it316-matnr .
+        it_cpxz_hz-charg      = it316-charg .
+        it_cpxz_hz-werks      = it316-werks .
+        it_cpxz_hz-zbh        = it316-zbh   .
+        it_cpxz_hz-zdbsl_in   = it316-zzk_in * it316-zcd * it316-zxs.
+        COLLECT it_cpxz_hz.
+      ENDLOOP.
+      SORT it_cpxz_hz BY matnr charg werks zbh.
+      LOOP AT it006 WHERE cb = 'X'.
+        READ TABLE it_cpxz_hz WITH KEY matnr = it006-matnr charg = it006-charg werks = it006-werks zbh = it006-z20 BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          it006-zdbsl_in = it_cpxz_hz-zdbsl_in.
+          it006-cpxz = 'X'.
+          it006-meins_in = it006-vrkme.
+          MODIFY it006.
+        ENDIF.
+      ENDLOOP.
+      PERFORM init_data CHANGING flag.
+***      CLEAR zsf.
+***      IF r_ucomm = 'XMKCSF'.
+***        zsf = '1'.
+***      ELSEIF r_ucomm = 'XMKCZY'.
+***        zsf = '0'.
+***      ELSEIF r_ucomm = 'SDXM'.
+***        zsf = '2'.
+***      ENDIF.
+      IF flag = 'S'.
+        CALL SCREEN 900.
+      ENDIF.
+
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form wms_synccontract_cx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM wms_synccontract_cx CHANGING p_flag
+                                  p_msg.
+  DATA:intab TYPE TABLE OF zsmm_226 WITH HEADER LINE,
+       rtype TYPE bapi_mtype,
+       rtmsg TYPE bapi_msg.
+  DATA:it_mchas TYPE TABLE OF mcha WITH HEADER LINE,
+       it_pctx  TYPE TABLE OF zsfms_getpctx WITH HEADER LINE.
+  REFRESH intab.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_222
+    FROM ztmm222
+    WHERE zdh = it_wh-zdh.
+**********************************************************************
+  "  by kkw 29.12.2022 21:35:08
+  LOOP AT it_222.
+    CLEAR it_mchas.
+    it_mchas-charg = it_222-charg.
+    it_mchas-werks = it_222-werks.
+    it_mchas-matnr = it_222-matnr.
+    COLLECT it_mchas.
+  ENDLOOP.
+*取批次特征
+  CALL FUNCTION 'ZFMS_05_GETPCTX'
+    EXPORTING
+      atnam  = 'Z01,Z25,Z09,Z02,Z20,Z26'
+    TABLES
+      intab  = it_mchas
+      outtab = it_pctx.
+  SORT it_pctx BY matnr charg atnam.
+  LOOP AT it_222.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                                charg = it_222-charg
+                                atnam = 'Z01'
+                                BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-zzbh = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                            charg = it_222-charg
+                            atnam = 'Z02'
+                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z02 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                            charg = it_222-charg
+                            atnam = 'Z09'
+                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z09 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                            charg = it_222-charg
+                            atnam = 'Z25'
+                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z25 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                        charg = it_222-charg
+                        atnam = 'Z20'
+                        BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z20 = it_pctx-atwrt.
+    ENDIF.
+    READ TABLE it_pctx WITH KEY matnr = it_222-matnr
+                        charg = it_222-charg
+                        atnam = 'Z26'
+                        BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_222-z26 = it_pctx-atwrt.
+    ENDIF.
+    MODIFY it_222.
+  ENDLOOP.
+
+**********************************************************************
+
+  LOOP AT it_222.
+    CLEAR intab.
+    intab-zdh      = it_222-zdh+1(11) && 'D'.
+    SELECT SINGLE
+        ztps010a~kunnr
+        FROM prps
+         LEFT JOIN ztps010a ON ztps010a~pspid = substring( prps~posid,1,8 )
+        WHERE prps~post1 = @it_222-zxmh
+        INTO @intab-kunnr.
+    intab-werks    = it_222-werks.
+    intab-erpjgms  = ''.
+*    SELECT SINGLE partner INTO @DATA(partner) FROM but000
+*      WHERE name_org1 = @it_222-zsdr.
+*    DATA(len) = strlen( partner ) - 4.
+*    IF len > 0.
+*      intab-zsdr     = partner+len(4).
+*    ELSE.
+*      intab-zsdr     = partner.
+*    ENDIF.
+
+*    intab-zsdr     = ''.
+    intab-zgxsj    = sy-datum.
+    intab-zbz      = ''.
+    intab-zdhhh    = '10'.
+    intab-zxsddh   = it_222-z25.
+    intab-zxshthh  = it_222-z26.
+    intab-zxxmh    = it_222-zxmh.
+*    intab-zxxmmc   = it_222-z09.
+    SELECT SINGLE post1 INTO intab-zxxmmc FROM prps WHERE posid = it_222-zxmh.
+    intab-zyxsht   = ''.
+    intab-zyxshtmc = ''.
+    intab-zyxmh    = ''.
+    intab-zyxmmc   = ''.
+    intab-lgort    = it_222-lgort.
+    SELECT SINGLE lgobe INTO intab-lgobe FROM t001l WHERE werks = it_222-werks AND lgort = it_222-lgort.
+*    intab-lgobe    = ''.
+    intab-zcj      = ''.
+    intab-matnr    = it_222-matnr.
+    intab-zbaohao  = it_222-z20.
+*    SELECT SUM( zzk ) SUM( zsl )  INTO ( intab-zkuaishu,intab-zsl ) FROM ztpp316 WHERE matnr = it_222-matnr AND werks = it_222-werks AND charg = it_222-charg AND zbh = it_222-z20.
+    SELECT SUM( zzk ) INTO ( intab-zkuaishu ) FROM ztpp316 WHERE matnr = it_222-matnr AND werks = it_222-werks AND charg = it_222-charg AND zbh = it_222-z20.
+*    intab-zkuaishu = ''.
+    intab-zsl      = it_222-zsl.
+    intab-meins    = it_222-meins.
+    intab-zjh      = it_222-zjh.
+    intab-charg    = it_222-charg.
+    APPEND intab.
+  ENDLOOP.
+
+
+  CALL FUNCTION 'ZFM_GP_MM_WMS_SYNCCONTRACT'
+    IMPORTING
+*     P_OUTPUT       =
+*     P_STATUS       =
+*     P_RESULT       =
+      rtype  = rtype
+      rtmsg  = rtmsg
+    TABLES
+      in_tab = intab.
+  p_msg = rtmsg.
+  IF to_upper( rtype ) = 'S'.
+    p_flag = 'S'.
+  ELSE.
+    p_flag = 'E'.
+  ENDIF.
+ENDFORM.

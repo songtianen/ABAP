@@ -1,0 +1,29 @@
+FUNCTION ZFM_CALLSODJ.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(VBELN) TYPE  VBELN
+*"     REFERENCE(INTYPE) TYPE  CHAR10
+*"     REFERENCE(MODE) TYPE  CHAR1 DEFAULT 'S'
+*"----------------------------------------------------------------------
+  CASE INTYPE.
+    WHEN 'FH'.
+      SUBMIT ZRSD202
+        WITH P_VBELN = VBELN
+        AND RETURN.
+    WHEN 'CK'.
+      SUBMIT ZRSD206
+      WITH P_VBELV = VBELN
+      WITH P_MODE = MODE
+      AND RETURN.
+    WHEN 'HT'.
+      SUBMIT ZRSD207
+      WITH P_VBELN = VBELN
+      WITH P_MODE = MODE
+      AND RETURN.
+  ENDCASE.
+
+
+
+
+ENDFUNCTION.

@@ -1,0 +1,137 @@
+FUNCTION ZFM_SD_LYJH_CALRQ.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(VBELN) TYPE  VBELN OPTIONAL
+*"     VALUE(ZCP) TYPE  ZE_CHANPIN OPTIONAL
+*"  TABLES
+*"      OTTAB STRUCTURE  ZTSD200D OPTIONAL
+*"----------------------------------------------------------------------
+
+  TYPES:BEGIN OF ZSPZXX,
+          ZFPSD   TYPE I,
+          ZFPYJ   TYPE I,
+          ZKPWC   TYPE I,
+          ZKPSQ   TYPE I,
+          ZBCWC   TYPE I,
+          ZZHFY   TYPE I,
+          ZZHSC   TYPE I,
+          ZDYFY   TYPE I,
+          ZDYSC   TYPE I,
+          ZGJFJDH TYPE I,
+          ZZCZB   TYPE I,
+          ZZCDH   TYPE I,
+          ZDZD    TYPE I,
+          ZPC     TYPE I,
+          ZXTSC   TYPE I,
+          ZKHQR   TYPE I,
+          ZXTWC   TYPE I,
+          ZZCCH   TYPE I,
+          ZZCQG   TYPE I,
+          ZCJRQ   TYPE I,
+        END OF ZSPZXX.
+  DATA: WA_PZXX TYPE ZSPZXX.
+  FIELD-SYMBOLS:<FS> TYPE ANY.
+
+  CLEAR:OTTAB,OTTAB[],WA_PZXX.
+
+  IF VBELN IS INITIAL.
+    RETURN.
+  ENDIF.
+  IF ZCP IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  SELECT SINGLE
+    VBAK~ZDJSCDZ,
+    VBAK~ANGDT,
+    VBAK~ZJRTH,
+    VBAK~ZJRTHWB,
+    VBAK~VTWEG
+    INTO ( @DATA(ZDJSCDZ) , @DATA(ANGDT) , @DATA(ZJRTH) , @DATA(ZJRTHWB) , @DATA(VTWEG) )
+    FROM VBAK
+    WHERE VBAK~VBELN = @VBELN
+     .
+  IF SY-SUBRC <> 0.
+    RETURN.
+  ENDIF.
+
+  SELECT
+      ZTSD217~ZLCB,
+      ZTSD217~ZSZ
+    INTO TABLE @DATA(IT_217)
+    FROM ZTSD217
+    WHERE ZJG = @VTWEG
+     AND  ZCP = @ZCP
+    .
+  SORT IT_217 BY ZLCB.
+
+*预付款到账日期                    ZYFKDZ             取vbak中的ZDJSCDZ，若ZDJSCDZ为空则取vbak-ANGDT
+*第一批产品到货日期                ZDYDH              ZYFKDZ+VBAK-ZJRTH
+*发票收到日期                      ZFPSD              ZYFKDZ+VBAk-ZJRTHWB+8（配置表）
+*发票邮寄日期                      ZFPYJ              ZYFKDZ+VBAk-ZJRTHWB+5（配置表）
+*开票完成日期                      ZKPWC              ZYFKDZ+VBAk-ZJRTHWB+5（配置表）
+*开票申请日期                      ZKPSQ              ZYFKDZ+VBAk-ZJRTHWB+5（配置表）
+*补差单完成日期                    ZBCWC              ZYFKDZ+VBAk-ZJRTHWB+5（配置表）
+*最后一批产品到货日期              ZZHDH              ZYFKDZ+VBAk-ZJRTHWB
+*最后一批产品发运日期              ZZHFY              ZYFKDZ+VBAk-ZJRTHWB-2(配置表）
+*最后一批主产品生产开始日期        ZZHSC              当VBAK-ZGROES等于折弯、丽彩钻、丽彩晶时，取值为ZYFKDZ+VBAk-ZJRTHWB-5；否则为ZYFKDZ+VBAk-ZJRTHWB-3
+*第一批产品发运日期                ZDYFY              ZDYDH-2（配置表）
+*第一批主产品生产开始日期          ZDYSC              ZDYDH-3（配置表）
+*辅件到货时间                      ZFJDH              ZDYDH
+*关键辅件请购时间                  ZGJFJDH            ZDYDH-8（配置表）
+*主材准备时间（检测、纵剪）        ZZCZB              ZDYDH-4（配置表）
+*主材到货时间                      ZZCDH              ZDYDH-7（配置表）
+*生成对账单日期                    ZDZD               ZDYDH-5（配置表）
+*排产时间                          ZPC                ZDYDH-7（配置表）
+*详图上传时间                      ZXTSC              ZDYDH-8（配置表）
+*客户确认完成时间                  ZKHQR              ZDYDH-9（配置表）
+*详图完成时间                      ZXTWC              ZDYDH-12（配置表）
+*主材出货日期                      ZZCCH              ZDYDH-8（配置表）
+*主材请购日期                      ZZCQG              ZDYDH-8-10得到日期小于生效日期vbak-ANGDT，则取vbak-ANGDT，否则取ZDYDH-8-10（配置表）
+*项目计划提报日期                  ZCJRQ              ZYFKDZ+1（配置表）
+*合同交接日期                      ZHTJJ              ZYFKDZ
+*合同生效时间                      ZHTSX              ZYFKDZ
+
+  LOOP AT IT_217 INTO DATA(WA_217).
+    ASSIGN COMPONENT WA_217-ZLCB OF STRUCTURE WA_PZXX TO <FS>.
+    IF SY-SUBRC EQ 0.
+      <FS> = WA_217-ZSZ.
+    ENDIF.
+  ENDLOOP.
+
+  IF ZDJSCDZ IS INITIAL.
+    OTTAB-ZYFKDZ  = ANGDT.
+  ELSE.
+    OTTAB-ZYFKDZ  = ZDJSCDZ.
+  ENDIF.
+  OTTAB-ZDYDH   = OTTAB-ZYFKDZ + ZJRTH .
+  OTTAB-ZFPSD   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZFPSD.
+  OTTAB-ZFPYJ   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZFPYJ.
+  OTTAB-ZKPWC   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZKPWC.
+  OTTAB-ZKPSQ   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZKPSQ.
+  OTTAB-ZBCWC   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZBCWC.
+  OTTAB-ZZHDH   = OTTAB-ZYFKDZ + ZJRTHWB.
+  OTTAB-ZZHFY   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZZHFY .
+  OTTAB-ZZHSC   = OTTAB-ZYFKDZ + ZJRTHWB + WA_PZXX-ZZHSC.
+  OTTAB-ZDYFY   = OTTAB-ZDYDH + WA_PZXX-ZDYFY.
+  OTTAB-ZDYSC   = OTTAB-ZDYDH + WA_PZXX-ZDYSC   .
+  OTTAB-ZFJDH   = OTTAB-ZDYDH   .
+  OTTAB-ZGJFJDH = OTTAB-ZDYDH + WA_PZXX-ZGJFJDH .
+  OTTAB-ZZCZB   = OTTAB-ZDYDH + WA_PZXX-ZZCZB   .
+  OTTAB-ZZCDH   = OTTAB-ZDYDH + WA_PZXX-ZZCDH   .
+  OTTAB-ZDZD    = OTTAB-ZDYDH + WA_PZXX-ZDZD    .
+  OTTAB-ZPC     = OTTAB-ZDYDH + WA_PZXX-ZPC     .
+  OTTAB-ZXTSC   = OTTAB-ZDYDH + WA_PZXX-ZXTSC   .
+  OTTAB-ZKHQR   = OTTAB-ZDYDH + WA_PZXX-ZKHQR   .
+  OTTAB-ZXTWC   = OTTAB-ZDYDH + WA_PZXX-ZXTWC   .
+  OTTAB-ZZCCH   = OTTAB-ZDYDH + WA_PZXX-ZZCCH   .
+  OTTAB-ZZCQG   = OTTAB-ZDYDH + WA_PZXX-ZZCQG   .
+  OTTAB-ZCJRQ   = OTTAB-ZYFKDZ + WA_PZXX-ZCJRQ   .
+  OTTAB-ZHTJJ   = OTTAB-ZYFKDZ.
+  OTTAB-ZHTSX   = OTTAB-ZYFKDZ.
+
+  APPEND OTTAB.
+
+
+ENDFUNCTION.

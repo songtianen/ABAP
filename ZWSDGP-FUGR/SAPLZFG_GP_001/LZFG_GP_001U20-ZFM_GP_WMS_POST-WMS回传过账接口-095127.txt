@@ -1,0 +1,897 @@
+FUNCTION ZFM_GP_WMS_POST.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(IT_HEAD) TYPE  ZWMS016_HEAD
+*"     REFERENCE(FMNAM) TYPE  RS38L_FNAM
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"     REFERENCE(MBLNR1) TYPE  MBLNR
+*"     REFERENCE(MJAHR1) TYPE  MJAHR
+*"     REFERENCE(MBLNR2) TYPE  MBLNR
+*"     REFERENCE(MJAHR2) TYPE  MJAHR
+*"     REFERENCE(MBLNR3) TYPE  MBLNR
+*"     REFERENCE(MJAHR3) TYPE  MJAHR
+*"     REFERENCE(MBLNR4) TYPE  MBLNR
+*"     REFERENCE(MJAHR4) TYPE  MJAHR
+*"  TABLES
+*"      IT_ITEM STRUCTURE  ZWMS016_ITEM_D
+*"----------------------------------------------------------------------
+  DATA:BEGIN OF IT_POSID OCCURS 0,
+         PSPNR TYPE PRPS-PSPNR,
+         POSID TYPE PRPS-POSID,
+         MATNR TYPE MATNR,
+         WERKS TYPE WERKS_D,
+         LGORT TYPE LGORT_D,
+       END OF IT_POSID,
+       BEGIN OF ITAB OCCURS 0.
+         INCLUDE STRUCTURE ZWMS016_ITEM_D.
+  DATA: LGORT    TYPE LGORT_D,
+         UMLGO    TYPE LGORT_D,
+         WERKS    TYPE WERKS_D,
+         UMWRK    TYPE WERKS_D,
+         KOSTLSAP TYPE KOSTL,
+         PSPNR    TYPE PS_PSP_PNR,
+         LGORT1   TYPE LGORT_D,
+       END OF ITAB,
+       BEGIN OF IT_BWART OCCURS 0,
+         BWART TYPE BWART,
+         SOBKZ TYPE SOBKZ,
+         RTYPE TYPE BAPI_MTYPE,
+         RTMSG TYPE BAPI_MSG,
+       END OF IT_BWART,
+       BEGIN OF IT_ZBH OCCURS 0,
+         ZBH TYPE ZEG_ZBH,
+       END OF IT_ZBH,
+       IT_MIGO1   TYPE TABLE OF ZSFMS_MIGOPOST WITH HEADER LINE,
+       IT_ZTMM238 TYPE TABLE OF ZTMM238 WITH HEADER LINE,
+       IT_POSID1  LIKE TABLE OF IT_POSID WITH HEADER LINE.
+  DATA: P_TYPE1 TYPE BAPI_MTYPE,
+        P_TYPE2 TYPE BAPI_MTYPE,
+        P_MSG1  TYPE BAPI_MSG,
+        P_MSG2  TYPE BAPI_MSG,
+        MBLNR   TYPE MBLNR,
+        BWART   TYPE BWART,
+        MENGE   TYPE MENGE_D,
+        MSG     TYPE BAPI_MSG,
+        TYPE    TYPE BAPI_MTYPE,
+        MJAHR   TYPE MJAHR,
+        BKTXT   TYPE BKTXT,
+        NUM     TYPE I,
+        N       TYPE NUMC1,
+        CONFLG  TYPE CHAR1,
+        ZDM1    TYPE CHAR30,
+        ZDM2    TYPE CHAR30,
+        CODE    TYPE GM_CODE,
+        TABIX1  TYPE SY-TABIX.
+  FIELD-SYMBOLS:<FS1> TYPE ANY,
+                <FS2> TYPE ANY.
+  RANGES:S_WERKS FOR T001L-WERKS.
+  CLEAR:IT_MIGO[],IT_POSID[],IT_POSID1[],IT_ZZBH[],
+  ITAB[],S_WERKS[],BWART,IT_BWART[].
+  IF IT_HEAD IS INITIAL.
+    FILLMSG 'E' '传入表头为空' 'X'.
+  ENDIF.
+  IF IT_ITEM[] IS INITIAL.
+    FILLMSG 'E' '传入表体为空' 'X'.
+  ENDIF.
+  APPEND 'IEQ3060' TO S_WERKS.
+  APPEND 'IEQ3062' TO S_WERKS.
+  SELECT *
+    INTO TABLE IT_ZSAP2WMS
+    FROM ZSAP2WMS
+    WHERE WERKS IN S_WERKS.
+  SORT IT_ZSAP2WMS BY ERPLGORT.
+  SELECT *
+    INTO TABLE IT_ZTMM238
+    FROM ZTMM238.
+  SORT IT_ZTMM238 BY ZWFYBM.
+*找批次
+  LOOP AT IT_ITEM.
+    CLEAR:IT_ZZBH,IT_POSID,ITAB,IT_ZSAP2WMS.
+    MOVE-CORRESPONDING IT_ITEM TO ITAB.
+    PERFORM ADDZERO_MATNR(ZPUBFORM) CHANGING ITAB-MATNR.
+    CASE FMNAM.
+      WHEN 'ZFM_GP_MM_OA_PDGZ'."OA回传过账
+        ITAB-KOSTLSAP = ITAB-KOSTL.
+        ITAB-WERKS = ITAB-ZWERKS.
+        ITAB-LGORT = ITAB-ZLGORT.
+        CALL FUNCTION 'CONVERSION_EXIT_ABPSP_INPUT'
+          EXPORTING
+            INPUT     = ITAB-MAT_PSPNR
+          IMPORTING
+            OUTPUT    = ITAB-PSPNR
+          EXCEPTIONS
+            NOT_FOUND = 1
+            OTHERS    = 2.
+      WHEN 'ZFM_GP_MM_WMS_SYNC_DBCK'.
+*查找库存地
+        READ TABLE IT_ZSAP2WMS WITH KEY ERPLGORT = IT_HEAD-ZDCCK.
+        IF SY-SUBRC NE 0.
+          FILLMSG 'E' '未找到调出仓库对应SAP库存地' 'X'.
+        ENDIF.
+        ITAB-LGORT = IT_ZSAP2WMS-LGORT.
+        ITAB-WERKS = IT_ZSAP2WMS-WERKS.
+        CLEAR IT_ZSAP2WMS.
+        READ TABLE IT_ZSAP2WMS WITH KEY ERPLGORT = IT_HEAD-ZDRCK.
+        IF SY-SUBRC NE 0.
+          FILLMSG 'E' '未找到调入仓库对应SAP库存地' 'X'.
+        ENDIF.
+        ITAB-UMLGO = IT_ZSAP2WMS-LGORT.
+        ITAB-UMWRK = IT_ZSAP2WMS-WERKS.
+        IF ITAB-ZBAOHAO IS NOT INITIAL
+          AND ITAB-ZZBH IS NOT INITIAL.
+          FILLMSG 'E' '包号与自编号不允许同时有值' 'X'.
+        ENDIF.
+      WHEN 'ZFM_GP_MM_WMS_SYNC_BFCK' OR 'ZFM_GP_MM_WMS_SYNC_YFLY'
+        OR 'ZFM_GP_MM_WMS_SYNC_PDCY'.
+        READ TABLE IT_ZTMM238 WITH KEY ZWFYBM = ITAB-KOSTL BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          ITAB-KOSTLSAP = IT_ZTMM238-KOSTL.
+        ENDIF.
+        IF ITAB-KOSTLSAP IS INITIAL.
+          FILLMSG 'E' '未找到成本中心' 'X'.
+        ENDIF.
+*查找库存地
+        READ TABLE IT_ZSAP2WMS WITH KEY ERPLGORT = ITAB-ZLGORT.
+        IF SY-SUBRC NE 0.
+          FILLMSG 'E' '未找到调出仓库对应SAP库存地' 'X'.
+        ENDIF.
+        ITAB-LGORT = IT_ZSAP2WMS-LGORT.
+        ITAB-WERKS = IT_ZSAP2WMS-WERKS.
+    ENDCASE.
+    CLEAR:IT_ZBH.
+    IT_ZBH-ZBH = ITAB-ZBAOHAO."包号
+    COLLECT IT_ZBH.
+    ITAB-LGORT1 = ITAB-LGORT.
+    IT_ZZBH-ZJH = ITAB-ZZBH."自编号
+    IT_POSID-POSID = ITAB-PSPID.
+    IT_POSID-MATNR = ITAB-MATNR.
+    IF ITAB-UMWRK = ITAB-WERKS.
+      CASE IT_HEAD-ZDBLX.
+        WHEN 'DR'.
+          ITAB-LGORT = ITAB-UMLGO.
+        WHEN 'DC'.
+      ENDCASE.
+    ENDIF.
+    IT_POSID-LGORT = ITAB-LGORT.
+    IT_POSID-WERKS = ITAB-WERKS.
+    IF IT_POSID-POSID IS NOT INITIAL.
+      CALL FUNCTION 'CONVERSION_EXIT_ABPSP_INPUT'
+        EXPORTING
+          INPUT     = IT_POSID-POSID
+        IMPORTING
+          OUTPUT    = IT_POSID-PSPNR
+        EXCEPTIONS
+          NOT_FOUND = 1
+          OTHERS    = 2.
+      ITAB-PSPNR = IT_POSID-PSPNR.
+    ENDIF.
+    COLLECT :IT_POSID,IT_ZZBH.
+    APPEND ITAB.
+  ENDLOOP.
+  CLEAR ITAB.
+  READ TABLE ITAB INDEX 1.
+  CASE FMNAM.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_DBCK'.
+*确定是工厂间调拨还是库存地调拨
+      CASE IT_HEAD-ZDBLX.
+        WHEN 'DC'.
+          IF ITAB-UMWRK = ITAB-WERKS.
+            BWART = '313'.
+          ELSE.
+            RTYPE = 'S'.
+            RTMSG = 'SUCCESS'.
+            RETURN.
+          ENDIF.
+        WHEN 'DR'.
+          IF ITAB-UMWRK = ITAB-WERKS.
+            BWART = '315'.
+          ELSE.
+*            BWART = '305'.
+            BWART = '301'.
+          ENDIF.
+      ENDCASE.
+      CODE = '04'.
+      BKTXT = IT_HEAD-ZWNO.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_BFCK'.
+      CODE = '03'.
+      BWART = 'Z53'.
+*      BKTXT = 'WMS报废出库'.
+      BKTXT = IT_HEAD-ZWNO.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_YFLY'.
+      CODE = '03'.
+      BWART = '201'.
+      BKTXT = IT_HEAD-ZWNO.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_PDCY'.
+      CODE = '06'.
+      BKTXT = IT_HEAD-ZWNO.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_CGTH'.
+      CODE = '01'.
+      BWART = '161'.
+      BKTXT = IT_HEAD-ZGUID.
+  ENDCASE.
+
+***************************************************
+*找批次逻辑
+*根据自编号取101批次
+*采购退货的只需要根据回传的数量更改，其他的PO上是全地
+  CASE FMNAM.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_CGTH'.
+      SORT ITAB BY EBELP.
+      SELECT *
+        INTO TABLE @DATA(IT_PO)
+        FROM ZVMMPO
+        WHERE EBELP = @ITAB-EBELP
+        AND   EBELN = @IT_HEAD-EBELN.
+      SORT IT_PO BY EBELP.
+      LOOP AT ITAB.
+        READ TABLE IT_PO INTO ZVMMPO WITH KEY EBELP = ITAB-EBELP BINARY SEARCH.
+        IF SY-SUBRC NE 0.
+          FILLMSG 'E' '采购订单行不存在' 'X'.
+        ENDIF.
+        CLEAR IT_MIGO.
+        IT_MIGO-BWART = BWART.
+        IT_MIGO-MATNR = ZVMMPO-MATNR.
+        IT_MIGO-WERKS = ZVMMPO-WERKS.
+        IT_MIGO-MENGE = ITAB-MENGE.
+        IT_MIGO-EBELN = ZVMMPO-EBELN.
+        IT_MIGO-LIFNR = ZVMMPO-LIFNR.
+        IT_MIGO-CHARG = ZVMMPO-CHARG.
+        IT_MIGO-EBELP = ZVMMPO-EBELP.
+        IT_MIGO-LGORT = ZVMMPO-LGORT.
+        APPEND IT_MIGO.
+        CLEAR:IT_BWART.
+        IT_BWART-BWART = IT_MIGO-BWART.
+        IT_BWART-SOBKZ = IT_MIGO-SOBKZ.
+        COLLECT IT_BWART.
+      ENDLOOP.
+    WHEN OTHERS.
+      CLEAR:IT_ZSMM206[].
+      IF IT_ZZBH[] IS NOT INITIAL.
+        CALL FUNCTION 'ZFM_CHECKUSE_BYJH'
+          EXPORTING
+            ATNAM  = 'Z01'
+          TABLES
+            INTAB  = IT_ZZBH
+            OUTTAB = IT_ZSMM206.
+        DELETE IT_ZSMM206 WHERE CLABS IS INITIAL.
+        SORT IT_ZSMM206 BY Z01 LGORT.
+      ENDIF.
+      IT_POSID1[] = IT_POSID[].
+*取项目号
+      DELETE IT_POSID WHERE  PSPNR IS INITIAL
+                         OR MATNR IS INITIAL
+                         OR LGORT IS INITIAL
+                         OR WERKS IS INITIAL.
+      IF IT_POSID[] IS NOT INITIAL.
+        SORT IT_POSID BY PSPNR MATNR LGORT WERKS.
+        SELECT *
+          INTO TABLE @DATA(IT_MSPR)
+          FROM MSPR
+          FOR ALL ENTRIES IN @IT_POSID
+          WHERE PSPNR = @IT_POSID-PSPNR
+          AND   MATNR = @IT_POSID-MATNR
+          AND   LGORT = @IT_POSID-LGORT
+          AND   WERKS = @IT_POSID-WERKS
+          AND   PRLAB GT 0.
+        SORT IT_MSPR BY PSPNR MATNR LGORT WERKS ERSDA CHARG.
+        SORT IT_POSID BY POSID.
+      ENDIF.
+*取包号
+      DELETE IT_ZBH WHERE ZBH IS INITIAL.
+      IF IT_ZBH[] IS NOT INITIAL.
+        SORT IT_ZBH BY ZBH.
+        SELECT *
+          INTO TABLE @DATA(IT_ZTPP316)
+          FROM ZTPP316
+          FOR ALL ENTRIES IN @IT_ZBH
+          WHERE ZBH = @IT_ZBH-ZBH.
+        IF IT_ZTPP316[] IS NOT INITIAL.
+          SORT IT_ZTPP316 BY WERKS MATNR CHARG.
+          DELETE ADJACENT DUPLICATES FROM IT_ZTPP316
+          COMPARING WERKS MATNR CHARG.
+          SELECT *
+            INTO TABLE @DATA(IT_MSPR1)
+            FROM MSPR
+            FOR ALL ENTRIES IN @IT_ZTPP316
+            WHERE WERKS = @IT_ZTPP316-WERKS
+            AND MATNR = @IT_ZTPP316-MATNR
+            AND CHARG = @IT_ZTPP316-CHARG
+            AND ( PRLAB GT 0
+            OR    PRSPE GT 0 ).
+          SORT IT_MSPR1 BY MATNR WERKS CHARG  LGORT ERSDA.
+          SORT IT_ZTPP316 BY ZBH.
+        ENDIF.
+      ENDIF.
+*取批次库存
+      DELETE IT_POSID1 WHERE MATNR IS INITIAL
+                         OR  LGORT IS INITIAL
+                         OR  WERKS IS INITIAL.
+      SORT IT_POSID1 BY MATNR LGORT WERKS.
+      DELETE ADJACENT DUPLICATES FROM IT_POSID1
+      COMPARING MATNR.
+      IF IT_POSID1[] IS NOT INITIAL.
+        SELECT *
+          INTO TABLE @DATA(IT_MCHB)
+          FROM MCHB
+          FOR ALL ENTRIES IN @IT_POSID1
+          WHERE MATNR = @IT_POSID1-MATNR
+          AND   LGORT = @IT_POSID1-LGORT
+          AND   WERKS = @IT_POSID1-WERKS.
+        SORT IT_MCHB BY MATNR LGORT WERKS ERSDA CHARG.
+*取非批次库存
+        SELECT *
+          INTO TABLE @DATA(IT_MARD)
+          FROM MARD
+          FOR ALL ENTRIES IN @IT_POSID1
+          WHERE MATNR = @IT_POSID1-MATNR
+          AND   LGORT = @IT_POSID1-LGORT
+          AND   WERKS = @IT_POSID1-WERKS
+          AND   UMLME GT 0.
+        SORT IT_MARD BY MATNR LGORT WERKS.
+      ENDIF.
+
+  ENDCASE.
+
+*判断自编号-批次先进先出
+*盘点差异的较为特殊，分开判断
+  CASE FMNAM.
+    WHEN 'ZFM_GP_MM_OA_PDGZ'."OA盘点报废
+      LOOP AT ITAB.
+        CLEAR:IT_MIGO.
+        CASE ITAB-ZTYPE.
+          WHEN '1'.
+            CODE = '06'.
+            PERFORM PDBWART USING ITAB-ZWCYSL ITAB-PSPNR
+               CHANGING IT_MIGO.
+            IT_MIGO-PSPNR = ITAB-PSPNR.
+            IT_MIGO-MATNR = ITAB-MATNR.
+            IT_MIGO-MENGE = ABS( ITAB-ZWCYSL ).
+            IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+            IT_MIGO-WERKS = ITAB-WERKS.
+            IT_MIGO-LGORT = ITAB-LGORT.
+            IT_MIGO-CHARG = ITAB-CHARG.
+            IF ITAB-PSPNR IS NOT INITIAL.
+              IT_MIGO-SOBKZ = 'Q'.
+              IT_MIGO-PSPNR = ITAB-PSPNR.
+            ENDIF.
+            COLLECT IT_MIGO.
+          WHEN '2'.
+            CODE = '03'.
+            IF ITAB-PSPNR IS INITIAL.
+              IT_MIGO-BWART = 'Z53'.
+            ELSE.
+              IT_MIGO-BWART = 'Z55'.
+              IT_MIGO-SOBKZ = 'Q'.
+            ENDIF.
+            IT_MIGO-WERKS = ITAB-WERKS.
+            IT_MIGO-MATNR = ITAB-MATNR.
+            IT_MIGO-MENGE = ITAB-MENGE.
+            IT_MIGO-CHARG = ITAB-CHARG.
+            IT_MIGO-LGORT = ITAB-LGORT.
+            IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+            IF ITAB-PSPNR IS NOT INITIAL.
+              IT_MIGO-SOBKZ = 'Q'.
+              IT_MIGO-PSPNR = ITAB-PSPNR.
+            ENDIF.
+            COLLECT IT_MIGO.
+        ENDCASE.
+      ENDLOOP.
+    WHEN 'ZFM_GP_MM_WMS_SYNC_CGTH'."采购退货
+    WHEN 'ZFM_GP_MM_WMS_SYNC_PDCY'.
+      LOOP AT ITAB.
+        CLEAR:IT_ZSMM206,IT_MIGO,MENGE,NUM.
+        IF ITAB-ZZBH IS NOT INITIAL.
+          LOOP AT IT_ZSMM206 WHERE Z01 = ITAB-ZZBH
+                                AND LGORT = ITAB-LGORT.
+            NUM = NUM + 1.
+          ENDLOOP.
+          IF NUM NE 1.
+            CONCATENATE '自编号' ITAB-ZZBH '找不到批次/找到多个批次' INTO RTMSG.
+            FILLMSG 'E' RTMSG 'X'.
+          ENDIF.
+          PERFORM PDBWART USING ITAB-ZWCYSL IT_ZSMM206-PSPNR
+                         CHANGING IT_MIGO.
+          IT_MIGO-PSPNR = IT_ZSMM206-PSPNR.
+          IT_MIGO-MATNR = ITAB-MATNR.
+          IT_MIGO-MENGE = ABS( ITAB-ZWCYSL ).
+          IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+          IT_MIGO-WERKS = ITAB-WERKS.
+          IT_MIGO-LGORT = ITAB-LGORT.
+          IT_MIGO-CHARG = IT_ZSMM206-CHARG.
+          COLLECT IT_MIGO.
+        ELSE.
+          IF ITAB-ZWCYSL GT 0.
+            IF ITAB-PSPID IS NOT INITIAL.
+              IT_MIGO-BWART = 'Z51'.
+              IT_MIGO-SOBKZ = 'Q'.
+              IT_MIGO-EXBWR = 0.
+            ELSE.
+              IT_MIGO-BWART = '511'.
+            ENDIF.
+            IT_MIGO-PSPNR = ITAB-PSPNR.
+            IT_MIGO-MATNR = ITAB-MATNR.
+            IT_MIGO-MENGE = ABS( ITAB-ZWCYSL ).
+            IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+            IT_MIGO-WERKS = ITAB-WERKS.
+            IT_MIGO-LGORT = ITAB-LGORT.
+            COLLECT IT_MIGO.
+          ELSEIF ITAB-ZWCYSL LT 0."若盘亏，则项目库存/批次库存先进先出
+            MENGE = ABS( ITAB-ZWCYSL ).
+            IF ITAB-PSPID IS NOT INITIAL.
+              READ TABLE IT_POSID WITH KEY POSID = ITAB-PSPID BINARY SEARCH.
+              IF SY-SUBRC EQ 0 .
+                READ TABLE IT_MSPR INTO MSPR WITH KEY PSPNR = IT_POSID-PSPNR
+                                                      MATNR = IT_POSID-MATNR
+                                                      LGORT = IT_POSID-LGORT
+                                                      BINARY SEARCH.
+                IF SY-SUBRC EQ 0.
+                  TABIX1 = SY-TABIX.
+                  LOOP AT IT_MSPR INTO MSPR FROM TABIX1.
+                    CLEAR:IT_MIGO.
+                    IF MSPR-PSPNR NE IT_POSID-PSPNR
+                      OR MSPR-MATNR NE IT_POSID-MATNR
+                      OR MSPR-LGORT NE IT_POSID-LGORT.
+                      EXIT.
+                    ENDIF.
+                    IF MSPR-PRLAB LE 0
+                      OR MENGE LE 0.
+                      CONTINUE.
+                    ENDIF.
+                    IT_MIGO-BWART = 'Z55'.
+                    IT_MIGO-SOBKZ = 'Q'.
+                    IF MSPR-PRLAB GT MENGE.
+                      MSPR-PRLAB = MSPR-PRLAB - MENGE.
+                      MODIFY IT_MSPR FROM MSPR TRANSPORTING PRLAB.
+                      IT_MIGO-PSPNR = MSPR-PSPNR.
+                      IT_MIGO-MATNR = ITAB-MATNR.
+                      IT_MIGO-MENGE = MENGE.
+                      IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                      IT_MIGO-WERKS = ITAB-WERKS.
+                      IT_MIGO-LGORT = ITAB-LGORT.
+                      IT_MIGO-CHARG = MSPR-CHARG.
+                      COLLECT IT_MIGO.
+                      CLEAR MENGE.
+                    ELSE.
+                      MENGE = MENGE - MSPR-PRLAB.
+                      IT_MIGO-PSPNR = MSPR-PSPNR.
+                      IT_MIGO-MATNR = ITAB-MATNR.
+                      IT_MIGO-MENGE = MSPR-PRLAB.
+                      IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                      IT_MIGO-WERKS = ITAB-WERKS.
+                      IT_MIGO-LGORT = ITAB-LGORT.
+                      IT_MIGO-CHARG = MSPR-CHARG.
+                      COLLECT IT_MIGO.
+                      MSPR-PRLAB = 0.
+                      MODIFY IT_MSPR FROM MSPR TRANSPORTING PRLAB.
+                    ENDIF.
+                  ENDLOOP.
+                ELSE.
+                  FILLMSG 'E' '未找到项目库存' 'X' .
+                ENDIF.
+              ENDIF.
+            ELSE."消耗批次库存
+              READ TABLE IT_MCHB INTO MCHB WITH KEY MATNR = ITAB-MATNR
+                                                    LGORT = ITAB-LGORT
+                                                    BINARY SEARCH.
+              IF SY-SUBRC EQ 0.
+                TABIX1 = SY-TABIX.
+                LOOP AT IT_MCHB INTO MCHB FROM TABIX1.
+                  CLEAR:IT_MIGO.
+                  IF MCHB-MATNR NE ITAB-MATNR
+                    OR MCHB-LGORT NE ITAB-LGORT.
+                    EXIT.
+                  ENDIF.
+                  IF MCHB-CLABS LE 0.
+                    CONTINUE.
+                  ENDIF.
+                  IF MENGE LE 0.
+                    EXIT.
+                  ENDIF.
+                  IT_MIGO-BWART = 'Z53'.
+                  IF MCHB-CLABS GT MENGE.
+                    MCHB-CLABS = MCHB-CLABS - MENGE.
+                    MODIFY IT_MCHB FROM MCHB TRANSPORTING CLABS.
+                    IT_MIGO-MATNR = ITAB-MATNR.
+                    IT_MIGO-MENGE = MENGE.
+                    IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                    IT_MIGO-WERKS = ITAB-WERKS.
+                    IT_MIGO-LGORT = ITAB-LGORT.
+                    IT_MIGO-CHARG = MCHB-CHARG.
+                    COLLECT IT_MIGO.
+                    CLEAR MENGE.
+                  ELSE.
+                    MENGE = MENGE - MCHB-CLABS.
+                    IT_MIGO-MATNR = ITAB-MATNR.
+                    IT_MIGO-MENGE = MCHB-CLABS.
+                    IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                    IT_MIGO-WERKS = ITAB-WERKS.
+                    IT_MIGO-LGORT = ITAB-LGORT.
+                    IT_MIGO-CHARG = MCHB-CHARG.
+                    COLLECT IT_MIGO.
+                    MCHB-CLABS = 0.
+                    MODIFY IT_MCHB FROM MCHB TRANSPORTING CLABS.
+                  ENDIF.
+                ENDLOOP.
+              ELSE.
+                FILLMSG 'E' '未找到非限制库存' 'X' .
+              ENDIF.
+            ENDIF.
+            IF MENGE GT 0.
+              FILLMSG 'E' '未找到足够库存过账' 'X'.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    WHEN OTHERS.
+      LOOP AT ITAB.
+        CLEAR:IT_ZSMM206,IT_MIGO,MENGE,NUM.
+        IF ITAB-ZZBH IS NOT INITIAL.
+          LOOP AT IT_ZSMM206 WHERE Z01 = ITAB-ZZBH
+                                AND LGORT = ITAB-LGORT.
+            NUM = NUM + 1.
+          ENDLOOP.
+          IF NUM NE 1.
+            CONCATENATE '自编号' ITAB-ZZBH '找不到批次/找到多个批次' INTO RTMSG.
+            FILLMSG 'E' RTMSG 'X'.
+          ENDIF.
+          IT_MIGO-BWART = BWART.
+          IT_MIGO-WERKS = ITAB-WERKS.
+          IT_MIGO-UMWRK = ITAB-UMWRK.
+          IT_MIGO-MATNR = ITAB-MATNR.
+          IT_MIGO-MENGE = ITAB-MENGE.
+          IT_MIGO-MEINS = ITAB-MEINS.
+          IT_MIGO-CHARG = IT_ZSMM206-CHARG.
+          IT_MIGO-LGORT = ITAB-LGORT.
+          IT_MIGO-UMLGO = ITAB-UMLGO.
+          IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+          IF IT_ZSMM206-PSPNR IS NOT INITIAL.
+            IT_MIGO-SOBKZ = 'Q'.
+            IT_MIGO-PSPNR = IT_ZSMM206-PSPNR.
+            CASE FMNAM.
+              WHEN 'ZFM_GP_MM_WMS_SYNC_YFLY'.
+                IT_MIGO-BWART = '221'.
+              WHEN 'ZFM_GP_MM_WMS_SYNC_BFCK'.
+                IT_MIGO-BWART = 'Z55'.
+            ENDCASE.
+          ENDIF.
+          COLLECT IT_MIGO.
+        ELSE."无序列号则找项目库存/非限制
+*调拨接口增加包号逻辑
+          CLEAR:CONFLG.
+          CASE FMNAM.
+            WHEN 'ZFM_GP_MM_WMS_SYNC_DBCK' OR 'ZFM_GP_MM_WMS_SYNC_YFLY'
+              OR 'ZFM_GP_MM_WMS_SYNC_BFCK'.
+              IF ITAB-ZBAOHAO IS NOT INITIAL.
+                READ TABLE IT_ZTPP316 INTO DATA(WA_ZTPP316) WITH KEY ZBH = ITAB-ZBAOHAO BINARY SEARCH.
+                IF SY-SUBRC EQ 0.
+                  CLEAR:IT_MIGO.
+                  IT_MIGO-BWART = BWART.
+                  IT_MIGO-WERKS = ITAB-WERKS.
+                  IT_MIGO-UMWRK = ITAB-UMWRK.
+                  IT_MIGO-MATNR = ITAB-MATNR.
+                  IT_MIGO-MENGE = ITAB-MENGE.
+                  IT_MIGO-MEINS = ITAB-MEINS.
+                  IT_MIGO-CHARG = WA_ZTPP316-CHARG.
+                  IT_MIGO-LGORT = ITAB-LGORT.
+                  IT_MIGO-UMLGO = ITAB-UMLGO.
+                  IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                  CLEAR:MSPR.
+                  IF BWART = '315'.
+                    LOOP AT IT_MSPR1 INTO MSPR WHERE MATNR = WA_ZTPP316-MATNR
+                                                 AND WERKS = WA_ZTPP316-WERKS
+                                                AND CHARG = WA_ZTPP316-CHARG.
+                      IF MSPR-PRSPE GT 0 .
+                        IT_MIGO-SOBKZ = 'Q'.
+                        IT_MIGO-PSPNR = MSPR-PSPNR.
+
+                        IF MSPR-LGORT = ITAB-LGORT1.
+                          IT_MIGO-LGORT = ITAB-LGORT1.
+                        ELSEIF MSPR-LGORT = ITAB-UMLGO.
+                          IT_MIGO-LGORT = ITAB-UMLGO.
+                        ENDIF.
+                        EXIT.
+                      ENDIF.
+                    ENDLOOP.
+                  ELSE.
+                    LOOP AT IT_MSPR1 INTO MSPR WHERE MATNR = WA_ZTPP316-MATNR
+                                                 AND WERKS = WA_ZTPP316-WERKS
+                                                AND CHARG = WA_ZTPP316-CHARG
+                                                AND PRLAB GT 0.
+                      IT_MIGO-SOBKZ = 'Q'.
+                      IT_MIGO-PSPNR = MSPR-PSPNR.
+                      CASE FMNAM.
+                        WHEN 'ZFM_GP_MM_WMS_SYNC_YFLY'.
+                          IT_MIGO-BWART = '221'.
+                        WHEN 'ZFM_GP_MM_WMS_SYNC_BFCK'.
+                          IT_MIGO-BWART = 'Z55'.
+                      ENDCASE.
+                      EXIT.
+                    ENDLOOP.
+                  ENDIF.
+                  COLLECT IT_MIGO.
+                ENDIF.
+              ELSE.
+                CONFLG = 'X'.
+              ENDIF.
+            WHEN OTHERS.
+              CONFLG = 'X'.
+          ENDCASE.
+          IF CONFLG = 'X'.
+            IF ITAB-PSPID IS NOT INITIAL.
+              READ TABLE IT_POSID WITH KEY POSID = ITAB-PSPID BINARY SEARCH.
+              IF SY-SUBRC EQ 0 .
+                READ TABLE IT_MSPR INTO MSPR WITH KEY PSPNR = IT_POSID-PSPNR
+                                                      MATNR = IT_POSID-MATNR
+                                                      LGORT = IT_POSID-LGORT
+                                                      BINARY SEARCH.
+                IF SY-SUBRC EQ 0.
+                  TABIX1 = SY-TABIX.
+                  MENGE = ITAB-MENGE.
+                  LOOP AT IT_MSPR INTO MSPR FROM TABIX1.
+                    CLEAR:IT_MIGO.
+                    IF MSPR-PSPNR NE IT_POSID-PSPNR
+                      OR MSPR-MATNR NE IT_POSID-MATNR
+                      OR MSPR-LGORT NE IT_POSID-LGORT.
+                      EXIT.
+                    ENDIF.
+                    IF MSPR-PRLAB LE 0
+                      OR MENGE LE 0.
+                      CONTINUE.
+                    ENDIF.
+                    IF MSPR-PRLAB GT MENGE.
+                      MSPR-PRLAB = MSPR-PRLAB - MENGE.
+                      MODIFY IT_MSPR FROM MSPR TRANSPORTING PRLAB.
+                      IT_MIGO-BWART = BWART.
+                      IT_MIGO-WERKS = ITAB-WERKS.
+                      IT_MIGO-UMWRK = ITAB-UMWRK.
+                      IT_MIGO-MATNR = ITAB-MATNR.
+                      IT_MIGO-MENGE = MENGE.
+                      IT_MIGO-MEINS = ITAB-MEINS.
+                      IT_MIGO-CHARG = MSPR-CHARG.
+                      IT_MIGO-LGORT = ITAB-LGORT.
+                      IT_MIGO-UMLGO = ITAB-UMLGO.
+                      IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                      IT_MIGO-SOBKZ = 'Q'.
+                      IT_MIGO-PSPNR = MSPR-PSPNR.
+                      CASE FMNAM.
+                        WHEN 'ZFM_GP_MM_WMS_SYNC_YFLY'.
+                          IT_MIGO-BWART = '221'.
+                        WHEN 'ZFM_GP_MM_WMS_SYNC_BFCK'.
+                          IT_MIGO-BWART = 'Z55'.
+                      ENDCASE.
+                      CLEAR MENGE.
+                      COLLECT IT_MIGO.
+                    ELSE.
+                      MENGE = MENGE - MSPR-PRLAB.
+                      IT_MIGO-BWART = BWART.
+                      IT_MIGO-WERKS = ITAB-WERKS.
+                      IT_MIGO-UMWRK = ITAB-UMWRK.
+                      IT_MIGO-MATNR = ITAB-MATNR.
+                      IT_MIGO-MENGE = MSPR-PRLAB.
+                      IT_MIGO-MEINS = ITAB-MEINS.
+                      IT_MIGO-CHARG = MSPR-CHARG.
+                      IT_MIGO-LGORT = ITAB-LGORT.
+                      IT_MIGO-UMLGO = ITAB-UMLGO.
+                      IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                      IT_MIGO-SOBKZ = 'Q'.
+                      IT_MIGO-PSPNR = MSPR-PSPNR.
+                      CASE FMNAM.
+                        WHEN 'ZFM_GP_MM_WMS_SYNC_YFLY'.
+                          IT_MIGO-BWART = '221'.
+                        WHEN 'ZFM_GP_MM_WMS_SYNC_BFCK'.
+                          IT_MIGO-BWART = 'Z55'.
+                      ENDCASE.
+                      COLLECT IT_MIGO.
+                      MSPR-PRLAB = 0.
+                      MODIFY IT_MSPR FROM MSPR TRANSPORTING PRLAB.
+                    ENDIF.
+                  ENDLOOP.
+                ELSE.
+                  FILLMSG 'E' '未找到项目库存' 'X' .
+                ENDIF.
+              ENDIF.
+            ELSE."消耗批次库存
+*判断批次管理-未启用批次且为315，则取MARD
+              CLEAR:MARC.
+              SELECT SINGLE *
+                FROM MARC
+                WHERE WERKS = ITAB-WERKS
+                AND   MATNR = ITAB-MATNR.
+              IF MARC-XCHPF = 'X'.
+                READ TABLE IT_MCHB INTO MCHB WITH KEY MATNR = ITAB-MATNR
+                                                      LGORT = ITAB-LGORT
+                                                      BINARY SEARCH.
+                IF SY-SUBRC EQ 0.
+                  TABIX1 = SY-TABIX.
+                  MENGE = ITAB-MENGE.
+                  LOOP AT IT_MCHB INTO MCHB FROM TABIX1.
+                    CLEAR:IT_MIGO.
+                    IF MCHB-MATNR NE ITAB-MATNR
+                      OR MCHB-LGORT NE ITAB-LGORT.
+                      EXIT.
+                    ENDIF.
+                    IF MENGE LE 0.
+                      EXIT.
+                    ENDIF.
+                    IF BWART = '315'.
+                      IF MCHB-CUMLM LE 0.
+                        CONTINUE.
+                      ENDIF.
+                      IF MCHB-CUMLM GT MENGE.
+                        MCHB-CUMLM = MCHB-CUMLM - MENGE.
+                        MODIFY IT_MCHB FROM MCHB TRANSPORTING CUMLM.
+                        IT_MIGO-BWART = BWART.
+                        IT_MIGO-WERKS = ITAB-WERKS.
+                        IT_MIGO-UMWRK = ITAB-UMWRK.
+                        IT_MIGO-MATNR = ITAB-MATNR.
+                        IT_MIGO-MENGE = MENGE.
+                        IT_MIGO-MEINS = ITAB-MEINS.
+                        IT_MIGO-CHARG = MCHB-CHARG.
+                        IT_MIGO-LGORT = ITAB-LGORT.
+                        IT_MIGO-UMLGO = ITAB-UMLGO.
+                        IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                        CLEAR MENGE.
+                        COLLECT IT_MIGO.
+                      ELSE.
+                        MENGE = MENGE - MCHB-CUMLM.
+                        IT_MIGO-BWART = BWART.
+                        IT_MIGO-WERKS = ITAB-WERKS.
+                        IT_MIGO-UMWRK = ITAB-UMWRK.
+                        IT_MIGO-MATNR = ITAB-MATNR.
+                        IT_MIGO-MENGE = MCHB-CUMLM.
+                        IT_MIGO-MEINS = ITAB-MEINS.
+                        IT_MIGO-CHARG = MCHB-CHARG.
+                        IT_MIGO-LGORT = ITAB-LGORT.
+                        IT_MIGO-UMLGO = ITAB-UMLGO.
+                        IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                        COLLECT IT_MIGO.
+                        MCHB-CUMLM = 0.
+                        MODIFY IT_MCHB FROM MCHB TRANSPORTING CUMLM.
+                      ENDIF.
+                    ELSE.
+                      IF MCHB-CLABS LE 0.
+                        CONTINUE.
+                      ENDIF.
+                      IF MCHB-CLABS GT MENGE.
+                        MCHB-CLABS = MCHB-CLABS - MENGE.
+                        MODIFY IT_MCHB FROM MCHB TRANSPORTING CLABS.
+                        IT_MIGO-BWART = BWART.
+                        IT_MIGO-WERKS = ITAB-WERKS.
+                        IT_MIGO-UMWRK = ITAB-UMWRK.
+                        IT_MIGO-MATNR = ITAB-MATNR.
+                        IT_MIGO-MENGE = MENGE.
+                        IT_MIGO-MEINS = ITAB-MEINS.
+                        IT_MIGO-CHARG = MCHB-CHARG.
+                        IT_MIGO-LGORT = ITAB-LGORT.
+                        IT_MIGO-UMLGO = ITAB-UMLGO.
+                        IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                        CLEAR MENGE.
+                        COLLECT IT_MIGO.
+                      ELSE.
+                        MENGE = MENGE - MCHB-CLABS.
+                        IT_MIGO-BWART = BWART.
+                        IT_MIGO-WERKS = ITAB-WERKS.
+                        IT_MIGO-UMWRK = ITAB-UMWRK.
+                        IT_MIGO-MATNR = ITAB-MATNR.
+                        IT_MIGO-MENGE = MCHB-CLABS.
+                        IT_MIGO-MEINS = ITAB-MEINS.
+                        IT_MIGO-CHARG = MCHB-CHARG.
+                        IT_MIGO-LGORT = ITAB-LGORT.
+                        IT_MIGO-UMLGO = ITAB-UMLGO.
+                        IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                        COLLECT IT_MIGO.
+                        MCHB-CLABS = 0.
+                        MODIFY IT_MCHB FROM MCHB TRANSPORTING CLABS.
+                      ENDIF.
+                    ENDIF.
+                  ENDLOOP.
+                ELSE.
+                  FILLMSG 'E' '未找到非限制库存' 'X' .
+                ENDIF.
+              ELSE.
+                IF BWART = '315'.
+                  READ TABLE IT_MARD INTO MARD WITH KEY MATNR = ITAB-MATNR
+                                                        LGORT = ITAB-LGORT
+                                                        WERKS = ITAB-WERKS
+                                                        BINARY SEARCH.
+                  IF SY-SUBRC = 0.
+                    CLEAR:IT_MIGO.
+                    IT_MIGO-BWART = BWART.
+                    IT_MIGO-WERKS = ITAB-WERKS.
+                    IT_MIGO-UMWRK = ITAB-UMWRK.
+                    IT_MIGO-MATNR = ITAB-MATNR.
+                    IT_MIGO-MENGE = ITAB-MENGE.
+                    IF ITAB-MENGE GT MARD-UMLME.
+                      IT_MIGO-MENGE = MARD-UMLME.
+                    ENDIF.
+                    IT_MIGO-MEINS = ITAB-MEINS.
+                    IT_MIGO-LGORT = ITAB-LGORT.
+                    IT_MIGO-UMLGO = ITAB-UMLGO.
+                    IT_MIGO-KOSTL = ITAB-KOSTLSAP.
+                    COLLECT IT_MIGO.
+                  ELSE.
+                    FILLMSG 'E' 'MARD未找到非批次库存' 'X' .
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+
+            ENDIF.
+            IF MENGE GT 0.
+              FILLMSG 'E' '未找到足够库存过账' 'X'.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+  LOOP AT IT_MIGO.
+    CLEAR:IT_BWART.
+    IT_BWART-BWART = IT_MIGO-BWART.
+    IT_BWART-SOBKZ = IT_MIGO-SOBKZ.
+    COLLECT IT_BWART.
+  ENDLOOP.
+  DELETE IT_BWART WHERE BWART IS INITIAL.
+  IF IT_MIGO[] IS INITIAL
+    OR IT_BWART[] IS INITIAL.
+    FILLMSG 'E' '未找到批次' 'X' .
+  ENDIF.
+*合并生成凭证
+  CLEAR N.
+  CLEAR:RTMSG,RTYPE,MBLNR1,MJAHR1,N,MBLNR2,MJAHR2,
+  MBLNR3,MJAHR3,MBLNR4,MJAHR4.
+  LOOP AT IT_BWART.
+    ADD 1 TO N.
+    CLEAR:IT_MIGO1[],MBLNR,MJAHR.
+    LOOP AT IT_MIGO WHERE BWART = IT_BWART-BWART
+                       AND SOBKZ = IT_BWART-SOBKZ.
+      APPEND IT_MIGO TO IT_MIGO1.
+    ENDLOOP.
+    CALL FUNCTION 'ZFMS_01_MIGOPOST'
+      EXPORTING
+        BUDAT  = IT_HEAD-BLDAT
+        BLDAT  = IT_HEAD-BLDAT
+        BKTXT  = BKTXT
+        "XBLNR  = XBLNR
+        CODE   = CODE
+      IMPORTING
+        RTYPE  = IT_BWART-RTYPE
+        RTMSG  = IT_BWART-RTMSG
+        MBLNR  = MBLNR
+        MJAHR  = MJAHR
+      TABLES
+        ITEM   = IT_MIGO1
+      EXCEPTIONS
+        OTHERS = 1.
+    IF MBLNR IS NOT INITIAL.
+      CONCATENATE 'MBLNR' N INTO ZDM1.
+      CONCATENATE 'MJAHR' N INTO ZDM2.
+      ASSIGN (ZDM1) TO <FS1>.
+      CHECK SY-SUBRC = 0.
+      ASSIGN (ZDM2) TO <FS2>.
+      CHECK SY-SUBRC = 0.
+      <FS1> = MBLNR.
+      <FS2> = MJAHR.
+    ENDIF.
+    MODIFY IT_BWART.
+  ENDLOOP.
+  READ TABLE IT_BWART WITH KEY RTYPE = 'E'.
+  IF SY-SUBRC = 0.
+    RTYPE = 'E'.
+    LOOP AT IT_BWART WHERE RTYPE = 'E'.
+      CONCATENATE IT_BWART-RTMSG RTMSG INTO RTMSG
+      SEPARATED BY '/'.
+    ENDLOOP.
+  ELSE.
+    RTYPE = 'S'.
+    RTMSG = 'SUCCESS'.
+  ENDIF.
+***************************************************
+
+
+
+
+
+
+ENDFUNCTION.

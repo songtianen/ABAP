@@ -1,0 +1,715 @@
+*&---------------------------------------------------------------------*
+*& Report ZFID202
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zfid202 MESSAGE-ID zgp_msg.
+TABLES:ztfi_jzjt_data,mseg.
+TYPE-POOLS: sscr,slis.
+DATA: fldct TYPE slis_t_fieldcat_alv,
+      slayt TYPE slis_layout_alv,
+      varnt LIKE disvariant,
+      repid LIKE sy-repid,
+      tabix LIKE sy-tabix.
+DATA:BEGIN OF itab OCCURS 0,
+       jzjt_year  TYPE  zefi_jzjt_year,
+       jzjt_poper TYPE  zefi_jzjt_poper,
+       jzjt_type  TYPE  zefi_jzjt_type,
+       jzjt_num   TYPE  zefi_jzjt_num,
+       jzjt_date  TYPE  zefi_jzjt_date,
+       belnr      TYPE  belnr_d,
+       jzjt_direc TYPE  zefi_jzjt_direc,
+       jzjt_matyp TYPE  zefi_jzjt_matyp,
+       jzjt_vtype TYPE  zefi_jzjt_vtype,
+       bukrs      TYPE  bukrs,
+       butxt      TYPE  butxt,
+       gjahr      TYPE  gjahr,
+       mblnr      TYPE  mblnr,
+       mjahr      TYPE  mjahr,
+       zeile      TYPE  mblpo,
+       smbln      TYPE  mblnr,
+       sjahr      TYPE  mjahr,
+       smblp      TYPE  mblpo,
+       bwart      TYPE  bwart,
+       anln1      TYPE  anln1,
+       anln2      TYPE  anln2,
+       txa50_anlt TYPE  txa50_anlt,
+       ebeln      TYPE  ebeln,
+       ebelp      TYPE  ebelp,
+       bsart      TYPE  esart,
+       batxt      TYPE  batxt,
+       kschl      TYPE  kscha,
+       vtext      TYPE  vtxtk,
+       kschl_t    TYPE  kscha,
+       vtext_t    TYPE  vtxtk,
+       kbetr_tx   TYPE  kbetr,
+       mwskz      TYPE  mwskz,
+       budat_mkpf TYPE  dats,
+       cpudt_mkpf TYPE  dats,
+       matnr      TYPE  matnr,
+       maktx      TYPE  maktx,
+       charg      TYPE  charg_d,
+       waers      TYPE  waers,
+       lfgja      TYPE  lfgja,
+       lfbnr      TYPE  lfbnr,
+       lfpos      TYPE  lfpos,
+       menge      TYPE  menge_d,
+       meins      TYPE  meins,
+       netpr      TYPE  bprei,
+       dmbtr      TYPE  zefi_tax,
+       dmbtrtax   TYPE  zefi_tax,
+       dmbtrpritx TYPE  zefi_djtx,
+       dmbtrpri   TYPE  zefi_dj,
+       kostl      TYPE  kostl,
+       ktext      TYPE  ktext,
+       aufnr      TYPE  aufnr,
+       ktext_ord  TYPE  ktext,
+       lgort      TYPE  lgort_d,
+       lgobe      TYPE  lgobe,
+       werks      TYPE  werks_d,
+       name1      TYPE  name1,
+       jzjtsign_r TYPE  zefi_jzjtsign,
+       prctr      TYPE  prctr,
+       ktext_pa   TYPE  ktext,
+       segment    TYPE  segment,
+       name_sg_r  TYPE  text50,
+       umlgo      TYPE  umlgo,
+       lgobe_s    TYPE  lgobe,
+       umwrk      TYPE  umwrk,
+       name1_s    TYPE  name1,
+       jzjtsign_s TYPE  zefi_jzjtsign,
+       prctr_s    TYPE  prctr,
+       ktext_pas  TYPE  ktext,
+       segment_s  TYPE  segment,
+       name_sg_s  TYPE  text50,
+       mwskz_txr  TYPE  mwskz,
+       kbetr_txr  TYPE  kbetr,
+       dmbtrtaxr  TYPE  zefi_taxr,
+       shkzg      TYPE mseg-shkzg,
+       kostv      TYPE aufk-kostv,
+       select,
+     END OF itab.
+DATA:BEGIN OF it_ebeln OCCURS 0,
+       ebeln TYPE ebeln,
+     END OF it_ebeln.
+DATA:BEGIN OF it_smbln OCCURS 0,
+       smbln TYPE mseg-smbln,
+       sjahr TYPE mseg-sjahr,
+       smblp TYPE mseg-smblp,
+     END OF it_smbln.
+
+DATA:BEGIN OF it_charg OCCURS 0,
+       mblnr TYPE mseg-mblnr,
+       zeile TYPE mseg-zeile,
+       mjahr TYPE mseg-mjahr,
+       matnr TYPE matnr,
+       charg TYPE charg_d,
+     END OF it_charg.
+
+DATA:intab TYPE TABLE OF mcha WITH HEADER LINE,
+
+     BEGIN OF it_z61kong OCCURS 0,
+       ebeln TYPE ebeln,
+       ebelp TYPE ebelp,
+       matnr TYPE matnr,
+       charg TYPE charg_d,
+     END OF it_z61kong.
+**********************************************************************
+" 行列转换用 by kkw 15.12.2022 15:04:12
+" 行表定义
+DATA:lw_pctx TYPE zsfms_getpctx.
+DATA: outtab LIKE TABLE OF zsfms_getpctx.
+" 列表定义  16.08.2022 08:50:03 by kkw
+DATA:BEGIN OF wa_z61_col,
+       matnr TYPE matnr,
+       charg TYPE charg_d,
+       z61   TYPE atwrt,
+       z68   TYPE ebeln,
+       z69   TYPE ebelp,
+     END OF wa_z61_col.
+DATA:it_z61_col LIKE HASHED TABLE OF  wa_z61_col WITH UNIQUE KEY matnr charg.
+" 行列转换关系  16.08.2022 08:53:35 by kkw
+DATA: BEGIN OF lw_rel,
+        atnam         TYPE cabn-atnam,
+        fieldname(10),
+      END OF lw_rel.
+DATA: lt_rel LIKE HASHED TABLE OF lw_rel WITH UNIQUE KEY atnam.
+
+**********************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  PARAMETERS:p_bukrs LIKE mseg-bukrs,
+             p_mjahr LIKE mseg-gjahr,
+             p_poper LIKE mseg-budat_mkpf.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:pr_creat RADIOBUTTON GROUP grd2 USER-COMMAND singleclick DEFAULT 'X',
+             pr_show  RADIOBUTTON GROUP grd2,
+             pr_wroff RADIOBUTTON GROUP grd2,
+             pc_upd   AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+
+  %_p_bukrs_%_app_%-text    = '公司代码'.
+  %_p_mjahr_%_app_%-text    = '年度'.
+  %_p_poper_%_app_%-text    = '期间'.
+
+  t02 = '功能选择'.
+  %_pr_creat_%_app_%-text    = '过账'.
+  %_pr_show_%_app_%-text     = '查询'.
+  %_pr_wroff_%_app_%-text    = '冲销'.
+  %_pc_upd_%_app_%-text    = '更新数据'.
+
+AT SELECTION-SCREEN OUTPUT.
+
+START-OF-SELECTION.
+
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  PERFORM getdata.
+  PERFORM alvshow.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  DATA:wherestr TYPE string.
+  REFRESH itab.
+  p_poper = p_poper - 1.
+  SELECT
+   mseg~bukrs      ,
+   mseg~gjahr      ,
+   mseg~mblnr      ,
+   mseg~mjahr      ,
+   mseg~zeile      ,
+   mseg~smbln      ,
+   mseg~sjahr      ,
+   mseg~smblp      ,
+   mseg~bwart      ,
+   mseg~anln1      ,
+   mseg~anln2      ,
+   mseg~ebeln      ,
+   mseg~ebelp      ,
+   mseg~matnr      ,
+   mseg~charg      ,
+   mseg~waers      ,
+   mseg~menge      ,
+   mseg~meins      ,
+   mseg~kostl      ,
+   mseg~aufnr      ,
+   mseg~lgort      ,
+   mseg~werks      ,
+   mseg~prctr      ,
+   mseg~umlgo      ,
+   mseg~umwrk,
+    mseg~shkzg
+
+     APPENDING CORRESPONDING FIELDS OF  TABLE @itab FROM mseg
+    WHERE bwart IN ( '311','312','301','Z62','Z02' )
+    AND mseg~bukrs = @p_bukrs
+    AND mseg~mjahr = @p_mjahr
+    AND mseg~budat_mkpf LE @p_poper
+    AND mseg~shkzg = 'S'
+    AND mseg~mblnr NOT IN ( SELECT DISTINCT mblnr FROM  ztfi_jzjt_data ).
+
+  SELECT
+   mseg~bukrs      ,
+   mseg~gjahr      ,
+   mseg~mblnr      ,
+   mseg~mjahr      ,
+   mseg~zeile      ,
+   mseg~smbln      ,
+   mseg~sjahr      ,
+   mseg~smblp      ,
+   mseg~bwart      ,
+   mseg~anln1      ,
+   mseg~anln2      ,
+   mseg~ebeln      ,
+   mseg~ebelp      ,
+   mseg~matnr      ,
+   mseg~charg      ,
+   mseg~waers      ,
+   mseg~menge      ,
+   mseg~meins      ,
+   mseg~kostl      ,
+   mseg~aufnr      ,
+   mseg~lgort      ,
+   mseg~werks      ,
+   mseg~prctr      ,
+   mseg~umlgo      ,
+   mseg~umwrk,
+    mseg~shkzg
+
+     APPENDING CORRESPONDING FIELDS OF TABLE @itab FROM mseg
+     JOIN ekko ON mseg~ebeln = ekko~ebeln
+    WHERE bwart = '101'
+    AND ekko~bsart = 'UB'
+    AND mseg~bukrs = @p_bukrs
+    AND mseg~mjahr = @p_mjahr
+    AND mseg~budat_mkpf LE @p_poper
+    AND mseg~shkzg = 'S'
+    AND mseg~mblnr NOT IN ( SELECT DISTINCT mblnr FROM  ztfi_jzjt_data ).
+
+  SELECT
+   mseg~bukrs      ,
+   mseg~gjahr      ,
+   mseg~mblnr      ,
+   mseg~mjahr      ,
+   mseg~zeile      ,
+   mseg~smbln      ,
+   mseg~sjahr      ,
+   mseg~smblp      ,
+   mseg~bwart      ,
+   mseg~anln1      ,
+   mseg~anln2      ,
+   mseg~ebeln      ,
+   mseg~ebelp      ,
+   mseg~matnr      ,
+   mseg~charg      ,
+   mseg~waers      ,
+   mseg~menge      ,
+   mseg~meins      ,
+   mseg~kostl      ,
+   mseg~aufnr      ,
+   mseg~lgort      ,
+   mseg~werks      ,
+   mseg~prctr      ,
+   mseg~umlgo      ,
+   mseg~umwrk,
+    mseg~shkzg
+
+     APPENDING CORRESPONDING FIELDS OF  TABLE @itab FROM mseg
+     LEFT JOIN aufk ON mseg~aufnr = aufk~aufnr
+    WHERE bwart IN ( 'Z61','Z01' )
+    AND mseg~bukrs = @p_bukrs
+    AND mseg~mjahr = @p_mjahr
+    AND mseg~budat_mkpf LE @p_poper
+    AND mseg~shkzg = 'H'
+    AND mseg~mblnr NOT IN ( SELECT DISTINCT mblnr FROM  ztfi_jzjt_data ).
+
+  SELECT
+   mseg~bukrs      ,
+   mseg~gjahr      ,
+   mseg~mblnr      ,
+   mseg~mjahr      ,
+   mseg~zeile      ,
+   mseg~smbln      ,
+   mseg~sjahr      ,
+   mseg~smblp      ,
+   mseg~bwart      ,
+   mseg~anln1      ,
+   mseg~anln2      ,
+   mseg~ebeln      ,
+   mseg~ebelp      ,
+   mseg~matnr      ,
+   mseg~charg      ,
+   mseg~waers      ,
+   mseg~menge      ,
+   mseg~meins      ,
+   mseg~kostl      ,
+   mseg~aufnr      ,
+   mseg~lgort      ,
+   mseg~werks      ,
+   mseg~prctr      ,
+   mseg~umlgo      ,
+   mseg~umwrk,
+    mseg~shkzg
+
+     APPENDING CORRESPONDING FIELDS OF TABLE @itab FROM mseg
+     JOIN ekko ON mseg~ebeln = ekko~ebeln
+    WHERE bwart = '102'
+    AND ekko~bsart = 'UB'
+    AND mseg~bukrs = @p_bukrs
+    AND mseg~mjahr = @p_mjahr
+    AND mseg~budat_mkpf LE @p_poper
+    AND mseg~shkzg = 'H'
+    AND mseg~mblnr NOT IN ( SELECT DISTINCT mblnr FROM  ztfi_jzjt_data ).
+
+  REFRESH:it_ebeln,it_smbln,it_charg.
+  LOOP AT itab.
+    CLEAR it_ebeln.
+    it_ebeln-ebeln = itab-ebeln.
+    COLLECT it_ebeln.
+  ENDLOOP.
+
+  IF it_ebeln[] IS NOT INITIAL.
+    SELECT mseg~*,cx~smbln,cx~sjahr,cx~smblp,cx~bwart,
+      mseg~matnr, mseg~charg, mseg~ebeln, mseg~ebelp
+       INTO TABLE @DATA(lt_351)
+      FROM mseg
+        LEFT JOIN mseg AS cx ON mseg~mjahr = cx~sjahr AND  mseg~mblnr = cx~smbln AND mseg~zeile = cx~smblp
+      FOR ALL ENTRIES IN @it_ebeln
+      WHERE mseg~ebeln = @it_ebeln-ebeln
+      AND mseg~bwart IN ( '351' ).
+    DELETE lt_351 WHERE smbln IS NOT INITIAL.
+    SORT lt_351 BY matnr charg ebeln ebelp.
+  ENDIF.
+  SELECT * INTO TABLE @DATA(lt001) FROM ztfi_jzjt001."库存地配置
+  SELECT * INTO TABLE @DATA(lt002) FROM ztfi_jzjt002."成本中心配置
+  SELECT * INTO TABLE @DATA(lt003) FROM ztfi_jzjt003."税配置
+  SELECT * INTO TABLE @DATA(lt004) FROM ztfi_jzjt004."转换税码
+  LOOP AT itab.
+    IF itab-shkzg = 'S'.
+      READ TABLE lt001 INTO DATA(lw001) WITH KEY werks = itab-werks lgort = itab-lgort.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_r = 'X'.
+      ENDIF.
+
+      READ TABLE lt001 INTO lw001 WITH KEY werks = itab-umwrk lgort = itab-umlgo.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_s = 'X'.
+      ENDIF.
+
+      READ TABLE lt002 INTO DATA(lw002) WITH KEY kostl = itab-kostv kokrs = 'WISD'.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_s = 'X'.
+      ENDIF.
+
+      READ TABLE lt002 INTO lw002 WITH KEY kostl = itab-kostv kokrs = 'WISD'.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_s = 'X'.
+      ENDIF.
+      CASE itab-bwart.
+        WHEN '101'.
+          READ TABLE lt_351 INTO DATA(lw_351) WITH KEY matnr = itab-matnr charg = itab-charg ebeln = itab-ebeln ebelp = itab-ebelp BINARY SEARCH.
+          IF sy-subrc EQ 0.
+            READ TABLE lt001 INTO lw001 WITH KEY werks = lw_351-mseg-werks lgort = lw_351-mseg-lgort.
+            IF sy-subrc EQ 0.
+              itab-jzjtsign_s = 'X'.
+            ENDIF.
+          ENDIF.
+      ENDCASE.
+    ELSEIF itab-shkzg = 'H'.
+      READ TABLE lt001 INTO lw001 WITH KEY werks = itab-werks lgort = itab-lgort.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_s = 'X'.
+      ENDIF.
+
+      READ TABLE lt001 INTO lw001 WITH KEY werks = itab-umwrk lgort = itab-umlgo.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_r = 'X'.
+      ENDIF.
+
+      READ TABLE lt002 INTO lw002 WITH KEY kostl = itab-kostv kokrs = 'WISD'.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_r = 'X'.
+      ENDIF.
+
+      READ TABLE lt002 INTO lw002 WITH KEY kostl = itab-kostv kokrs = 'WISD'.
+      IF sy-subrc EQ 0.
+        itab-jzjtsign_r = 'X'.
+      ENDIF.
+      CASE itab-bwart.
+        WHEN '102'.
+          READ TABLE lt_351 INTO lw_351 WITH KEY matnr = itab-matnr charg = itab-charg ebeln = itab-ebeln ebelp = itab-ebelp BINARY SEARCH.
+          IF sy-subrc EQ 0.
+            READ TABLE lt001 INTO lw001 WITH KEY werks = lw_351-mseg-werks lgort = lw_351-mseg-lgort.
+            IF sy-subrc EQ 0.
+              itab-jzjtsign_r = 'X'.
+            ENDIF.
+          ENDIF.
+      ENDCASE.
+    ENDIF.
+
+    MODIFY itab.
+    IF itab-jzjtsign_s = itab-jzjtsign_r.
+      DELETE itab.
+    ELSE.
+      IF itab-smbln IS NOT INITIAL.
+        CLEAR it_smbln.
+        it_smbln-smbln = itab-smbln.
+        it_smbln-sjahr = itab-sjahr.
+        it_smbln-smblp = itab-smblp.
+        COLLECT it_smbln.
+      ELSE."冲销凭证为空，另作处理
+        CLEAR:it_charg.
+        it_charg-mblnr = itab-mblnr.
+        it_charg-zeile = itab-zeile.
+        it_charg-mjahr = itab-mjahr.
+        it_charg-matnr = itab-matnr.
+        it_charg-charg = itab-charg.
+        COLLECT it_charg.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+
+  "冲销凭证不为空，去ztfi_jzjt_data取数据，取不到咋办呢？
+
+  IF it_smbln[] IS NOT INITIAL.
+    SELECT
+      kschl       ,
+*      vtext       ,
+      kschl_t     ,
+*      vtext_t     ,
+      kbetr_tx    ,
+      mwskz       ,
+      menge       ,
+      meins       ,
+      netpr       ,
+      dmbtrtax    ,
+      dmbtrall    ,
+      dmbtrpritx  ,
+      dmbtrpri,
+      mblnr,
+      zeile,
+      mjahr
+    INTO TABLE @DATA(lt_jzjt_cx)
+      FROM ztfi_jzjt_data AS jzjt
+      FOR ALL ENTRIES IN @it_smbln[]
+      WHERE mblnr = @it_smbln-smbln
+      AND zeile = @it_smbln-smblp
+      AND mjahr = @it_smbln-sjahr.
+    SORT lt_jzjt_cx BY mblnr zeile mjahr.
+  ENDIF.
+  "冲销凭证为空，获取批次特性
+  REFRESH:intab,outtab.
+  IF it_charg[] IS NOT INITIAL.
+    LOOP AT it_charg.
+      CLEAR intab.
+      intab-matnr = it_charg-matnr.
+      intab-charg = it_charg-charg.
+      COLLECT intab.
+    ENDLOOP.
+
+    CALL FUNCTION 'ZFMS_05_GETPCTX'
+      EXPORTING
+        atnam  = 'Z61,Z68,Z69'
+      TABLES
+        intab  = intab
+        outtab = outtab
+      EXCEPTIONS
+        OTHERS = 1.
+    " 行列对应关系
+    LOOP AT outtab INTO lw_pctx GROUP BY ( atnam = lw_pctx-atnam ).
+      lw_rel-atnam = lw_pctx-atnam.
+      lw_rel-fieldname = lw_pctx-atnam.
+      INSERT lw_rel INTO TABLE lt_rel.
+    ENDLOOP.
+*循环行表,统计并赋值列表内容
+    LOOP AT outtab INTO lw_pctx.
+      READ TABLE it_z61_col ASSIGNING FIELD-SYMBOL(<fs_col>) WITH TABLE KEY matnr = lw_pctx-matnr charg = lw_pctx-charg.
+      IF sy-subrc <> 0.
+        CLEAR wa_z61_col.
+        wa_z61_col-matnr = lw_pctx-matnr.
+        wa_z61_col-charg = lw_pctx-charg.
+        INSERT wa_z61_col INTO TABLE it_z61_col ASSIGNING <fs_col>.
+      ENDIF.
+      IF <fs_col> IS ASSIGNED.
+*定位特征对应的特征值
+        READ TABLE lt_rel INTO lw_rel WITH TABLE KEY atnam = lw_pctx-atnam.
+        IF sy-subrc = 0.
+          ASSIGN COMPONENT lw_rel-fieldname OF STRUCTURE <fs_col> TO FIELD-SYMBOL(<fs_atwrt>).
+          IF sy-subrc = 0.
+            <fs_atwrt> = lw_pctx-atwrt.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    REFRESH it_z61kong.
+    LOOP AT it_z61_col INTO wa_z61_col.
+      CLEAR it_z61kong.
+      it_z61kong-ebeln = wa_z61_col-z68.
+      it_z61kong-ebelp = wa_z61_col-z69.
+      it_z61kong-matnr = wa_z61_col-matnr.
+      it_z61kong-charg = wa_z61_col-charg.
+      APPEND it_z61kong.
+    ENDLOOP.
+    "获取凭证的条件类型和税类型
+    IF it_z61kong[] IS NOT INITIAL.
+      SELECT
+        ekko~ebeln,
+        ekpo~ebelp,
+        ekko~bsart,
+        ekko~knumv,
+        z003~kschl,"条件类型
+        z003~kschl_t,"税类型
+        ztmmhh~posnr AS kposn
+        INTO TABLE @DATA(lt_bsart)
+        FROM ekko
+        JOIN ekpo ON ekko~ebeln = ekpo~ebeln
+        JOIN ztmmhh ON ekpo~ebelp = ztmmhh~ebelp
+        JOIN ztfi_jzjt003 AS z003 ON ekko~bsart = z003~bsart
+        FOR ALL ENTRIES IN @it_z61kong
+        WHERE ekpo~ebeln = @it_z61kong-ebeln
+        AND ekpo~ebelp = @it_z61kong-ebelp
+    .
+
+      IF lt_bsart[] IS NOT INITIAL.
+        "找税条件
+*        SELECT
+*          prcd~knumv,
+*          prcd~kposn,
+*          prcd~stunr,
+*          prcd~zaehk,
+*          prcd~kschl AS kschl_t,
+*          prcd~kbetr
+*          INTO TABLE @DATA(lt_kschl_t)
+*          FROM prcd_elements AS prcd
+*          JOIN konp ON prcd~kbetr * 10 = konp~kbetr
+*          FOR ALL ENTRIES IN @lt_bsart
+*          WHERE prcd~knumv = @lt_bsart-knumv
+*          AND prcd~kposn = @lt_bsart-kposn
+*          AND prcd~kschl = @lt_bsart-kschl_t.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1.
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'ICON'      ''        ''            '指示灯'            ,
+'BSART'     'EBAN'    'BSART'       '采购申请凭证类型'  ,
+'BANFN'     'EBAN'    'BANFN'       '采购申请单号'      ,
+'BNFPO'     'EBAN'    'BNFPO'       '行号'              ,
+'KNTTP'     'EBAN'    'KNTTP'       '科目分配类别'      ,
+'PSTYP'     'EBAN'    'PSTYP'       '项目类别'          ,
+'WERKS'     'EBAN'    'WERKS'       '工厂'              ,
+'AFNAM'     'EBAN'    'AFNAM'       '申请人'            ,
+'NAME1'     ''        ''            '客户'              ,
+'POST1'     ''        ''            '项目'              ,
+'MATNR'     'EBAN'    'MATNR'       '物料编码'          ,
+'MAKTX'     'MAKT'    'MAKTX'       '物料描述'          ,
+'ZCHANDI'   'EBAN'    'ZCHANDI'     '产地'              ,
+'MENGE'     'EBAN'    'MENGE'       '申请数量'          ,
+'MEINS'     'EBAN'    'MEINS'       '申请单位'          ,
+'ZYZSL'     'EBAN'    'MENGE'       '已转数量'          ,
+'ZWZSL'     'EBAN'    'MENGE'       '未转数量'          ,
+'ZCGSL'     'EBAN'    'MENGE'       '采购数量'          ,
+'ZDDDW'     'EBAN'    'MEINS'       '订单单位'          ,
+'ZBAOGUAN'       'EBAN'        'ZBAOGUAN'            '保管'              ,
+'LGORT'     'T001L'   'LGORT'       '库存地'            ,
+'LGOBE'     'T001L'   'LGOBE'       '库存地描述'        ,
+'ZSFZF'     'EBAN'        'ZSFZF'            '直发工地标识'      ,
+'ZZFDZ'     'EBAN'        'ZZFDZ'            '卸货地址'          ,
+'LFDAT'     'EBAN'    'LFDAT'       '需求日期'          ,
+*'EKORG'     'EBAN'    'EKORG'       '采购组织'          ,
+*'EKOTX'     'EBAN'    'EKORG'       '采购组织描述'          ,
+'EKGRP'     'EBAN'    'EKGRP'       '采购组'            ,
+'EKNAM'     'EBAN'    'EKGRP'       '采购组描述'            ,
+'PLIFZ'     'MARC'    'PLIFZ'       '采购周期'          ,
+'ZTJCGRQ'   'EBAN'    'LFDAT'       '推荐采购日期'      ,
+'ZFPCGRQ1'   'EBAN'    'LFDAT'       '分配采购日期1'      ,
+'ZSL1'       'EBAN'    'MENGE'       '数量1'      ,
+'ZFPCGRQ2'   'EBAN'    'LFDAT'       '分配采购日期2'      ,
+'ZSL2'       'EBAN'    'MENGE'       '数量2'      ,
+'ZFPCGRQ3'   'EBAN'    'LFDAT'       '分配采购日期3'      ,
+'ZSL3'       'EBAN'    'MENGE'       '数量3'      ,
+'ZFJ'       'EBAN'    ''            '附件'              .
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = itab[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN 'ZFPCGRQ1' OR 'ZFPCGRQ2' OR 'ZFPCGRQ3' OR 'ZSL1' OR 'ZSL2' OR 'ZSL3'.
+*      ls_fldct-edit = 'X'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR 'BANFN' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+  SET TITLEBAR 'TIT1000' WITH '采购申请转采购订单'.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF itab.
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+        WHEN 'BANFN'.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'PR2PO' OR 'WH' OR 'CK'.
+
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.

@@ -1,0 +1,63 @@
+*----------------------------------------------------------------------*
+***INCLUDE /CWM/MGD1O01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  /CWM/subscreen  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE /cwm/subscreen_2001 OUTPUT.
+
+  IF  mara-/cwm/xcwmat IS INITIAL
+  AND /cwm/cl_switch_check=>client( ) = /cwm/cl_switch_check=>false.
+
+    LOOP AT SCREEN.
+      CASE screen-name.
+        WHEN 'MARA-/CWM/VALUM'
+          OR 'MARA-/CWM/XCWMAT'
+          OR 'MARA-CWQTOLGR'.
+          screen-active    = 0.
+          MODIFY SCREEN.
+      ENDCASE.
+    ENDLOOP.
+
+  ENDIF.
+
+
+  IF mara-/cwm/xcwmat IS INITIAL
+  AND /cwm/cl_switch_check=>client( ) = /cwm/cl_switch_check=>true.
+
+    LOOP AT SCREEN.
+
+      CASE screen-name.
+        WHEN 'MARA-CWQTOLGR'.
+          screen-invisible = 1.
+          screen-input     = 0.
+          MODIFY SCREEN.
+      ENDCASE.
+
+    ENDLOOP.
+  ENDIF.
+
+ENDMODULE.                 " /CWM/subscreen  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  /cwm/subscreen_2007  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE /cwm/subscreen_2007 OUTPUT.
+
+  CHECK mara-/cwm/xcwmat IS INITIAL
+  AND /cwm/cl_switch_check=>client( ) = /cwm/cl_switch_check=>false.
+
+  LOOP AT SCREEN.
+    CASE screen-name.
+      WHEN 'MARA-/CWM/TARA'
+        OR 'MARA-/CWM/TARUM'.
+        screen-active    = 0.
+        MODIFY SCREEN.
+    ENDCASE.
+  ENDLOOP.
+
+ENDMODULE.                 " /cwm/subscreen_2007  OUTPUT

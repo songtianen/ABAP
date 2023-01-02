@@ -1,0 +1,158 @@
+*&---------------------------------------------------------------------*
+*& Include ZRSD207_TOP
+*&---------------------------------------------------------------------*
+DATA:BEGIN OF wa_head.
+       INCLUDE STRUCTURE vbak.
+DATA:  tdid    TYPE stxl-tdid,
+       posid   TYPE prps-posid,
+       post1   TYPE prps-post1,
+       namek   TYPE name1,
+       namew   TYPE name1,
+       tvkot   TYPE tvkot-vtext,
+       tvtwt   TYPE tvtwt-vtext,
+       tvakt   TYPE tvakt-bezei,
+       tvkbt   TYPE tvkbt-bezei,
+       tspat   TYPE tspat-vtext,
+       klabc   TYPE knvv-klabc,
+       zhtlyt  TYPE name1,
+       zywyt   TYPE name1,
+       zkhlxr  TYPE char20,
+       bankn   TYPE but0bk-bankn,
+       accname TYPE but0bk-accname,
+*       STATEXT TYPE STRING,
+       zje     TYPE kbetr,
+       sfkq    TYPE char10,
+       bstkd   TYPE vbkd-bstkd,
+     END OF wa_head,
+     BEGIN OF it_item OCCURS 0.
+       INCLUDE STRUCTURE vbap.
+       INCLUDE STRUCTURE zssd262.
+DATA: chbox   TYPE char1,
+       maktx   TYPE maktx,
+       pspnr   TYPE vbap-ps_psp_pnr,
+       posid   TYPE prps-posid,
+       post1   TYPE prps-post1,
+       zckztt  TYPE char20,
+       guige   TYPE zssd225-zguige,
+       guige1  TYPE zssd225-zguige,
+       zzl1    TYPE mara-zzl1,
+       namew   TYPE name1,
+       lgobe   TYPE lgobe,
+       tvm2t   TYPE tvm2t-bezei,
+       zzhwzt1 TYPE ddtext,
+       zzhwzt  TYPE ddtext,
+       zpr0    TYPE ze_jexsw,
+       zprr    TYPE ze_jexsw,
+       tvagt   TYPE tvagt-bezei,
+       zbzfst  TYPE ddtext,
+       mseht   TYPE t006a-mseht,
+       tvapt   TYPE tvapt-vtext,
+     END OF it_item,
+     BEGIN OF it_text OCCURS 0,
+       tdid TYPE stxl-tdid.
+       INCLUDE STRUCTURE zsmm202.
+DATA:END OF it_text,
+BEGIN OF it_list1 OCCURS 0,
+  tdid TYPE tdid,
+  text TYPE char20,
+END OF it_list1,
+BEGIN OF it_list2 OCCURS 0,
+  id   TYPE char1,
+  text TYPE char10,
+END OF it_list2,
+BEGIN OF it_guige OCCURS 0,
+  matnr TYPE matnr,
+  guige TYPE string,
+END OF it_guige,
+BEGIN OF it_outobjnr OCCURS 0.
+  INCLUDE STRUCTURE bapiobjnr.
+DATA: sta  TYPE bapi_msg,
+  text TYPE bapi_msg,
+END OF it_outobjnr,
+it_tvapt   TYPE TABLE OF tvapt WITH HEADER LINE,
+  it_objnr   TYPE TABLE OF bapiobjnr WITH HEADER LINE,
+  it_t006a   TYPE TABLE OF t006a WITH HEADER LINE,
+  it_posnr   TYPE TABLE OF posnr_line WITH HEADER LINE,
+  it_tvagt   TYPE TABLE OF tvagt WITH HEADER LINE,
+  it_zzt1    TYPE TABLE OF dd07v WITH HEADER LINE,
+  it_zbzfs   TYPE TABLE OF dd07v WITH HEADER LINE,
+  it_vbeln   TYPE TABLE OF lips_key WITH HEADER LINE,
+  it_zssd263 TYPE TABLE OF zssd263 WITH HEADER LINE,
+  it_konv    TYPE TABLE OF v_konv_cds WITH HEADER LINE,
+  tline      TYPE TABLE OF tline WITH HEADER LINE,
+  texttable  TYPE TABLE OF zsmm202 WITH HEADER LINE,
+  it_tvkot   TYPE TABLE OF tvkot WITH HEADER LINE,
+  it_matnr   TYPE TABLE OF ccvx_matnr WITH HEADER LINE,
+  it_tvtwt   TYPE TABLE OF tvtwt WITH HEADER LINE,
+  it_tvgrt   TYPE TABLE OF tvgrt WITH HEADER LINE,
+  it_t001w   TYPE TABLE OF t001w WITH HEADER LINE,
+  it_t001l   TYPE TABLE OF t001l WITH HEADER LINE,
+  it_tvm2t   TYPE TABLE OF tvm2t WITH HEADER LINE.
+DATA:wa_item LIKE LINE OF it_item.
+DATA:ok_code   TYPE sy-ucomm,
+     ok_code1  TYPE sy-ucomm,
+     ok_code2  TYPE sy-ucomm,
+     save_code TYPE sy-ucomm,
+     answer    TYPE char1,
+     rtmsg     TYPE bapi_msg,
+     str       TYPE string,
+     statext   TYPE string,
+     tdname    TYPE stxl-tdname,
+     tdid      TYPE tdid.
+
+DATA:go_editor           TYPE REF TO cl_gui_textedit,
+     go_editor_container TYPE REF TO cl_gui_custom_container.
+DATA:contain      TYPE REF TO cl_gui_custom_container,
+     alvgrid      TYPE REF TO cl_gui_alv_grid,
+     it_fieldcat  TYPE lvc_t_fcat,
+     wa_fieldcat  TYPE lvc_s_fcat,
+     is_stable    TYPE lvc_s_stbl,
+     wa_layout    TYPE lvc_s_layo,
+     it_ef1       TYPE ui_functions,
+     variant      TYPE disvariant,
+     contain1     TYPE REF TO cl_gui_custom_container,
+     alvgrid1     TYPE REF TO cl_gui_alv_grid,
+     it_fieldcat1 TYPE lvc_t_fcat,
+     is_stable1   TYPE lvc_s_stbl,
+     wa_layout1   TYPE lvc_s_layo,
+     it_ef2       TYPE ui_functions,
+     variant1     TYPE disvariant,
+     contain2     TYPE REF TO cl_gui_custom_container,
+     alvgrid2     TYPE REF TO cl_gui_alv_grid,
+     it_fieldcat2 TYPE lvc_t_fcat,
+     is_stable2   TYPE lvc_s_stbl,
+     wa_layout2   TYPE lvc_s_layo,
+     it_ef3       TYPE ui_functions,
+     variant2     TYPE disvariant,
+     it_drop      TYPE lvc_t_drop,
+     wa_drop      TYPE lvc_s_drop.
+
+FIELD-SYMBOLS:<it_modi> TYPE lvc_t_modi,
+              <fs>      TYPE any,
+              <itab>    TYPE STANDARD TABLE,
+              <itabn>   TYPE STANDARD TABLE.
+CONSTANTS:tcode1 TYPE sy-tcode VALUE 'ZSD202',
+          tcode2 TYPE sy-tcode VALUE 'ZSD203',
+          tcode3 TYPE sy-tcode VALUE 'ZSD204',
+          tcode4 TYPE sy-tcode VALUE 'ZSD204A',
+          tcode5 TYPE sy-tcode VALUE 'ZSD205',
+          tcode6 TYPE sy-tcode VALUE 'ZSD206',
+          green  TYPE icon-id VALUE '@08@',
+          red    TYPE icon-id VALUE '@0A@'.
+DATA:fieldcat TYPE slis_t_fieldcat_alv,
+     wa_field TYPE slis_fieldcat_alv.
+
+RANGES:s_kschl FOR konv-kschl.
+
+*&SPWIZARD: FUNCTION CODES FOR TABSTRIP 'ZRSD207_TAB'
+CONSTANTS: BEGIN OF c_zrsd207_tab,
+             tab1 LIKE sy-ucomm VALUE 'TAB1',
+             tab2 LIKE sy-ucomm VALUE 'TAB2',
+           END OF c_zrsd207_tab.
+*&SPWIZARD: DATA FOR TABSTRIP 'ZRSD207_TAB'
+CONTROLS:  zrsd207_tab TYPE TABSTRIP.
+DATA: BEGIN OF g_zrsd207_tab,
+        subscreen   LIKE sy-dynnr,
+        prog        LIKE sy-repid VALUE 'ZRSD207',
+        pressed_tab LIKE sy-ucomm VALUE c_zrsd207_tab-tab1,
+      END OF g_zrsd207_tab.

@@ -1,0 +1,108 @@
+*&---------------------------------------------------------------------*
+*& Include ZPS208_1_PBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'TC01'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE tc01_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_upload LINES tc01-lines.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0100 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+  SET PF-STATUS 'STA100'.
+  SET TITLEBAR 'TIT100' WITH '排产单维护'.
+ENDMODULE.
+
+
+MODULE alv_display OUTPUT.
+  IF go_grid IS INITIAL.
+    CREATE OBJECT go_cont
+      EXPORTING
+        repid     = sy-repid
+        dynnr     = sy-dynnr
+        side      = cl_gui_docking_container=>dock_at_top
+        extension = '150'
+      EXCEPTIONS
+        OTHERS    = 1.
+
+    CREATE OBJECT go_grid
+      EXPORTING
+        i_parent = go_cont.
+    slayout-cwidth_opt = 'X'.
+    slayout-zebra      = 'X'.
+    slayout-no_toolbar = ''.
+    slayout-sel_mode = 'D'.
+    slayout-box_fname = 'SEL'.
+    variant-report     = sy-repid.
+    variant-handle     = '1'.
+
+    CREATE OBJECT event_receiver.
+    SET HANDLER event_receiver->handle_double_click FOR go_grid.
+
+    PERFORM fill_fcat USING:
+            'PSPID' 'ZTPS013A' 'PSPID' '项目编号',
+            'POST1' 'PROJ' 'POST1' '项目描述',
+            'KUNNR' 'ZTPS013A' 'KUNNR' '客户编码',
+            'NAME1' 'ZTPS013A' 'NAME1' '客户名称',
+            'ZDTBH' 'ZTPS013A' 'ZDTBH' '单体编号',
+            'ZHTLX' 'ZTPS013A' 'ZHTLX' '合同类型',
+            'ZHTJE' 'ZTPS013A' 'ZHTJE' '合同金额',
+            'ZHTMJ' 'ZTPS013A' 'ZHTMJ' '合同面积',
+            'ZWYZR' 'ZTPS013A' 'ZWYZR'  '工期违约责任',
+            'ZHTKG' 'ZTPS013A' 'ZHTKG'  '合同开工日期',
+            'ZHTWG' 'ZTPS013A' 'ZHTWG' '合同完工日期',
+            'ZGQTS' 'ZTPS013A' 'ZGQTS' '工期天数',
+            'ZSJKG' 'ZTPS013A' 'ZSJKG' '实际开工日期',
+            'ZYQWG' 'ZTPS013A' 'ZYQWG' '要求完工日期',
+            'ZYJWG' 'ZTPS013A' 'ZYJWG' '预计完工日期',
+            'ZSJWG' 'ZTPS013A' 'ZSJWG' '实际完工日期',
+            'ZSJTS' 'ZTPS013A' 'ZSJTS' '实际天数'.
+    CALL METHOD go_grid->set_table_for_first_display
+      EXPORTING
+        is_layout       = slayout
+        i_save          = 'A'
+        is_variant      = variant
+      CHANGING
+        it_fieldcatalog = go_flct[]
+        it_outtab       = item[].
+
+  ENDIF.
+
+
+ENDMODULE.
+FORM fill_fcat USING fldname reftab reffld text.
+  go_flct-fieldname = fldname.
+  go_flct-ref_table = reftab.
+  go_flct-ref_field = reffld.
+  go_flct-seltext   = text.
+  go_flct-coltext   = text.
+  go_flct-scrtext_l = text.
+  go_flct-scrtext_m = text.
+  go_flct-scrtext_s = text.
+  go_flct-col_opt   = 'X'.
+
+  IF reffld = 'KWMENG' OR reffld = 'ZJWEI' OR
+     reffld = 'CLABS' OR reffld = 'TLMNG' OR reffld = 'THKC'.
+    go_flct-qfieldname = 'MEINS'.
+    go_flct-no_zero = 'X'.
+    go_flct-edit_mask = '==ZSIGN'.
+  ENDIF.
+  IF fldname = 'ZHDGC'.
+    go_flct-emphasize = 'C300'.
+  ENDIF.
+  IF fldname = 'ZSXQB'.
+    go_flct-emphasize = 'C600'.
+  ENDIF.
+*  fldct-no_convext = p_conv.
+*  TRANSLATE fldct-no_convext USING 'X  X'.
+*  IF fldname = 'GMARK'.
+*    go_flct-hotspot = 'X'.
+*    go_flct-icon = 'X'.
+*  ENDIF.
+  APPEND go_flct.
+  CLEAR go_flct.
+ENDFORM.

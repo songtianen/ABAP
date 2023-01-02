@@ -1,0 +1,115 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZDBPT
+*&---------------------------------------------------------------------*
+TYPES:BEGIN OF ty006,
+        werks     TYPE werks_d,
+        zdckcd    TYPE lgort_d, "调出库存地
+        lgobe     TYPE lgobe,
+        matnr     TYPE matnr,
+        wlcms     TYPE char220,
+        charg     TYPE charg_d,
+        clabs     TYPE mchb-clabs,
+        meins     TYPE meins,
+        matkl     TYPE mara-matkl,
+        wgbez     TYPE t023t-wgbez,
+        z02       TYPE atwrt, "卷号
+        z03       TYPE atwrt, "资源号
+        z05       TYPE atwrt, "产地
+*       z09    TYPE atwrt, "项目号
+        pspnr     TYPE prps-pspnr,
+        posid     TYPE prps-posid,
+        post1     TYPE prps-post1,
+        z25       TYPE atwrt, "
+        z20       TYPE atwrt, "包号
+        z08       TYPE atwrt, "库位
+        z13       TYPE atwrt, "锁定人
+        ztm       TYPE atwrt, "出米率
+        z11       TYPE atwrt, "标签米数
+        z18       TYPE atwrt, "申请人
+        cb        TYPE char1, "复选框
+        vbeln     TYPE vbeln,
+        posnr     TYPE posnr,
+        select,
+        sobkz     TYPE sobkz,
+        icon      TYPE c LENGTH 10,
+        cellstyle TYPE lvc_t_styl,     "单元格编辑
+        zdbsl_in  TYPE ztmm221-zdbsl_in, "销售数量
+        meins_in  TYPE ztmm221-meins_in, "销售单位
+        cpxz      TYPE char1,
+        zdbwllx   TYPE ztmm222-zdbwllx, "调拨物料类型
+        vrkme     TYPE vbap-vrkme, "销售单位
+        clabs_dbd TYPE labst, "已调拨数量
+        z01       TYPE atwrt, " 自编号
+        z09       TYPE atwrt, "项目名称
+      END OF ty006.
+DATA:it006 TYPE TABLE OF ty006 WITH HEADER LINE.
+*DATA:BEGIN OF it006 OCCURS 0,
+*       werks     TYPE werks_d,
+*       zdckcd    TYPE lgort_d, "调出库存地
+*       lgobe     TYPE lgobe,
+*       matnr     TYPE matnr,
+*       wlcms     TYPE char220,
+*       charg     TYPE charg_d,
+*       clabs     TYPE mchb-clabs,
+*       meins     TYPE meins,
+*       matkl     TYPE mara-matkl,
+*       wgbez     TYPE t023t-wgbez,
+*       z02       TYPE atwrt, "卷号
+*       z03       TYPE atwrt, "资源号
+*       z05       TYPE atwrt, "产地
+**       z09    TYPE atwrt, "项目号
+*       pspnr     TYPE prps-pspnr,
+*       posid     TYPE prps-posid,
+*       post1     TYPE prps-post1,
+*       z25       TYPE atwrt, "
+*       z20       TYPE atwrt, "包号
+*       z08       TYPE atwrt, "库位
+*       z13       TYPE atwrt, "锁定人
+*       ztm       TYPE atwrt, "出米率
+*       z11       TYPE atwrt, "标签米数
+*       z18       TYPE atwrt, "申请人
+*       cb        TYPE char1, "复选框
+*       vbeln     TYPE vbeln,
+*       posnr     TYPE posnr,
+*       select,
+*       sobkz     TYPE sobkz,
+*       icon      TYPE c LENGTH 10,
+*       cellstyle TYPE lvc_t_styl,     "单元格编辑
+*       zdbsl_in  TYPE ztmm221-zdbsl_in, "销售数量
+*       meins_in  TYPE ztmm221-meins_in, "销售单位
+*       cpxz      TYPE char1,
+*     END OF it006.
+
+FORM goodsmvt_cancle TABLES i_return STRUCTURE bapiret2 USING zmblnr TYPE mkpf-mblnr
+      mjahr TYPE mseg-mjahr
+        CHANGING li_goodsmvt_headret TYPE bapi2017_gm_head_ret
+  .
+  DATA: "li_goodsmvt_headret    TYPE bapi2017_gm_head_ret, "生成的物料凭证
+    li_goodsmvt_matdocitem TYPE TABLE OF bapi2017_gm_item_04 WITH HEADER LINE,
+    documentheader_text    TYPE bapi2017_gm_head_02-header_txt. "文本
+*  DATA: i_return               TYPE TABLE OF bapiret2 WITH HEADER LINE."返回消息
+*  DATA: zmblnr               TYPE mkpf-mblnr. "要取消的物料编号
+
+  CALL FUNCTION 'BAPI_GOODSMVT_CANCEL'
+    EXPORTING
+      materialdocument    = zmblnr
+      matdocumentyear     = mjahr "sy-datum+0(4) "过账年份
+      goodsmvt_pstng_date = sy-datum "过账日期
+      goodsmvt_pr_uname   = sy-uname "操作者
+      documentheader_text = documentheader_text
+    IMPORTING
+      goodsmvt_headret    = li_goodsmvt_headret "生成的物料凭证
+    TABLES
+      return              = i_return
+      goodsmvt_matdocitem = li_goodsmvt_matdocitem.
+  LOOP AT i_return WHERE type CA 'AEX'.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc EQ 0.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+  ENDIF.
+ENDFORM.

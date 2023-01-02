@@ -1,0 +1,253 @@
+function zfm_yfmx002.
+*"--------------------------------------------------------------------
+*"*"局部接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(ZDH) TYPE  ZE_ZYFXH
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZTMM226
+*"--------------------------------------------------------------------
+  zfmdatasave1 'ZFM_YFMX001'.
+  zfmdatasave2 'B'.
+  commit work.
+  define datacheck.
+    IF &1 IS INITIAL.
+      rtype = 'E'.
+      rtmsg = &2 && '不能为空'.
+      zfmdatasave2 'R'.
+      RETURN.
+    ENDIF.
+  end-of-definition.
+  data:itab1 type table of ztmm226 with header line.
+  data:begin of it_zdh_hz occurs 0,
+         zdh type ztmm226-zdh,
+       end of it_zdh_hz.
+  data:number type char4.
+  data:it007v   type table of dd07v with header line,
+       it_zfylx type table of dd07v with header line.
+  refresh: it_zdh_hz,itab1.
+  clear:number,zdh.
+  if in_tab[] is initial.
+    rtype = 'E'.
+    rtmsg = 'in_tab[]不能为空'.
+    zfmdatasave2 'R'.
+    return.
+  endif.
+  refresh it007v.
+  perform getdomain(zpubform) tables it007v using 'ZD_ZDJZT'.
+  perform getdomain(zpubform) tables it_zfylx using 'ZD_ZFYLX'.
+  loop at in_tab.
+    datacheck in_tab-zywdh '业务单号'.
+    datacheck in_tab-zfylx '业务类型'.
+    datacheck in_tab-lifnr '运输公司'.
+    datacheck in_tab-zjsfs '费用方式'.
+*    datacheck in_tab-zwldj  '含税单价'.
+    datacheck in_tab-zysje  '含税金额'.
+*    datacheck in_tab-zsl    '税率'.
+    datacheck in_tab-mwskz  '税码'.
+*    datacheck in_tab-zbhsdj '不含税单价'.
+*    datacheck in_tab-zse    '税额'.
+*    datacheck in_tab-zbhsje '不含税金额'.
+    datacheck in_tab-bukrs '公司'.
+    datacheck in_tab-zdjlx '单据类型'.
+    datacheck in_tab-zyflx '运费类型'.
+    datacheck in_tab-zzt '单据状态'.
+    read table it_zfylx with key domvalue_l = in_tab-zfylx.
+    if sy-subrc ne 0.
+      rtype = 'E'.
+      rtmsg = '费用类型错误'.
+      zfmdatasave2 'R'.
+      return.
+    endif.
+
+    it_zdh_hz-zdh = in_tab-zdh.
+    collect it_zdh_hz.
+  endloop.
+  delete it_zdh_hz where zdh is initial.
+
+  itab1[] = in_tab[].
+  if it_zdh_hz[] is not initial.
+    select zdh,zdjlx,zywdh into table @data(lt_zdh) from ztmm226
+      for all entries in @it_zdh_hz
+      where zdh = @it_zdh_hz-zdh.
+    sort lt_zdh by zdh.
+  endif.
+
+  loop at itab1.
+    "   06.12.2022 11:11:57 by kkw
+    read table lt_zdh into data(lw_zdh) with key zdh = itab1-zdh binary search.
+    if sy-subrc eq 0 and lw_zdh-zdjlx = 'TZ'.
+      delete itab1.
+    endif.
+    case itab1-zfylx.
+      when 'CGYF' or 'DBYF'.
+        itab1-zdjlx = 'YS'.
+        select single zdh into itab1-zdh from ztmm226 where zywdh = itab1-zywdh and zdjlx = 'YS' and  zyflx = itab1-zyflx.
+      when others.
+    endcase.
+*&      Luzhenhua
+*    IF itab1-zdh IS INITIAL.
+    rtmsg = '保存成功'.
+    perform get_snro_number  changing number.
+    if number is initial.
+      rtype = 'E'.
+      rtmsg = '获取流水号失败'.
+      zfmdatasave2 'R'.
+      return.
+    endif.
+    itab1-zdh = sy-datum+2(6) && number.
+*    ELSE.
+*      rtmsg = '更新成功'.
+*    ENDIF.
+
+*&   End
+
+
+*    READ TABLE lt_zdh INTO DATA(lw_zdh) WITH KEY zdh = itab1-zdh BINARY SEARCH.
+*    IF sy-subrc EQ 0 AND lw_zdh-zdjlx = 'TZ'.
+*      DELETE itab1.
+*    ELSE.
+*      PERFORM get_snro_number  CHANGING number.
+*      IF number IS INITIAL.
+*        rtype = 'E'.
+*        rtmsg = '获取流水号失败'.
+*        zfmdatasave2 'R'.
+*        RETURN.
+*      ENDIF.
+*      itab1-zdh = sy-datum+2(6) && number.
+*    ENDIF.
+    "税率相关
+    data:msgtex type bapi_msg.
+    perform gettax using '' itab1-mwskz changing itab1-zsl msgtex.
+    if msgtex is not initial.
+      rtype = 'E'.
+      rtmsg = msgtex.
+      zfmdatasave2 'R'.
+      return.
+    endif.
+
+    itab1-zbhsdj = itab1-zwldj / ( 1 +  itab1-zsl )."'不含税单价'.
+    itab1-zbhsje = itab1-zysje / ( 1 +  itab1-zsl )."'不含税金额'.
+    itab1-zse    = itab1-zysje - itab1-zbhsje."'税额'.
+
+    zdh  = itab1-zdh.
+    itab1-zgxrq = sy-datum.
+    itab1-zgxsj = sy-uzeit.
+    itab1-zgxr = sy-uname.
+    itab1-zwhrq = sy-datum.
+    itab1-zwhsj = sy-uzeit.
+    itab1-zwhr = sy-uname.
+    itab1-zdjlx = 'TZ'.
+    modify itab1.
+  endloop.
+
+  modify ztmm226 from table itab1[].
+  if sy-subrc eq 0.
+    commit work.
+    rtype = 'S'.
+*    rtmsg = '保存成功'.
+  endif.
+
+
+
+
+
+  zfmdatasave2 'R'.
+
+
+
+
+endfunction.
+
+*FORM get_snro_number  CHANGING p_numbr TYPE char4.
+*  CLEAR p_numbr.
+*  SELECT COUNT( * ) FROM ztmm226 WHERE zgxrq = sy-datum.
+*  IF sy-subrc NE 0.
+*    CALL FUNCTION 'NUMBER_RANGE_INTERVAL_INIT'
+*      EXPORTING
+*        object            = 'ZGPMM05'
+*        commit            = 'X'
+*      EXCEPTIONS
+*        no_interval_found = 1
+*        object_not_found  = 2.
+*    IF sy-subrc <> 0.
+*      RETURN.
+*    ENDIF.
+*  ENDIF.
+*
+*  CALL FUNCTION 'NUMBER_RANGE_ENQUEUE'
+*    EXPORTING
+*      object           = 'ZGPMM05'
+*    EXCEPTIONS
+*      foreign_lock     = 1
+*      object_not_found = 2
+*      system_failure   = 3
+*      OTHERS           = 4.
+*  DO 5 TIMES.
+*    IF sy-subrc = 0.
+*      CALL FUNCTION 'NUMBER_GET_NEXT'
+*        EXPORTING
+*          nr_range_nr = '01'
+*          object      = 'ZGPMM05'
+*        IMPORTING
+*          number      = p_numbr
+*        EXCEPTIONS
+*          OTHERS      = 4.
+*
+*      CALL FUNCTION 'NUMBER_RANGE_DEQUEUE'
+*        EXPORTING
+*          object = 'ZGPMM05'
+*        EXCEPTIONS
+*          OTHERS = 4.
+*      EXIT.
+*    ELSE.
+*      WAIT UP TO 1 SECONDS.
+**      RAISE num_range_error.
+*    ENDIF.
+*  ENDDO.
+*
+*ENDFORM.
+
+*获取税码对应税率
+*FORM gettax USING inaland inmwskz CHANGING outkbetr TYPE ztmm226-zsl msg TYPE bapi_msg.
+*  DATA:t_ftaxp TYPE TABLE OF ftaxp WITH HEADER LINE.
+*  DATA:aland TYPE rf82t-land1,
+*       mwskz TYPE rf82t-mwskz.
+*
+*  CHECK inmwskz IS NOT INITIAL.
+*
+*  IF inaland IS INITIAL.
+*    aland = 'CN'.
+*  ELSE.
+*    aland = inaland.
+*    TRANSLATE aland TO UPPER CASE.
+*  ENDIF.
+*
+*  SELECT SINGLE mwskz
+*  INTO mwskz
+*  FROM t007a
+*  WHERE mwskz = inmwskz.
+*
+*  IF sy-subrc = 0.
+*    CALL FUNCTION 'GET_TAX_PERCENTAGE'
+*      EXPORTING
+*        aland   = aland
+*        datab   = sy-datum
+*        mwskz   = mwskz
+*        txjcd   = ''
+*      TABLES
+*        t_ftaxp = t_ftaxp
+*      EXCEPTIONS
+*        OTHERS  = 1.
+*    IF sy-subrc = 0.
+*      READ TABLE t_ftaxp INDEX 1.
+*      outkbetr = t_ftaxp-kbetr / 1000.
+*    ELSE.
+*      msg =  '请检查国家代码/税码'.
+*    ENDIF.
+*  ELSE.
+*    msg =  '税码不存在'.
+*  ENDIF.
+*
+*ENDFORM.

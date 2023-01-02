@@ -1,0 +1,147 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS208_4
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps208_4.
+TYPE-POOLS: slis.
+TABLES: ztps013b.
+DATA: BEGIN OF item OCCURS 0,
+        pspid TYPE ztps013b-pspid,
+        post1 TYPE proj-post1,
+        zdtbh TYPE ztps013b-zdtbh,
+        zrwbh TYPE ztps013b-zrwbh,
+        zrwmc TYPE ztps013b-zrwmc,
+        zcp   TYPE ztps013b-zcp,
+        zysl  TYPE ztps013b-zysl,
+        yszje TYPE ztps013b-yszje,
+        zrwr  TYPE ztps013b-zrwr,
+        zsjl  TYPE ztps013b-zsjl,
+        zpc   TYPE ztps013b-zsjl,
+        zpcl  TYPE ztps013b-zsjl,
+        zjesj TYPE ztps013b-zjesj,
+        zpcje TYPE ztps013b-zjesj,
+        pcjel TYPE ztps013b-zsjl,
+        zplyy TYPE ztps013b-zplyy,
+        zrr   TYPE ztps013b-zrr,
+        zrbm  TYPE ztps013b-zrbm,
+        zbz   TYPE ztps013b-zbz,
+      END OF item.
+DATA:fieldcat        TYPE slis_t_fieldcat_alv,
+     is_layout       TYPE slis_layout_alv,
+     i_grid_settings TYPE lvc_s_glay.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:
+    s_pspid FOR ztps013b-pspid,
+    s_zrwbm FOR ztps013b-zrwbm,
+    s_zrwr  FOR ztps013b-zrwr.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+INITIALIZATION.
+  %_s_pspid_%_app_%-text = '项目名称'.
+  %_s_zrwbm_%_app_%-text = '任务部门'.
+  %_s_zrwr_%_app_%-text = '任务人'.
+
+
+START-OF-SELECTION.
+  PERFORM getdata.
+  PERFORM alvshow.
+
+
+FORM getdata.
+  SELECT
+   *
+   FROM ztps013b
+   INTO CORRESPONDING FIELDS OF TABLE item
+   WHERE pspid IN s_pspid
+   AND zrwbm IN s_zrwbm
+   AND zrwr IN s_zrwr.
+
+  LOOP AT item.
+    SELECT SINGLE post1 INTO item-post1
+    FROM proj WHERE pspid = item-pspid.
+    item-zpc = item-zsjl - item-zysl.
+    IF item-zysl <> 0.
+      item-zpcl = ( item-zpc / item-zysl ) * 100.
+    ENDIF.
+    item-zpcje = item-zjesj - item-yszje.
+    IF item-yszje <> 0.
+      item-pcjel = ( item-zpcje / item-yszje ) * 100.
+    ENDIF.
+    MODIFY item.
+  ENDLOOP.
+
+ENDFORM.
+
+FORM alvshow.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING:
+  'PSPID' '项目编码' '' '' '' '',
+  'POST1' '项目名称' '' '' '' '',
+  'ZDTBH' '单体' '' '' '' '',
+  'ZRWBH' '任务编号' '' '' '' '',
+  'ZRWMC' '任务名称' '' '' '' '',
+  'ZCP' '产品' '' '' '' '',
+  'ZYSL' '总预算量' '' '' '' '',
+  'ZDW' '单位' '' '' '' '',
+  'YSZJE' '预算总金额' '' '' '' '',
+  'ZRWR' '任务人' '' '' '' '',
+  'ZSJL' '实际量' '' '' '' '',
+  'ZPC' '偏差' '' '' '' '',
+  'ZPCL' '偏差率' '' '' '' '',
+  'ZJESJ' '实际金额' '' '' '' '',
+  'ZPCJE' '偏差金额' '' '' '' '',
+  'PCJEL' '偏差金额率' '' '' '' '',
+  'ZPLYY' '变更原因' '' '' '' '',
+  'ZRR' '责任人' '' '' '' '',
+  'ZRBM' '责任部门' '' '' '' '',
+  'ZBZ' '备注' '' '' '' ''.
+*自适应宽度与斑马线
+  is_layout-zebra = 'X'.
+  is_layout-colwidth_optimize = 'X'.
+*存在可编辑字段
+  i_grid_settings-edt_cll_cb = 'X'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      it_fieldcat              = fieldcat[]
+      i_save                   = 'A'
+      is_layout                = is_layout
+      i_grid_settings          = i_grid_settings
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+    TABLES
+      t_outtab                 = item[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD' EXCLUDING lt_exfcode.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+
+*  CASE r_ucomm.
+**    WHEN '&IC1'."单击/双击响应
+**      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+**      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+**      CASE rs_selfield-fieldname.
+**        WHEN 'VBELN'.
+**          PERFORM va03(zpubform) USING wa-vbeln.
+***        WHEN 'BSTKD'.
+***          PERFORM va43(zpubform) USING wa-bstkd.
+**
+**      ENDCASE.
+*
+*  ENDCASE.
+
+*ALV实时刷新
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.

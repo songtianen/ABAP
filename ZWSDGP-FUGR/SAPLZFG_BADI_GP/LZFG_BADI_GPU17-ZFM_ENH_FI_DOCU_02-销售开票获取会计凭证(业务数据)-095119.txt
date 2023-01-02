@@ -1,0 +1,49 @@
+FUNCTION ZFM_ENH_FI_DOCU_02.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(I_XVBUP) LIKE  OFIWA-XVBUP DEFAULT 'X'
+*"  TABLES
+*"      T_BKP1 STRUCTURE  BKP1
+*"      T_BKPF STRUCTURE  BKPF
+*"      T_BSEC STRUCTURE  BSEC
+*"      T_BSED STRUCTURE  BSED
+*"      T_BSEG STRUCTURE  BSEG
+*"      T_BSET STRUCTURE  BSET
+*"      T_BSEU STRUCTURE  BSEU
+*"----------------------------------------------------------------------
+*钢品会计凭证增强
+  DATA:T_VBRP  TYPE TABLE OF VBRPVB WITH HEADER LINE,
+       IT_VBRP TYPE TABLE OF VBRP WITH HEADER LINE,
+       CXBS    TYPE ZE_CXBS.
+
+  CLEAR:BKPF,T_VBRP[],T_VBRP,IT_VBRP[],CXBS.
+  READ TABLE T_BKPF INTO BKPF INDEX 1.
+  CASE BKPF-AWTYP.
+    WHEN 'VBRK'.
+      IF BKPF-STBLG IS INITIAL.
+
+      ELSE.
+        CXBS = 'X'.
+      ENDIF.
+*内存传值传输ZFM_ENH_SOVF01
+      IMPORT VBRK = VBRK
+             T_VBRP = T_VBRP[]
+             FROM MEMORY ID 'MEMO_ZFM_ENH_FI_DOCU_02'.
+      CHECK SY-SUBRC = 0.
+      LOOP AT T_VBRP.
+        CLEAR:IT_VBRP.
+        MOVE-CORRESPONDING T_VBRP TO IT_VBRP.
+        APPEND IT_VBRP.
+      ENDLOOP.
+      CALL FUNCTION 'ZFM_ENH_VF01CRTFIDOCU_UPD' IN UPDATE TASK
+        EXPORTING
+          I_VBRK = VBRK
+          I_BKPF = BKPF
+        TABLES
+          T_VBRP = IT_VBRP
+          T_BSEG = T_BSEG.
+
+  ENDCASE.
+
+ENDFUNCTION.

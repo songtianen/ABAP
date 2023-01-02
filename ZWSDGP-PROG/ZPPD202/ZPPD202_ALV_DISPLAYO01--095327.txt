@@ -1,0 +1,193 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPD202_ALV_DISPLAYO01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module ALV_DISPLAY OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE alv_display OUTPUT.
+  CHECK p_scjh = 'X' AND p_cj = 'X'.
+  IF go_grid IS INITIAL.
+    CREATE OBJECT go_cont
+      EXPORTING
+        repid  = sy-repid
+        dynnr  = sy-dynnr
+        side   = cl_gui_docking_container=>dock_at_top
+*       extension = '200'
+        ratio  = 40
+      EXCEPTIONS
+        OTHERS = 1.
+    CREATE OBJECT go_grid
+      EXPORTING
+        i_parent = go_cont.
+
+    slayout-cwidth_opt = 'X'.
+    slayout-zebra      = 'X'.
+    slayout-no_toolbar = ''.
+    slayout-sel_mode = 'D'.
+*    slayout-box_fname = 'SELCT'.
+
+    variant-report     = sy-repid.
+    variant-handle     = '1'.
+
+    CREATE OBJECT event_receiver.
+    SET HANDLER event_receiver->handle_double_click FOR go_grid.
+    SET HANDLER event_receiver->handle_hotspot_click FOR go_grid.
+*    SET HANDLER event_receiver->handle_toolbar FOR go_grid.
+*    SET HANDLER event_receiver->handle_command FOR go_grid.
+*    SET HANDLER event_receiver->handle_onf4 FOR go_grid.
+
+    PERFORM fill_fcat USING:
+'VBELN '  'ZTPP_205A'   'VBELN '  '合同号      ' ,
+'POSNR '  'ZTPP_205A'   'POSNR '  '合同行号    ' ,
+'ZPCDH '  'ZTPP_205A'   'ZPCDH '  '排产单号    ' ,
+'ZPCDHH'  'ZTPP_205A'   'ZPCDHH'  '排产单行号  ' ,
+'KUNNR '  'ZTPP_205 '   'KUNNR '  '客户编码    ' ,
+'NAME1 '  'ZTPP_205 '   'NAME1 '  '客户名称    ' ,
+'MATNR '  'VBAP     '   'MATNR '  '物料编码    ' ,
+'MAKTX '  'MAKT     '   'MAKTX '  '物料描述    ' ,
+'WERKS '  'VBAP     '   'WERKS '  '工厂        ' ,
+'ZCD   '  'ZTPP_205A'   'ZCD   '  '长度        ' ,
+'ZBCKD '  'ZTPP_205A'   'ZBCKD '  '宽度        ' ,
+'ZXISHU'  'ZTPP_205A'   'ZXISHU'  '系数        ' ,
+'ZPCSL '  'ZTPP_205A'   'ZPCSL '  '排产单数量  ' ,
+'ZKS   '  'ZTPP_205A'   'ZKS   '  '块数        ' ,
+'GSMNG_YJH '  'ZTPP_205A'   'ZPCSL '  '已计划总量  ' ,
+'ZKS_JHD_SUM   '  'ZTPP_205A'   'ZKS   '  '已下计划块数' ,
+'ZKS_JHD_SY   '  'ZTPP_205A'   'ZKS   '  '未计划块数  ' ,
+'ZLMZX '  'ZTPP_206A'   'ZLMZX '  '立面/轴线   ' ,
+'ZDTMC '  'ZTPP_205A'   'ZDTMC '  '单体名称    ' ,
+'ZNAME '  'ZTPP_205A'   'ZNAME '  '创建人      ' ,
+'ZDATE '  'ZTPP_205A'   'ZDATE '  '创建时间    ' .
+
+    CALL METHOD go_grid->set_table_for_first_display
+      EXPORTING
+        is_layout       = slayout
+        i_save          = 'A'
+        is_variant      = variant
+      CHANGING
+        it_fieldcatalog = go_flct[]
+        it_outtab       = it_pcd[].
+  ENDIF.
+ENDMODULE.
+
+FORM fill_fcat USING fldname reftab reffld text.
+  go_flct-fieldname = fldname.
+  go_flct-ref_table = reftab.
+  go_flct-ref_field = reffld.
+  go_flct-seltext   = text.
+  go_flct-coltext   = text.
+  go_flct-scrtext_l = text.
+  go_flct-scrtext_m = text.
+  go_flct-scrtext_s = text.
+  go_flct-col_opt   = 'X'.
+
+  IF reffld = 'KWMENG' OR reffld = 'ZJWEI' OR
+     reffld = 'CLABS' OR reffld = 'TLMNG' OR reffld = 'THKC'.
+    go_flct-qfieldname = 'MEINS'.
+    go_flct-no_zero = 'X'.
+    go_flct-edit_mask = '==ZSIGN'.
+  ENDIF.
+*  IF fldname = 'ZHDGC'.
+*    go_flct-emphasize = 'C300'.
+*  ENDIF.
+*  IF fldname = 'ZSXQB'.
+*    go_flct-emphasize = 'C600'.
+*  ENDIF.
+*  fldct-no_convext = p_conv.
+*  TRANSLATE fldct-no_convext USING 'X  X'.
+*  IF fldname = 'GMARK'.
+*    go_flct-hotspot = 'X'.
+*    go_flct-icon = 'X'.
+*  ENDIF.
+  IF go_flct-fieldname = 'JSXD' OR go_flct-fieldname = 'PCD'.
+    go_flct-checkbox = 'X'.
+  ENDIF.
+  APPEND go_flct.
+  CLEAR go_flct.
+ENDFORM.
+
+FORM read_it_pcd CHANGING line.
+  DATA: index_rows TYPE lvc_t_row,
+        index      LIKE LINE OF index_rows.
+  DATA:BEGIN OF it_zpcdh OCCURS 0,
+         zpcdh TYPE ztpp_206-zpcdh,
+       END OF it_zpcdh.
+  CLEAR: index_rows,line.
+  REFRESH: index_rows,it_zpcdh.
+  CALL METHOD go_grid->get_selected_rows
+    IMPORTING
+      et_index_rows = index_rows.
+  line = lines( index_rows ).
+
+  "查找verid和arbpl
+  SELECT mkal~werks,  "工厂
+           mkal~matnr,
+           makt~maktx,
+           mkal~verid,  "生产版本
+           mkal~text1,  "版本描述
+           crhd~arbpl,  "工作中心
+           crtx~ktext,  "工作中心描述
+           mkal~stlal
+   INTO TABLE @DATA(lt_verid1)
+   FROM mkal
+   JOIN plas ON plas~plnty = mkal~plnty
+            AND plas~plnnr = mkal~plnnr
+            AND plas~plnal = mkal~alnal
+   JOIN plpo ON plas~plnty = plpo~plnty
+            AND plas~plnnr = plpo~plnnr
+            AND plas~plnkn = plpo~plnkn
+   JOIN crhd ON crhd~objid = plpo~arbid
+   JOIN crtx ON crtx~objty = crhd~objty
+            AND crtx~objid = crhd~objid
+   JOIN makt ON mkal~matnr = makt~matnr
+            AND makt~spras = @sy-langu
+    .
+  sort lt_verid1 by werks matnr.
+
+  REFRESH itab.
+  LOOP AT index_rows INTO index.
+    READ TABLE it_pcd INDEX index-index.
+    CLEAR itab.
+    MOVE-CORRESPONDING it_pcd TO itab.
+
+    IF it_pcd-matkl = 'B0202'.
+      itab-zmb         = ''.
+      itab-zzs         = ''.
+      itab-zzhankuan   = ''.
+      itab-zzwhd       = ''.
+      itab-zdksl       = ''.
+    ENDIF.
+    itab-zwllx = '成品'.
+    IF it_pcd-zks_jhd_sy > 0."剩余块数大于0赋值本次块数和数量
+      itab-zks_jhd = it_pcd-zks_jhd_sy.
+      CASE itab-werks.
+        WHEN '3000' OR '3002' OR '3060' OR '3062' OR '3090'.
+          itab-gsmng = itab-zcd * itab-zks_jhd * itab-zxishu / 1000.
+        WHEN OTHERS.
+          itab-gsmng = itab-zcd * itab-zks_jhd.
+      ENDCASE.
+*      itab-gsmng = itab-zcd * itab-zks_jhd.
+    ENDIF.
+    itab-psttr = sy-datum.
+    itab-pedtr = it_pcd-vdatu.
+
+    "修改自动带出生产版本和工作中心 BY CL 20221223
+    READ TABLE lt_verid1 INTO DATA(wa_verid1) with key matnr = itab-matnr werks = itab-werks.
+    IF sy-subrc = 0.
+      itab-verid = wa_verid1-verid.
+      itab-arbpl = wa_verid1-arbpl.
+    ENDIF.
+
+    APPEND itab.
+    CLEAR it_zpcdh.
+    it_zpcdh-zpcdh = it_pcd-zpcdh.
+    COLLECT it_zpcdh.
+  ENDLOOP.
+  IF lines( it_zpcdh ) NE 1.
+    MESSAGE '请选择同一排产单号的行转计划单.' TYPE 'I'.
+    REFRESH itab.
+    EXIT.
+  ENDIF.
+ENDFORM.

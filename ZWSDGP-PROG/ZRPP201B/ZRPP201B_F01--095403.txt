@@ -1,0 +1,1496 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZRPP201_F01
+*&---------------------------------------------------------------------*
+
+CLASS lcl_event_receiver IMPLEMENTATION.
+  METHOD on_close.
+    CALL METHOD sender->free.
+    FREE: gv_con_diabox, gv_alv_popup.
+  ENDMETHOD.
+
+  METHOD handle_data_changed_fini.
+    PERFORM frm_data_changed_fini
+      USING e_modified
+            et_good_cells
+            .
+  ENDMETHOD.                    "handle_data_changed_
+
+  METHOD handle_data_changed.
+    PERFORM frm_data_changed
+      USING er_data_changed
+            e_onf4
+            e_onf4_before
+            e_onf4_after
+            e_ucomm
+            .
+  ENDMETHOD.                    "handle_data_changed_
+ENDCLASS.
+
+
+*&---------------------------------------------------------------------*
+*& Form FRM_GET_DATA
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_get_data .
+
+*  SELECT
+*    z~*,
+*    mara~matkl
+*    INTO CORRESPONDING FIELDS OF TABLE @gt_list
+*    FROM ztpp_260z AS z
+*    INNER JOIN mara
+*    ON mara~matnr = z~matnr
+*    WHERE z~werks = @p_werks
+*      AND z~matnr IN @s_matnr
+*      AND mara~matkl IN @s_matkl
+*      .
+
+  IF sy-subrc NE 0.
+    MESSAGE '无数据'
+    TYPE 'S'
+    DISPLAY LIKE 'E'.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+*
+*  SELECT SINGLE
+*    name1
+*    INTO @DATA(lv_werkstxt)
+*    FROM t001w
+*    WHERE werks = @p_werks.
+*
+*  SELECT
+*    matkl,
+*    wgbez
+*    INTO TABLE @DATA(lt_t023t)
+*    FROM t023t
+*    .
+*  IF sy-subrc = 0.
+*    SORT lt_t023t BY matkl.
+*
+*  ENDIF.
+*
+*  LOOP AT lt_vbap INTO DATA(ls_vbap).
+*
+*    gs_list-werks = ls_vbap-werks.
+*    gs_list-werks_txt = lv_werkstxt.
+*
+*    gs_list-vbeln = ls_vbap-vbeln.
+*    gs_list-posnr = ls_vbap-posnr.
+*    gs_list-kunnr = ls_vbap-kunnr.
+*    gs_list-kunnr_txt = ls_vbap-name1.
+*
+*    gs_list-matnr = ls_vbap-matnr.
+*    gs_list-maktx = ls_vbap-maktx.
+*    gs_list-erdat = ls_vbap-erdat.
+*    gs_list-erzet = ls_vbap-erzet.
+*    gs_list-vdatu = ls_vbap-vdatu.
+*    gs_list-matkl = ls_vbap-matkl.
+*
+*    gs_list-cj_zhijin = sy-datum - gs_list-erdat .
+*
+*    IF gs_list-vdatu IS NOT INITIAL.
+*      gs_list-shengyujh = gs_list-vdatu - sy-datum .
+*      gs_list-shengyujh = abs( gs_list-shengyujh ).
+*
+*    ENDIF.
+*
+*    READ TABLE lt_t023t
+*    INTO DATA(ls_t023t)
+*    WITH KEY matkl = gs_list-matkl
+*    BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      gs_list-wgbez = ls_t023t-wgbez.
+*
+*    ENDIF.
+*
+*    APPEND gs_list TO gt_list.
+*    CLEAR gs_list.
+*
+*  ENDLOOP.
+
+
+  gs_ctr-strname = 'GS_LIST'.
+  gs_ctr-tabname = 'GT_LIST'.
+  ASSIGN (gs_ctr-tabname) TO <fs_list>.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FRM_SHOW_DATA
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_show_data .
+
+  PERFORM frm_set_layout.
+  PERFORM frm_set_fieldcat.
+  PERFORM frm_show_alv.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_set_layout
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_set_layout .
+  gs_layout-zebra = 'X'."zebra design
+*  gs_layout-no_toolbar = 'X'."
+  gs_layout-sel_mode = 'D'.".selection mode per field
+*  gs_layout-box_fname = 'CK'.".selection mode per field
+  gs_layout-col_opt = 'X'.".selection mode per field
+*  gs_layout-ctab_fname = 'CLFED'.".selection mode per field
+*  gs_layout-cwidth_opt = 'X'.".always optimise columns
+
+*  gs_layout-stylefname = 'STYLE'. "指定保存编辑状态的字段名
+
+  gs_disvariant-report = sy-repid.
+  gs_disvariant-handle = 'A'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_set_fieldcat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_set_fieldcat .
+  CHECK <fs_list> IS ASSIGNED.
+
+  CLEAR:gs_fieldcat, gt_fieldcat[],
+         gs_fieldcat_alv, gt_fieldcat_alv[].
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_program_name         = sy-repid
+      i_internal_tabname     = gs_ctr-strname
+      i_inclname             = sy-repid
+    CHANGING
+      ct_fieldcat            = gt_fieldcat_alv
+    EXCEPTIONS
+      inconsistent_interface = 1
+      program_error          = 2
+      OTHERS                 = 3.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+
+    PERFORM frm_leave_process.
+  ENDIF.
+
+  CALL FUNCTION 'LVC_TRANSFER_FROM_SLIS'
+    EXPORTING
+      it_fieldcat_alv = gt_fieldcat_alv
+*     IT_SORT_ALV     =
+*     IT_FILTER_ALV   =
+*     IS_LAYOUT_ALV   =
+    IMPORTING
+      et_fieldcat_lvc = gt_fieldcat
+*     ET_SORT_LVC     =
+*     ET_FILTER_LVC   =
+*     ES_LAYOUT_LVC   =
+    TABLES
+      it_data         = <fs_list>
+    EXCEPTIONS
+      it_data_missing = 1
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+    PERFORM frm_leave_process.
+  ENDIF.
+
+*如果有必要就循环字段属性表来调整属性
+  FIELD-SYMBOLS <fs_field> LIKE LINE OF gt_fieldcat.
+*  gs_fieldcat-fieldname = 'ZYXJE'.
+
+  LOOP AT gt_fieldcat
+   ASSIGNING <fs_field>.
+    <fs_field>-col_opt = 'A'.
+    <fs_field>-key = ''.
+
+    IF <fs_field>-fieldname = 'CK'.
+      <fs_field>-coltext = '选择'.
+      <fs_field>-checkbox = 'X'.
+
+      <fs_field>-edit = 'X'.
+
+
+    ELSEIF <fs_field>-fieldname = 'WERKS_TXT'.
+      PERFORM frm_write_text
+      USING TEXT-002 "工厂描述
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'KUNNR_TXT'.
+      PERFORM frm_write_text
+      USING TEXT-003 "客户名称
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'MATNR'.
+      PERFORM frm_write_text
+      USING TEXT-004 "成品物料号
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'MAKTX'.
+      PERFORM frm_write_text
+      USING TEXT-005 "成品物料描述
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'ERDAT'.
+      PERFORM frm_write_text
+      USING TEXT-006 "销售订单创建日期
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'ERZET'.
+      PERFORM frm_write_text
+      USING TEXT-007 "销售订单创建时间
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'CJ_ZHIJIN'.
+      PERFORM frm_write_text
+      USING TEXT-008 "时间差
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'VDATU'.
+      PERFORM frm_write_text
+      USING TEXT-009 "销售订单交货日期
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'SHENGYUJH'.
+      PERFORM frm_write_text
+      USING TEXT-010 "剩余交货时间
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'MATKL'.
+      PERFORM frm_write_text
+      USING TEXT-011 "成品物料组
+      CHANGING <fs_field>
+      .
+
+    ELSEIF <fs_field>-fieldname = 'WGBEZ'.
+      PERFORM frm_write_text
+      USING TEXT-012 "成品物料组描述
+      CHANGING <fs_field>
+      .
+    ENDIF.
+
+  ENDLOOP.
+
+*
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_show_alv
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_show_alv .
+
+
+  DATA: lt_event_exit TYPE slis_t_event_exit,
+        ls_event_exit LIKE LINE OF lt_event_exit.
+
+  CHECK <fs_list> IS ASSIGNED.
+
+  ls_event_exit-ucomm = '&ALL'.
+*  ls_event_exit-before = 'X'.
+  ls_event_exit-after = 'X'.
+  APPEND ls_event_exit TO lt_event_exit.
+
+  ls_event_exit-ucomm = '&SAL'.
+*  ls_event_exit-before = 'X'.
+  ls_event_exit-after = 'X'.
+  APPEND ls_event_exit TO lt_event_exit.
+
+*  ls_event_exit-ucomm = '&SAL'.
+**  ls_event_exit-before = 'X'.
+*  ls_event_exit-after = 'X'.
+*  APPEND ls_event_exit TO lt_event_exit.
+
+  PERFORM alv_add_events USING:
+    'PF_STATUS_SET',
+    'USER_COMMAND',
+    'CALLER_EXIT'.
+
+  CLEAR gv_exit_caused_by_user.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY_LVC'
+    EXPORTING
+      i_callback_program     = sy-repid
+      is_layout_lvc          = gs_layout
+      it_fieldcat_lvc        = gt_fieldcat
+      it_events              = gt_events
+      it_sort_lvc            = gt_sort
+      is_variant             = gs_disvariant
+*     it_excluding           = it_excluding
+      it_event_exit          = lt_event_exit
+    IMPORTING
+      es_exit_caused_by_user = gv_exit_caused_by_user
+    TABLES
+      t_outtab               = <fs_list>
+    EXCEPTIONS
+      program_error          = 1
+      OTHERS                 = 2.
+
+*  BREAK ey_cuijh..
+
+*  IF gv_exit_caused_by_user IS NOT INITIAL.
+*    LOOP AT gt_list INTO gs_list.
+*      PERFORM frm_unlock.
+*
+*    ENDLOOP.
+*  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_leave_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_leave_process .
+  DATA mtext TYPE bapi_msg.
+
+  MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          INTO mtext
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+  MESSAGE mtext TYPE 'S' DISPLAY LIKE sy-msgty.
+
+  LEAVE LIST-PROCESSING.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  CALLER_EXIT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM caller_exit USING e_grid TYPE slis_data_caller_exit.
+*  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+*    IMPORTING
+*      e_grid = alv_grid.
+*
+*  CALL METHOD alv_grid->register_edit_event     "注册GRID事件
+*    EXPORTING
+*      i_event_id = cl_gui_alv_grid=>mc_evt_modified "事件：回车
+*    EXCEPTIONS
+*      error      = 1
+*      OTHERS     = 2.
+*
+*  CREATE OBJECT gv_event_receiver.
+*  SET HANDLER gv_event_receiver->handle_data_changed_fini FOR alv_grid.
+*  SET HANDLER gv_event_receiver->handle_data_changed FOR alv_grid.
+**
+
+ENDFORM.                    "CALLER_EXIT
+
+*&---------------------------------------------------------------------*
+*&      Form  ALV_ADD_EVENTS
+*&---------------------------------------------------------------------*
+FORM alv_add_events  USING    p_event_name TYPE slis_alv_event-name.
+
+  gs_events-name = p_event_name.
+  gs_events-form = p_event_name.
+  APPEND gs_events TO gt_events.
+  CLEAR gs_events.
+
+ENDFORM.                    " ALV_ADD_EVENTS
+
+*&---------------------------------------------------------------------*
+*&      Form  PF_STATUS_SET
+*&---------------------------------------------------------------------*
+FORM pf_status_set  USING rt_extab TYPE slis_t_extab.
+
+  DATA: BEGIN OF ls_fcode ,
+          fcode LIKE rsmpe-func,
+        END OF ls_fcode,
+        lt_fcode LIKE TABLE OF ls_fcode.
+
+
+  CLEAR lt_fcode[].
+
+  IF gs_disvariant-handle = 'B'.
+    ls_fcode-fcode = '&ZBOMLIST'.
+    APPEND ls_fcode TO lt_fcode.
+
+  ELSEIF gs_disvariant-handle = 'A'.
+    ls_fcode-fcode = '&ZSAVE'.
+    APPEND ls_fcode TO lt_fcode.
+
+  ENDIF.
+
+
+  SET PF-STATUS 'ZSTATUS' EXCLUDING lt_fcode.
+
+ENDFORM.                    " PF_STATUS_SET
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+FORM user_command  USING r_ucomm TYPE sy-ucomm
+                         ls_selfield TYPE slis_selfield.
+
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid          = alv_grid
+      et_fieldcat_lvc = gt_fieldcat.
+
+  CALL METHOD alv_grid->check_changed_data.
+  CASE r_ucomm.
+
+    WHEN '&CRT_BOM'.
+      PERFORM frm_bom_create.
+
+    WHEN '&ALL'.
+      PERFORM frm_all.
+
+    WHEN '&SAL'.
+      PERFORM frm_sal.
+
+*    WHEN '&SAVE'.
+
+    WHEN '&IC1'.
+      PERFORM frm_double_click
+      USING ls_selfield.
+
+  ENDCASE.
+
+  ls_selfield-row_stable = 'X'.
+  ls_selfield-col_stable = 'X'.
+  ls_selfield-refresh = 'X'.
+
+ENDFORM.                    " USER_COMMAND
+*&---------------------------------------------------------------------*
+*& Form frm_check_auth
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_check_auth .
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  bdc_dynpro
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PROGRAM    text
+*      -->DYNPRO     text
+*----------------------------------------------------------------------*
+FORM bdc_dynpro USING program dynpro.
+  CLEAR bdcdata.
+  bdcdata-program  = program.
+  bdcdata-dynpro   = dynpro.
+  bdcdata-dynbegin = 'X'.
+  APPEND bdcdata.
+ENDFORM.                    "bdc_dynpro
+*&---------------------------------------------------------------------*
+*&      Form  bdc_field
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->FNAM       text
+*      -->FVAL       text
+*----------------------------------------------------------------------*
+FORM bdc_field USING fnam fval.
+  CLEAR bdcdata.
+  bdcdata-fnam = fnam.
+  bdcdata-fval = fval.
+  APPEND bdcdata.
+ENDFORM.                    "bdc_field
+*&---------------------------------------------------------------------*
+*& Form frm_screen
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_screen .
+
+*  LOOP AT SCREEN.
+*    CASE 'X'.
+*      WHEN pr1.
+*
+*        IF screen-group1 = 'PR2'
+*          .
+*          screen-active = '0'.
+*
+*        ELSE.
+*          screen-active = '1'.
+*          screen-required = '2'.
+*
+*        ENDIF.
+*
+*        MODIFY SCREEN.
+*
+*      WHEN pr2
+*        OR pr3.
+*        IF screen-group1 = 'PR1'
+*          .
+*          screen-active = '0'.
+*
+*        ELSE.
+*          screen-active = '1'.
+*
+*          IF screen-name = 'S_WERKS-LOW'
+*            .
+*            screen-required = '2'.
+*
+*
+*          ENDIF.
+*        ENDIF.
+*
+*        MODIFY SCREEN.
+*
+*    ENDCASE.
+*
+*  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_set_disabled
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_
+*&---------------------------------------------------------------------*
+FORM frm_set_disabled
+  USING
+    VALUE(p_field).
+
+
+  gs_style-fieldname = p_field.
+  gs_style-style = cl_gui_alv_grid=>mc_style_disabled."设置为不可输入
+  INSERT gs_style INTO TABLE gt_style.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_init
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_init .
+
+  DATA ls_functxt TYPE smp_dyntxt.
+
+
+*  ls_functxt-icon_id    = icon_export.
+*  ls_functxt-quickinfo  = TEXT-001.
+*  ls_functxt-icon_text  = TEXT-001.
+*  sscrfields-functxt_01 = ls_functxt.
+
+*  button1 = TEXT-002.
+*  button2 = TEXT-003.
+*  button3 = TEXT-004.
+*  CONCATENATE TEXT-002 '(' tcode1 ')' INTO button1.
+*  CONCATENATE TEXT-003 '(' tcode2 ')' INTO button2.
+*  CONCATENATE TEXT-004 '(' tcode3 ')' INTO button3.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_process_data
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_process_data
+           .
+*  DATA oref TYPE REF TO cx_root.
+*  DATA text TYPE string.
+*  DATA ls_excel_tab TYPE zzalsmex_tabline.
+*
+*  FIELD-SYMBOLS: <fs_field> TYPE any.
+*
+*  DATA lv_col TYPE i.
+*
+*  LOOP AT gt_excel_tab INTO ls_excel_tab.
+*    lv_col = ls_excel_tab-col + 4.
+*
+*    ASSIGN COMPONENT lv_col OF STRUCTURE gs_list
+*      TO <fs_field>.
+*    IF <fs_field> IS ASSIGNED.
+*      IF ls_excel_tab-col = 11.
+*        REPLACE ALL OCCURRENCES OF ','
+*        IN ls_excel_tab-value
+*        WITH space.
+*
+*        CONDENSE ls_excel_tab-value.
+*
+*      ENDIF.
+*
+*      TRY .
+*          <fs_field> = ls_excel_tab-value.
+*        CATCH  cx_root INTO oref.
+*          text = oref->get_text( ).
+*
+**          gs_list-message = text.
+*          CONCATENATE gs_list-message
+*                      text
+*                 INTO gs_list-message
+*         SEPARATED BY '|'.
+*
+*          CONTINUE.
+*      ENDTRY.
+*
+**      IF lv_col = 4.
+**        CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+**          EXPORTING
+**            input  = <fs_field>
+**          IMPORTING
+**            output = <fs_field>.
+**
+**      ENDIF.
+*
+*      UNASSIGN <fs_field>.
+*    ENDIF.
+*
+*    AT END OF row.
+*      gs_list-gjahr = p_gjahr.
+*      gs_list-monat = p_monat.
+*      APPEND gs_list TO gt_list.
+*      CLEAR gs_list.
+*    ENDAT.
+*  ENDLOOP.
+*
+*  IF gt_list[] IS NOT INITIAL.
+*
+*  ELSE.
+*    MESSAGE '无数据' TYPE 'S'
+*    DISPLAY LIKE 'E'.
+*    LEAVE LIST-PROCESSING .
+*
+*  ENDIF.
+*
+*  gs_ctr-strname = 'gs_list'.
+*  gs_ctr-tabname = 'GT_LIST'.
+*  ASSIGN (gs_ctr-tabname) TO <fs_list>.
+*
+**  PERFORM frm_check.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_unlock
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_unlock .
+*  CALL FUNCTION 'ENQUEUE_Ezmmt057'
+*    EXPORTING
+**     MODE_zmmt057   = 'E'
+*      mandt          = sy-mandt
+*      rsnum          = gs_list-rsnum
+*      rspos          = gs_list-rspos
+*    EXCEPTIONS
+*      foreign_lock   = 1
+*      system_failure = 2
+*      OTHERS         = 3.
+*  IF sy-subrc <> 0.
+** Implement suitable error handling here
+*  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_lock
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_lock .
+
+
+*  CALL FUNCTION 'ENQUEUE_Ezmmt057'
+*    EXPORTING
+*      mandt          = sy-mandt
+*      rsnum          = gs_list-rsnum
+*      rspos          = gs_list-rspos
+*    EXCEPTIONS
+*      foreign_lock   = 1
+*      system_failure = 2
+*      OTHERS         = 3.
+*  IF sy-subrc <> 0.
+** Implement suitable error handling here
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*      INTO gs_list-message
+*      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+*    gs_list-style[] = gt_style[].
+*  ELSE.
+*
+*  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_get_global
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_get_global .
+
+*  SELECT
+*    prctr,
+*    ktext
+*    INTO TABLE @gt_cepct
+*    FROM cepct
+*    WHERE spras = @sy-langu
+*      AND datbi >= @sy-datum
+*      AND kokrs = '1000'
+*    .
+*
+*  SORT gt_cepct BY prctr.
+*
+*  SELECT
+*    mvgr1,
+*    bezei
+*    INTO TABLE @gt_tvm1t
+*    FROM tvm1t
+*    WHERE spras = @sy-langu
+*    .
+*
+*  SORT gt_tvm1t BY mvgr1.
+*
+*  SELECT
+*    ww001,
+*    bezek
+*    INTO TABLE @gt_t25a0
+*    FROM t25a0
+*    WHERE spras = @sy-langu
+*    .
+*
+*  SORT gt_t25a0 BY ww001.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_set_enabled
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_
+*&---------------------------------------------------------------------*
+FORM frm_set_enabled
+   USING
+    VALUE(p_field).
+
+  gs_style-fieldname = p_field.
+  gs_style-style = cl_gui_alv_grid=>mc_style_enabled."设置为不可输入
+  INSERT gs_style INTO TABLE gt_style.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_get_popup
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- LV_POP
+*&---------------------------------------------------------------------*
+FORM frm_get_popup   CHANGING pv_flag.
+*  CALL FUNCTION 'POPUP_TO_CONFIRM_STEP'
+*    EXPORTING
+*      defaultoption  = 'Y'
+*      textline1      = '是否确定删除？'
+*      textline2      = ' '
+*      titel          = 'SAP'
+*      start_column   = 25
+*      start_row      = 6
+*      cancel_display = 'X'
+*    IMPORTING
+*      answer         = pv_flag.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_data_changed_fini
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_MODIFIED
+*&      --> ET_GOOD_CELLS
+*&---------------------------------------------------------------------*
+FORM frm_data_changed_fini
+  USING e_modified
+        et_good_cells TYPE lvc_t_modi.
+
+  DATA: ls_modi LIKE LINE OF et_good_cells,
+        lt_modi LIKE TABLE OF ls_modi.
+
+  CHECK e_modified = 'X'.
+*
+*  BREAK ey_cuijh.
+*
+*  APPEND LINES OF et_good_cells TO lt_modi.
+*
+*  SORT lt_modi BY row_id.
+*  DELETE ADJACENT DUPLICATES FROM lt_modi
+*  COMPARING row_id.
+*
+*  CLEAR gs_list.
+*
+*  MODIFY GT_LIST FROM gs_list
+*  TRANSPORTING message
+*  WHERE message NE ''.
+*
+*  DATA(lt_list01) = GT_LIST[].
+*
+*  LOOP AT lt_modi INTO ls_modi.
+*
+*    READ TABLE GT_LIST
+*    ASSIGNING <fs_line>
+*    INDEX ls_modi-row_id.
+*    CHECK sy-subrc = 0.
+*
+*    DELETE lt_list01 INDEX ls_modi-row_id.
+*
+**    MODIFY lt_list01 FROM gs_list
+**    TRANSPORTING message
+**    WHERE zqzljm = gs_list-zqzljm
+**      AND matnr = gs_list-matnr
+**      AND zjgqj = gs_list-zjgqj
+**      .
+*    READ TABLE lt_list01
+*    TRANSPORTING NO FIELDS
+*    WITH KEY gjahr = <fs_line>-gjahr
+*             monat = <fs_line>-monat
+*             prctr = <fs_line>-prctr
+*             mvgr1 = <fs_line>-mvgr1
+*             ww001 = <fs_line>-ww001
+*             .
+*
+*    IF sy-subrc = 0.
+*
+*      <fs_line>-message = '主键不得相同'.
+*    ELSE.
+*
+*    ENDIF.
+*
+*  ENDLOOP.
+*
+  PERFORM frm_refresh.
+*
+*  CLEAR lt_list01[].
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_refresh
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_refresh .
+
+  DATA: ls_stale TYPE lvc_s_stbl.
+  ls_stale-row = 'X'.
+  ls_stale-col = 'X'.
+  CALL METHOD alv_grid->refresh_table_display
+    EXPORTING
+      is_stable = ls_stale.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_make_data
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_make_data .
+
+*  LOOP AT gt_list
+*    ASSIGNING <fs_line>.
+*
+*    READ TABLE gt_cepct
+*    INTO gs_cepct
+*    WITH KEY prctr = <fs_line>-prctr
+*    BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      <fs_line>-ktext = gs_cepct-ktext.
+*
+*    ENDIF.
+*
+*    READ TABLE gt_tvm1t
+*    INTO gs_tvm1t
+*    WITH KEY mvgr1 = <fs_line>-mvgr1
+*    BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      <fs_line>-bezei = gs_tvm1t-bezei.
+*
+*    ENDIF.
+*
+*    READ TABLE gt_t25a0
+*    INTO gs_t25a0
+*    WITH KEY ww001 = <fs_line>-ww001
+*    BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      <fs_line>-bezek = gs_t25a0-bezek.
+*
+*    ENDIF.
+*  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_data_changed
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&      --> E_ONF4
+*&      --> E_ONF4_BEFORE
+*&      --> E_ONF4_AFTER
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM frm_data_changed
+  USING
+    er_data_changed TYPE REF TO	cl_alv_changed_data_protocol
+    e_onf4  TYPE  char01
+    e_onf4_before  TYPE  char01
+    e_onf4_after  TYPE  char01
+    e_ucomm  TYPE  sy-ucomm
+  .
+
+  DATA lv_error TYPE c.
+
+  FIELD-SYMBOLS: <fs_s1> TYPE lvc_s_modi.
+
+*  BREAK ey_cuijh.
+*  DATA(lt_modi) = er_data_changed->mt_good_cells[].
+*
+*****变更单元格内容一起变更描述
+*  LOOP AT lt_modi
+*    ASSIGNING <fs_s1>.
+*
+*    READ TABLE gt_list
+*    ASSIGNING <fs_line>
+*    INDEX <fs_s1>-row_id.
+*
+*    IF sy-subrc = 0.
+*      CLEAR lv_error.
+*
+*      IF <fs_s1>-fieldname = 'PRCTR'."省份
+*
+*        CALL METHOD er_data_changed->get_cell_value
+*          EXPORTING
+*            i_row_id    = <fs_s1>-row_id    "单元格的ID
+*            i_fieldname = <fs_s1>-fieldname "单元格的字段
+*          IMPORTING
+*            e_value     = <fs_s1>-value. "单元格的字段值
+*
+*        <fs_line>-prctr = <fs_s1>-value.
+*
+**更新描述字段
+*        READ TABLE gt_cepct
+*        INTO gs_cepct
+*        WITH KEY prctr = <fs_line>-prctr
+*        BINARY SEARCH.
+*        IF sy-subrc = 0.
+*          <fs_line>-ktext = gs_cepct-ktext.
+*
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'KTEXT' "单元格的字段
+*              i_value     = <fs_line>-ktext. "单元格的字段值
+*
+*        ELSE.
+*          CLEAR <fs_line>-ktext.
+*
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'KTEXT' "单元格的字段
+*              i_value     = <fs_line>-ktext. "单元格的字段值
+*
+*          lv_error = 'X'.
+*          <fs_line>-message = '选择省份错误'.
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'MESSAGE' "单元格的字段
+*              i_value     = <fs_line>-message. "单元格的字段值
+*
+*        ENDIF.
+*      ENDIF.
+*
+*      IF <fs_s1>-fieldname = 'WW001'."商标
+*
+*        CALL METHOD er_data_changed->get_cell_value
+*          EXPORTING
+*            i_row_id    = <fs_s1>-row_id    "单元格的ID
+*            i_fieldname = <fs_s1>-fieldname "单元格的字段
+*          IMPORTING
+*            e_value     = <fs_s1>-value. "单元格的字段值
+*
+*        <fs_line>-ww001 = <fs_s1>-value.
+*
+**更新描述字段
+*        READ TABLE gt_t25a0
+*        INTO gs_t25a0
+*        WITH KEY ww001 = <fs_line>-ww001
+*        BINARY SEARCH.
+*        IF sy-subrc = 0.
+*          <fs_line>-bezek = gs_t25a0-bezek.
+*
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'BEZEK' "单元格的字段
+*              i_value     = <fs_line>-bezek. "单元格的字段值
+*
+*        ELSE.
+*          CLEAR <fs_line>-bezek.
+*
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'BEZEK' "单元格的字段
+*              i_value     = <fs_line>-bezek. "单元格的字段值
+*
+*          lv_error = 'X'.
+*          <fs_line>-message = '选择作物错误'.
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'MESSAGE' "单元格的字段
+*              i_value     = <fs_line>-message. "单元格的字段值
+*
+*        ENDIF.
+*      ENDIF.
+*
+*      IF <fs_s1>-fieldname = 'MVGR1'."商标
+*
+*        CALL METHOD er_data_changed->get_cell_value
+*          EXPORTING
+*            i_row_id    = <fs_s1>-row_id    "单元格的ID
+*            i_fieldname = <fs_s1>-fieldname "单元格的字段
+*          IMPORTING
+*            e_value     = <fs_s1>-value. "单元格的字段值
+*
+*        <fs_line>-mvgr1 = <fs_s1>-value.
+*
+**更新描述字段
+*        READ TABLE gt_tvm1t
+*        INTO gs_tvm1t
+*        WITH KEY mvgr1 = <fs_line>-mvgr1
+*        BINARY SEARCH.
+*        IF sy-subrc = 0.
+*          <fs_line>-bezei = gs_tvm1t-bezei.
+*
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'BEZEI' "单元格的字段
+*              i_value     = <fs_line>-bezei. "单元格的字段值
+*
+*        ELSE.
+*          CLEAR <fs_line>-bezei.
+*
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'BEZEI' "单元格的字段
+*              i_value     = <fs_line>-bezei. "单元格的字段值
+*
+*          lv_error = 'X'.
+*          <fs_line>-message = '选择商标错误'.
+*          CALL METHOD er_data_changed->modify_cell
+*            EXPORTING
+*              i_row_id    = <fs_s1>-row_id    "单元格的ID
+*              i_fieldname = 'MESSAGE' "单元格的字段
+*              i_value     = <fs_line>-message. "单元格的字段值
+*
+*        ENDIF.
+*      ENDIF.
+*
+*      IF <fs_s1>-fieldname = 'ZZDXL'."商标
+*
+*        CALL METHOD er_data_changed->get_cell_value
+*          EXPORTING
+*            i_row_id    = <fs_s1>-row_id    "单元格的ID
+*            i_fieldname = <fs_s1>-fieldname "单元格的字段
+*          IMPORTING
+*            e_value     = <fs_s1>-value. "单元格的字段值
+*
+*        <fs_line>-zzdxl = <fs_s1>-value.
+*
+*      ENDIF.
+*
+*      IF lv_error = 'X'.
+*
+*      ELSE.
+*        CLEAR <fs_line>-message.
+*        CALL METHOD er_data_changed->modify_cell
+*          EXPORTING
+*            i_row_id    = <fs_s1>-row_id    "单元格的ID
+*            i_fieldname = 'MESSAGE' "单元格的字段
+*            i_value     = <fs_line>-message. "单元格的字段值
+*
+*      ENDIF.
+*    ENDIF.
+*
+*
+*
+*  ENDLOOP.
+
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_check_input
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_check_input .
+
+  AUTHORITY-CHECK OBJECT 'M_MATE_WRK'
+   ID 'ACTVT' DUMMY
+   ID 'WERKS' FIELD p_werks.
+  IF sy-subrc <> 0.
+* Implement a suitable exception handling here
+    MESSAGE '对此工厂无权限'
+    TYPE 'E'
+    DISPLAY LIKE 'S'.
+
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_write_text
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> TEXT_002
+*&      <-- <FS_FIELD>
+*&---------------------------------------------------------------------*
+FORM frm_write_text
+  USING VALUE(pu_text)
+  CHANGING pc_fieldcat STRUCTURE gs_fieldcat.
+
+  pc_fieldcat-reptext = pc_fieldcat-scrtext_l
+                      = pc_fieldcat-scrtext_m
+*                      = pc_fieldcat-scrtext_s
+                      = pc_fieldcat-coltext
+*                      = pc_fieldcat-seltext
+                      = pu_text
+                      .
+
+  pc_fieldcat-colddictxt = 'L'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_double_click
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_double_click
+  USING pu_selfield TYPE slis_selfield.
+
+*  IF pu_selfield-fieldname = 'MATNR'.
+*
+*  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_all
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_all .
+
+
+  DATA: lt_filter TYPE lvc_t_fidx.
+
+*获取被过滤掉的数据行数
+  CLEAR lt_filter[].
+  CALL METHOD alv_grid->get_filtered_entries
+    IMPORTING
+      et_filtered_entries = lt_filter.
+
+  IF lt_filter[] IS INITIAL.
+
+    gs_list-ck = 'X'.
+
+    MODIFY gt_list
+    FROM gs_list
+    TRANSPORTING ck
+    WHERE ck = ''.
+
+  ELSE.
+
+    LOOP AT gt_list
+      ASSIGNING <fs_line>
+      WHERE ck = ''.
+
+      DATA(lv_tabix) = sy-tabix.
+      READ TABLE lt_filter
+      TRANSPORTING NO FIELDS
+      WITH KEY table_line = lv_tabix.
+      IF sy-subrc = 0.
+
+      ELSE.
+
+        <fs_line>-ck = 'X'.
+
+      ENDIF.
+    ENDLOOP.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_sal
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_sal .
+
+  gs_list-ck = ''.
+
+  MODIFY gt_list
+  FROM gs_list
+  TRANSPORTING ck
+  WHERE ck NE ''.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_bom_create
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM frm_bom_create .
+
+
+*  DATA : lt_messages TYPE TABLE OF messages.
+*  "Initialize database log
+*  CALL FUNCTION 'CALO_INIT_API'
+*    EXPORTING
+*      flag_db_log_on           = 'X'      "Database Logging On
+*      flag_msg_on              = 'X'      "Transfer Messages to Internal Tables
+*      flag_api_api_call_on     = ''      "API Called by API -> Collect Messages
+*      flag_collect_msg_on      = ''      "Collect Messages and Output via FM CALO...
+*      external_log_no          = 'API'    "External Log Number (See Transaction SLG1)
+*      del_log_after_days       = '10'     "DB Log Will Be Deleted After * Days
+*      data_reset_sign          = '!'      "Initial Value
+*    EXCEPTIONS
+*      log_object_not_found     = 1
+*      log_sub_object_not_found = 2
+*      OTHERS                   = 3.
+*
+*  DATA: ls_stko    TYPE stko_api01,
+*        ls_stpo    TYPE stpo_api01,
+*        lt_stpo    LIKE TABLE OF ls_stpo,
+*        lv_warning TYPE capiflag-flwarning,
+*        lv_bom_no  TYPE stko_api02-bom_no.
+*
+*  DATA: lv_stlal TYPE csap_mbom-stlal,
+*        lv_usage TYPE csap_mbom-stlan,
+*        lv_datuv TYPE csap_mbom-datuv.
+*
+*  DATA:lv_posnr TYPE sposn.
+*  DATA:lv_i TYPE i.
+*  DATA:lv_n TYPE n LENGTH 4.
+*
+*  DATA(lt_header) = gt_list[].
+*  DELETE lt_header
+*  WHERE ck = ''.
+*  IF lt_header[] IS INITIAL.
+*    MESSAGE TEXT-013 "请选择行
+*    TYPE 'S'
+*    DISPLAY LIKE 'E'.
+*
+*    RETURN.
+*
+*  ENDIF.
+*
+*  SORT lt_header BY werks
+*                    matnr
+*                    matkl
+*                    zxt   .
+*
+*  DELETE ADJACENT DUPLICATES FROM lt_header
+*  COMPARING werks matnr matkl zxt.
+*
+*  lv_stlal = '01'.
+*  lv_usage = '1'.
+*  lv_datuv = sy-datum.
+*
+*  LOOP AT lt_header INTO DATA(ls_header).
+*
+*    LOOP AT gt_list
+*      INTO gs_list
+*      WHERE werks = ls_header-werks
+*        AND matnr = ls_header-matnr
+*        AND matkl = ls_header-matkl
+*        AND zxt = ls_header-zxt
+*        AND ck = 'X'
+*      .
+*      lv_posnr = lv_posnr + 10.
+*
+*      ls_stpo-item_categ = 'L'.
+*      ls_stpo-item_no = lv_posnr.
+*      ls_stpo-component = gs_list-idnrk.
+*      ls_stpo-comp_qty = gs_list-zyl.
+*      ls_stpo-comp_unit = gs_list-meins.
+*
+*      APPEND ls_stpo TO lt_stpo.
+*      CLEAR ls_stpo.
+*
+*    ENDLOOP.
+*
+*    CALL FUNCTION 'CSAP_MAT_BOM_CREATE'
+*      EXPORTING
+*        material           = ls_header-matnr
+*        plant              = ls_header-werks
+*        bom_usage          = lv_usage
+*        valid_from         = lv_datuv
+*        i_stko             = ls_stko
+*        fl_commit_and_wait = 'X'
+**       FL_RECURSIVE       = 'X'
+*      IMPORTING
+*        fl_warning         = lv_warning
+*        bom_no             = lv_bom_no
+*      TABLES
+*        t_stpo             = lt_stpo
+**       t_ltx_line         = t_ltx_line
+**       t_stpu             = t_stpu
+*      EXCEPTIONS
+*        error              = 1
+*        OTHERS             = 2.
+*
+*    "Enter Collected Messages in CAPI Log
+*    CALL FUNCTION 'CALO_MSG_APPEND_DB_LOG'
+*      EXCEPTIONS
+*        log_object_not_found    = 1
+*        log_subobject_not_found = 2
+*        log_internal_error      = 3
+*        OTHERS                  = 4.
+*
+*    "Read Messages from Current Log Entry
+*    CALL FUNCTION 'CALO_LOG_READ_MESSAGES'
+*      EXPORTING
+*        language                = sy-langu
+*      TABLES
+*        messages_and_parameters = lt_messages
+*      EXCEPTIONS
+*        warning                 = 1
+*        error                   = 2
+*        OTHERS                  = 3.
+*
+*    DATA lv_message TYPE bapi_msg.
+*
+*    READ TABLE lt_messages
+*    TRANSPORTING NO FIELDS
+*    WITH KEY msg_type = 'E'
+*    .
+*    IF sy-subrc = 0.
+*
+*      LOOP AT lt_messages
+*        INTO DATA(ls_message)
+*        WHERE msg_type CA 'AEI'.
+*
+*        CHECK ls_message-msg_id NE 'CL'.
+*
+*        CONCATENATE lv_message ls_message-msg_txt
+*        INTO lv_message
+*        SEPARATED BY space.
+*
+*      ENDLOOP.
+*
+*      lv_message = 'BOM 创建失败:' && lv_message.
+*
+*
+*    ELSE.
+*      lv_message = 'BOM 创建成功:' && lv_bom_no.
+*
+*    ENDIF.
+*
+*    CONCATENATE ls_header-matnr ls_header-werks
+*                lv_message
+*           INTO lv_message
+*           SEPARATED BY space.
+*
+*    gs_msg-msgty = 'E'.
+*    gs_msg-msgid = 'ZWSDGP'.
+*    gs_msg-msgno = '000'.
+*    gs_msg-msgv1 = lv_message(50).
+*    gs_msg-msgv2 = lv_message+50(50).
+*    gs_msg-msgv3 = lv_message+100(50).
+*    gs_msg-msgv4 = lv_message+150(50).
+*
+*    APPEND gs_msg TO gt_msg.
+*    CLEAR gs_msg.
+*
+*    CLEAR: lt_messages[], lt_stpo[], ls_stko,
+*           lv_warning, lv_bom_no, lv_posnr.
+*
+*  ENDLOOP.
+*
+*
+*
+*
+*  CHECK gt_msg[] IS NOT INITIAL.
+*  DATA e_s_exit_command TYPE bal_s_excm.
+*
+*  CALL FUNCTION 'RSDC_SHOW_MESSAGES_POPUP'
+*    EXPORTING
+*      i_t_msg           = gt_msg
+*      i_txt             = '消息'
+*      i_with_s_on_empty = ''
+*      i_one_msg_direct  = ''
+*      i_one_msg_type_s  = ''
+*    IMPORTING
+*      e_s_exit_command  = e_s_exit_command.
+*
+*  CLEAR gt_msg[].
+
+ENDFORM.

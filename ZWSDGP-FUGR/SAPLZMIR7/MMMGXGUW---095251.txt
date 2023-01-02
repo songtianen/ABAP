@@ -1,0 +1,108 @@
+************************************************************
+* Include MMMGXGUW - F¨¹llen Bildschirmfelder aus U-WA
+************************************************************
+* Include generiert am :         29.04.98
+
+* ----------------------------------------------------------
+FORM MATABELLEN_GET_SUB.
+* ----------------------------------------------------------
+
+* wegen MARD-BSKRF s.u.
+  CLEAR V01CWS-BSKRF.
+
+LOOP AT PTAB.
+  CASE PTAB-TBNAM.
+    WHEN T_MAKT.
+      PERFORM MAKT_GET_SUB.
+    WHEN T_MARA.
+      CALL FUNCTION 'MARA_GET_SUB'
+         IMPORTING
+                    WMARA = MARA
+                    XMARA = *MARA
+                    YMARA = LMARA.
+    WHEN T_MARC.
+      CALL FUNCTION 'MARC_GET_SUB'
+         IMPORTING
+                    WMARC = MARC
+                    XMARC = *MARC
+                    YMARC = LMARC.
+    IF AKTVSTATUS CA STATUS_D.
+      CALL FUNCTION 'MPGD_GET_SUB'
+         IMPORTING
+                    WMPGD = MPGD
+                    XMPGD = *MPGD
+                    YMPGD = LMPGD.
+      ENDIF.
+    WHEN T_MARD.
+      CALL FUNCTION 'MARD_GET_SUB'
+         IMPORTING
+                    WMARD = MARD
+                    XMARD = *MARD
+                    YMARD = LMARD.
+
+* Sonderlogik f¨¹r Float-Feld MARD-BSKRF,
+* das auf einem Dynpro im Feld
+* V01CWS-BSKRF dargestellt wird.
+CALL FUNCTION 'VBWS_BSKRF_CONVERSION_EXIT_PBO'
+     EXPORTING
+          INPUT          = MARD-BSKRF
+     IMPORTING
+          OUTPUT         = V01CWS-BSKRF
+     EXCEPTIONS
+          FACTOR_INVALID = 1
+          OTHERS         = 2.
+
+IF SY-SUBRC <> 0.
+  MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+          WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+    WHEN T_MARM.
+      PERFORM MARM_GET_SUB.
+    WHEN T_MBEW.
+      CALL FUNCTION 'MBEW_GET_SUB'
+         IMPORTING
+                    WMBEW = MBEW
+                    XMBEW = *MBEW
+                    YMBEW = LMBEW.
+    WHEN T_MFHM.
+      CALL FUNCTION 'MFHM_GET_SUB'
+         IMPORTING
+                    WMFHM = MFHM
+                    XMFHM = *MFHM
+                    YMFHM = LMFHM.
+    WHEN T_MLAN.
+      PERFORM MLAN_GET_SUB.
+    WHEN T_MLGN.
+      CALL FUNCTION 'MLGN_GET_SUB'
+         IMPORTING
+                    WMLGN = MLGN
+                    XMLGN = *MLGN
+                    YMLGN = LMLGN.
+    WHEN T_MLGT.
+      CALL FUNCTION 'MLGT_GET_SUB'
+         IMPORTING
+                    WMLGT = MLGT
+                    XMLGT = *MLGT
+                    YMLGT = LMLGT.
+    WHEN T_MPOP.
+      CALL FUNCTION 'MPOP_GET_SUB'
+         IMPORTING
+                    WMPOP = MPOP
+                    XMPOP = *MPOP
+                    YMPOP = LMPOP.
+    WHEN T_MVKE.
+      CALL FUNCTION 'MVKE_GET_SUB'
+         IMPORTING
+                    WMVKE = MVKE
+                    XMVKE = *MVKE
+                    YMVKE = LMVKE.
+    WHEN T_MYMS.
+      CALL FUNCTION 'MYMS_GET_SUB'
+         IMPORTING
+                    WMYMS = MYMS
+                    XMYMS = *MYMS
+                    YMYMS = LMYMS.
+  ENDCASE.
+ENDLOOP.
+
+ENDFORM.

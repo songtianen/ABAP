@@ -1,0 +1,589 @@
+FUNCTION zfm_gp_mm_popost.
+**"----------------------------------------------------------------------
+**"*"本地接口：
+**"  IMPORTING
+**"     VALUE(IM_EKKO) TYPE  EKKO OPTIONAL
+**"     VALUE(IM_EKKO_OLD) TYPE  EKKO OPTIONAL
+**"     VALUE(IM_EKPO) TYPE  MMPR_UEKPO OPTIONAL
+**"     VALUE(IM_EKPO_OLD) TYPE  MMPR_UEKPO OPTIONAL
+**"     VALUE(IM_EKET) TYPE  MMPR_UEKET OPTIONAL
+**"     VALUE(IM_EKET_OLD) TYPE  MMPR_UEKET OPTIONAL
+**"     VALUE(IM_EKKN) TYPE  MMPR_UEKKN OPTIONAL
+**"     VALUE(IM_EKKN_OLD) TYPE  MMPR_UEKKN OPTIONAL
+**"     VALUE(IM_KOMV) TYPE  KOMV_TAB OPTIONAL
+**"     VALUE(IM_KOMV_OLD) TYPE  KOMV_TAB OPTIONAL
+**"     VALUE(IM_EKBES) TYPE  ME_EKBES OPTIONAL
+**"     VALUE(IM_EKES) TYPE  MMPR_UEKES OPTIONAL
+**"     VALUE(IM_EKES_OLD) TYPE  MMPR_UEKES OPTIONAL
+**"     VALUE(IM_EKEH) TYPE  MMPR_IEKEH OPTIONAL
+**"     VALUE(IM_EKEH_OLD) TYPE  MMPR_IEKEH OPTIONAL
+**"     VALUE(IM_EKEK) TYPE  MMPR_UEKEK OPTIONAL
+**"     VALUE(IM_EKEK_OLD) TYPE  MMPR_UEKEK OPTIONAL
+**"     VALUE(IM_EINA) TYPE  MMPR_EINAU OPTIONAL
+**"     VALUE(IM_EINA_OLD) TYPE  MMPR_EINA OPTIONAL
+**"     VALUE(IM_EINE) TYPE  MMPR_EINEU OPTIONAL
+**"     VALUE(IM_EINE_OLD) TYPE  MMPR_EINE OPTIONAL
+**"     VALUE(IM_BATU) TYPE  MEREQ_T_FEBAN OPTIONAL
+**"     VALUE(IM_EKPA) TYPE  MMPR_UEKPA OPTIONAL
+**"     VALUE(IM_EKPA_OLD) TYPE  MMPR_UEKPA OPTIONAL
+**"     VALUE(IM_EKPV) TYPE  MMPR_EKPV OPTIONAL
+**"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MM_POPOST'.  zfmdatasave2 'B'.  COMMIT WORK.
+*  zfmdatasave1 'ZFM_MM_POPOST'.
+*  zfmdatasave2 'B'.
+*  COMMIT WORK.
+*  DATA BEGIN OF it_ekpo OCCURS 0.
+*  INCLUDE TYPE ekpo.
+*  DATA:maktx TYPE maktx,
+*       kposn TYPE prcd_elements-kposn,
+*       eindt TYPE eket-eindt,
+*       zhsje TYPE ze_dmbtr,
+*       END OF it_ekpo,
+*       BEGIN OF it_posum OCCURS 0,
+*         ebeln TYPE ebeln,
+*         menge TYPE ze_menge,
+*         zhsje TYPE ze_dmbtr,
+*       END OF it_posum,
+*       BEGIN OF it_resb OCCURS 0.
+*         INCLUDE TYPE resb.
+*  DATA: maktx1 TYPE maktx,
+*         meins1 TYPE meins,
+*       END OF it_resb.
+*  DATA:intab       TYPE TABLE OF zsmm_200 WITH HEADER LINE,
+*       wa_ekko     TYPE ekko,
+*       wa_ekko_old TYPE ekko,
+*       wa_t001     TYPE t001,
+*       wa_lfa1     TYPE lfa1,
+*       wa_t024     TYPE t024,
+*       wa_t024e    TYPE t024e,
+*       kbetr       TYPE ze_dmbtr,
+*       wa_tcurt    TYPE tcurt,
+*       it_zhtlx    TYPE TABLE OF dd07v WITH HEADER LINE,
+*       it_zysfs    TYPE TABLE OF dd07v WITH HEADER LINE,
+*       it_t001w    TYPE TABLE OF t001w WITH HEADER LINE,
+*       it_eket     TYPE TABLE OF eket WITH HEADER LINE,
+*       it_eket_old TYPE TABLE OF eket WITH HEADER LINE,
+*       it_prcd     TYPE TABLE OF prcd_elements WITH HEADER LINE,
+*       it_prcd1    TYPE TABLE OF prcd_elements WITH HEADER LINE,
+*       it_t161t    TYPE TABLE OF t161t WITH HEADER LINE.
+*  DATA:pname    TYPE string,
+*       msg      TYPE bapi_msg,
+*       wa_uekpo TYPE uekpo.
+*
+*  DATA BEGIN OF it_ekpo_old OCCURS 0.
+*  INCLUDE TYPE ekpo.
+*  DATA:maktx TYPE maktx,
+*       kposn TYPE prcd_elements-kposn,
+*       eindt TYPE eket-eindt,
+*       zhsje TYPE ze_dmbtr,
+*       END OF it_ekpo_old.
+*
+*  DATA:wa_ekpo TYPE uekpo.
+*  DATA:wa_ekpo_old TYPE uekpo.
+*  DATA:wa_eket TYPE ueket.
+*  DATA:wa_eket_old TYPE ueket.
+*  DATA:wa_komv TYPE komv.
+*  DATA:wa_komv_old TYPE komv.
+*  DATA:wa_cdpos TYPE cdpos.
+*  CHECK sy-tcode = 'ME21N'.
+*  "是否回传OA
+*  DATA:isoa TYPE char1.
+*  isoa = 'N'.
+*
+*  REFRESH:it_ekpo,it_eket,it_prcd,intab,it_posum.
+*  CLEAR:wa_t001,wa_lfa1,wa_t024,wa_tcurt.
+*
+*  WAIT UP TO 1 SECONDS.
+*
+**  "检查物料是否有变化 BY CL 20220125
+**  LOOP AT IM_EKPO INTO WA_EKPO.
+**    READ TABLE IM_EKPO_OLD INTO WA_EKPO_OLD WITH KEY MATNR = WA_EKPO-MATNR
+**                                                     EBELN = WA_EKPO-EBELN
+**                                                     EBELP = WA_EKPO-EBELP.
+**    IF SY-SUBRC <> 0.
+**      ISOA = 'Y'.
+**    ENDIF.
+**  ENDLOOP.
+**
+**  "检查行项目是否删除 BY CL 20220419
+**  LOOP AT IM_EKPO INTO WA_EKPO.
+**    READ TABLE IM_EKPO_OLD INTO WA_EKPO_OLD WITH KEY LOEKZ = WA_EKPO-LOEKZ
+**                                                     EBELN = WA_EKPO-EBELN
+**                                                     EBELP = WA_EKPO-EBELP.
+**    IF SY-SUBRC <> 0.
+**      ISOA = 'Y'.
+**    ENDIF.
+**  ENDLOOP.
+**
+**  "检查数量是否有变化 BY CL 20220125
+**  LOOP AT IM_EKPO INTO WA_EKPO.
+**    READ TABLE IM_EKPO_OLD INTO WA_EKPO_OLD WITH KEY MENGE = WA_EKPO-MENGE
+**                                                     EBELN = WA_EKPO-EBELN
+**                                                     EBELP = WA_EKPO-EBELP.
+**    IF SY-SUBRC <> 0.
+**      ISOA = 'Y'.
+**    ENDIF.
+**  ENDLOOP.
+**
+**  "检查交期是否有变化 BY CL 20220125
+**  LOOP AT IM_EKET INTO WA_EKET.
+**    READ TABLE IM_EKET_OLD INTO WA_EKET_OLD WITH KEY EINDT = WA_EKET-EINDT
+**                                                      EBELN = WA_EKET-EBELN
+**                                                     EBELP = WA_EKET-EBELP.
+**    IF SY-SUBRC <> 0.
+**      ISOA = 'Y'.
+**    ENDIF.
+**  ENDLOOP.
+**
+**  "检查合同月份是否有变化 BY CL 20220125
+**  IF IM_EKKO-ZHTYF <> IM_EKKO_OLD-ZHTYF.
+**    ISOA = 'Y'.
+**  ENDIF.
+**
+**  "检查合同号是否有变化 BY CL 20220216
+***  IF IM_EKKO-ZHTH <> IM_EKKO_OLD-ZHTH.
+***    ISOA = 'Y'.
+***  ENDIF.
+**
+**
+**  "检查单价、仓储费、短倒费、下站费、港杂费 BY CL 20220125
+**  LOOP AT IM_KOMV INTO WA_KOMV.
+**
+**    IF WA_KOMV-KSCHL = 'ZFR1'.
+**      READ TABLE IM_KOMV_OLD INTO WA_KOMV_OLD WITH KEY KSCHL = 'ZFR1'
+**                                                       KPOSN = WA_KOMV-KPOSN
+**                                                      .
+**      IF SY-SUBRC EQ 0.
+**        IF WA_KOMV-KBETR <> WA_KOMV_OLD-KBETR.
+**          ISOA = 'Y'.
+**        ENDIF.
+**      ENDIF.
+**      CLEAR WA_KOMV_OLD.
+**    ENDIF.
+**
+**    IF WA_KOMV-KSCHL = 'ZFR2'.
+**    READ TABLE IM_KOMV_OLD INTO WA_KOMV_OLD WITH KEY KSCHL = 'ZFR2'
+**                                                     KPOSN = WA_KOMV-KPOSN
+**                                                      .
+**      IF SY-SUBRC EQ 0.
+**        IF WA_KOMV-KBETR <> WA_KOMV_OLD-KBETR.
+**          ISOA = 'Y'.
+**        ENDIF.
+**      ENDIF.
+**      CLEAR WA_KOMV_OLD.
+**    ENDIF.
+**
+**    IF WA_KOMV-KSCHL = 'ZFR3'.
+**    READ TABLE IM_KOMV_OLD INTO WA_KOMV_OLD WITH KEY KSCHL = 'ZFR3'
+**                                                     KPOSN = WA_KOMV-KPOSN
+**                                                     .
+**      IF SY-SUBRC EQ 0.
+**        IF WA_KOMV-KBETR <> WA_KOMV_OLD-KBETR.
+**          ISOA = 'Y'.
+**        ENDIF.
+**      ENDIF.
+**      CLEAR WA_KOMV_OLD.
+**    ENDIF.
+**
+**    IF WA_KOMV-KSCHL = 'ZFR4'.
+**      READ TABLE IM_KOMV_OLD INTO WA_KOMV_OLD WITH KEY KSCHL = 'ZFR4'
+**                                                       KPOSN = WA_KOMV-KPOSN
+**                                                        .
+**      IF SY-SUBRC EQ 0.
+**        IF WA_KOMV-KBETR <> WA_KOMV_OLD-KBETR.
+**          ISOA = 'Y'.
+**        ENDIF.
+**      ENDIF.
+**      CLEAR WA_KOMV_OLD.
+**    ENDIF.
+**
+**    IF WA_KOMV-KSCHL = 'ZFR5'.
+**      READ TABLE IM_KOMV_OLD INTO WA_KOMV_OLD WITH KEY KSCHL = 'ZFR5'
+**                                                       KPOSN = WA_KOMV-KPOSN
+**                                                        .
+**      IF SY-SUBRC EQ 0.
+**        IF WA_KOMV-KBETR <> WA_KOMV_OLD-KBETR.
+**          ISOA = 'Y'.
+**        ENDIF.
+**      ENDIF.
+**      CLEAR WA_KOMV_OLD.
+**    ENDIF.
+**
+**    IF WA_KOMV-KSCHL = 'PBXX'.
+**      READ TABLE IM_KOMV_OLD INTO WA_KOMV_OLD WITH KEY KSCHL = 'PBXX'
+**                                                       KPOSN = WA_KOMV-KPOSN
+**                                                      .
+**      IF SY-SUBRC EQ 0.
+**        IF WA_KOMV-KBETR <> WA_KOMV_OLD-KBETR.
+**          ISOA = 'Y'.
+**        ENDIF.
+**      ENDIF.
+**      CLEAR WA_KOMV_OLD.
+**    ENDIF.
+**    CLEAR WA_KOMV.
+**  ENDLOOP.
+**
+**
+**  DO 100 TIMES.
+**    SELECT SINGLE *
+**      INTO WA_EKKO
+**      FROM EKKO
+**      WHERE EBELN = IM_EKKO-EBELN.
+**    IF SY-SUBRC EQ 0.
+**      EXIT.
+**    ENDIF.
+**  ENDDO.
+**
+***  CASE WA_EKKO-BSART.
+***    WHEN 'NB' OR 'Z01' OR 'Z02' OR 'Z03' OR 'Z04'.
+***      IF WA_EKKO-FRGKE = 'G'."审批通过回传不会再次发起审批
+***        EXIT.
+***      ENDIF.
+***    WHEN OTHERS.
+***      RETURN.
+***  ENDCASE.
+**
+**  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZHTLX USING 'ZD_ZHTLX'.
+**  PERFORM GETDOMAIN(ZPUBFORM) TABLES IT_ZYSFS USING 'ZD_ZYSFS'.
+**
+**  SELECT *
+**    INTO TABLE IT_EKET
+**    FROM EKET
+**    WHERE EBELN = WA_EKKO-EBELN.
+**  SORT IT_EKET BY EBELP.
+**
+**  SELECT SINGLE *
+**    INTO WA_T001
+**    FROM T001
+**    WHERE BUKRS = WA_EKKO-BUKRS.
+**  SELECT SINGLE *
+**    INTO WA_LFA1
+**    FROM LFA1
+**    WHERE LIFNR = WA_EKKO-LIFNR.
+**  SELECT SINGLE *
+**    INTO WA_T024
+**    FROM T024
+**    WHERE EKGRP = WA_EKKO-EKGRP.
+**  SELECT SINGLE *
+**    INTO WA_TCURT
+**    FROM TCURT
+**    WHERE WAERS = WA_EKKO-WAERS
+**    AND   SPRAS = SY-LANGU.
+**  SELECT SINGLE *
+**    INTO WA_T024E
+**    FROM T024E
+**    WHERE EKORG = WA_EKKO-EKORG.
+**
+**  SELECT ekpo~*,
+**         makt~maktx
+**    INTO TABLE @it_ekpo
+**    FROM ekpo LEFT JOIN makt ON ekpo~matnr = makt~matnr
+**                            AND makt~spras = @sy-langu
+**    WHERE ebeln = @wa_ekko-ebeln.
+**
+**  IF SY-SUBRC EQ 0.
+**    LOOP AT IT_EKPO.
+**      IT_EKPO-KPOSN = IT_EKPO-EBELP.
+**      READ TABLE IT_EKET WITH KEY EBELP = IT_EKPO-EBELP BINARY SEARCH.
+**      IF SY-SUBRC EQ 0.
+**        IT_EKPO-EINDT = IT_EKET-EINDT.
+**      ENDIF.
+**      MODIFY IT_EKPO TRANSPORTING KPOSN EINDT.
+**    ENDLOOP.
+**
+**    SORT IT_EKPO BY KPOSN.
+**    SELECT *
+**      INTO TABLE IT_PRCD
+**      FROM PRCD_ELEMENTS
+**      FOR ALL ENTRIES IN IT_EKPO
+**      WHERE KPOSN = IT_EKPO-KPOSN
+**      AND   KNUMV = WA_EKKO-KNUMV.
+**    SORT IT_PRCD BY KPOSN KSCHL.
+**
+**    SORT IT_EKPO BY EBELP.
+**    SELECT RESB~*,
+**           MAKT~MAKTX AS MAKTX1,
+**           MARA~MEINS AS MEINS1
+**      INTO TABLE @IT_RESB
+**      FROM RESB INNER JOIN MAKT ON RESB~MATNR = MAKT~MATNR
+**                               AND MAKT~SPRAS = @SY-LANGU
+**                INNER JOIN MARA ON RESB~MATNR = MARA~MATNR
+**      FOR ALL ENTRIES IN @IT_EKPO
+**      WHERE RESB~EBELP = @IT_EKPO-EBELP
+**      AND   RESB~EBELN = @WA_EKKO-EBELN.
+**    SORT IT_RESB BY EBELN EBELP.
+**  ENDIF.
+**
+**  PERFORM GETTABDATA(ZPUBFORM) TABLES IT_T001W USING 'T001W' ''.
+**  PERFORM GETTABDATA(ZPUBFORM) TABLES IT_T161T USING 'T161T' ''.
+**  DELETE IT_T161T WHERE BSTYP NE 'F'.
+**  SORT IT_T161T BY BSART.
+**
+*  LOOP AT it_ekpo.
+*    CLEAR:intab,kbetr.
+*    MOVE-CORRESPONDING it_ekpo TO intab.
+*    MOVE-CORRESPONDING wa_ekko TO intab.
+**    IF it_ekpo-loekz = 'L'.
+**      intab-loekz = '1'.
+**    ELSE.
+**      intab-loekz = '0'.
+**    ENDIF.
+*
+*    intab-butxt = wa_t001-butxt.
+*    intab-eknam = wa_t024-eknam.
+*    intab-name1 = wa_lfa1-name1.
+*    intab-zhtl = it_ekpo-menge.
+**    intab-ktext = wa_tcurt-ktext.
+*    intab-ekotx = wa_t024e-ekotx.
+*    IF it_ekpo-matnr IS INITIAL.
+*      intab-maktx = it_ekpo-txz01.
+*    ENDIF.
+*    PERFORM gettax(zpubform) USING '' it_ekpo-mwskz
+*          CHANGING kbetr.
+*    kbetr = kbetr * 100.
+*    intab-text1 = kbetr.
+*    PERFORM delqfw(zpubform) CHANGING intab-text1.
+*    CONCATENATE intab-text1 '%' INTO intab-text1.
+*    PERFORM delqfw(zpubform) CHANGING intab-zhtl.
+**    READ TABLE it_t161t WITH KEY bsart = wa_ekko-bsart BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      intab-batxt = it_t161t-batxt.
+**    ENDIF.
+**    READ TABLE it_eket WITH KEY ebelp = it_ekpo-ebelp BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      intab-eindt = it_eket-eindt.
+**    ENDIF.
+**    READ TABLE it_resb WITH KEY ebeln = it_ekpo-ebeln
+**                                ebelp = it_ekpo-ebelp
+**                                BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      intab-matnr1 = it_resb-matnr.
+**      intab-maktx1 = it_resb-maktx1.
+**      intab-meins1 = it_resb-meins.
+**      intab-menge1 = it_resb-bdmng.
+**      PERFORM delqfw(zpubform) CHANGING intab-menge1.
+**    ENDIF.
+**    READ TABLE it_zhtlx WITH KEY domvalue_l = wa_ekko-zhtlx BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      intab-zhtlxt = it_zhtlx-ddtext.
+**    ENDIF.
+**    READ TABLE it_zysfs WITH KEY domvalue_l = wa_ekko-zysfs BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      intab-zysfst = it_zysfs-ddtext.
+**    ENDIF.
+**    READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+**                                kschl = 'ZFR1'
+**                                BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      CLEAR kbetr.
+**      kbetr = it_prcd-kbetr.
+**      intab-zyf = kbetr.
+**      PERFORM delqfw(zpubform) CHANGING intab-zyf.
+**    ENDIF.
+*
+**    READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+**                                kschl = 'ZFR2'
+**                                BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      CLEAR kbetr.
+**      kbetr = it_prcd-kbetr.
+**      intab-zddf = kbetr.
+**      PERFORM delqfw(zpubform) CHANGING intab-zddf.
+**    ENDIF.
+**    READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+**                                kschl = 'ZFR3'
+**                                BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      CLEAR kbetr.
+**      kbetr = it_prcd-kbetr.
+**      intab-zcc = kbetr.
+**      PERFORM delqfw(zpubform) CHANGING intab-zcc.
+**    ENDIF.
+**    READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+**                                kschl = 'ZFR5'
+**                                BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      CLEAR kbetr.
+**      kbetr = it_prcd-kbetr.
+**      intab-zxz = kbetr.
+**      PERFORM delqfw(zpubform) CHANGING intab-zxz.
+**    ENDIF.
+**    READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+**                                kschl = 'ZFR4'
+**                                BINARY SEARCH.
+**    IF sy-subrc EQ 0.
+**      CLEAR kbetr.
+**      kbetr = it_prcd-kbetr.
+**      intab-zgz = kbetr.
+**      PERFORM delqfw(zpubform) CHANGING intab-zgz.
+**    ENDIF.
+*    READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+*                                kschl = 'PBXX'
+*                                BINARY SEARCH.
+*    IF sy-subrc EQ 0 AND it_prcd-kbetr GT 0.
+*      CLEAR kbetr.
+*      kbetr = it_prcd-kbetr.
+*      intab-zhsdj = kbetr.
+*      CLEAR kbetr.
+*      kbetr = it_prcd-kwert.
+*      intab-zhsje = kbetr.
+*      it_ekpo-zhsje = it_prcd-kwert.
+*      PERFORM delqfw(zpubform) CHANGING intab-zhsdj.
+*      PERFORM delqfw(zpubform) CHANGING intab-zhsje.
+*    ELSE.
+*      READ TABLE it_prcd WITH KEY kposn = it_ekpo-ebelp
+*                                  kschl = 'PB00'
+*                                  BINARY SEARCH.
+*      IF sy-subrc EQ 0.
+*        CLEAR kbetr.
+*        kbetr = it_prcd-kbetr.
+*        intab-zhsdj = kbetr.
+*        CLEAR kbetr.
+*        kbetr = it_prcd-kwert.
+*        intab-zhsje = kbetr.
+*        it_ekpo-zhsje = it_prcd-kwert.
+*        PERFORM delqfw(zpubform) CHANGING intab-zhsdj.
+*        PERFORM delqfw(zpubform) CHANGING intab-zhsje.
+*      ENDIF.
+*    ENDIF.
+*
+*    PERFORM delqfw(zpubform) CHANGING intab-netpr.
+*    PERFORM delqfw(zpubform) CHANGING intab-menge.
+*    MODIFY it_ekpo.
+*    APPEND intab.
+*  ENDLOOP.
+**
+**  LOOP AT IT_EKPO.
+**    CLEAR IT_POSUM.
+**    IT_POSUM-EBELN = IT_EKPO-EBELN.
+**    IT_POSUM-MENGE = IT_EKPO-MENGE.
+**    IT_POSUM-ZHSJE = IT_EKPO-ZHSJE.
+**    COLLECT IT_POSUM.
+**  ENDLOOP.
+**  SORT IT_POSUM BY EBELN.
+**  LOOP AT INTAB.
+**    READ TABLE IT_POSUM WITH KEY EBELN = INTAB-EBELN BINARY SEARCH.
+**    IF SY-SUBRC EQ 0.
+**      INTAB-ZHTL = IT_POSUM-MENGE.
+**      INTAB-ZZJE = IT_POSUM-ZHSJE.
+**      PERFORM DELQFW(ZPUBFORM) CHANGING INTAB-ZZJE.
+**      PERFORM DELQFW(ZPUBFORM) CHANGING INTAB-ZHTL.
+**    ENDIF.
+**    "新增如果是新建单据，修改zflag的值 BY CL 20220309
+**
+**    SELECT SINGLE *
+**      INTO WA_CDPOS
+**      FROM CDPOS
+**      WHERE OBJECTID = WA_EKKO-EBELN
+**      AND TABNAME = 'EKPO'
+**      .
+**    IF WA_CDPOS is INITIAL.
+**      INTAB-ZFLAG = '1'.
+**      ELSE.
+**        INTAB-ZFLAG = '0'.
+**    ENDIF.
+**
+**    "新增如果是表头中的数据修改，修改zflag的值为0 BY CL 20220309
+***    IF WA_EKKO_OLD-ZYSFS <> WA_EKKO-ZYSFS OR
+***      WA_EKKO_OLD-ZHTH <> WA_EKKO-ZHTH OR
+***      WA_EKKO_OLD-ZHTYF <> WA_EKKO-ZHTYF OR
+***      WA_EKKO_OLD-ZCK <> WA_EKKO-ZCK OR
+***      WA_EKKO_OLD-ZHTLX <> WA_EKKO-ZHTLX OR
+***      WA_EKKO_OLD-YL1 <> WA_EKKO-YL1 .
+***      INTAB-ZFLAG = '1'.
+***    ENDIF.
+**
+**    MODIFY INTAB.
+**    CLEAR INTAB.
+**  ENDLOOP.
+**
+**
+***创建时，先进行Z1审批
+**  CLEAR MSG.
+***推送OA-接口账号创建/修改不再触发OA
+**  IF SY-UNAME = 'XMDRFC'.
+**    REFRESH:INTAB.
+**    EXIT.
+**  ENDIF.
+**
+**
+**  DO 100 TIMES.
+**      CLEAR EKKO.
+**      SELECT SINGLE *
+**        FROM EKKO
+**        WHERE EBELN = WA_EKKO-EBELN
+**        AND   FRGKE = 'B'.
+**      IF SY-SUBRC EQ 0.
+**        EXIT.
+**      ENDIF.
+**    ENDDO.
+**
+**  IF WA_EKKO-FRGKE = 'B'.
+**    PERFORM RELPOPR(ZPUBFORM) USING WA_EKKO-EBELN
+**                                'Z1'
+**                                ''
+**                                'PO'
+**                          CHANGING MSG.
+**  ENDIF.
+**
+**  "ADD BY CL 20220216
+**  IF ISOA = 'Y'.
+**     IF WA_EKKO-FRGKE = 'R'.
+**      MSG = 'X'.
+**      PERFORM RELPOPR(ZPUBFORM) USING WA_EKKO-EBELN
+**                                  'Z2'
+**                                  ''
+**                                  'PO'
+**                            CHANGING MSG.
+**     ENDIF.
+**  ENDIF.
+**
+***判断如果是否传OA,加条件 BY CL 20220125
+**  IF ISOA = 'Y'.
+**    PNAME = WA_T024-EKNAM.
+**    CALL FUNCTION 'ZFM_GP_MM_OA_PO_SEND'
+**      EXPORTING
+**        P_NAME = PNAME
+**      TABLES
+**        IN_TAB = INTAB
+**      EXCEPTIONS
+**        OTHERS = 1.
+**  ENDIF.
+***防止第一次没审批成功，传递OA后再次审批
+**  WAIT UP TO '0.5' SECONDS.
+**  CLEAR:MSG, EKKO.
+**  SELECT SINGLE *
+**    FROM EKKO
+**    WHERE EBELN = WA_EKKO-EBELN.
+**  IF EKKO-FRGKE = 'B'.
+**    PERFORM RELPOPR(ZPUBFORM) USING EKKO-EBELN
+**                                'Z1'
+**                                ''
+**                                'PO'
+**                          CHANGING MSG.
+**  ENDIF.
+*
+*  DO 100 TIMES.
+*    SELECT SINGLE *
+*      INTO wa_ekko
+*      FROM ekko
+*      WHERE ebeln = im_ekko-ebeln.
+*    IF sy-subrc EQ 0.
+*      EXIT.
+*    ENDIF.
+*  ENDDO.
+*  SELECT SINGLE *
+*    INTO wa_t024
+*    FROM t024
+*    WHERE ekgrp = wa_ekko-ekgrp.
+*  pname = wa_t024-eknam.
+*  CALL FUNCTION 'ZFM_GP_MM_OA_PO_SEND'
+*    EXPORTING
+*      p_name = pname
+*    TABLES
+*      in_tab = intab
+*    EXCEPTIONS
+*      OTHERS = 1.
+*  zfmdatasave2 'R'.
+  zfmdatasave2 'R'.
+ENDFUNCTION.

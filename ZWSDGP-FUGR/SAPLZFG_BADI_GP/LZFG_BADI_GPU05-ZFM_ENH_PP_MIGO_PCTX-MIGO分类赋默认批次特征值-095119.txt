@@ -1,0 +1,281 @@
+FUNCTION ZFM_ENH_PP_MIGO_PCTX.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  TABLES
+*"      WS
+*"      MI
+*"      WI
+*"  CHANGING
+*"     REFERENCE(ZPCXH1) TYPE  CHAR20
+*"     REFERENCE(ZPCXH2) TYPE  CHAR20
+*"     REFERENCE(ZPCXH3) TYPE  CHAR20
+*"     REFERENCE(ZPCXH4) TYPE  CHAR20
+*"     REFERENCE(ZKS1) TYPE  CHAR20
+*"     REFERENCE(ZKS2) TYPE  CHAR20
+*"     REFERENCE(ZKS3) TYPE  CHAR20
+*"     REFERENCE(ZKS4) TYPE  CHAR20
+*"----------------------------------------------------------------------
+
+*RETURN.
+
+  CONSTANTS: PCXH TYPE CHAR20 VALUE 'ZPCXH1'.
+
+  FIELD-SYMBOLS : " <LS_WS>    TYPE ANY,
+    <LS_WS1>   TYPE ANY,
+    <LS_MI>    TYPE ANY,
+    <LS_WI>    TYPE ANY,
+    <WS_MINDX> TYPE ANY,
+    <WS_WINDX> TYPE ANY,
+    <WS_ATWRT> TYPE ANY,
+    <WS_ATCOD> TYPE ANY,
+    <WS_STATU> TYPE ANY,
+    <MI_MINDX> TYPE ANY,
+    <MI_ATNAM> TYPE ANY,
+    <MI_ATCOD> TYPE ANY,
+    <WI_WINDX> TYPE ANY,
+    <WA_WS>    TYPE ANY,
+    <IT_WS>    TYPE STANDARD TABLE.
+*                  <IT_WI>    TYPE STANDARD TABLE,
+*                  <IT_MI>    TYPE STANDARD TABLE.
+
+  DATA:IT_WS TYPE REF TO DATA,
+       WA_WS TYPE REF TO DATA.
+*       IT_MI TYPE REF TO DATA,
+*       IT_WI TYPE REF TO DATA.
+
+  CREATE DATA IT_WS LIKE TABLE OF WS.
+  CREATE DATA WA_WS LIKE LINE  OF WS.
+*  CREATE DATA IT_WI LIKE TABLE OF WI.
+*  CREATE DATA IT_MI LIKE TABLE OF MI.
+
+  ASSIGN IT_WS->* TO <IT_WS>.
+  ASSIGN WA_WS->* TO <WA_WS>.
+*  ASSIGN IT_WI->* TO <IT_WI>.
+*  ASSIGN IT_MI->* TO <IT_MI>.
+
+  RANGES: S_ATNAM FOR CABN-ATNAM.
+  S_ATNAM = 'IEQZPCXH1' . APPEND S_ATNAM.
+  S_ATNAM = 'IEQZPCXH2' . APPEND S_ATNAM.
+  S_ATNAM = 'IEQZPCXH3' . APPEND S_ATNAM.
+  S_ATNAM = 'IEQZPCXH4' . APPEND S_ATNAM.
+  S_ATNAM = 'IEQZKS1' .   APPEND S_ATNAM.
+  S_ATNAM = 'IEQZKS2' .   APPEND S_ATNAM.
+  S_ATNAM = 'IEQZKS3' .   APPEND S_ATNAM.
+  S_ATNAM = 'IEQZKS4' .   APPEND S_ATNAM.
+*  S_ATNAM = 'IEQZSHRQ'.   APPEND S_ATNAM.
+
+
+  IF SY-UCOMM = 'MIGO_OK_BATCH_CLASS'  .
+    TYPES : BEGIN OF ZSXHKS,
+              ZCD TYPE CHAR20,
+              ZKS TYPE ZTPP_206-ZKS,
+            END OF ZSXHKS.
+    DATA: GT_XHKS  TYPE TABLE OF ZSXHKS WITH HEADER LINE.
+
+
+    ASSIGN ('(SAPLMIGO)GODYNPRO-ACTION') TO FIELD-SYMBOL(<LFS_ACTION>).
+    ASSIGN ('(SAPLMIGO)GODYNPRO-REFDOC') TO FIELD-SYMBOL(<LFS_REFDOC>).
+    ASSIGN ('(SAPLMIGO)GODEFAULT_TV-BWART') TO FIELD-SYMBOL(<LFS_BWART>).
+
+    ASSIGN ('(SAPLMIGO)GOITEM-PPS_AUFNR') TO FIELD-SYMBOL(<LFS_AUFNR>).
+    " A01  R08  101  生产工单不为空 生产工单收货批次特征值赋默认值
+    IF <LFS_ACTION> IS ASSIGNED AND <LFS_REFDOC> IS ASSIGNED AND <LFS_AUFNR> IS ASSIGNED AND <LFS_BWART> IS ASSIGNED AND
+       <LFS_ACTION> = 'A01' AND <LFS_REFDOC> = 'R08' AND <LFS_BWART> = '101' AND <LFS_AUFNR> IS NOT INITIAL .
+
+      "以ZPCXH1 为准，判断是否已赋过批次特征默认值，赋过则不再赋
+      "否则批次特征值修改为空时会再次赋默认值
+*      CLEAR : <LS_MI> , <LS_WI> , WA_WS , <MI_MINDX> ,<WI_WINDX> .
+
+      READ TABLE MI ASSIGNING <LS_MI> WITH KEY ('ATNAM') = PCXH  .
+      IF SY-SUBRC <> 0 .
+        RETURN.
+      ENDIF.
+      ASSIGN COMPONENT 'MINDX' OF STRUCTURE <LS_MI> TO <MI_MINDX>.
+      READ TABLE WI ASSIGNING <LS_WI> WITH KEY ('MINDX') = <MI_MINDX> .
+      IF SY-SUBRC <> 0 .
+        RETURN.
+      ENDIF.
+      ASSIGN COMPONENT 'WINDX' OF STRUCTURE <LS_WI> TO <WI_WINDX>.
+      READ TABLE WS ASSIGNING <LS_WS1> WITH KEY ('MINDX') = <MI_MINDX> ('WINDX') = <WI_WINDX>.
+      IF SY-SUBRC <> 0. "
+        LOOP AT MI ASSIGNING <LS_MI> .
+*          CLEAR : <MI_ATNAM> .
+          ASSIGN COMPONENT 'ATNAM' OF STRUCTURE <LS_MI> TO <MI_ATNAM>.
+          IF <MI_ATNAM> NOT IN S_ATNAM AND SY-SUBRC = 0 .
+            CONTINUE.
+            CLEAR : <LS_MI> , <LS_WI> , <MI_MINDX> , <MI_MINDX> .
+          ENDIF.
+*          CLEAR : WA_WS , <MI_MINDX> , <WS_MINDX> .
+          ASSIGN COMPONENT 'MINDX' OF STRUCTURE <LS_MI> TO <MI_MINDX> .
+          ASSIGN COMPONENT 'MINDX' OF STRUCTURE <WA_WS> TO <WS_MINDX> .
+          IF SY-SUBRC = 0 AND <MI_MINDX> IS NOT INITIAL.
+            <WS_MINDX> = <MI_MINDX> .
+          ENDIF.
+          READ TABLE WI ASSIGNING <LS_WI> WITH KEY ('MINDX') = <MI_MINDX> .
+          IF SY-SUBRC = 0.
+            ASSIGN COMPONENT 'WINDX' OF STRUCTURE <LS_WI> TO <WI_WINDX> .
+            ASSIGN COMPONENT 'WINDX' OF STRUCTURE <WA_WS> TO <WS_WINDX> .
+            IF SY-SUBRC = 0 AND <WI_WINDX> IS NOT INITIAL.
+              <WS_WINDX> = <WI_WINDX> .
+            ENDIF.
+          ENDIF.
+          "仅用于该特性内表中在初始化时不含有这2个特性值
+          READ TABLE WS ASSIGNING <LS_WS1> WITH KEY ('MINDX') = <MI_MINDX> ('WINDX') = <WI_WINDX>.
+          IF SY-SUBRC = 0 ."已有值跳过
+            CONTINUE.
+          ENDIF.
+          "一个工单 一条计划 一个明细行 一对一
+*          SELECT SINGLE ZPCXH1  ZKS1  ZPCXH2  ZKS2  ZPCXH3  ZKS3  ZPCXH4  ZKS4
+*             INTO (ZPCXH1,ZKS1,ZPCXH2,ZKS2,ZPCXH3,ZKS3 ,ZPCXH4,ZKS4)
+*             FROM ZTPP050
+*             WHERE AUFNR = <LFS_AUFNR> .
+          SELECT
+                PLNUM,
+                PLNUMHH,
+                ZCD,
+                ZKS,
+                ZKS_SH
+             INTO TABLE @DATA(IT_206)
+             FROM ZTPP_206
+             WHERE AUFNR = @<LFS_AUFNR> .
+
+          CLEAR: GT_XHKS[],ZPCXH1,ZPCXH2,ZPCXH3,ZPCXH4,ZKS1,ZKS2,ZKS3,ZKS4.
+
+          LOOP AT IT_206 INTO DATA(WA_206).
+            GT_XHKS-ZCD = WA_206-ZCD.
+            GT_XHKS-ZKS = WA_206-ZKS - WA_206-ZKS_SH.
+            COLLECT GT_XHKS.
+          ENDLOOP.
+          SORT GT_XHKS BY ZCD.
+
+          READ TABLE GT_XHKS INDEX 1.
+          IF SY-SUBRC = 0 .
+            ZPCXH1 = GT_XHKS-ZCD.
+            ZKS1   = GT_XHKS-ZKS.
+            CONDENSE ZPCXH1.
+            CONDENSE ZKS1.
+            READ TABLE GT_XHKS INDEX 2.
+            IF SY-SUBRC = 0 .
+              ZPCXH2 = GT_XHKS-ZCD.
+              ZKS2   = GT_XHKS-ZKS.
+              CONDENSE ZPCXH2.
+              CONDENSE ZKS2.
+
+              READ TABLE GT_XHKS INDEX 3.
+              IF SY-SUBRC = 0 .
+                ZPCXH3 = GT_XHKS-ZCD.
+                ZKS3   = GT_XHKS-ZKS.
+                CONDENSE ZPCXH3.
+                CONDENSE ZKS3.
+
+                READ TABLE GT_XHKS INDEX 4.
+                IF SY-SUBRC = 0 .
+                  ZPCXH4 = GT_XHKS-ZCD.
+                  ZKS4   = GT_XHKS-ZKS.
+                  CONDENSE ZPCXH4.
+                  CONDENSE ZKS4.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+          ASSIGN COMPONENT 'ATWRT' OF STRUCTURE <WA_WS> TO <WS_ATWRT> .
+          IF SY-SUBRC = 0 .
+            CASE <MI_ATNAM> .
+              WHEN 'ZPCXH1'.
+                <WS_ATWRT> = ZPCXH1.
+              WHEN 'ZPCXH2'.
+                <WS_ATWRT> = ZPCXH2.
+              WHEN 'ZPCXH3'.
+                <WS_ATWRT> = ZPCXH3.
+              WHEN 'ZPCXH4'.
+                <WS_ATWRT> = ZPCXH4.
+              WHEN 'ZKS1'.
+                <WS_ATWRT> = ZKS1.
+              WHEN 'ZKS2'.
+                <WS_ATWRT> = ZKS2.
+              WHEN 'ZKS3'.
+                <WS_ATWRT> = ZKS3.
+              WHEN 'ZKS4'.
+                <WS_ATWRT> = ZKS4.
+              WHEN OTHERS.
+            ENDCASE.
+          ENDIF.
+
+*          CHECK <WS_ATWRT> IS NOT INITIAL.
+
+          ASSIGN COMPONENT 'ATCOD' OF STRUCTURE <LS_MI> TO <MI_ATCOD> .
+          ASSIGN COMPONENT 'ATCOD' OF STRUCTURE <WA_WS> TO <WS_ATCOD> .
+          IF SY-SUBRC = 0 AND <MI_ATCOD> IS NOT INITIAL.
+            <WS_ATCOD> = <MI_ATCOD> .
+          ENDIF.
+
+          ASSIGN COMPONENT 'STATU' OF STRUCTURE <WA_WS> TO <WS_STATU> .
+          IF SY-SUBRC = 0 .
+            <WS_STATU> = 'H' .
+          ENDIF.
+          IF <WS_ATWRT> IS NOT INITIAL.
+            APPEND <WA_WS> TO <IT_WS> .
+          ENDIF.
+*          CLEAR:WA_WS.
+        ENDLOOP.
+        APPEND LINES OF <IT_WS> TO WS .
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+*  CLEAR: ZPCXH1 , ZPCXH2 , ZPCXH3 , ZPCXH4 , ZKS1 ,ZKS2 , ZKS3 , ZKS4 .
+  LOOP AT MI ASSIGNING <LS_MI>.
+
+*    CLEAR : <MI_ATNAM> .
+    ASSIGN COMPONENT 'ATNAM' OF STRUCTURE <LS_MI> TO <MI_ATNAM>.
+    IF <MI_ATNAM> NOT IN S_ATNAM AND SY-SUBRC = 0 .
+      CONTINUE.
+    ENDIF.
+
+*    CLEAR : WA_WS , <MI_MINDX> , <WS_MINDX> .
+    ASSIGN COMPONENT 'MINDX' OF STRUCTURE <LS_MI> TO <MI_MINDX> .
+    IF SY-SUBRC <> 0 .
+      CONTINUE.
+    ENDIF.
+    READ TABLE WI ASSIGNING <LS_WI> WITH KEY ('MINDX') = <MI_MINDX> .
+    IF SY-SUBRC = 0.
+      ASSIGN COMPONENT 'WINDX' OF STRUCTURE <LS_WI> TO <WI_WINDX> .
+      IF SY-SUBRC <> 0 .
+        CONTINUE.
+      ENDIF.
+    ELSE.
+      CONTINUE.
+    ENDIF.
+
+    READ TABLE WS ASSIGNING <LS_WS1> WITH KEY ('MINDX') = <MI_MINDX> ('WINDX') = <WI_WINDX> .
+    IF SY-SUBRC <> 0 .
+      CONTINUE.
+    ENDIF.
+
+    ASSIGN COMPONENT 'ATWRT' OF STRUCTURE <LS_WS1> TO <WS_ATWRT> .
+    IF SY-SUBRC = 0 .
+      CASE <MI_ATNAM> .
+        WHEN 'ZPCXH1'.
+          ZPCXH1 = <WS_ATWRT> .
+        WHEN 'ZPCXH2'.
+          ZPCXH2 = <WS_ATWRT> .
+        WHEN 'ZPCXH3'.
+          ZPCXH3 = <WS_ATWRT> .
+        WHEN 'ZPCXH4'.
+          ZPCXH4 = <WS_ATWRT> .
+        WHEN 'ZKS1'.
+          ZKS1 = <WS_ATWRT> .
+        WHEN 'ZKS2'.
+          ZKS2 = <WS_ATWRT> .
+        WHEN 'ZKS3'.
+          ZKS3 = <WS_ATWRT> .
+        WHEN 'ZKS4'.
+          ZKS4 = <WS_ATWRT> .
+        WHEN OTHERS.
+      ENDCASE.
+    ENDIF.
+  ENDLOOP.
+
+
+ENDFUNCTION.

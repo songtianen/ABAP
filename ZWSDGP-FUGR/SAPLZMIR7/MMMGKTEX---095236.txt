@@ -1,0 +1,34 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGKTEX                                                  *
+* Allgemeine Deklarationen, die nur f¨¹r Bildbausteinprogramme ben#tigt
+* werden
+* Achtung: evtl. noch nicht vollst#ndig, siehe MMMGTRBB
+*----------------------------------------------------------------------*
+TABLES: SKTEXT.
+
+*-- Datenstrukturen f¨¹r Kurztexthandling ------------------------------
+DATA:   KT_ZEILEN_NR   LIKE SY-TABIX,     "Zeilen-nr.
+        KT_AKT_ZEILE   LIKE SY-TABIX,     "aktuelle Zeile
+        KT_ERSTE_ZEILE LIKE SY-TABIX,     "erste Zeile pro Seite
+        KT_ERSTE_ZEILE_C(3),     "KT_ERSTE_ZEILE aufbereitet f¨¹r Dynpro
+        KT_ZLEPROSEITE LIKE SY-LOOPC,     "Anzahl Zeilen pro Seite
+        KT_SAVSPRAS    LIKE MAKT-SPRAS,   "Hilfsfeld Sprachenschluessel
+        KT_FEHLERFLG(1),                  "Fehlerflag
+        KT_EINTRAEGE_C(3),       "Anz. Kurztextte aufbereitet f. Dynpro
+        KT_LINES       LIKE SY-TABIX,     "Anzahl Kurztexteintr#ge
+        BILDFLAG_OLD.                     "Zwischenspeicher Bildflag
+
+*-- Kurztexte Fehlerexits ---------------------------------------------
+DATA:   FDSPRACH(1)  VALUE 'D',             "Doppelter Eintrag
+        FKEINTRAG(1) VALUE 'E',             "Kein Eintrag
+        FLGALT(1)               VALUE 'A'.  "Eintrag bereits geprueft
+
+*-- Offset erh#hen bei offenem einzelnen Kurztext + Subscreen ---------
+* kann warscheinlich entfernt werden
+* analog RMMG1-KT_FLAG1
+
+DATA: KT_FLAG2.
+* Change to tc wk to 4.0
+* wk zu 4.0
+CONTROLS: TC_KTXT TYPE TABLEVIEW USING SCREEN 0002.
+DATA  TC_KTXT_TOP_LINE_BUF LIKE SY-STEPL.

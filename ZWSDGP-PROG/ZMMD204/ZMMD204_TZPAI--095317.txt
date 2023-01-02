@@ -1,0 +1,281 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD204_TZPAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZYFTZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+module zyftz_con_modify input.
+  modify it_tz
+    index zyftz_con-current_line.
+endmodule.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZYFTZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+module zyftz_con_mark input.
+  data: g_zyftz_con_wa2 like line of it_tz.
+  if zyftz_con-line_sel_mode = 1
+  and it_tz-sel = 'X'.
+    loop at it_tz into g_zyftz_con_wa2
+      where sel = 'X'.
+      g_zyftz_con_wa2-sel = ''.
+      modify it_tz
+        from g_zyftz_con_wa2
+        transporting sel.
+    endloop.
+  endif.
+  modify it_tz
+    index zyftz_con-current_line
+    transporting sel.
+endmodule.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZYFTZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+module zyftz_con_user_command input.
+  ok_code = sy-ucomm.
+  perform user_ok_tc using    'ZYFTZ_CON'
+                              'IT_TZ'
+                              'SEL'
+                     changing ok_code.
+  sy-ucomm = ok_code.
+endmodule.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+data:save_ok like sy-ucomm.
+module user_command_0900 input.
+  save_ok = ok_code.
+  clear ok_code.
+  case save_ok.
+    when 'BACK' or 'EXIT' or 'CANCEL'.
+      perform getdata.
+      leave to screen 0.
+    when 'SAVE'.
+      perform save2ztmm226.
+    when 'ADD_ROW'.
+      perform add_row.
+    when 'DEL_ROW'.
+      perform del_row.
+
+  endcase.
+
+  clear:sy-ucomm.
+endmodule.
+
+form add_row."新增行
+  data:lv_selcount type i.
+
+  read table itab with key cb = 'X'.
+  clear it_tz.
+  move-corresponding itab to it_tz.
+  insert it_tz index 1.
+endform.
+
+form del_row."删除行
+  data:lv_selcount type i.
+
+  loop at it_tz where sel = 'X'.
+    lv_selcount = lv_selcount + 1.
+  endloop.
+  if lv_selcount <> 1.
+    message '请选中一行删除.' type 'I'.
+    return.
+  endif.
+  read table it_tz with key sel = 'X'.
+  delete it_tz index sy-tabix.
+endform.
+*&---------------------------------------------------------------------*
+*&      Module  UPDATE_JE  INPUT
+*&---------------------------------------------------------------------*
+*       当费用方式为吨价时，含税单价可编辑，维护后，含税金额，不含税单价，税额、不含税金额自动计算
+*----------------------------------------------------------------------*
+module update_je input.
+  if it_tz-zjsfs = 'DJ'.
+    clear:it_tz-zysje,it_tz-zbhsje,it_tz-zbhsdj,it_tz-zse.
+    it_tz-zysje  = it_tz-zwldj * it_tz-zzl ."含税金额
+    it_tz-zbhsje = it_tz-zwldj * it_tz-zzl - it_tz-zwldj * it_tz-zzl * '0.13'."不含税金额
+    it_tz-zbhsdj = it_tz-zwldj - it_tz-zwldj * '0.13'."不含税单价
+    it_tz-zse    = it_tz-zwldj * it_tz-zzl * '0.13'."税额
+  endif.
+endmodule.
+*&---------------------------------------------------------------------*
+*&      Module  UPDATE_DJ  INPUT
+*&---------------------------------------------------------------------*
+*       当费用方式为整车时，含税金额可编辑，维护后，税额、不含税金额自动计算。
+*----------------------------------------------------------------------*
+module update_dj input.
+  if it_tz-zjsfs = 'ZC'.
+    clear:it_tz-zwldj,it_tz-zbhsje,it_tz-zbhsdj,it_tz-zse.
+    if it_tz-zzl ne 0.
+      it_tz-zwldj    = it_tz-zysje / it_tz-zzl."含税单价
+      it_tz-zbhsdj   = it_tz-zysje / it_tz-zzl - it_tz-zysje / it_tz-zzl * '0.13'."不含税单价
+    endif.
+    it_tz-zbhsje   = it_tz-zysje - it_tz-zysje * '0.13'."不含税金额
+    it_tz-zse      = it_tz-zysje * '0.13'."税额
+  endif.
+endmodule.
+*&---------------------------------------------------------------------*
+*& Form save2ztmm226
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+form save2ztmm226 .
+  data:rtype type bapi_mtype,
+       rtmsg type bapi_msg.
+
+  clear: lv_zysje.
+  refresh it226.
+  read table itab with key cb = 'X'.
+  loop at it_tz ."where bcbs ne 'X'.
+    clear it226.
+    move-corresponding itab to it226.
+    move-corresponding it_tz to it226.
+    it226-zdh   = ''.
+    it226-zdjlx = 'TZ'.
+    it226-zzt   = '10'.
+    it226-zwhr  = sy-uname.
+    it226-zwhrq = sy-datum.
+    it226-zwhsj = sy-uzeit.
+    lv_zysje = lv_zysje + it_tz-zysje.
+    append it226.
+  endloop.
+  if it226[] is initial.
+    message s004 with '不要重复保存'.
+  else.
+    call function 'ZFM_YFMX002'
+      importing
+        rtype  = rtype
+        rtmsg  = rtmsg
+      tables
+        in_tab = it226[].
+    if rtype = 'S'.
+      loop at it_tz.
+        it_tz-bcbs = 'X'.
+        modify it_tz.
+      endloop.
+*Luzhenhua  - 运费分摊
+      perform: frm_updata_ztmm220.
+    endif.
+    message rtmsg type rtype.
+  endif.
+endform.
+*&---------------------------------------------------------------------*
+*& Form frm_updata_ztmm220
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+form frm_updata_ztmm220 .
+
+  data: lv_zccf type ztmm220-zccf,
+        msg     type bapi_msg.
+
+  clear: lv_zccf.
+
+  read table it_tz index 1.
+  if sy-subrc = 0.
+    case  it_tz-zywdh+0(3).
+      when 'DBD'.
+        select single from ztmm220
+           fields
+           *
+           where zdbdh = @it_tz-zywdh
+           into @data(ls_ztmm220).
+        if sy-subrc = 0 .
+          lv_zccf = lv_zysje.
+          lv_zysje = lv_zysje + ls_ztmm220-zysje.
+          lv_zccf  = lv_zccf  + ls_ztmm220-zccf.
+        endif.
+
+        if itab-zyflx = '10'.
+          update ztmm220 set zysje = lv_zysje
+                        where zdbdh = it_tz-zywdh.
+          perform yfft in program zmmd201a using it_tz-zywdh lv_zysje ls_ztmm220-zccf.
+        elseif itab-zyflx = '40'.
+          update ztmm220 set zccf = lv_zccf
+                         where zdbdh = it_tz-zywdh.
+          perform yfft in program zmmd201a using it_tz-zywdh ls_ztmm220-zysje lv_zccf.
+        endif.
+        commit work.
+
+      when 'DHT'.
+        select single from ztmm201
+          fields
+          *
+          where zdhdh  = @it_tz-zywdh
+           into @data(ls_ztmm201).
+        if sy-subrc = 0 .
+          lv_zysje = lv_zysje + ls_ztmm201-zysje.
+          ls_ztmm201-zysje = lv_zysje.
+        endif.
+        update ztmm201 set zysje = lv_zysje
+                           where zdhdh = it_tz-zywdh.
+        commit work.
+
+*Head
+        select from ztmm201
+          fields
+          *
+           where zdhdh  = @it_tz-zywdh
+             into  table @data(lt_ztmm201).
+*Item
+        select from ztmm202
+        fields
+        *
+         where zdhdh  = @it_tz-zywdh
+           into  table @data(lt_ztmm202).
+
+        perform ftysje  in program zrmm206a tables lt_ztmm202
+                                                   using ls_ztmm201.
+
+        call function 'ZFM_UPDDHDH'
+          importing
+            rtmsg     = msg
+          tables
+            i_ztmm201 = lt_ztmm201
+            i_ztmm202 = lt_ztmm202.
+
+      when 'WWF'.
+        select single from ztmm208
+                 fields
+                 *
+                 where zwwfno  = @it_tz-zywdh
+                  into @data(ls_ztmm208).
+        if sy-subrc = 0 .
+          lv_zysje = lv_zysje + ls_ztmm208-zysje.
+          ls_ztmm208-zysje = lv_zysje.
+        endif.
+        update ztmm208 set zysje = lv_zysje
+                                  where zwwfno = it_tz-zywdh.
+        commit work.
+*&Head
+        select from ztmm208
+          fields
+          *
+           where zwwfno  = @it_tz-zywdh
+         into  table @data(lt_ztmm208).
+*&Item
+        select from ztmm209
+          fields
+          *
+           where zwwfno  = @it_tz-zywdh
+        into  table @data(lt_ztmm209).
+
+        perform ftysje in program zrmm208a  tables lt_ztmm209
+                                                    using ls_ztmm208.
+        call function 'ZFM_UPDWWFNO'
+          importing
+            rtmsg     = msg
+          tables
+            i_ztmm208 = lt_ztmm208
+            i_ztmm209 = lt_ztmm209.
+
+    endcase.
+  endif.
+endform.

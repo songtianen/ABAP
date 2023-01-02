@@ -1,0 +1,3 @@
+字段	主键	数据元素	数据类型	长度	小数位	短文本	0
+ZLYDH		ZE_ZLYDH	CHAR	000013	000000	领用单号	0
+ZSPBS		ZE_ZSPBS	CHAR	000001	000000	审批标识	0

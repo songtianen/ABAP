@@ -1,0 +1,122 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD202_OOALV
+*&---------------------------------------------------------------------*
+DATA: go_flct TYPE lvc_t_fcat WITH HEADER LINE,
+      variant TYPE disvariant,
+      slayout TYPE lvc_s_layo,
+      go_grid TYPE REF TO cl_gui_alv_grid,
+      go_cont TYPE REF TO cl_gui_docking_container.
+DATA: gs_stable TYPE lvc_s_stbl.
+
+
+
+CLASS lcl_event_receiver DEFINITION DEFERRED .
+DATA: event_receiver TYPE REF TO lcl_event_receiver.
+
+*---------------------------------------------------------------------*
+*       CLASS lcl_event_receiver DEFINITION
+*---------------------------------------------------------------------*
+CLASS lcl_event_receiver DEFINITION.
+  PUBLIC SECTION.
+    METHODS handle_double_click
+      FOR EVENT double_click OF cl_gui_alv_grid
+      IMPORTING e_row e_column es_row_no.
+
+    METHODS handle_hotspot_click
+      FOR EVENT hotspot_click OF cl_gui_alv_grid
+      IMPORTING e_row_id e_column_id es_row_no.
+
+    METHODS handle_toolbar
+      FOR EVENT toolbar      OF cl_gui_alv_grid
+      IMPORTING e_object e_interactive.
+
+    METHODS handle_command
+      FOR EVENT user_command OF cl_gui_alv_grid
+      IMPORTING e_ucomm.
+
+    METHODS:handle_onf4 FOR EVENT onf4 OF cl_gui_alv_grid
+      IMPORTING e_fieldname
+                es_row_no
+                er_event_data.
+
+    METHODS:handle_changed FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING er_data_changed.
+ENDCLASS.                    "lcl_event_receiver DEFINITION
+
+*---------------------------------------------------------------------*
+*       CLASS lcl_event_receiver IMPLEMENTATION
+*---------------------------------------------------------------------*
+CLASS lcl_event_receiver IMPLEMENTATION.
+  METHOD handle_double_click.
+    PERFORM athdouble_click USING e_row e_column es_row_no.
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD handle_hotspot_click.
+*    PERFORM athotclick USING e_row_id e_column_id es_row_no.
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD handle_toolbar.
+    PERFORM attoolbar USING e_object e_interactive .
+  ENDMETHOD.                    "handle_double_click
+
+  METHOD handle_command.
+    CASE e_ucomm.
+      WHEN 'SELALL'.
+*        PERFORM sub_select_all.
+      WHEN 'DESALL'.
+*        PERFORM sub_deselect_all.
+    ENDCASE.
+    CALL METHOD go_grid->refresh_table_display
+      EXPORTING
+        is_stable = gs_stable.
+  ENDMETHOD.
+
+  METHOD handle_onf4.
+    CASE e_fieldname.
+      WHEN 'ZCONT'.
+*        PERFORM handle_onf4_help USING e_fieldname
+*                                       es_row_no
+*                                       er_event_data .
+    ENDCASE.
+
+  ENDMETHOD.                    "charg_onf4_help
+
+  METHOD handle_changed.
+
+*    PERFORM handle_data_changed CHANGING er_data_changed.
+
+  ENDMETHOD.                    "HANDLE_CHANGED_DATA
+
+ENDCLASS.                    "lcl_event_receiver IMPLEMENTATION
+
+FORM athdouble_click  USING p_e_row TYPE lvc_s_row p_e_column p_es_row_no.
+  CHECK p_e_row-index IS NOT INITIAL.
+  READ TABLE itab INDEX p_e_row-index.
+
+  CASE p_e_column.
+    WHEN 'MATNR'.
+      CHECK itab-matnr IS NOT INITIAL.
+      SET PARAMETER ID 'MAT' FIELD itab-matnr.
+      CALL TRANSACTION 'MM03' AND SKIP FIRST SCREEN.
+    WHEN 'VBELN'.
+      CHECK itab-vbeln IS NOT INITIAL.
+      SET PARAMETER ID 'AUN' FIELD itab-vbeln.
+      CALL TRANSACTION 'VA03' AND SKIP FIRST SCREEN.
+    WHEN OTHERS.
+      RETURN.
+  ENDCASE.
+ENDFORM.
+FORM attoolbar  USING p_e_object  TYPE REF TO cl_alv_event_toolbar_set p_e_interactive.
+  DATA: ls_toolbar TYPE stb_button.
+  CLEAR: ls_toolbar.
+  ls_toolbar-butn_type = 3. " 分隔符
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+  CLEAR: ls_toolbar.
+  ls_toolbar-function = 'ZCRT'.    " 功能码
+  ls_toolbar-icon = icon_execute_object.  " 图标名称
+  ls_toolbar-quickinfo = '生成单据号'.   " 图标的提示信息
+  ls_toolbar-butn_type = 0.        " 0表示正常按钮
+  ls_toolbar-disabled = ''.        " X表示灰色，不可用
+  ls_toolbar-text = '单据号'.       " 按钮上显示的文本
+  APPEND ls_toolbar TO p_e_object->mt_toolbar.
+ENDFORM.

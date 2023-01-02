@@ -1,0 +1,6 @@
+*&---------------------------------------------------------------------*
+*&  Include           ERP_CVP_MM_I3_C_TRX0014
+*&---------------------------------------------------------------------*
+* Called from UIs for material maintenance MM0x
+* Prevent new assignment of a blocked manufacturer.
+  MESSAGE e707(mm) WITH mara-mfrnr.

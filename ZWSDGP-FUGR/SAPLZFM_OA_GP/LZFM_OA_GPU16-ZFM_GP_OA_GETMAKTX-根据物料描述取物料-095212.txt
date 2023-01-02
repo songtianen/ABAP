@@ -1,0 +1,44 @@
+FUNCTION zfm_gp_oa_getmaktx.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(MAKTX) TYPE  MAKTX OPTIONAL
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"  TABLES
+*"      OUT_T STRUCTURE  ZMM_GETMAKTX
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_GETMAKTX'.  zfmdatasave2 'B'.  COMMIT WORK.
+  DATA:it_makt TYPE TABLE OF makt,
+       txt     TYPE string,
+       wa_makt TYPE makt.
+  txt = '%' && maktx && '%'.
+*select matnr
+*       maktx
+*  INTO CORRESPONDING FIELDS OF TABLE it_makt
+*  FROM makt
+*  where maktx like txt
+*  and SPRAS = sy-langu.
+
+  SELECT
+ marc~matnr
+ makt~maktx
+ INTO CORRESPONDING FIELDS OF TABLE it_makt[]
+ FROM marc
+ JOIN makt ON marc~matnr = makt~matnr AND makt~spras = sy-langu
+ JOIN mara ON marc~matnr = mara~matnr
+ LEFT JOIN t001w ON marc~werks = t001w~werks
+ WHERE mara~lvorm NE 'X' AND  makt~maktx LIKE txt
+ AND marc~werks = werks.
+
+  LOOP AT it_makt INTO wa_makt.
+    out_t-matnr = wa_makt-matnr.
+    out_t-maktx = wa_makt-maktx.
+    APPEND out_t.
+  ENDLOOP.
+
+
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

@@ -1,0 +1,47 @@
+*-----------------------------------------------------------------------
+*  Module MARA-PRDHA
+*  Pr¨¹fung der Produkthierarchie auf Mandantenebene.
+*  Es wird eine Warnung ausgegeben, wenn die Produkthierarchie
+*  vorgegeben wird, aber bereits Detaildaten auf MVKE-Ebene
+*  vorhanden sein k#nnten (aus Performance-Gr¨¹nden wird die
+*  MVKE nicht extra f¨¹r diese Pr¨¹fung gelesen)
+*  Diese Pr¨¹fung findet nur statt, wenn die Produkthierarchie
+*  ge#ndert wurde (on chain-request nicht m#glich, wegen Vorlage-Daten)
+*-----------------------------------------------------------------------
+MODULE MARA-PRDHA.
+
+  CHECK BILDFLAG = SPACE.
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+*mk/4.0 Kopie LMGD2I05 wieder mit Original LMGD1I01 vereint
+*  Pr¨¹fung f¨¹r Retail nicht g¨¹ltig, da Daten-Durchreichung   "BE/310796
+  CHECK RMMG2-FLG_RETAIL IS INITIAL.   "BE/310796
+
+  CALL FUNCTION 'MARA_PRDHA'
+       EXPORTING
+            MARA_PRDHA = MARA-PRDHA
+            RET_PRDHA  = LMARA-PRDHA
+            P_MESSAGE  = ' '
+       TABLES
+            PTAB_IN    = PTAB.
+
+ENDMODULE.
+
+
+*&---------------------------------------------------------------------*
+*& Module PRDHA_VISIBILITY OUTPUT
+*&---------------------------------------------------------------------*
+*& *****  In cloud Product Hierarchy should be hidden
+*&---------------------------------------------------------------------*
+MODULE prdha_visibility OUTPUT.
+*****  In cloud Product Hierarchy should be hidden
+  IF cl_cos_utilities=>is_cloud( ) = abap_true.
+     LOOP AT SCREEN.
+       CHECK screen-name = 'MARA-PRDHA'.
+       screen-invisible = 1.
+       screen-active    = 0.
+       screen-input     = 0.
+       MODIFY SCREEN.
+     ENDLOOP.
+  ENDIF.
+ENDMODULE.

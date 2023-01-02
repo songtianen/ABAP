@@ -1,0 +1,124 @@
+FUNCTION zfm_gp_oa_pp_pcdsp_jj.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      INTAB STRUCTURE  ZSPP_225
+*"      TRESULT STRUCTURE  ZSMM_017 OPTIONAL
+*"----------------------------------------------------------------------
+*20211117添加发货合同同步ecp by kkw。
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_PP_PCDSP_JJ'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:wa_205  TYPE ztpp_205,
+       it_205a TYPE TABLE OF ztpp_205a WITH HEADER LINE,
+       it_205b TYPE TABLE OF ztpp_205b WITH HEADER LINE.
+
+  DATA:id TYPE i.
+  CLEAR:id.
+  REFRESH:tresult,it_205a,it_205b.
+
+  CHECK intab[] IS NOT INITIAL.
+  LOOP AT intab.
+    AT NEW zpcdh.
+      id = id + 1.
+    ENDAT.
+  ENDLOOP.
+  IF id NE 1.
+    CLEAR:tresult.
+    tresult-flag = 'E'.
+    tresult-message = '排产单号不唯一'.
+    APPEND tresult.
+    rtype = tresult-flag.
+    rtmsg = tresult-message.
+    EXIT.
+  ENDIF.
+
+  READ TABLE intab INDEX 1.
+*审核状态
+  CLEAR:wa_205.
+*取出原本的
+  SELECT SINGLE *
+    INTO wa_205
+    FROM ztpp_205
+    WHERE zpcdh = intab-zpcdh.
+  IF sy-subrc NE 0.
+    CLEAR:tresult.
+    tresult-flag = 'E'.
+    tresult-message = '未找到排产单号'.
+    APPEND tresult.
+    rtype = tresult-flag.
+    rtmsg = tresult-message.
+    EXIT.
+  ENDIF.
+  wa_205-zaduit = intab-zaduit.
+  UPDATE ztpp_205 SET zaduit = intab-zaduit.
+  UPDATE ztpp_205b SET
+  zyf       = intab-zyf
+  zcdtx     = intab-zcdtx
+  zqy       = intab-zqy
+  zbzfs     = intab-zbzfs
+  zdbfs     = intab-zdbfs
+  zzyyq     = intab-zzyyq
+  zqgxx     = intab-zqgxx
+  zcj       = intab-zcj
+  zbcdzf    = intab-zbcdzf
+  zgjsyyq   = intab-zgjsyyq
+  zbhhsf    = intab-zbhhsf
+  zlzjbdj   = intab-zlzjbdj
+  zsfgd     = intab-zsfgd
+  zgdpcdh   = intab-zgdpcdh
+  zqtjj     = intab-zqtjj
+  zqtjjbz   = intab-zqtjjbz
+  zcxgddsf  = intab-zcxgddsf
+  zcxgsl    = intab-zcxgsl
+  zcxgdj    = intab-zcxgdj
+  zkdddsf   = intab-zkdddsf
+  zkdsl     = intab-zkdsl
+  zkddj     = intab-zkddj
+  zjjddsf   = intab-zjjddsf
+  zjjsl     = intab-zjjsl
+  zjjdj     = intab-zjjdj
+*  zgkcb     = intab-zgkcb
+*  zkhml     = intab-zkhml
+*  zjcml     = intab-zjcml
+*  zmldcl    = intab-zmldcl
+*  zwbdj     = intab-zwbdj
+*  znbdj     = intab-znbdj
+*  zzzfy     = intab-zzzfy
+*  zfcfy     = intab-zfcfy
+*  zxcjg     = intab-zxcjg
+*  zbcdzf    = intab-zlgjj
+*  zbzjj     = intab-zbzjj
+  WHERE zpcdh = intab-zpcdh.
+  LOOP AT intab.
+    UPDATE ztpp_205a SET
+    zzhankuan   = intab-zzk
+    zxishu      = intab-zxs
+  zgkcb     = intab-zgkcb
+  zkhml     = intab-zkhml
+  zjcml     = intab-zjcml
+  zmldcl    = intab-zmldcl
+  zwbdj     = intab-zwbdj
+  znbdj     = intab-znbdj
+  zzzfy     = intab-zzzfy
+  zfcfy     = intab-zfcfy
+  zxcjg     = intab-zxcjg
+*  zbcdzf    = intab-zbcdzf
+  zbzjj     = intab-zbzjj
+    WHERE zpcdh = intab-zpcdh AND zpcdhh = intab-zpchhh.
+
+  ENDLOOP.
+
+  CLEAR:tresult.
+  tresult-flag = 'S'.
+  tresult-message = '更新成功'.
+  rtype = tresult-flag.
+  rtmsg = tresult-message.
+  COMMIT WORK.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

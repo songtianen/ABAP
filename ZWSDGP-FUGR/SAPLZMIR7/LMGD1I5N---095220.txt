@@ -1,0 +1,23 @@
+*&---------------------------------------------------------------------*
+*&      Module  ME_SETZEN_NACHRICHT_I  INPUT
+*&---------------------------------------------------------------------*
+*       Pr¨¹fungen, die vor OKCODE_MEINH_I laufen m¨¹ssen                *
+*----------------------------------------------------------------------*
+MODULE ME_SETZEN_NACHRICHT_I INPUT.
+
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+*-----Pr¨¹fen, ob Kennungen BME, BSTME, VRKME, AUSME korrekt gesetzt.
+  IF ME_FEHLERFLG = SPACE AND BILDFLAG IS INITIAL.
+    PERFORM PRUEFEN_KZME.
+    IF ME_FEHLERFLG NE SPACE.          "Fehler bei KZME
+      CLEAR RMMZU-OKCODE.    "L#schen OKCODE, da diese Pr¨¹fung vor
+      IF BILDFLAG IS INITIAL."L#schen ME durchgef¨¹hrt wird und sonst
+        BILDFLAG = X.        "Cursor ev. falsch poitioniert ist
+*       MESSAGE ...       "wird in PRUEFEN_KZME gesetzt
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+
+ENDMODULE.                             " ME_SETZEN_NACHRICHT_I  INPUT

@@ -1,0 +1,411 @@
+*&---------------------------------------------------------------------*
+*& Report ZFI205
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zfi205.
+TYPE-POOLS: slis.
+TABLES: coep, zacdoca,csks,csku.
+DATA: BEGIN OF item OCCURS 0,
+        kstar    TYPE coep-kstar,
+        ktext    TYPE csku-ktext,
+        objnr    TYPE coep-objnr,
+        objnr1   TYPE coep-objnr,
+        ktext1   TYPE cskt-ktext,
+        wogbtr   TYPE coep-wogbtr, "实际金额
+        wogbtr1  TYPE coep-wogbtr, "计划金额
+        wogbtr1p TYPE coep-wogbtr, "差异
+        wogbtr2  TYPE coep-wogbtr, "去年同期实际金额
+        wogbtr2p TYPE coep-wogbtr, "同比
+        wogbtr3  TYPE coep-wogbtr, "上月实际金额
+        wogbtr3p TYPE coep-wogbtr, "环比
+        wrttp    TYPE coep-wrttp,
+        versn    TYPE coep-versn,
+        beknz    TYPE coep-beknz,
+        gjahr    TYPE coep-gjahr,
+        perio    TYPE coep-perio,
+        bukrs    TYPE coep-bukrs,
+      END OF item.
+DATA: itab LIKE STANDARD TABLE OF item WITH HEADER LINE.
+DATA:fieldcat        TYPE slis_t_fieldcat_alv,
+     is_layout       TYPE slis_layout_alv,
+     i_grid_settings TYPE lvc_s_glay.
+
+DATA: BEGIN OF detail OCCURS 0,
+        belnr  TYPE acdoca-belnr,
+        rbukrs TYPE acdoca-rbukrs,
+        gjahr  TYPE acdoca-gjahr,
+        racct  TYPE acdoca-racct,
+        rcntr  TYPE acdoca-rcntr,
+        hsl    TYPE acdoca-hsl,
+        budat  TYPE acdoca-budat,
+        rwcur  TYPE acdoca-rwcur,
+      END OF detail.
+CLASS lcl_handle_events DEFINITION DEFERRED.
+CLASS lcl_handle_events DEFINITION.
+  PUBLIC SECTION.
+    METHODS:
+      on_link_click FOR EVENT link_click OF cl_salv_events_table
+        IMPORTING row column.
+ENDCLASS.                    "lcl_handle_events DEFINITION
+CLASS lcl_handle_events IMPLEMENTATION.
+  METHOD on_link_click.
+    PERFORM show_cell_info USING row column TEXT-i06.
+  ENDMETHOD.                    "on_single_click
+ENDCLASS.                    "lcl_handle_events IMPLEMENTATION
+FORM show_cell_info USING i_row    TYPE i
+                          i_column TYPE lvc_fname
+                          i_text   TYPE string.
+
+*  DATA: l_row_string TYPE string,
+*        l_col_string TYPE string,
+*        l_row        TYPE char128.
+*
+*  WRITE i_row TO l_row LEFT-JUSTIFIED.
+*
+*  CONCATENATE TEXT-i02 l_row INTO l_row_string SEPARATED BY space.
+*  CONCATENATE TEXT-i03 i_column INTO l_col_string SEPARATED BY space.
+*
+*  MESSAGE i000(0k) WITH i_text l_row_string l_col_string.
+  READ TABLE detail INTO DATA(wa_detail) INDEX i_row.
+  PERFORM fb03(zpubform) USING wa_detail-belnr wa_detail-gjahr wa_detail-rbukrs ''.
+
+ENDFORM.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:
+    s_bukrs FOR coep-bukrs  NO INTERVALS NO-EXTENSION,
+    s_gjahr  FOR coep-gjahr NO INTERVALS NO-EXTENSION,
+    s_PERIO FOR coep-perio,
+    s_kostl FOR csks-kostl,
+    s_ktopl FOR csku-ktopl.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+INITIALIZATION.
+  %_s_bukrs_%_app_%-text = '公司代码'.
+  %_s_gjahr_%_app_%-text = '会计年度'.
+  %_s_perio_%_app_%-text = '会计期间'.
+  %_s_kostl_%_app_%-text = '成本中心'.
+  %_s_ktopl_%_app_%-text = '科目表'.
+
+START-OF-SELECTION.
+  PERFORM getdata.
+  PERFORM alvshow.
+
+FORM getdata.
+  SELECT
+  kstar,
+  objnr,
+  wogbtr,
+  wrttp,
+  versn,
+*  beknz,
+  gjahr,
+  perio,
+  bukrs
+  FROM coep
+  WHERE bukrs IN @s_bukrs
+  AND gjahr IN @s_gjahr
+  AND perio IN @s_perio
+  AND objnr LIKE 'KSWISD%'
+  AND wrttp = '04'
+  AND versn = '000'
+  INTO CORRESPONDING FIELDS OF TABLE @item.
+
+  SELECT
+  racct AS kstar,
+  rcntr AS objnr,
+  hsl AS wogbtr,
+*  drcrk AS beknz,
+  gjahr,
+  poper AS perio,
+  rbukrs AS bukrs
+  FROM  zacdoca
+  WHERE rbukrs IN @s_bukrs
+  AND rebzj IN @s_gjahr
+  AND poper IN @s_perio
+  APPENDING CORRESPONDING FIELDS OF TABLE @item.
+  LOOP AT item.
+    MOVE-CORRESPONDING item TO itab.
+    COLLECT itab.
+  ENDLOOP.
+  CLEAR: item[].
+  item[] = itab[].
+  SORT item BY kstar gjahr perio beknz.
+  LOOP AT item.
+    IF strlen( item-objnr ) > 10.
+      item-objnr1 = item-objnr+6(10).
+    ENDIF.
+    SELECT SINGLE ktext
+    INTO item-ktext
+    FROM csku
+    WHERE kstar = item-kstar.
+    SELECT SINGLE ktext
+    INTO item-ktext1
+    FROM cskt
+    WHERE kostl = item-objnr1.
+*计划金额
+    SELECT SUM( wogbtr )
+      INTO item-wogbtr1
+      FROM coep
+      WHERE   kstar = item-kstar
+      AND objnr = item-objnr
+      AND wrttp = '1'
+      AND versn = '0'
+      AND perio = item-perio.
+*去年金额
+    DATA(ls_gjahr) = item-gjahr - 1.
+    SELECT SUM(  wogbtr )
+      INTO item-wogbtr2
+      FROM coep
+      WHERE kstar = item-kstar
+      AND objnr = item-objnr
+      AND gjahr = ls_gjahr
+      AND wrttp = '4'
+      AND versn = '0'
+      AND perio = item-perio.
+*上月金额
+    DATA(ls_perio) =  item-perio - 1.
+    SELECT SUM( wogbtr )
+      INTO item-wogbtr3
+      FROM coep
+      WHERE kstar = item-kstar
+      AND objnr = item-objnr
+      AND wrttp = '4'
+      AND versn = '0'
+      AND gjahr = item-gjahr
+      AND PERio = ls_perio.
+*差异
+    IF item-wogbtr1 IS NOT INITIAL.
+      item-wogbtr1p = ( item-wogbtr - item-wogbtr1 ) * 100 / item-wogbtr1 .
+    ENDIF.
+*同比
+    IF item-wogbtr2 IS NOT INITIAL.
+      item-wogbtr2p = ( item-wogbtr - item-wogbtr2 ) * 100 / item-wogbtr2.
+    ENDIF.
+*环比
+    IF item-wogbtr3 IS NOT INITIAL.
+      item-wogbtr3p = ( item-wogbtr - item-wogbtr3 ) * 100 / item-wogbtr3.
+    ENDIF.
+
+    MODIFY item.
+  ENDLOOP.
+
+ENDFORM.
+
+FORM alvshow.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING:
+  'KSTAR' '会计科目' '' '' '' '',
+  'KTEXT' '会计科目描述' '' '' '' '',
+  'OBJNR1' '成本中心' '' '' '' '',
+  'KTEXT1' '成本中心描述' '' '' '' '',
+  'WOGBTR' '实际金额' '' '' '' '',
+  'WOGBTR1' '计划金额' '' '' '' '',
+  'WOGBTR1P' '差异' '' '' '' '',
+  'WOGBTR2' '去年同期实际金额' '' '' '' '',
+  'WOGBTR2P' '同比' '' '' '' '',
+  'WOGBTR3' '上月实际金额' '' '' '' '',
+  'WOGBTR3P' '环比' '' '' '' '',
+  'WRTTP' '值类型' '' '' '' '',
+  'VERSN' '版本' '' '' '' '',
+*  'BEKNZ' '借贷标识' '' '' '' '',
+  'GJAHR' '会计年度' '' '' '' '',
+  'PERIO' '期间' '' '' '' '',
+  'BUKRS' '公司编码' '' '' '' ''.
+*自适应宽度与斑马线
+  is_layout-zebra = 'X'.
+  is_layout-colwidth_optimize = 'X'.
+*存在可编辑字段
+  i_grid_settings-edt_cll_cb = 'X'.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      it_fieldcat              = fieldcat[]
+      i_save                   = 'A'
+      is_layout                = is_layout
+      i_grid_settings          = i_grid_settings
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+    TABLES
+      t_outtab                 = item[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+ENDFORM.
+
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD' EXCLUDING lt_exfcode.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+
+  CASE r_ucomm.
+    WHEN '&IC1'."单击/双击响应
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE item INTO DATA(wa) INDEX rs_selfield-tabindex.
+      PERFORM showdetail USING wa-kstar wa-objnr1.
+*      CASE rs_selfield-fieldname.
+*        WHEN 'VBELN'.
+*          PERFORM va03(zpubform) USING wa-vbeln.
+*        WHEN 'BSTKD'.
+*          PERFORM va43(zpubform) USING wa-bstkd.
+*
+*      ENDCASE.
+
+  ENDCASE.
+
+*ALV实时刷新
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.
+
+FORM showdetail USING p_kstar p_objnr1.
+  DATA: go_alv    TYPE REF TO cl_salv_table,
+        go_funlst TYPE REF TO cl_salv_functions_list.
+  DATA: cxroot TYPE REF TO cx_root,
+        excmsg TYPE c.
+  CLEAR:go_alv,go_funlst.
+
+  SELECT
+    belnr,
+    rbukrs,
+    gjahr,
+    racct,
+    rcntr,
+    hsl,
+    budat,
+    rwcur
+    FROM acdoca
+    WHERE racct = @p_kstar
+    AND rcntr = @p_objnr1
+    INTO TABLE @detail.
+  SELECT
+    belnr,
+
+    rbukrs,
+    gjahr,
+    racct,
+    rcntr,
+    hsl,
+    budat,
+    rwcur
+    FROM zacdoca
+    WHERE racct = @p_kstar
+    AND rcntr = @p_objnr1
+    APPENDING CORRESPONDING FIELDS OF TABLE @detail.
+
+  IF detail[] IS NOT INITIAL.
+    TRY.
+        cl_salv_table=>factory(
+        IMPORTING
+        r_salv_table = go_alv   "导出ALV的容器对象
+        CHANGING
+        t_table = detail[] ).  "内容表
+      CATCH cx_root INTO cxroot.
+        excmsg = cxroot->get_text( ).
+        MESSAGE e000(oo) WITH excmsg.
+    ENDTRY.
+
+    go_funlst = go_alv->get_functions( ).
+    go_funlst->set_all( 'X' ).
+
+*... set the columns technical
+    DATA: lr_columns TYPE REF TO cl_salv_columns,
+          lr_column  TYPE REF TO cl_salv_column_table.
+    DATA: gr_events TYPE REF TO lcl_handle_events.
+    CONSTANTS: gc_true  TYPE sap_bool VALUE 'X'.
+    lr_columns = go_alv->get_columns( ).
+    lr_columns->set_optimize( gc_true ).
+
+    PERFORM set_columns_technical USING lr_columns.
+    TRY.
+        lr_column ?= lr_columns->get_column( 'BELNR' ).
+        lr_column->set_cell_type( if_salv_c_cell_type=>hotspot ).
+      CATCH cx_salv_not_found.                          "#EC NO_HANDLER
+    ENDTRY.
+    DATA: lr_events TYPE REF TO cl_salv_events_table.
+    lr_events = go_alv->get_event( ).
+    CREATE OBJECT gr_events.
+    SET HANDLER gr_events->on_link_click FOR lr_events.
+
+
+
+    "重新设置列名称
+    TRY.
+        go_alv->get_columns( )->get_column( 'HSL' )->set_short_text( '实际金额' )."
+      CATCH cx_salv_not_found.                          "#EC NO_HANDLER
+    ENDTRY.
+
+    IF go_alv IS BOUND."设置窗口大小与位置-
+      go_alv->set_screen_popup(
+      start_column = 30
+      end_column = 160
+      start_line = 5
+      end_line = 20 ).
+      go_alv->display( ).
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+FORM set_columns_technical USING ir_columns TYPE REF TO cl_salv_columns.
+
+  DATA: lr_column TYPE REF TO cl_salv_column.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'MANDT' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'FLOAT_FI' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'STRING_F' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'XSTRING' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'INT_FIEL' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'HEX_FIEL' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'DROPDOWN' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = ir_columns->get_column( 'TAB_INDEX' ).
+      lr_column->set_technical( if_salv_c_bool_sap=>true ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+ENDFORM.                    " set_columns_technical(

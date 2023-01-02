@@ -1,0 +1,153 @@
+FUNCTION ZFM_GPBX_MES_PP_CONSUMED.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(FLAG) TYPE  BAPI_MTYPE
+*"     VALUE(MESSAGE) TYPE  BAPI_MSG
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(MBLNR) TYPE  MBLNR
+*"     VALUE(MJAHR) TYPE  MJAHR
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSPP_217
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_GPBX_MES_PP_CONSUMED'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+  DATA: LS_HEADER           TYPE BAPI2017_GM_HEAD_01,
+        LS_CODE             TYPE BAPI2017_GM_CODE,
+        LT_ITEM             TYPE STANDARD TABLE OF BAPI2017_GM_ITEM_CREATE,
+        LS_ITEM             TYPE BAPI2017_GM_ITEM_CREATE,
+        LT_RETURN           TYPE STANDARD TABLE OF BAPIRET2,
+        LS_RETURN           TYPE BAPIRET2,
+        LV_MATERIALDOCUMENT TYPE BAPI2017_GM_HEAD_RET-MAT_DOC,
+        LV_MATDOCUMENTYEAR  TYPE BAPI2017_GM_HEAD_RET-DOC_YEAR.
+  DATA:MSG3 TYPE STRING.
+  DATA:ID TYPE I VALUE 0.
+  IF IN_TAB[] IS INITIAL.
+    FILL_MSGBX 'E' '投料明细不能为空.'.
+  ENDIF.
+  " 校验每个字段都不能为空  12.10.2022 09:33:13 by kkw
+  CLEAR MSG3.
+  LOOP AT IN_TAB.
+    DO 6 TIMES.
+      ASSIGN COMPONENT SY-INDEX OF STRUCTURE IN_TAB TO FIELD-SYMBOL(<FS>).
+      IF SY-SUBRC EQ 0 AND <FS> IS INITIAL.
+        MSG3 = MSG3 && '/第' && SY-TABIX && '行,第' && SY-INDEX && '列不能为空'.
+      ENDIF.
+    ENDDO.
+    AT NEW CORRELATIONNO.
+      ID = ID + 1.
+    ENDAT.
+  ENDLOOP.
+  IF ID NE 1.
+    MSG3 = MSG3 && '/工单号不唯一'.
+  ENDIF.
+  IF MSG3 IS NOT INITIAL.
+    FILL_MSGBX 'E' MSG3 .
+  ENDIF.
+  READ TABLE IN_TAB INDEX 1.
+  DATA(AUFNR) = |{ IN_TAB-CORRELATIONNO ALPHA = IN }|.
+  SELECT COUNT( * ) FROM AFKO WHERE AUFNR = AUFNR.
+  IF SY-SUBRC NE 0.
+    DATA(MSG) = 'SAP查无工单:' && AUFNR.
+    FILL_MSGBX 'E' MSG .
+  ENDIF.
+  " BOM独立、集中  14.10.2022 10:29:40 by kkw
+  SELECT SINGLE
+    MARC~SBDKZ,
+    MARC~XCHPF
+    INTO ( @DATA(SBDKZ),@DATA(XCHPF) )
+    FROM MARC
+    WHERE MATNR = @IN_TAB-PRODUCTCODE AND WERKS = @IN_TAB-WERKS.
+
+  SELECT SINGLE
+*    prps~pspnr
+    PRPS~POSID
+    INTO ( @DATA(POSID) )
+   FROM RESB
+    JOIN PRPS ON RESB~PSPEL = PRPS~PSPNR
+   WHERE AUFNR = @AUFNR.
+  "抬头数据
+  LS_HEADER-PSTNG_DATE = SY-DATUM.
+  LS_HEADER-DOC_DATE = SY-DATUM.
+  LS_HEADER-PR_UNAME = SY-UNAME.
+  LS_HEADER-HEADER_TXT = '博兴MES'.
+  "分配事务代码--过账码
+  LS_CODE-GM_CODE = '05'.
+
+  "ITEM
+  REFRESH:LT_ITEM,LT_RETURN.
+  LOOP AT IN_TAB.
+    CLEAR LS_ITEM.
+    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+      EXPORTING
+        INPUT  = IN_TAB-PRODUCTCODE
+      IMPORTING
+        OUTPUT = LS_ITEM-MATERIAL
+*     EXCEPTIONS
+*       LENGTH_ERROR       = 1
+*       OTHERS = 2
+      .
+*    ls_item-material = in_tab-productcode.             "料号
+    LS_ITEM-PLANT = IN_TAB-WERKS.                 "工厂
+    LS_ITEM-STGE_LOC = IN_TAB-WMSNO.              "库存地点
+    LS_ITEM-MOVE_TYPE = '261'.                    "移动类型（库存管理）
+    LS_ITEM-ORDERID =   AUFNR.             "工单
+*    ls_item-reserv_no = gs_alv-rsnum.             "预留/相关需求的编号 RESB~RSNUM
+*    ls_item-res_item = gs_alv-rspos.              "预留/相关需求的项目编号 RESB~RSPOS
+*    SELECT SINGLE rsnum rspos INTO ( ls_item-reserv_no, ls_item-res_item ) FROM resb WHERE aufnr = ls_item-orderid .
+    " wbs  q库存  14.10.2022 10:49:41 by kkw
+    IF IN_TAB-POSID IS NOT INITIAL.
+      LS_ITEM-VAL_WBS_ELEM = IN_TAB-POSID.
+      LS_ITEM-SPEC_STOCK = 'Q'.
+    ENDIF.
+*    IF SBDKZ = '1'.
+**      ls_item-wbs_elem = posid.
+*      LS_ITEM-VAL_WBS_ELEM = POSID.
+*      LS_ITEM-SPEC_STOCK = 'Q'.
+*    ENDIF.
+    LS_ITEM-ENTRY_QNT = IN_TAB-JSQTY.           "发料数量
+    LS_ITEM-ENTRY_UOM = IN_TAB-UNIT.             "计量单位
+    IF XCHPF = 'X'.
+      LS_ITEM-BATCH = IN_TAB-WMSPC.
+    ENDIF.
+    APPEND LS_ITEM TO LT_ITEM.
+  ENDLOOP.
+
+  "BAPI
+  CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+    EXPORTING
+      GOODSMVT_HEADER  = LS_HEADER
+      GOODSMVT_CODE    = LS_CODE
+    IMPORTING
+      MATERIALDOCUMENT = LV_MATERIALDOCUMENT
+      MATDOCUMENTYEAR  = LV_MATDOCUMENTYEAR
+    TABLES
+      GOODSMVT_ITEM    = LT_ITEM
+      RETURN           = LT_RETURN.
+
+  IF ( LINE_EXISTS( LT_RETURN[ TYPE = 'A' ] ) ) OR ( LINE_EXISTS( LT_RETURN[ TYPE = 'E' ] ) ) OR ( LINE_EXISTS( LT_RETURN[ TYPE = 'X' ] ) ).
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+    DATA: LT_MSG_TAB TYPE ESP1_MESSAGE_TAB_TYPE,
+          WA_MSG_TAB LIKE LINE OF LT_MSG_TAB.
+    DATA:MSG1 TYPE BAPI_MSG.
+    CLEAR MSG1.
+    LOOP AT LT_RETURN INTO LS_RETURN WHERE TYPE CA 'AEX'.
+      CONCATENATE '错误：' LS_RETURN-MESSAGE INTO MSG1.
+    ENDLOOP.
+    FILL_MSGBX 'E' MSG1 .
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        WAIT = 'X'.
+    DATA(CC) = |261生产投料成功,凭证号:{ LV_MATERIALDOCUMENT }|.
+    FILL_MSGBX 'S' CC .
+    MBLNR = LV_MATERIALDOCUMENT.
+    MJAHR = LV_MATDOCUMENTYEAR.
+  ENDIF.
+
+
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

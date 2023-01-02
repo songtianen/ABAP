@@ -1,0 +1,12 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV13                                                   *
+*----------------------------------------------------------------------*
+
+*--- Herkunft f¨¹r Tabelle T130R --------------------------------------
+CONSTANTS:
+       HERKUNFT_DIAL   LIKE T130R-TBHER VALUE ' ',
+       HERKUNFT_DIALRF LIKE T130R-TBHER VALUE 'R',
+       HERKUNFT_LVORM  LIKE T130R-TBHER VALUE 'G',
+       HERKUNFT_BTCI   LIKE T130R-TBHER VALUE 'B',
+       HERKUNFT_UEBN   LIKE T130R-TBHER VALUE 'U',
+       HERKUNFT_MATL   LIKE T130R-TBHER VALUE 'Z'.

@@ -1,0 +1,7 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZRFI202	ZSPUBS_0001	日期时间通用结构	结构				
+ZRFI202	ZSPUBS_0002	创建日期结构	结构				
+ZRFI202	ZTFI203	研发生产阶段配置表	透明表				
+ZRFI202	ZTFI204	研发金额比例调整配置表	透明表				
+ZRFI202	ZTFIRD_MATDATA	研发项目投料	透明表				
+ZRFI202	ZTNUMS_UPDATE	按工厂流水（日/年/月/周清零）	透明表				

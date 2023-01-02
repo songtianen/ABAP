@@ -1,0 +1,54 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201_CPXZPAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZCPXZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zcpxz_con_modify INPUT.
+  MODIFY it316
+    INDEX zcpxz_con-current_line.
+  CLEAR:zdbsl_in,meins_in.
+  LOOP AT it316 INTO DATA(wa316).
+    zdbsl_in = zdbsl_in + wa316-zdbsl_in.
+    meins_in = wa316-meins_in.
+  ENDLOOP.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZCPXZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zcpxz_con_mark INPUT.
+  DATA: g_ZCPXZ_CON_wa2 LIKE LINE OF it316.
+  IF zcpxz_con-line_sel_mode = 1
+  AND it316-sel = 'X'.
+    LOOP AT it316 INTO g_ZCPXZ_CON_wa2
+      WHERE sel = 'X'.
+      g_ZCPXZ_CON_wa2-sel = ''.
+      MODIFY it316
+        FROM g_ZCPXZ_CON_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it316
+    INDEX zcpxz_con-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZCPXZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zcpxz_con_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZCPXZ_CON'
+                              'IT316'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  UPD_ZDBSL_IN  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE upd_zdbsl_in INPUT.
+  CLEAR it316-zdbsl_in.
+  it316-zdbsl_in = it316-zzk_in * it316-zcd * it316-zxs.
+ENDMODULE.

@@ -1,0 +1,20 @@
+FUNCTION ZFM_ENH_UPDLIPS.
+*"----------------------------------------------------------------------
+*"*"更新函数模块：
+*"
+*"*"本地接口：
+*"  TABLES
+*"      T_LIPS STRUCTURE  LIPS OPTIONAL
+*"----------------------------------------------------------------------
+
+  LOOP AT T_LIPS.
+    UPDATE LIPS
+    SET ZZWJZJ = T_LIPS-ZZWJZJ
+        ZLGORT = T_LIPS-ZLGORT
+    WHERE VBELN = T_LIPS-VBELN
+    AND   POSNR = T_LIPS-POSNR.
+  ENDLOOP.
+
+
+
+ENDFUNCTION.

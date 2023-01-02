@@ -1,0 +1,348 @@
+************************************************************
+* Include MMMGXRAD - Zus#tzliches Vorlagehandling After
+*  > f¨¹r Dialog mit REFTAB - Handling
+************************************************************
+* Include generiert am :         19.10.95
+
+* ----------------------------------------------------------
+FORM zusref_vorschlagen_after_d
+              USING reference_herkunft TYPE t130f-kzref.    "note 482447
+* ----------------------------------------------------------
+
+  LOOP AT sub_ptab.
+    CASE sub_ptab-tbnam.
+      WHEN t_mara.        "neu zu 3.0D wg. GEWEI = 'KG'   / CH
+*     cfo/4.0C-A (MARA-MTPOS_MARA)
+        IF sub_status CA status_k AND
+           status_k NA sub_ptab-biststat.                     "note 572580
+          CALL FUNCTION 'MARA_K_ADD_REFERENCE_AFTER'
+            EXPORTING
+              kzrfb           = kzrfb
+              flg_pruefdunkel = flg_pruefdunkel
+              wrmmg1          = rmmg1
+            TABLES
+              fauswtab        = fauswtab
+            CHANGING
+              wmara           = mara.
+        ENDIF.
+*     cfo/4.0C-E
+*     IF SUB_STATUS CA STATUS_V.                      "RWA zu 4.5B
+        IF aktvstatus CA status_v AND                   "RWA zu 4.5B
+           status_v NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_before.
+          reftab-tbnam = t_mara.
+          reftab-statm = status_v.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0
+          OR ( mara-gewei = space AND flg_uebernahme = space )."ch zu 3.0e
+            IF sy-subrc NE 0.
+              INSERT reftab INDEX sy-tabix.
+            ENDIF.
+            CALL FUNCTION 'MARA_V_ADD_REFERENCE_AFTER'
+              EXPORTING
+                wmara          = mara
+                kzrfb          = kzrfb
+                wrmmg1         = rmmg1
+                ref_matnr      = ref_matnr
+*               FLG_UEBERNAHME = 'X' "immer vorschlagen
+                flg_uebernahme = reference_herkunft      "note 482447
+              IMPORTING
+                wmara          = mara.
+          ENDIF.
+        ENDIF.
+*     TF/4.7 -A (MARA-SLED_BBD)
+        IF sub_status CA status_l AND
+           status_l NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp = rftyp_after.
+          reftab-tbnam = t_mara.
+          reftab-statm = status_l.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MARA_L_ADD_REFERENCE_AFTER'
+              CHANGING
+                wmara = mara.
+          ENDIF.
+        ENDIF.
+      WHEN t_marc.
+
+
+        CALL FUNCTION 'MARC_ADD_REFERENCE_AFTER'
+          EXPORTING
+            kzrfb           = kzrfb
+            flg_pruefdunkel = flg_pruefdunkel
+          TABLES
+            fauswtab        = fauswtab
+          CHANGING
+            wmarc           = marc
+          EXCEPTIONS
+            OTHERS          = 1.
+        IF sub_status CA status_d AND
+           status_d NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_marc.
+          reftab-statm = status_d.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MARC_D_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmarc     = marc
+                kzrfb     = kzrfb
+                wrmmg1    = rmmg1
+                ref_matnr = ref_matnr
+              IMPORTING
+                wmarc     = marc.
+          ENDIF.
+        ENDIF.
+        IF sub_status CA status_v AND
+           status_v NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_marc.
+          reftab-statm = status_v.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MARC_V_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmarc          = marc
+                wptab          = sub_ptab
+                flg_uebernahme = flg_uebernahme
+                kzrfb          = kzrfb
+                wrmmg1         = rmmg1
+                ref_matnr      = ref_matnr
+              IMPORTING
+                wmarc          = marc.
+          ENDIF.
+        ENDIF.
+        IF sub_status CA status_g AND
+           status_g NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_marc.
+          reftab-statm = status_g.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MARC_G_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmarc     = marc
+                wmbew     = mbew
+                kzrfb     = kzrfb
+                wrmmg1    = rmmg1
+                ref_matnr = ref_matnr
+              IMPORTING
+                wmarc     = marc.
+          ENDIF.
+        ENDIF.
+      WHEN t_mard.
+*     IF SUB_STATUS CA STATUS_D.                             "cfo/4.5B
+        IF sub_ptab-biststat IS INITIAL.
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_mard.
+          reftab-statm = status_d.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MARD_D_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmard     = mard
+                kzrfb     = kzrfb
+                wrmmg1    = rmmg1
+                ref_matnr = ref_matnr
+              IMPORTING
+                wmard     = mard.
+          ENDIF.
+        ENDIF.
+*     ENDIF.                                                 "cfo/4.5B
+      WHEN t_mbew.
+        IF sub_status CA status_b AND
+           status_b NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_mbew.
+          reftab-statm = status_b.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MBEW_B_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmbew     = mbew
+                kzrfb     = kzrfb
+                wrmmg1    = rmmg1
+                ref_matnr = ref_matnr
+              IMPORTING
+                wmbew     = mbew.
+          ENDIF.
+        ENDIF.
+        IF sub_status CA status_g AND
+           status_g NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_mbew.
+          reftab-statm = status_g.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MBEW_G_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmbew     = mbew
+                kzrfb     = kzrfb
+                wrmmg1    = rmmg1
+                ref_matnr = ref_matnr
+              IMPORTING
+                wmbew     = mbew.
+          ENDIF.
+        ENDIF.
+      WHEN t_mfhm.
+        IF sub_status CA status_f AND
+           status_f NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_mfhm.
+          reftab-statm = status_f.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MFHM_F_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmfhm     = mfhm
+                ref_matnr = ref_matnr
+              IMPORTING
+                wmfhm     = mfhm
+              TABLES
+                rptab     = rptab.
+          ENDIF.
+        ENDIF.
+      WHEN t_mpop.
+        IF sub_status CA status_p AND
+           status_p NA sub_ptab-biststat.                     "note 572580
+          reftab-rftyp =  rftyp_after.
+          reftab-tbnam = t_mpop.
+          reftab-statm = status_p.
+          READ TABLE reftab WITH KEY reftab BINARY SEARCH.
+          IF sy-subrc NE 0.
+            INSERT reftab INDEX sy-tabix.
+            CALL FUNCTION 'MPOP_P_ADD_REFERENCE_AFTER '
+              EXPORTING
+                wmpop        = mpop
+                kzrfb        = kzrfb
+                wrmmg1       = rmmg1
+                ref_matnr    = ref_matnr
+              IMPORTING
+                wmpop        = mpop
+                p_marc_autru = marc-autru
+              TABLES
+                rptab        = rptab.
+          ENDIF.
+        ENDIF.
+      WHEN t_mvke.
+        IF sub_status CA status_v AND
+           status_v NA sub_ptab-biststat.                     "note 572580
+          CALL FUNCTION 'MVKE_V_ADD_REFERENCE_AFTER '
+            EXPORTING
+              wmvke          = mvke
+              wmara          = mara
+              wptab          = sub_ptab
+              flg_uebernahme = flg_uebernahme
+              kzrfb          = kzrfb
+              wrmmg1         = rmmg1
+              ref_matnr      = ref_matnr
+            IMPORTING
+              wmvke          = mvke.
+        ENDIF.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.
+
+* ----------------------------------------------------------
+FORM ref_user_exit_d.     "cfo/4.6C-A Exit f¨¹r Vorlagehandling
+* ----------------------------------------------------------
+  CLASS cl_exithandler DEFINITION LOAD.
+  STATICS: lf_exit TYPE REF TO if_ex_material_reference.
+  STATICS: lf_exit_done(1) TYPE c.
+  DATA: badi_ptab      TYPE mat_tables,
+        badi_fauswtab  TYPE mat_field_sel,
+        badi_reftab    TYPE mat_reftab,
+        hptab          LIKE sptap,
+        hmarau         LIKE maru,
+        hmarcu         LIKE marcu,
+        hmardu         LIKE mardu,
+        badi_ktext     TYPE mat_ktext,
+        badi_meinh     TYPE mat_meinh,
+        badi_steuertab TYPE mat_steuer,
+        badi_steummtab TYPE mat_steumm,
+        badi_ean       TYPE mat_ean.
+
+  CLEAR: hmarau, hmarcu, hmardu.
+  badi_ptab = sub_ptab[].
+  badi_fauswtab = fauswtab[].
+  badi_reftab = reftab[].
+  badi_ktext = ktext[].
+  badi_meinh = meinh[].
+  badi_steuertab = steuertab[].
+  badi_steummtab = steummtab[].
+  badi_ean = mean_me_tab[].
+
+  IF lf_exit IS INITIAL AND lf_exit_done NE 'X'.
+    CALL METHOD cl_exithandler=>get_instance
+      EXPORTING
+        exit_name              = 'BADI_MATERIAL_REF'
+        null_instance_accepted = 'X'
+      CHANGING
+        instance               = lf_exit.
+    lf_exit_done = 'X'.
+  ENDIF.
+  IF NOT lf_exit IS INITIAL.
+    CALL METHOD lf_exit->create_material
+      EXPORTING
+        i_material_status  = sub_status
+        i_ref_material     = rmmg1_ref-matnr
+        it_material_tables = badi_ptab
+        it_field_selection = badi_fauswtab
+        i_mara             = mara
+        i_marc             = marc
+        i_mard             = mard
+      IMPORTING
+        e_marau            = hmarau
+        e_marcu            = hmarcu
+        e_mardu            = hmardu
+      CHANGING
+        ct_mat_reftab      = badi_reftab
+        c_mbew             = mbew
+        c_mpop             = mpop
+        c_mlgn             = mlgn
+        c_mlgt             = mlgt
+        c_mvke             = mvke
+        c_mfhm             = mfhm
+        c_makt             = makt
+        ct_stext           = badi_ktext
+        ct_uom             = badi_meinh
+        ct_sales_tax       = badi_steuertab
+        ct_pur_tax         = badi_steummtab
+        ct_ean             = badi_ean.
+
+    IF NOT ( hmarau IS INITIAL AND hmarcu IS INITIAL AND
+             hmardu IS INITIAL ).
+      LOOP AT badi_ptab INTO hptab.
+        CASE hptab-tbnam.
+          WHEN t_mara.
+            IF NOT hmarau IS INITIAL.
+              MOVE-CORRESPONDING hmarau TO mara.
+            ENDIF.
+          WHEN t_marc.
+            IF NOT hmarcu IS INITIAL.
+              MOVE-CORRESPONDING hmarcu TO marc.
+            ENDIF.
+          WHEN t_mard.
+            IF NOT hmardu IS INITIAL.
+              MOVE-CORRESPONDING hmardu TO mard.
+            ENDIF.
+        ENDCASE.
+      ENDLOOP.
+    ENDIF.
+    ktext[] = badi_ktext.
+    meinh[] = badi_meinh.
+    steuertab[] = badi_steuertab.
+    steummtab[] = badi_steummtab.
+    mean_me_tab[] = badi_ean.
+    reftab[] = badi_reftab.
+  ENDIF.
+ENDFORM.

@@ -1,0 +1,68 @@
+*&---------------------------------------------------------------------*
+*&      Form  UPD_EAN_LIEF_MEINH
+*&---------------------------------------------------------------------*
+*       Pr¨¹ft, ob bei einer zu #ndernden EAN ein Lieferantenbezug
+*       besteht. Wenn ja, werden alle Lieferantenbez¨¹ge zur EAN
+*       mitge#ndert, falls dies in einem Pop-UP best#tigt wurde.
+*       Form wird nur im Retail-Fall aufgerufen.
+*----------------------------------------------------------------------*
+* AHE: 19.06.96 - Neues Form ! !
+FORM UPD_EAN_LIEF_MEINH USING FLAG_EXIT TYPE C.
+
+  CLEAR: FLAG_EXIT, EAN_UPD.
+
+* Check, ob Lieferantenbezug besteht:
+  IF RMMW2-attyp = '01' and NOT RMMW2-varnr is initial.
+   READ TABLE TMLEA WITH KEY MATNR = RMMW2-varnr
+                            MEINH = MEINH-MEINH
+*                           LIFNR = RMMW2_LIEF
+                            EAN11 = MEINH-EAN11
+                                    BINARY SEARCH.
+  else.
+  READ TABLE TMLEA WITH KEY MATNR = RMMW1_MATN
+                            MEINH = MEINH-MEINH
+*                           LIFNR = RMMW2_LIEF
+                            EAN11 = MEINH-EAN11
+                                    BINARY SEARCH.
+  endif.
+  IF SY-SUBRC = 0.
+* es existiert ein relevanter Lieferantenbezug zur EAN
+* Pop-Up: #ndern Ja / Nein aufrufen
+    CLEAR TITEL_BUF.
+    CONCATENATE TEXT-073 MEINH-EAN11 INTO TITEL_BUF
+                SEPARATED BY LEERZ.
+
+    CALL FUNCTION 'POPUP_TO_CONFIRM_STEP'
+         EXPORTING
+              DEFAULTOPTION = 'N'      " NEIN-Button vorw#hlen
+              TEXTLINE1     = TEXT-074
+              TEXTLINE2     = TEXT-075
+              TITEL         = TITEL_BUF
+*             START_COLUMN  = 25
+*             START_ROW     = 6
+         IMPORTING
+              ANSWER        = ANTWORT.
+
+* Bild wiederholen nach POP-UP
+* geht nicht, da dann die L-Strukturen nicht upgedatet werden.
+*   IF BILDFLAG IS INITIAL.
+*     BILDFLAG = X.
+*   ENDIF.
+
+    IF ANTWORT NE 'J'.
+*    "#ndern ?" wurde mit NEIN oder Abbruch best#tigt !
+      FLAG_EXIT = ANTWORT.             " N oder A ! !
+      EXIT.                            " -> raus aus Form-Routine
+    ENDIF.
+
+*   => #ndern wird durchgef¨¹hrt - > dies geschieht durch merken der
+*   betroffenen EAN in EAN_UPD.
+*   Im Modul DATENUEBERNAHME_MEINH wird f¨¹r alle S#tze mit der
+*   gemerkten EAN in der TMLEA die neue EAN eingetragen. Dies geschieht
+*   somit f¨¹r alle Lieferanten.
+
+    EAN_UPD = TMLEA-EAN11.
+
+  ENDIF.
+
+ENDFORM.                               " UPD_EAN_LIEF

@@ -1,0 +1,41 @@
+*-----------------------------------------------------------------------
+*  Module Mvke-prodh
+*  Pr¨¹fung der Produkthierarchie auf Ebene der MVKE gegen die
+*  Produkthierarchie auf Mandantenebene
+*  Diese Pr¨¹fung findet au#er beim ersten Prozessieren des Bildes
+*  in der Transaktion nur noch statt, wenn die Produkthierarchie
+*  zur MVKE ge#ndert wurde
+* mk/26.05.95:
+*  Diese Pr¨¹fung findet nur noch statt, wenn die Produkthierarchie in
+*  der MVKE ge#ndert wurde
+*-----------------------------------------------------------------------
+MODULE MVKE-PRODH.
+
+  CHECK BILDFLAG = SPACE.
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+  CALL FUNCTION 'MVKE_PRODH'
+       EXPORTING
+            WMARA_PRDHA  = MARA-PRDHA
+            WMVKE_PRODH  = MVKE-PRODH
+            LMVKE_PRODH  = LMVKE-PRODH
+            P_MESSAGE    = ' '.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module PRODH_VISIBILITY OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE prodh_visibility OUTPUT.
+
+  IF cl_cos_utilities=>is_cloud( ) = abap_true.
+    LOOP AT SCREEN.
+       CHECK screen-name = 'MVKE-PRODH'.
+       screen-invisible = 1.
+       screen-active    = 0.
+       screen-input     = 0.
+       MODIFY SCREEN.
+     ENDLOOP.
+  ENDIF.
+
+ENDMODULE.

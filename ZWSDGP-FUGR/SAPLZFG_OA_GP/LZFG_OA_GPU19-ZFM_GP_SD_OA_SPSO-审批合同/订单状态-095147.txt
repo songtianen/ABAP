@@ -1,0 +1,178 @@
+FUNCTION ZFM_GP_SD_OA_SPSO.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      INTAB STRUCTURE  ZSSD_016
+*"      TRESULT STRUCTURE  ZSSD_017 OPTIONAL
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_GP_SD_OA_SPSO'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+  DATA:WA_ZTSD001  TYPE ZTSD001,
+       WA_ZTSD001A TYPE ZTSD001A,
+       P_MSG       TYPE BAPI_MSG,
+       IT_VBELN    TYPE TABLE OF BAPIVBELN WITH HEADER LINE.
+
+  REFRESH:IT_VBELN.
+  CLEAR:P_MSG.
+
+  DEFINE FILLMSG.
+    CLEAR:TRESULT.
+    TRESULT-FLAG = &1.
+    TRESULT-MESSAGE = &2.
+    TRESULT-DOCNO = &3.
+    APPEND TRESULT.
+  END-OF-DEFINITION.
+  DEFINE RETMSG.
+    LOOP AT TRESULT WHERE FLAG = '0'.
+      CONCATENATE TRESULT-MESSAGE RTMSG INTO RTMSG.
+    ENDLOOP.
+    IF SY-SUBRC = 0.
+      RTYPE = 'E'.
+    ELSE.
+      RTYPE = 'S'.
+      RTMSG = 'SUCCESS'.
+    ENDIF.
+    IF &1 = 'X'.
+      ZFMDATASAVE2 'R'.
+      RETURN.
+    ENDIF.
+  END-OF-DEFINITION.
+
+
+  CHECK INTAB[] IS NOT INITIAL.
+  READ TABLE INTAB INDEX 1.
+
+  IF INTAB-AUART = 'KPSQ'.
+    SELECT SINGLE
+     ZTFI_GTRE_HD~KPSQ
+     INTO @DATA(KPSQ)
+     FROM ZTFI_GTRE_HD
+     WHERE ZTFI_GTRE_HD~KPSQ = @INTAB-VBELN
+     .
+    IF SY-SUBRC <> 0.
+      FILLMSG '0' '未查询到开票申请号！' INTAB-VBELN.
+      RETMSG 'X'.
+      ZFMDATASAVE2 'R'.
+      RETURN.
+    ENDIF.
+    IF INTAB-FLAG = '1'.
+      UPDATE ZTFI_GTRE_HD SET SPZT = INTAB-FLAG
+                              USERCHK = SY-UNAME
+                              REDATE  = SY-DATUM
+                              RETIME  = SY-UZEIT
+                              TXSTATUS = '0'
+                            WHERE KPSQ = KPSQ.
+    ENDIF.
+      UPDATE ZTFI_GTRE_HD SET SPZT = INTAB-FLAG
+                            USERCHK = SY-UNAME
+                            REDATE  = SY-DATUM
+                            RETIME  = SY-UZEIT
+*                            TXSTATUS = '0'
+                          WHERE KPSQ = KPSQ.
+    IF SY-SUBRC <> 0.
+      ROLLBACK WORK.
+      FILLMSG '0' '开票申请状态更新失败！' INTAB-VBELN.
+      RETMSG 'X'.
+      ZFMDATASAVE2 'R'.
+      RETURN.
+    ELSE.
+      COMMIT WORK.
+      FILLMSG '1' '审批成功' INTAB-VBELN.
+      RETMSG 'X'.
+      ZFMDATASAVE2 'R'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+
+  IF INTAB-FLAG = '1'.
+    CASE INTAB-AUART.
+      WHEN 'ZDR' OR 'ZCR'.
+        "补差
+        IT_VBELN-VBELN = INTAB-VBELN.
+        APPEND IT_VBELN.
+        P_MSG = 'SO'.
+        PERFORM SDVF01(ZPUBFORM) TABLES IT_VBELN
+                                 USING SY-DATUM
+                                 CHANGING P_MSG.
+        IF P_MSG+0(1) = 'S'.
+        ELSE.
+          FILLMSG '0' P_MSG INTAB-VBELN.
+          RETMSG 'X'.
+        ENDIF.
+      WHEN 'ZRK1' OR  'ZRP1'  .
+        "退货通知单
+        SELECT *
+          INTO TABLE @DATA(IT_VBAP)
+          FROM VBAP
+          WHERE VBELN = @INTAB-VBELN.
+        IF SY-SUBRC EQ 0.
+          SET UPDATE TASK LOCAL.
+          CLEAR P_MSG.
+          PERFORM VL01N(ZPUBFORM) TABLES IT_VBAP
+                                  USING '' SY-DATUM
+                                  CHANGING P_MSG.
+          IF P_MSG+0(1) = 'S'.
+          ELSE.
+            FILLMSG '0' P_MSG INTAB-VBELN.
+            ZFMDATASAVE2 'R'.
+            RETURN.
+          ENDIF.
+        ENDIF.
+      WHEN 'ZWK0' OR  'ZWP0' OR  'ZDK0' OR  'ZDP0' OR  'ZTM0' OR  'ZTK0' OR  'ZFK0' OR  'ZFP0' OR  'ZIC0' .
+        "合同
+      WHEN 'ZWK1' OR  'ZWP1' OR  'ZDK1' OR  'ZDP1' OR  'ZTM1' OR  'ZTK1' OR  'ZFK1' OR  'ZFP1' OR  'ZIC1' .
+        "发货通知单
+
+    ENDCASE.
+
+
+  ENDIF.
+
+*审核状态
+  CLEAR:WA_ZTSD001.
+*取出原本的
+  SELECT SINGLE *
+    INTO WA_ZTSD001
+    FROM ZTSD001
+    WHERE VBELN = INTAB-VBELN
+    AND   AUART = INTAB-AUART.
+  IF SY-SUBRC NE 0.
+    FILLMSG '0' 'ZTSD001未找到对应单号' INTAB-VBELN.
+    RETMSG 'X'.
+  ENDIF.
+  MOVE-CORRESPONDING INTAB TO WA_ZTSD001.
+  WA_ZTSD001-ZNAME = SY-UNAME.
+  WA_ZTSD001-ZDATE = SY-DATUM.
+  WA_ZTSD001-ZTIME = SY-UZEIT.
+
+  MOVE-CORRESPONDING INTAB TO WA_ZTSD001A.
+  SELECT SINGLE MAX( ITEM )
+    INTO WA_ZTSD001A-ITEM
+    FROM ZTSD001A
+    WHERE VBELN = WA_ZTSD001A-VBELN
+    AND   AUART = WA_ZTSD001A-AUART.
+  ADD 1 TO WA_ZTSD001A-ITEM.
+  WA_ZTSD001A-ZNAME = SY-UNAME.
+  WA_ZTSD001A-ZDATE = SY-DATUM.
+  WA_ZTSD001A-ZTIME = SY-UZEIT.
+
+  INSERT ZTSD001A FROM WA_ZTSD001A.
+  UPDATE ZTSD001 FROM WA_ZTSD001.
+  IF SY-SUBRC = 0.
+    FILLMSG '1' '审批成功' INTAB-VBELN.
+    COMMIT WORK.
+  ELSE.
+    ROLLBACK WORK.
+    FILLMSG '0' '更新审批状态失败' INTAB-VBELN.
+  ENDIF.
+
+  RETMSG 'X'.
+
+
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

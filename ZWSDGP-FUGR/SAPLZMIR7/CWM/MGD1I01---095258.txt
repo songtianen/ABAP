@@ -1,0 +1,236 @@
+*&---------------------------------------------------------------------*
+*&  Include           /CWM/MGD1I01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  SMEINH-/CWM/TY2TQ_INACTIVE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE smeinh-/cwm/ty2tq_inactive INPUT.
+
+  IF /cwm/cl_switch_check=>main( ) = /cwm/cl_switch_check=>false.
+    IF smeinh-ty2tq EQ 'A'
+    AND bildflag IS INITIAL.
+      bildflag = abap_true.
+      MESSAGE s017(/cwm/md) WITH mara-matnr.
+* Material &1 cannot be defined as a CW material
+*CWM not active
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.                 " SMEINH-/CWM/TY2TQ_INACTIVE  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  SMEINH-/CWM/TY2TQ  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE smeinh-/cwm/ty2tq INPUT.
+  DATA:
+    lt_/cwm/meinh TYPE TABLE OF smeinh WITH HEADER LINE.
+  DATA:
+    gv_/cwm/sauft_marc LIKE marc-sauft.
+
+* /CWM/MD switch removed in flow logic SAPLMGD1 8020
+  CHECK /cwm/cl_switch_check=>main( ) = /cwm/cl_switch_check=>true.
+
+  smeinh-/cwm/ty2tq = smeinh-ty2tq.
+
+*-------take ty2tq into meinh ----------------------------------
+  me_akt_zeile = me_erste_zeile + sy-stepl.
+  READ TABLE meinh INDEX me_akt_zeile.
+
+  MOVE smeinh-ty2tq TO meinh-ty2tq.
+* take also in CWM field first form checks after loop
+  MOVE smeinh-ty2tq TO meinh-/cwm/ty2tq.
+
+  MODIFY meinh INDEX me_akt_zeile TRANSPORTING ty2tq /cwm/ty2tq.
+
+ENDMODULE.                 " SMEINH-/CWM/TY2TQ  INPUT
+*&      Module  SMEINH-/CWM/TY2TQ_INACTIVE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE /cwm/check_meinh_2tq_inactive INPUT.
+
+  DATA: lv_subrc TYPE sy-subrc.
+
+  LOOP AT meinh WHERE ty2tq EQ 'A'.
+    EXIT.
+  ENDLOOP.
+  lv_subrc = sy-subrc.
+
+  IF /cwm/cl_switch_check=>main( ) = /cwm/cl_switch_check=>false
+    AND lv_subrc EQ 0.
+    IF bildflag IS INITIAL.
+      bildflag = abap_true.
+      MESSAGE s017(/cwm/md) WITH mara-matnr.
+* Material &1 cannot be defined as a CW material
+*CWM not active
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.                 " /CWM/CHECK_MEinh_TY2TQ_INACTIVE  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  CHECK_MEINH_2TQ  INPUT
+*&---------------------------------------------------------------------*
+*       lines can only be deleted, if smeinh-/cwm/ty2tq is initial.
+*----------------------------------------------------------------------*
+MODULE /cwm/check_meinh_2tq INPUT.
+
+  FIELD-SYMBOLS: <fs_meinh>      TYPE smeinh,
+                 <fs_/cwm/meinh> TYPE smeinh.
+
+  CHECK /cwm/cl_switch_check=>main( ) = /cwm/cl_switch_check=>true.
+
+
+  IF rmmzu-okcode = fcode_mede.
+    GET CURSOR LINE me_zeilen_nr.
+    me_akt_zeile = me_erste_zeile + me_zeilen_nr.
+    READ TABLE meinh INDEX me_akt_zeile.
+    IF sy-subrc = 0 AND NOT meinh-ty2tq IS INITIAL.
+      IF bildflag IS INITIAL.
+        bildflag         = abap_true.
+        CLEAR rmmzu-okcode.
+        MESSAGE s023(/cwm/md) WITH meinh-meinh.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  CHECK bildflag = abap_false.
+
+*  LOOP AT meinh WHERE ty2tq EQ 'A'.
+*    EXIT.
+*  ENDLOOP.
+*
+** CW material
+*  IF sy-subrc EQ 0 OR mara-/cwm/xcwmat = 'X'.
+
+* Check copy of actual table
+    lt_/cwm/meinh[] = meinh[].
+
+    LOOP AT lt_/cwm/meinh ASSIGNING <fs_/cwm/meinh>.
+
+      CALL FUNCTION '/CWM/MDMD_MAT_CHECK_AND_SET'
+        EXPORTING
+          i_matnr                      = mara-matnr
+          i_meins                      = mara-meins
+          i_meinh                      = <fs_/cwm/meinh>-meinh
+          i_ty2tq                      = <fs_/cwm/meinh>-ty2tq
+          i_check_rem                  = abap_true
+          i_neuflag                    = neuflag   "note 2010459
+        TABLES
+          it_meinh                     = lt_/cwm/meinh
+        CHANGING
+          c_xcwmat                     = mara-/cwm/xcwmat
+          c_valum                      = mara-/cwm/valum
+          c_tara                       = mara-/cwm/tara               "1228820 GLJ
+          c_tarum                      = mara-/cwm/tarum              "1228820 GLJ
+          c_cwqtolgr                   = mara-cwqtolgr
+          c_sauft                      = gv_/cwm/sauft_marc
+          c_sfepr                      = marc-sfepr
+        EXCEPTIONS
+          alternative_2tq_without_base = 1
+          base_2tq_has_same_dimension  = 2
+          invalid_2tq_base_unit        = 3
+          invalid_2tq_alternative_unit = 4
+          multiple_2tq_base_units      = 5
+          rem_with_cwm                 = 6
+          disable_not_possible         = 7
+          enable_not_possible          = 8
+          change_vuom_not_possible     = 9                   "n_1592202
+          OTHERS                       = 10.
+
+*   reset table MEINH to old status on error
+      IF sy-subrc IS INITIAL.
+        meinh[] = lt_/cwm/meinh[].
+      ELSEIF sy-subrc = 9.
+* button "Error list" will appear to dislpay the existing orders (note 1592202)
+        rmmzu-err_bme    = abap_true.
+        rmmzu-flg_fliste = abap_true.
+        IF bildflag IS INITIAL.
+          bildflag         = abap_true.
+          MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+                     WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+          EXIT.
+        ENDIF.
+      ELSEIF sy-subrc BETWEEN 1 AND 8 OR sy-subrc = 10.
+        IF bildflag IS INITIAL.
+          bildflag         = abap_true.
+          MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ENDIF.
+      ENDIF.
+
+    ENDLOOP.
+
+    IF mara-/cwm/xcwmat = ' '.
+* clear /CWM/TY2TQ
+      LOOP AT meinh  ASSIGNING <fs_meinh>.
+        CLEAR <fs_meinh>-/cwm/ty2tq.
+      ENDLOOP.
+      UNASSIGN <fs_meinh>.
+    ENDIF.
+
+ENDMODULE.                 " CHECK_MEINH_2TQ  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  mara-/cwm/tara/tarum  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE mara-/cwm/tara_tarum INPUT.
+
+  DATA: ls_lmeinh TYPE smeinh.
+
+  CHECK /cwm/cl_switch_check=>main( ) = /cwm/cl_switch_check=>true.
+
+*   check if /cwm/tarum is already a UoM in lmeinh
+  CLEAR ls_lmeinh.
+*   READ TABLE lmeinh INTO ls_lmeinh                              "1228820 GLJ
+  READ TABLE meinh INTO ls_lmeinh                               "1228820 GLJ
+    WITH KEY meinh = mara-/cwm/tarum.
+  IF sy-subrc <> 0.
+*     no, /cwm/tarum is not in lmeinh
+*    IF NOT mara-/cwm/tara  IS INITIAL AND
+*           mara-/cwm/tarum IS INITIAL.
+**       /cwm/tara is set but no UoM in /cwm/tarum
+*      MESSAGE e036(/cwm/md).
+*    ENDIF.
+
+    IF NOT mara-/cwm/tara  IS INITIAL AND
+       NOT mara-/cwm/tarum IS INITIAL.
+*       /cwm/tara is set but UoM in /cwm/tarum is not valid
+      MESSAGE e034(/cwm/md) WITH mara-/cwm/tarum
+                                 mara-matnr.
+    ENDIF.
+
+    IF     mara-/cwm/tara  IS INITIAL AND
+       NOT mara-/cwm/tarum IS INITIAL.
+*       /cwm/tara is initial but UoM in /cwm/tarum
+      MESSAGE e037(/cwm/md).
+    ENDIF.
+  ELSE.
+    IF ls_lmeinh-/cwm/ty2tq IS INITIAL.
+*       yes, /cwm/tarum is already in lmeinh
+      IF       mara-/cwm/tara  IS INITIAL OR
+         (     mara-/cwm/tara  IS INITIAL AND
+           NOT mara-/cwm/tarum IS INITIAL ).
+        MESSAGE e037(/cwm/md).
+      ENDIF.
+    ELSE.
+*       no, /cwm/tarum is not in lmeinh
+      IF NOT mara-/cwm/tara IS INITIAL.
+        MESSAGE e035(/cwm/md) WITH mara-/cwm/tarum.
+      ENDIF.
+      IF mara-/cwm/tara IS INITIAL.
+        MESSAGE e037(/cwm/md).
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+*   set field content
+  umara-/cwm/tara  = mara-/cwm/tara.
+  umara-/cwm/tarum = mara-/cwm/tarum.
+
+ENDMODULE.                 " mara-/cwm/tara/tarum  INPUT

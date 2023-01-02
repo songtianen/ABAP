@@ -1,0 +1,32 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_JSXDPBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZJSXD_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zjsxd_con_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_jsxd LINES zjsxd_con-lines.
+  DATA:ls_col LIKE LINE OF zjsxd_con-cols.
+
+  LOOP AT zjsxd_con-cols INTO ls_col.
+    IF p_wht = 'X'.
+      IF ls_col-screen-name EQ 'IT_JSXD-ZKS' OR ls_col-screen-name EQ 'IT_JSXD-ZYF' OR ls_col-screen-name EQ 'IT_JSXD-ZCDTX' OR ls_col-screen-name EQ 'IT_JSXD-ZBZFS'.
+        ls_col-invisible = 1.
+      ENDIF.
+      IF ls_col-screen-name EQ 'IT_JSXD-ZCD' .
+        ls_col-screen-input = 1.
+      ENDIF.
+    ENDIF.
+*    IF ls_col-screen-name EQ 'IT_JSXD-ZPCSL'.
+*      ls_col-invisible = 1.
+*    ENDIF.
+    MODIFY zjsxd_con-cols  FROM ls_col INDEX sy-tabix.
+  ENDLOOP.
+
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZJSXD_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zjsxd_con_get_lines OUTPUT.
+  g_zjsxd_con_lines = sy-loopc.
+ENDMODULE.

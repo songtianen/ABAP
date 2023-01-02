@@ -1,0 +1,22 @@
+*&---------------------------------------------------------------------*
+*& °üº¬               ZXCKAU08
+*&---------------------------------------------------------------------*
+CALL FUNCTION 'ZFM_ENH_FI_COPCP005'
+  EXPORTING
+    F_MATBW                    = F_MATBW
+    IMP_KLVAR                  = IMP_KLVAR
+    IMP_VALUATION              = IMP_VALUATION
+    IMP_BZOBJ                  = IMP_BZOBJ
+    IMP_EKORG                  = IMP_EKORG
+    IMP_LIFNR                  = IMP_LIFNR
+    IMP_TVERS                  = IMP_TVERS
+    IMP_CUOBJ                  = IMP_CUOBJ
+    IMP_VBELN                  = IMP_VBELN
+    IMP_POSNR                  = IMP_POSNR
+    IMP_AUFNR                  = IMP_AUFNR
+  IMPORTING
+    EXP_PREIS                  = EXP_PREIS
+    EXP_WAERS                  = EXP_WAERS
+    EXP_PRICE_COMPONENTS_TABLE = EXP_PRICE_COMPONENTS_TABLE
+  CHANGING
+    EXP_PEINH                  = EXP_PEINH.

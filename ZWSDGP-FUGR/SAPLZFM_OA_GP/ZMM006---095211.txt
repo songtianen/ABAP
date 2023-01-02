@@ -1,0 +1,25 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZMM006
+*&---------------------------------------------------------------------*
+
+TYPES:BEGIN OF ty_006 .
+        INCLUDE TYPE it_pctx.
+TYPES:  werks  TYPE werks_d,
+        name1  TYPE name1,
+        lgort  TYPE lgort_d, "调出库存地
+        lgobe  TYPE lgobe,
+        matnr  TYPE matnr,
+        wlcms  TYPE string,
+        charg  TYPE charg_d,
+        clabs  TYPE mchb-clabs,
+        meins  TYPE meins,
+        msehl  TYPE msehl, "基本单位描述
+        matkl  TYPE mara-matkl,
+        t023t  TYPE t023t-wgbez,
+        sobkz  TYPE sobkz,
+        bstme  TYPE bstme,
+        msehl1 TYPE msehl, "采购单位描述
+        pspnr  TYPE prps-pspnr,
+        posid  TYPE prps-posid,
+        post1  TYPE prps-post1,
+      END OF ty_006.

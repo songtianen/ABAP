@@ -1,0 +1,39 @@
+FUNCTION ZSAMPLE_INTERFACE_00001030.
+*"--------------------------------------------------------------------
+*"*"局部接口：
+*"  IMPORTING
+*"     VALUE(I_BKDF) LIKE  BKDF STRUCTURE  BKDF
+*"     VALUE(I_UF05A) LIKE  UF05A STRUCTURE  UF05A
+*"     VALUE(I_XVBUP) LIKE  OFIWA-XVBUP DEFAULT 'X'
+*"  TABLES
+*"      T_AUSZ1 STRUCTURE  AUSZ1 OPTIONAL
+*"      T_AUSZ2 STRUCTURE  AUSZ2 OPTIONAL
+*"      T_AUSZ3 STRUCTURE  AUSZ_CLR OPTIONAL
+*"      T_BKP1 STRUCTURE  BKP1
+*"      T_BKPF STRUCTURE  BKPF
+*"      T_BSEC STRUCTURE  BSEC
+*"      T_BSED STRUCTURE  BSED
+*"      T_BSEG STRUCTURE  BSEG
+*"      T_BSET STRUCTURE  BSET
+*"      T_BSEU STRUCTURE  BSEU
+*"--------------------------------------------------------------------
+  CALL FUNCTION 'ZFM_ENH_FI_DOCU_01'
+    EXPORTING
+      I_BKDF  = I_BKDF
+      I_UF05A = I_UF05A
+*     I_XVBUP = 'X'
+    TABLES
+      T_AUSZ1 = T_AUSZ1
+      T_AUSZ2 = T_AUSZ2
+      T_AUSZ3 = T_AUSZ3
+      T_BKP1  = T_BKP1
+      T_BKPF  = T_BKPF
+      T_BSEC  = T_BSEC
+      T_BSED  = T_BSED
+      T_BSEG  = T_BSEG
+      T_BSET  = T_BSET
+      T_BSEU  = T_BSEU.
+
+
+
+ENDFUNCTION.

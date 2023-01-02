@@ -1,0 +1,17 @@
+*&---------------------------------------------------------------------*
+*& °üº¬               ZXCLFU02
+*&---------------------------------------------------------------------*
+BREAK DONGPZ.
+CALL FUNCTION 'ZFM_ENH_MSC2N' IN BACKGROUND TASK AS SEPARATE UNIT
+  EXPORTING
+    I_RMCLF   = I_RMCLF
+    I_APPL    = I_APPL
+  IMPORTING
+    E_ACTIVE  = E_ACTIVE
+    E_OK_CODE = E_OK_CODE
+    E_DYNPRO  = E_DYNPRO
+  TABLES
+    T_ALLKSSK = T_ALLKSSK
+    T_ALLAUSP = T_ALLAUSP
+    T_DELCL   = T_DELCL
+    T_DELOB   = T_DELOB.

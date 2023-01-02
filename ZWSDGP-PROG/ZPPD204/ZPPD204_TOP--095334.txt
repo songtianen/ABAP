@@ -1,0 +1,158 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD204_TOP
+*&---------------------------------------------------------------------*
+DATA:ok_code LIKE sy-ucomm,
+     save_ok LIKE sy-ucomm.
+DATA:it_fieldcat_1   TYPE lvc_t_fcat,
+     it_fieldcatex_1 TYPE lvc_t_fcat,
+     wa_fieldcat_1   TYPE lvc_s_fcat,
+     it_f4_1         TYPE  lvc_t_f4,
+     wa_f4_1         TYPE  lvc_s_f4,
+     is_stable_1     TYPE lvc_s_stbl,
+     wa_layout_1     TYPE lvc_s_layo.
+DATA:it_fieldcat_2   TYPE lvc_t_fcat,
+     it_fieldcatex_2 TYPE lvc_t_fcat,
+     wa_fieldcat_2   TYPE lvc_s_fcat,
+     it_f4_2         TYPE  lvc_t_f4,
+     wa_f4_2         TYPE  lvc_s_f4,
+     is_stable_2     TYPE lvc_s_stbl,
+     wa_layout_2     TYPE lvc_s_layo.
+
+DATA:alv_grid1 TYPE REF TO cl_gui_alv_grid.
+DATA:alv_grid2 TYPE REF TO cl_gui_alv_grid.
+DATA:alv_container  TYPE REF TO cl_gui_docking_container,
+     alv_container2 TYPE REF TO cl_gui_docking_container.
+
+DATA:alv_splitter_container  TYPE REF TO cl_gui_splitter_container.
+DATA:ref_container  TYPE REF TO cl_gui_container,
+     ref_container2 TYPE REF TO cl_gui_container.
+TYPES:BEGIN OF ty_pctx,
+        zbx      TYPE atwrt,
+        zbk      TYPE atwrt,
+        zbh      TYPE atwrt,
+        zwbxz    TYPE atwrt,
+        zwbfm    TYPE atwrt,
+        znbxz    TYPE atwrt,
+        znbfm    TYPE atwrt,
+        zxccd    TYPE atwrt,
+        zxczl    TYPE atwrt,
+        zxcrz    TYPE atwrt,
+        zrsdj    TYPE atwrt,
+        znbcz    TYPE atwrt,
+        znbhd    TYPE atwrt,
+        znbys    TYPE atwrt,
+        znbdc    TYPE atwrt,
+        znbtc    TYPE atwrt,
+        zwbcz    TYPE atwrt,
+        zwbhd    TYPE atwrt,
+        zwbys    TYPE atwrt,
+        zwbqd    TYPE atwrt,
+        zwbdc    TYPE atwrt,
+        zwbtc    TYPE atwrt,
+        znbcd    TYPE atwrt,
+        zwbcd    TYPE atwrt,
+        znbqd    TYPE atwrt,
+        zjqjyq   TYPE atwrt,
+        zfbyq    TYPE atwrt,
+        zlglx    TYPE atwrt,
+        zschd    TYPE atwrt,
+        zlfwgg   TYPE atwrt,
+        zsgbpp   TYPE atwrt,
+        zsgbfsyq TYPE atwrt,
+        zhf      TYPE atwrt,
+        zgnxp    TYPE atwrt,
+        zcz      TYPE atwrt,
+        zhd      TYPE atwrt,
+        zczqd    TYPE atwrt,
+        zdchl    TYPE atwrt,
+        ztczl    TYPE atwrt,
+        zxhgg    TYPE atwrt,
+        zyczk    TYPE atwrt,
+        zcd      TYPE atwrt,
+        zbmcl    TYPE atwrt,
+        zys      TYPE atwrt,
+        zdc      TYPE atwrt,
+      END OF ty_pctx.
+DATA:BEGIN OF it_pctx OCCURS 0.
+       INCLUDE TYPE ty_pctx.
+DATA:  werks       TYPE werks_d,
+       aufnr       TYPE aufnr,
+       plnum       TYPE ztpp_206-plnum,
+       zpcdh       TYPE ztpp_205-zpcdh,
+       zpcdhh      TYPE ztpp_206-zpcdhh,
+       matnr       TYPE matnr,
+       zzl1        TYPE mara-zzl1,
+       objek       TYPE cuobn,
+       projn       TYPE ps_pspnr,
+       zpldh       TYPE ztpp210-zpldh,
+       zdbdh       TYPE ztpp210-zdbdh,
+       zbz         TYPE ztpp210-zbz,
+       name1       TYPE ztpp_206-name1,
+       post1       TYPE ztpp_205-post1,
+       zks         TYPE ztpp_206-zks,
+       gsmng       TYPE ztpp_206-psmng,
+       zdetailname TYPE ztpp_205a-zdetailname,
+       zchandi     TYPE ztpp_205a-zchandi,
+       zcolor      TYPE ztpp_205a-zcolor,
+       zzhankuan   TYPE ztpp_205a-zzhankuan,
+       zzs         TYPE ztpp_205a-zzs,
+       zmb         TYPE ztpp_205a-zmb,
+       zdksl       TYPE ztpp_205a-zdksl,
+       zzwhd       TYPE ztpp_205a-zzwhd,
+       arbpl       TYPE ztpp_206-arbpl,
+       ktext       TYPE crtx-ktext,
+       chbox,
+     END OF it_pctx.
+
+DATA:BEGIN OF it_psrw OCCURS 0.
+       INCLUDE TYPE ztpp210.
+DATA:chbox,
+       z00      TYPE atwrt,
+       z01      TYPE atwrt,
+       z38      TYPE atwrt,
+       z38_dats TYPE dats,
+       zkl      TYPE i,
+       wlcms    TYPE char220,
+*       zsl      TYPE ztpp210-clabs, "基本单位数量
+       zkcyl    TYPE ztpp210-clabs, "配送单位库存余量
+
+*& kkw
+*       meins_in TYPE meins, "配送单位
+*       zpssl_in TYPE labst, "配送单位配送数量
+*       kbetr    TYPE ztmm221-kbetr, "转换系数
+
+*& End  27.12.2022 20:48:30
+     END OF it_psrw.
+
+DATA:intab  TYPE TABLE OF mcha WITH HEADER LINE,
+     outtab TYPE TABLE OF zsfms_getpctx WITH HEADER LINE.
+FIELD-SYMBOLS:<fs>      TYPE any,
+              <it_modi> TYPE lvc_t_modi,
+              <wa>      TYPE any,
+              <itab>    TYPE STANDARD TABLE.
+DATA:return_tab    TYPE TABLE OF ddshretval WITH HEADER LINE,
+     wa_return_tab TYPE ddshretval,
+     wa_modi       TYPE lvc_s_modi,
+     wa_tab        LIKE LINE OF it_psrw.
+DATA:tabix TYPE i.
+
+" 取长文本用  23.11.2022 21:36:07 by kkw
+DATA:BEGIN OF wa_key,
+       tdobject TYPE  stxl-tdobject,
+       tdname   TYPE  stxl-tdname,
+       tdid     TYPE  stxl-tdid,
+       tdspras  TYPE  stxl-tdspras,
+     END OF wa_key,
+     t_text TYPE TABLE OF tline WITH HEADER LINE.
+
+DATA:it_matnr  TYPE TABLE OF ccvx_matnr WITH HEADER LINE,
+     outtab001 TYPE TABLE OF zsfms_getpctx WITH HEADER LINE,
+     it_atnam  TYPE TABLE OF tctrw WITH HEADER LINE.
+TYPES:BEGIN OF ty_dbdh,
+        zdbdh TYPE    ztmm220-zdbdh,
+      END OF ty_dbdh.
+
+DATA: lt_dbdh TYPE STANDARD TABLE OF ty_dbdh,
+      ls_dbdh TYPE ty_dbdh.
+
+DATA:num TYPE i.

@@ -1,0 +1,68 @@
+*----------------------------------------------------------------------
+*  Module MARC-FVIDK.                                  "4.0A  BE/120897
+*  Pr¨¹fen der Fertigungsversion gegen die Tabelle MKAL
+*----------------------------------------------------------------------
+MODULE MARC-FVIDK.
+
+  CHECK BILDFLAG IS INITIAL.
+  CHECK T130M-AKTYP NE AKTYPA AND T130M-AKTYP NE AKTYPZ.
+
+  CALL FUNCTION 'MARC_FVIDK'
+       EXPORTING
+            WMARC_FVIDK = MARC-FVIDK
+            WMARC_WERKS = MARC-WERKS
+            WMARC_MATNR = MARC-MATNR.
+
+ENDMODULE.
+
+MODULE MARC-FVIDK_HELP.
+
+ DATA: lt_returntab TYPE ddshretval OCCURS 0 WITH HEADER LINE ,
+       lv_shlp TYPE shlp_descr,
+       lv_idx TYPE sy-tabix.
+
+ FIELD-SYMBOLS: <fs_rettab> TYPE ddshretval.
+
+ CALL FUNCTION 'F4IF_GET_SHLP_DESCR'
+    EXPORTING
+      shlpname = 'H_MKAL'
+      shlptype = 'SH'
+    IMPORTING
+      shlp     = lv_shlp.
+
+* Set the Where Condition to be passed in Search help (Here we can pass values for multiple field of a search help in the interface)
+ IF lv_shlp-interface IS NOT INITIAL.
+  READ TABLE lv_shlp-interface ASSIGNING FIELD-SYMBOL(<fs_lv_shlp_int>) WITH KEY shlpfield = 'MATNR'.
+     IF sy-subrc = 0 AND <fs_lv_shlp_int> IS ASSIGNED.
+       <fs_lv_shlp_int>-value = marc-matnr.
+     ENDIF.
+
+  READ TABLE lv_shlp-interface ASSIGNING <fs_lv_shlp_int> WITH KEY shlpfield = 'WERKS'.
+     IF sy-subrc = 0 AND <fs_lv_shlp_int> IS ASSIGNED.
+       <fs_lv_shlp_int>-value = marc-werks.
+     ENDIF.
+
+  READ TABLE lv_shlp-interface ASSIGNING <fs_lv_shlp_int> WITH KEY shlpfield = 'VERID'.
+     IF sy-subrc = 0 AND <fs_lv_shlp_int> IS ASSIGNED.
+       <fs_lv_shlp_int>-valfield = 'X'.
+     ENDIF.
+ ENDIF.
+
+*  Call the FM to display POPUP Screen for Search Help
+*  Call F4 as POPUP
+*  IT_RETURNTAB Will contain the value which user has selected.
+  CALL FUNCTION 'F4IF_START_VALUE_REQUEST'
+    EXPORTING
+      shlp          = lv_shlp
+      disponly      = space
+    TABLES
+      return_values = lt_returntab.
+
+  IF lt_returntab IS NOT INITIAL.
+    READ TABLE lt_returntab ASSIGNING <fs_rettab> WITH KEY fieldname = 'VERID'.
+    IF sy-subrc = 0 AND <fs_rettab> IS ASSIGNED.
+       marc-fvidk = <fs_rettab>-fieldval.
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.

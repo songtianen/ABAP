@@ -1,0 +1,27 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV24                                                   *
+*----------------------------------------------------------------------*
+*- Prognosefestwerte ---------------------------------------------------
+
+CONSTANTS:
+      KZINIM LIKE MPOP-KZINI VALUE 'M',      "Manuelle Initialisierung
+      MOD_KONST LIKE MPOP-PRMOD VALUE 'D',
+      MOD_KONSTA LIKE MPOP-PRMOD VALUE 'K',
+      MOD_TREND LIKE MPOP-PRMOD VALUE 'T',
+      MOD_SAISO LIKE MPOP-PRMOD VALUE 'S',
+      MOD_TSAISO LIKE MPOP-PRMOD VALUE 'X',
+      MOD_EXPGL2 LIKE MPOP-PRMOD VALUE 'B',
+      MOD_EXPGL2A LIKE MPOP-PRMOD VALUE 'O',
+      MOD_EXTERN LIKE MPOP-PRMOD VALUE 'N',
+      MOD_NULL   LIKE MPOP-PRMOD VALUE '0',
+      MOD_GLMIT LIKE MPOP-PRMOD VALUE 'G',
+      MOD_GEW_GLMIT LIKE MPOP-PRMOD VALUE 'W',
+      MODAW_TREND   LIKE MPOP-MODAW VALUE 'T',
+      MODAW_SAISON  LIKE MPOP-MODAW VALUE 'S',
+      MODAW_TSAISON LIKE MPOP-MODAW VALUE 'A',
+      MAX_PREIS LIKE MBEW-STPRS VALUE '999999999.99',
+      MAX_ANTEI LIKE RM03M-ANTEI VALUE '99.99',
+      KVEWEA    LIKE T685T-KVEWE VALUE 'A',
+      KAPPLV    LIKE T685T-KAPPL VALUE 'V ',
+      MAX_FAKTV TYPE F   VALUE '9999',       "MAXIMALER VERBRAUCHSFAKTOR
+      ANZFOLG(2) TYPE P VALUE '13'.      "Anzahl Verbrauchswerte in MVER

@@ -1,0 +1,19 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_V3_802_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TS 'Z802_YQ'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GETS ACTIVE TAB
+MODULE Z804_YQ_ACTIVE_TAB_GET INPUT.
+  OK_CODE = SY-UCOMM.
+  CASE OK_CODE.
+    WHEN C_Z804_YQ-TAB1.
+      G_Z804_YQ-PRESSED_TAB = C_Z804_YQ-TAB1.
+    WHEN C_Z804_YQ-TAB2.
+      G_Z804_YQ-PRESSED_TAB = C_Z804_YQ-TAB2.
+    WHEN C_Z804_YQ-TAB3.
+      G_Z804_YQ-PRESSED_TAB = C_Z804_YQ-TAB3.
+    WHEN OTHERS.
+*&SPWIZARD:      DO NOTHING
+  ENDCASE.
+ENDMODULE.

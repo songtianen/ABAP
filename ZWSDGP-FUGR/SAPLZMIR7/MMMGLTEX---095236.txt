@@ -1,0 +1,91 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGLTEX                                                   *
+*   Allgemeine Deklarationen f¨¹r Langtexte                             *
+*----------------------------------------------------------------------*
+* Deklarationen Langtexte
+DATA:   LANGTEXTBILD LIKE SY-DYNNR,
+        LANGTXTVKORG LIKE MVKE-VKORG,
+        LANGTXTVTWEG LIKE MVKE-VTWEG,
+        LANGTEXT_MATNR_BEST LIKE RMMG1-MATNR,
+        LANGTEXT_MATNR_GRUN LIKE RMMG1-MATNR,
+        LANGTEXT_MATNR_IVER LIKE RMMG1-MATNR,
+        LANGTEXT_MATNR_PRUE LIKE RMMG1-MATNR,
+        LANGTEXT_MATNR_VERT LIKE RMMG1-MATNR.  "mk/1.2B
+
+DATA:   KZ_BEST_PROZ(1) TYPE C,        "Einkaufsbestelltext
+        KZ_GRUN_PROZ(1) TYPE C,        "Grunddatentext
+        KZ_IVER_PROZ(1) TYPE C,        "Interner Vermerk
+        KZ_PRUE_PROZ(1) TYPE C,        "Pr¨¹ftext
+        KZ_VERT_PROZ(1) TYPE C.        "Vertriebstext
+
+DATA:   KZ_BEST_PROZ_SAV(1) TYPE C,    "Einkaufsbestelltext
+        KZ_GRUN_PROZ_SAV(1) TYPE C,    "Grunddatentext
+        KZ_IVER_PROZ_SAV(1) TYPE C,    "Interner Vermerk
+        KZ_PRUE_PROZ_SAV(1) TYPE C,    "Pr¨¹ftext
+        KZ_VERT_PROZ_SAV(1) TYPE C.    "Vertriebstext
+
+* note 623656
+DATA: BEGIN OF RLTEX,
+       LANGTEXTBILD LIKE SY-DYNNR,
+       LANGTXTVKORG LIKE MVKE-VKORG,
+       LANGTXTVTWEG LIKE MVKE-VTWEG,
+       LANGTEXT_MATNR_BEST LIKE RMMG1-MATNR,
+       LANGTEXT_MATNR_GRUN LIKE RMMG1-MATNR,
+       LANGTEXT_MATNR_IVER LIKE RMMG1-MATNR,
+       LANGTEXT_MATNR_PRUE LIKE RMMG1-MATNR,
+       LANGTEXT_MATNR_VERT LIKE RMMG1-MATNR,
+       KZ_BEST_PROZ(1) TYPE C,
+       KZ_GRUN_PROZ(1) TYPE C,
+       KZ_IVER_PROZ(1) TYPE C,
+       KZ_PRUE_PROZ(1) TYPE C,
+       KZ_VERT_PROZ(1) TYPE C,
+       longtextcontainer(30) TYPE c,
+       refresh_textedit_control(1) TYPE c,
+       desc_langu_gdtxt LIKE sy-langu,
+       desc_langu_prtxt LIKE sy-langu,
+       desc_langu_iverm LIKE sy-langu,
+       desc_langu_bestell LIKE sy-langu,
+       desc_langu_vertriebs LIKE sy-langu,
+       editor_obj_gd TYPE REF TO cl_gui_textedit,
+       editor_obj_pr TYPE REF TO cl_gui_textedit,
+       editor_obj_iv TYPE REF TO cl_gui_textedit,
+       editor_obj_be TYPE REF TO cl_gui_textedit,
+       editor_obj_ve TYPE REF TO cl_gui_textedit,
+       textedit_custom_container_gd TYPE REF TO cl_gui_custom_container,
+       textedit_custom_container_pr TYPE REF TO cl_gui_custom_container,
+       textedit_custom_container_iv TYPE REF TO cl_gui_custom_container,
+       textedit_custom_container_be TYPE REF TO cl_gui_custom_container,
+       textedit_custom_container_ve TYPE REF TO cl_gui_custom_container,
+       rm03m_spras_grundd LIKE rm03m-spras,
+       rm03m_spras_pruef LIKE rm03m-spras,
+       rm03m_spras_vertriebs LIKE rm03m-spras,
+       rm03m_spras_bestell LIKE rm03m-spras,
+       rm03m_spras_iverm LIKE rm03m-spras,
+      END   OF RLTEX.
+
+DATA: longtextcontainer(30) TYPE c.
+DATA refresh_textedit_control TYPE c.
+
+DATA: desc_langu_gdtxt LIKE sy-langu.
+DATA: desc_langu_prtxt LIKE sy-langu.
+DATA: desc_langu_iverm LIKE sy-langu.
+DATA: desc_langu_bestell LIKE sy-langu.
+DATA: desc_langu_vertriebs LIKE sy-langu.
+
+DATA: editor_obj_gd TYPE REF TO cl_gui_textedit.
+DATA: editor_obj_pr TYPE REF TO cl_gui_textedit.
+DATA: editor_obj_iv TYPE REF TO cl_gui_textedit.
+DATA: editor_obj_be TYPE REF TO cl_gui_textedit.
+DATA: editor_obj_ve TYPE REF TO cl_gui_textedit.
+
+DATA: textedit_custom_container_gd TYPE REF TO cl_gui_custom_container.
+DATA: textedit_custom_container_pr TYPE REF TO cl_gui_custom_container.
+DATA: textedit_custom_container_iv TYPE REF TO cl_gui_custom_container.
+DATA: textedit_custom_container_be TYPE REF TO cl_gui_custom_container.
+DATA: textedit_custom_container_ve TYPE REF TO cl_gui_custom_container.
+
+DATA: rm03m_spras_grundd LIKE rm03m-spras.
+DATA: rm03m_spras_pruef LIKE rm03m-spras.
+DATA: rm03m_spras_vertriebs LIKE rm03m-spras.
+DATA: rm03m_spras_bestell LIKE rm03m-spras.
+DATA: rm03m_spras_iverm LIKE rm03m-spras.

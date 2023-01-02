@@ -1,0 +1,444 @@
+*&---------------------------------------------------------------------*
+*& Report ZPPD204
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zppd204 MESSAGE-ID zgp_msg.
+TABLES:sscrfields,t001l,ztpp_205,ztpp_206,ztpp210.
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  PARAMETERS:p_werks  LIKE t001l-werks,
+             p_zdckcd LIKE t001l-lgort,
+             p_lgort  LIKE t001l-lgort.
+  SELECT-OPTIONS:s_aufnr FOR ztpp_206-aufnr ,
+                 s_zpldh FOR ztpp210-zpldh MODIF ID m1.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t02.
+  PARAMETERS:r_cj RADIOBUTTON GROUP rad2 DEFAULT 'X' USER-COMMAND singleclick,
+             r_xg RADIOBUTTON GROUP rad2.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+INCLUDE:zppd204_top,
+        zppd204_class,
+        zppd204_form.
+
+INITIALIZATION.
+  t01 = '选择条件'.
+  t02 = '功能选择'.
+
+  %_p_werks_%_app_%-text  = '调出工厂'.
+  %_p_zdckcd_%_app_%-text  = '调出库存地'.
+  %_p_lgort_%_app_%-text  = '调入库存地'.
+  %_s_aufnr_%_app_%-text  = '工单号'.
+  %_s_zpldh_%_app_%-text  = '配料单号'.
+  %_r_cj_%_app_%-text     = '创建'.
+  %_r_xg_%_app_%-text     = '修改'.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+    IF r_cj = 'X' AND screen-group1 = 'M1'.
+      screen-active = 0.
+    ENDIF.
+    IF screen-name = 'P_WERKS' OR screen-name = 'P_LGORT' OR screen-name CS 'S_AUFNR' OR screen-name = 'P_ZDCKCD'.
+      screen-required = 2.
+    ENDIF.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+START-OF-SELECTION.
+  IF r_cj = 'X'.
+    PERFORM getdata.
+  ELSEIF r_xg = 'X'.
+**    PERFORM getdata_xg.
+    PERFORM getdata_wh.
+  ENDIF.
+  CALL SCREEN 900.
+*&---------------------------------------------------------------------*
+*& Form getdata
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM getdata .
+  DATA:BEGIN OF it_aufnr_hz OCCURS 0,
+         aufnr TYPE ztpp_206-aufnr,
+         zks   TYPE ztpp_206-zks,
+         gsmng TYPE ztpp_206-gsmng,
+       END OF it_aufnr_hz.
+  IF p_werks IS INITIAL.
+    MESSAGE s026 WITH '调出工厂'.
+    STOP.
+  ENDIF.
+  IF p_zdckcd IS INITIAL.
+    MESSAGE s026 WITH '调出库存地'.
+    STOP.
+  ENDIF.
+  IF p_lgort IS INITIAL.
+    MESSAGE s026 WITH '调入库存地'.
+    STOP.
+  ENDIF.
+
+  DATA:it_comp          TYPE abap_compdescr_tab WITH HEADER LINE,
+       lr_ref_table_des TYPE  REF  TO cl_abap_structdescr.
+  lr_ref_table_des ?=
+       cl_abap_typedescr=>describe_by_name( 'TY_PCTX' ).
+  it_comp[] = lr_ref_table_des->components[].
+  SORT it_comp BY name.
+
+
+  SELECT z6~matnr,
+    z6~werks,
+    z6~zpcdh,
+    z6~zpcdhh,
+    mara~zzl1,
+    z5~projn,
+    z6~aufnr,
+    z5~post1,
+    z5~name1,
+    z6~plnum,
+    z5a~zdetailname ,
+    z5a~zchandi     ,
+    z5a~zcolor      ,
+    z5a~zzhankuan   ,
+    z5a~zzs         ,
+    z5a~zmb         ,
+    z5a~zdksl       ,
+    z5a~zzwhd,
+    z6~arbpl
+    INTO CORRESPONDING FIELDS OF TABLE @it_pctx
+    FROM ztpp_206 AS z6
+    JOIN ztpp_205 AS z5 ON z6~zpcdh = z5~zpcdh
+    JOIN ztpp_205a AS z5a ON z6~zpcdh = z5a~zpcdh AND z6~zpcdhh = z5a~zpcdhh
+    JOIN mara ON z6~matnr = mara~matnr
+    WHERE z6~aufnr IN @s_aufnr
+    AND z6~werks = @p_werks
+    AND z6~del_gd NE 'X'
+    AND z6~aufnr NE ''.
+  SORT it_pctx BY aufnr.
+  DELETE ADJACENT DUPLICATES FROM it_pctx COMPARING aufnr.
+
+
+  IF it_pctx[] IS NOT INITIAL.
+    SELECT
+      plnum,
+      plnumhh,
+      aufnr,
+      zks,
+      gsmng,
+      psks,
+      psmng
+      INTO TABLE @DATA(lt_aufnr)
+      FROM ztpp_206
+      FOR ALL ENTRIES IN @it_pctx
+      WHERE ztpp_206~aufnr = @it_pctx-aufnr.
+    REFRESH it_aufnr_hz.
+    LOOP AT lt_aufnr INTO DATA(lw_aufnr).
+      CLEAR it_aufnr_hz.
+      it_aufnr_hz-aufnr = lw_aufnr-aufnr.
+      IF lw_aufnr-psks > 0.
+        it_aufnr_hz-zks = lw_aufnr-psks.
+        it_aufnr_hz-gsmng = lw_aufnr-psmng.
+      ELSE.
+        it_aufnr_hz-zks = lw_aufnr-zks.
+        it_aufnr_hz-gsmng = lw_aufnr-gsmng.
+      ENDIF.
+      COLLECT it_aufnr_hz.
+    ENDLOOP.
+    SORT it_aufnr_hz BY aufnr.
+  ENDIF.
+
+  "取工作中心描述
+  SELECT crhd~arbpl, crtx~ktext INTO TABLE @DATA(lt_ktext)
+     FROM crhd
+    JOIN crtx ON crhd~objid = crtx~objid AND crhd~objty = crtx~objty
+    FOR ALL ENTRIES IN @it_pctx
+     WHERE crtx~spras = @sy-langu
+   AND crhd~arbpl = @it_pctx-arbpl.
+  SORT lt_ktext BY arbpl.
+
+  REFRESH:it_matnr.
+  LOOP AT it_pctx.
+    it_pctx-objek = it_pctx-matnr.
+    CLEAR:it_matnr.
+    it_matnr-matnr = it_pctx-matnr.
+    COLLECT: it_matnr.
+    READ TABLE it_aufnr_hz WITH KEY aufnr = it_pctx-aufnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_pctx-zks = it_aufnr_hz-zks.
+      it_pctx-gsmng = it_aufnr_hz-gsmng.
+    ENDIF.
+    IF it_pctx-zzl1 NE '折弯件'.
+      it_pctx-zdetailname = ''.
+      it_pctx-zchandi     = ''.
+      it_pctx-zcolor      = ''.
+      it_pctx-zzhankuan   = ''.
+      it_pctx-zzs         = ''.
+      it_pctx-zmb         = ''.
+      it_pctx-zdksl       = ''.
+      it_pctx-zzwhd       = ''.
+    ENDIF.
+    READ TABLE lt_ktext INTO DATA(lw_ktext) WITH KEY arbpl = it_pctx-arbpl BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_pctx-ktext = lw_ktext-ktext.
+    ENDIF.
+    MODIFY it_pctx.
+  ENDLOOP.
+  IF it_matnr[] IS NOT INITIAL.
+
+    PERFORM get001 TABLES it_matnr.
+    SORT outtab001 BY atnam.
+    LOOP AT it_pctx.
+      DATA(index) = sy-tabix.
+      LOOP AT outtab001 INTO DATA(lw_ausp) WHERE matnr = it_pctx-matnr.
+        READ TABLE it_comp WITH KEY name = lw_ausp-atnam BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          ASSIGN COMPONENT it_comp-name OF STRUCTURE it_pctx TO FIELD-SYMBOL(<fs_atwrt>).
+          IF sy-subrc EQ 0.
+            <fs_atwrt> = lw_ausp-atwrt.
+            MODIFY it_pctx INDEX index.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form getdata_xg
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM getdata_xg .
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_psrw
+    FROM ztpp210
+    WHERE werks = p_werks
+    AND lgort = p_lgort
+    AND aufnr IN s_aufnr
+    AND zpldh IN s_zpldh.
+
+  LOOP AT it_psrw.
+    IF it_psrw-prlab IS NOT INITIAL.
+      it_psrw-zsl = it_psrw-prlab.
+    ELSEIF it_psrw-clabs IS NOT INITIAL.
+      it_psrw-zsl = it_psrw-clabs.
+    ENDIF.
+    it_psrw-zkcyl = it_psrw-zsl - it_psrw-zpssl.
+    MODIFY it_psrw.
+  ENDLOOP.
+ENDFORM.
+
+
+FORM get001 TABLES t_matnr STRUCTURE ccvx_matnr.
+  DATA:BEGIN OF it_objek OCCURS 0,
+         objek TYPE kssk-objek,
+       END OF it_objek.
+  CLEAR:it_objek[],outtab001[].
+  DELETE t_matnr WHERE matnr IS INITIAL.
+  CHECK t_matnr[] IS NOT INITIAL.
+  SORT t_matnr BY matnr.
+  LOOP AT t_matnr.
+    CLEAR:it_objek.
+    it_objek-objek = t_matnr-matnr.
+    COLLECT it_objek.
+  ENDLOOP.
+*取001的特征
+  SELECT ksml~clint,
+         ksml~posnr,
+         ksml~adzhl,
+         ksml~klart,
+         ksml~imerk AS atinn,
+         cabn~atnam ,
+         cabn~atfor ,
+         cabn~anzst ,
+         cabn~anzdz ,
+         kssk~objek AS matnr
+    INTO TABLE @DATA(it_ksml)
+    FROM ksml INNER JOIN cabn ON ksml~imerk = cabn~atinn
+              INNER JOIN kssk ON ksml~clint = kssk~clint
+                             AND kssk~klart = '001'
+    FOR ALL ENTRIES IN @it_objek
+    WHERE kssk~objek = @it_objek-objek.
+  IF sy-subrc EQ 0.
+    SORT it_ksml BY klart matnr atinn.
+    SELECT *
+      INTO TABLE @DATA(lt_ausp)
+      FROM ausp
+      FOR ALL ENTRIES IN @it_ksml
+      WHERE klart = @it_ksml-klart
+      AND   objek = @it_ksml-matnr
+      AND   atinn = @it_ksml-atinn.
+    SORT it_ksml BY matnr atinn.
+    LOOP AT lt_ausp INTO DATA(lw_ausp).
+      CLEAR:outtab001,it_atnam.
+      IF lw_ausp-atwrt IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      outtab001-matnr = lw_ausp-objek.
+      READ TABLE it_ksml INTO DATA(wa_ksml) WITH KEY matnr = lw_ausp-objek
+                                                     atinn = lw_ausp-atinn
+                                                     BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        outtab001-atnam = wa_ksml-atnam.
+        outtab001-atwrt = lw_ausp-atwrt.
+        APPEND outtab001.
+        it_atnam-atnam = outtab001-atnam."汇总，后续取描述
+        COLLECT it_atnam.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form getdata_wh
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM getdata_wh .
+  DATA:BEGIN OF it_aufnr_hz OCCURS 0,
+         aufnr TYPE ztpp_206-aufnr,
+         zks   TYPE ztpp_206-zks,
+         gsmng TYPE ztpp_206-gsmng,
+       END OF it_aufnr_hz.
+  IF p_werks IS INITIAL.
+    MESSAGE s026 WITH '调出工厂'.
+    STOP.
+  ENDIF.
+*  IF p_zdckcd IS INITIAL.
+*    MESSAGE s026 WITH '调出库存地'.
+*    STOP.
+*  ENDIF.
+*  IF p_lgort IS INITIAL.
+*    MESSAGE s026 WITH '调入库存地'.
+*    STOP.
+*  ENDIF.
+
+  DATA:it_comp          TYPE abap_compdescr_tab WITH HEADER LINE,
+       lr_ref_table_des TYPE  REF  TO cl_abap_structdescr.
+  lr_ref_table_des ?=
+       cl_abap_typedescr=>describe_by_name( 'TY_PCTX' ).
+  it_comp[] = lr_ref_table_des->components[].
+  SORT it_comp BY name.
+
+
+  SELECT
+    z10~matnr,
+    z10~werks,
+    z10~zpcdh,
+    mara~zzl1,
+    z5~projn,
+    z10~aufnr,
+    z5~post1,
+    z5~name1,
+    z6~plnum,
+    z5a~zdetailname ,
+    z5a~zchandi     ,
+    z5a~zcolor      ,
+    z5a~zzhankuan   ,
+    z5a~zzs         ,
+    z5a~zmb         ,
+    z5a~zdksl       ,
+    z5a~zzwhd
+    INTO CORRESPONDING FIELDS OF TABLE @it_pctx
+    FROM ztpp210 AS z10
+    JOIN ztpp_205 AS z5 ON z10~zpcdh = z5~zpcdh
+    JOIN ztpp_206 AS z6 ON z10~aufnr = z6~aufnr
+    JOIN ztpp_205a AS z5a ON z6~zpcdh = z5a~zpcdh AND z6~zpcdhh = z5a~zpcdhh
+    JOIN mara ON z6~matnr = mara~matnr
+    WHERE z10~aufnr IN @s_aufnr
+    AND z10~werks = @p_werks
+    AND z6~del_gd NE 'X'
+    AND z6~aufnr NE ''.
+  SORT it_pctx BY aufnr.
+  DELETE ADJACENT DUPLICATES FROM it_pctx COMPARING aufnr.
+  IF it_pctx[] IS NOT INITIAL.
+    SELECT
+      plnum,
+      plnumhh,
+      aufnr,
+      zks,
+      gsmng,
+      psks,
+      psmng
+      INTO TABLE @DATA(lt_aufnr)
+      FROM ztpp_206
+      FOR ALL ENTRIES IN @it_pctx
+      WHERE ztpp_206~aufnr = @it_pctx-aufnr.
+    REFRESH it_aufnr_hz.
+    LOOP AT lt_aufnr INTO DATA(lw_aufnr).
+      CLEAR it_aufnr_hz.
+      it_aufnr_hz-aufnr = lw_aufnr-aufnr.
+      IF lw_aufnr-psks > 0.
+        it_aufnr_hz-zks = lw_aufnr-psks.
+        it_aufnr_hz-gsmng = lw_aufnr-psmng.
+      ELSE.
+        it_aufnr_hz-zks = lw_aufnr-zks.
+        it_aufnr_hz-gsmng = lw_aufnr-gsmng.
+      ENDIF.
+      COLLECT it_aufnr_hz.
+    ENDLOOP.
+    SORT it_aufnr_hz BY aufnr.
+  ENDIF.
+  "取工作中心描述
+  SELECT crhd~arbpl, crtx~ktext INTO TABLE @DATA(lt_ktext)
+     FROM crhd
+    JOIN crtx ON crhd~objid = crtx~objid AND crhd~objty = crtx~objty
+    FOR ALL ENTRIES IN @it_pctx
+     WHERE crtx~spras = @sy-langu
+   AND crhd~arbpl = @it_pctx-arbpl.
+  SORT lt_ktext BY arbpl.
+
+
+  REFRESH:it_matnr.
+  LOOP AT it_pctx.
+    it_pctx-objek = it_pctx-matnr.
+    CLEAR:it_matnr.
+    it_matnr-matnr = it_pctx-matnr.
+    COLLECT: it_matnr.
+    READ TABLE it_aufnr_hz WITH KEY aufnr = it_pctx-aufnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_pctx-zks = it_aufnr_hz-zks.
+      it_pctx-gsmng = it_aufnr_hz-gsmng.
+    ENDIF.
+    IF it_pctx-zzl1 NE '折弯件'.
+      it_pctx-zdetailname = ''.
+      it_pctx-zchandi     = ''.
+      it_pctx-zcolor      = ''.
+      it_pctx-zzhankuan   = ''.
+      it_pctx-zzs         = ''.
+      it_pctx-zmb         = ''.
+      it_pctx-zdksl       = ''.
+      it_pctx-zzwhd       = ''.
+    ENDIF.
+    READ TABLE lt_ktext INTO DATA(lw_ktext) WITH KEY arbpl = it_pctx-arbpl BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_pctx-ktext = lw_ktext-ktext.
+    ENDIF.
+    MODIFY it_pctx.
+  ENDLOOP.
+  IF it_matnr[] IS NOT INITIAL.
+
+    PERFORM get001 TABLES it_matnr.
+    SORT outtab001 BY atnam.
+    LOOP AT it_pctx.
+      DATA(index) = sy-tabix.
+      LOOP AT outtab001 INTO DATA(lw_ausp) WHERE matnr = it_pctx-matnr.
+        READ TABLE it_comp WITH KEY name = lw_ausp-atnam BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          ASSIGN COMPONENT it_comp-name OF STRUCTURE it_pctx TO FIELD-SYMBOL(<fs_atwrt>).
+          IF sy-subrc EQ 0.
+            <fs_atwrt> = lw_ausp-atwrt.
+            MODIFY it_pctx INDEX index.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.

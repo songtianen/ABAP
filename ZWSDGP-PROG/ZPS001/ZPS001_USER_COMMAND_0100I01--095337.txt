@@ -1,0 +1,127 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPS001_USER_COMMAND_0100I01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+  CLEAR :ok_code.
+  ok_code = sy-ucomm.
+  CASE ok_code+0(5).
+    WHEN 'BUT07'.
+      LEAVE TO SCREEN 0.
+    WHEN 'BUT06'."创建
+      PERFORM but06.
+    WHEN 'PICK'.
+      PERFORM pick.
+  ENDCASE.
+  CLEAR sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form but06
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM but06 .
+
+  CLEAR: intab, intab[].
+  intab-vernr = zxmfzr.
+  SELECT SINGLE
+  verna
+  INTO intab-verna
+  FROM tcj04
+  WHERE vernr = zxmfzr.
+  intab-zlxr = zlxr.
+  intab-kunnr = zcustomer.
+  intab-zxmdz = zxmdz.
+  intab-xmssx = zxmus.
+  DATA(znumc) = 0.
+  znumc = zcjje.
+  intab-zcje =  znumc * 10000.
+  intab-zkf = zkf.
+  intab-zbz = zbz.
+  intab-zzsbm = zzsbm.
+  intab-vkbur = vkbur.
+  intab-bzirk = bzirk.
+  APPEND intab.
+
+  CALL FUNCTION 'ZFM_CRM2SAP_001'
+    EXPORTING
+      profl                = zxmlx
+      post1                = zxlmi
+      werks                = zwerks
+      vernr                = zxmfzr
+      plfaz                = zxmks
+      plsez                = zxmjs
+*     USR04                =
+      flag                 = 'C' "C创建，X下达，U更新，D删除
+*     IVPROJECT_DEFINITION =
+      usr02                = zcustomer
+    IMPORTING
+      rtype                = rtype
+      rtmsg                = rtmsg
+      ioproject_definition = ipd
+    TABLES
+      in_tab               = intab.
+  IF rtype = 'S'.
+    CLEAR zxmbm.
+    zxmbm = ipd.
+    IF zxmlx = 'ZPS0007' OR zxmlx = 'ZPS0008'.
+      CALL FUNCTION 'ZFM_CRM2SAP_001'
+        EXPORTING
+*         profl                = zxmlx
+*         post1                = zxlmi
+*         werks                = zwerks
+*         vernr                = zxmfzr
+*         plfaz                = zxmks
+*         plsez                = zxmjs
+*         USR04                =
+          flag                 = 'X' "C创建，X下达，U更新，D删除
+          ivproject_definition = zxmbm
+*         usr02                = zcustomer
+        IMPORTING
+          rtype                = rtype
+          rtmsg                = rtmsg
+*         ioproject_definition = ipd
+        TABLES
+          in_tab               = intab.
+    ENDIF.
+  ELSE.
+    MESSAGE rtmsg TYPE 'E'.
+  ENDIF.
+
+
+ENDFORM.
+FORM pick.
+  DATA:l_row   TYPE i,
+       l_field TYPE char30.
+  CLEAR:l_row,l_field.
+  GET CURSOR LINE l_row.
+  GET CURSOR FIELD l_field.
+  CASE l_field.
+    WHEN 'ZXMBM'.
+      DATA(msg) = 'success'.
+      PERFORM zcj20n USING zxmbm CHANGING msg.
+      IF msg+0(1) = 'E'.
+        MESSAGE msg TYPE 'E'.
+      ELSE.
+        MESSAGE msg TYPE 'S'.
+      ENDIF.
+  ENDCASE.
+ENDFORM.
+
+FORM zcj20n USING zpspid
+CHANGING p_out_msg.
+  SET PARAMETER ID 'PSP' FIELD zpspid.
+  CALL TRANSACTION 'CJ20N' AND SKIP FIRST SCREEN.
+  IF sy-subrc <> 0.
+    CONCATENATE 'E:' p_out_msg INTO p_out_msg.
+  ELSE.
+    p_out_msg = 'S:SUCCESS'.
+  ENDIF.
+ENDFORM.

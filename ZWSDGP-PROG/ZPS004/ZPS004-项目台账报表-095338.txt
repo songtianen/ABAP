@@ -1,0 +1,680 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS004
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps004.
+TABLES: proj,ztps008a,ztps008b,ztps008c,ztps010a,aufk,ekkn.
+TYPES: BEGIN OF ty_itab,
+         pspid TYPE ps_pspid, "项目编码
+         post1 TYPE ps_post1, "项目名称
+         usr00 TYPE proj-usr00, "历史项目名称
+         zfz   TYPE zfz, "分组
+         zhtvt TYPE zhtvt, "合同状态
+         zzywy TYPE zzywy_ps, "业务员
+         zkf   TYPE zkf_ps, "客服
+         vernr TYPE ps_vernr, "项目经理编码
+         verna TYPE ps_verna, "项目经理名称
+         butxt TYPE butxt, "签约公司
+         zQYRQ TYPE zqyrq_ps, "签约日期
+         zqsrq TYPE zqsrq_ps, "签收日期
+         zhtbh TYPE zhtbh_ps, "合同编号
+         zhtxz TYPE zhtxz_ps, "合同性质
+         name1 TYPE name1, "客户名称
+         zgcmc TYPE zgcmc_ps, "工程名称
+         zxmdz TYPE zxmdz_ps, "项目地址
+         zjzzc TYPE zjzzc_ps, "建筑主材
+         zhtmj TYPE zhtmj_ps, "合同面积
+         zhtgq TYPE zhtgq_ps, "合同工期
+         zkgrq TYPE zkgrq_ps, "开工日期
+         zwgrq TYPE zwgrq_ps, "完工日期
+         zysdw TYPE ZYSDW_ps, "有无验收单
+         zysrq TYPE zysrq_ps, "验收日期
+         zjsrq TYPE zjsrq_ps, "结算日期
+         zwkrq TYPE zwkrq_ps, "尾款日期
+         zzbrq TYPE zzbrq_ps, "质保金日期
+         zqdje TYPE zqdje_ps, "签订金额
+         usr05 TYPE proj-usr05, "结算金额
+         zysje TYPE zysje_ps, "应收金额
+         zyskl TYPE zyskl_ps, "应收款率
+         zsuje TYPE zsuje_ps, "实收金额
+         zsurq TYPE zsurq_ps, "实收日期
+         zhkl  TYPE zhkl_ps, "回款率
+         zqkzj TYPE zqkzj_ps, "欠款总计
+         zkpje TYPE zkpje_ps, "开票金额
+         zkprq TYPE zkprq_ps, "开票日期
+         zzbq  TYPE ztps010a-zzbq, "质保期
+         kunnr TYPE kunnr,
+         usr08 TYPE proj-usr08,
+         plfaz TYPE proj-plfaz,
+         vbukr TYPE proj-vbukr,
+         matnr TYPE matnr,
+         zbqrq TYPE ztps010a-zqyrq, "质保金到期日期
+       END OF ty_itab.
+DATA itab TYPE STANDARD TABLE OF ty_itab.
+
+TYPES: BEGIN OF ty_item,
+         ebeln TYPE ebeln, "采购订单
+         ebelp TYPE ebelp, "采购行项目
+         pspid TYPE ps_pspid, "项目变好
+         post1 TYPE ps_post1, "项目名称
+         zhtxz TYPE zhtxz_ps, "合同现状
+         zqdrq TYPE zqdrq_ps, "签订日期
+         zhtbh TYPE zhtbh_ps, "合同编号
+         lifnr TYPE lifnr,
+         name1 TYPE name1, "分包商名称
+         zfzr  TYPE zfzr_ps, "负责人
+         zgcmc TYPE zgcmc_ps, "工程名称
+         asktx TYPE asktx, "分包项
+         zqdje TYPE zqdje_ps, "签订金额
+         zjsje TYPE zjsje_ps, "结算金额
+         zwgrq TYPE zwgrq_ps, "完工日期
+         zjsrq TYPE zjsrq_ps, "结算日期
+         zzbq  TYPE zzbq_ps, "质保期
+         zzbrq TYPE zzbrq_ps, "质保日期
+         zfkje TYPE zfkje_ps, "付款金额
+         zfkrq TYPE zfkrq_ps, "付款日期
+         zfkbl TYPE zfkbl_ps, "付款比例
+         zAVFW TYPE zavfw_ps, "安装费未付款金额
+         zpmje TYPE zpmje_ps, "票面金额
+         zqfje TYPE zqfje_ps, "欠发票金额
+       END OF ty_item.
+DATA: item TYPE STANDARD TABLE OF ty_item.
+DATA: fieldcat TYPE slis_t_fieldcat_alv,
+      g_grid   TYPE REF TO cl_gui_alv_grid.
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t1.
+  PARAMETERS:p1 RADIOBUTTON GROUP grd2 USER-COMMAND singleclick MODIF ID m5,
+             p2 RADIOBUTTON GROUP grd2 MODIF ID m5,
+             p3 RADIOBUTTON GROUP grd2 MODIF ID m5,
+             p4 RADIOBUTTON GROUP grd2 MODIF ID m5.
+SELECTION-SCREEN END OF BLOCK blk1.
+SELECTION-SCREEN BEGIN OF BLOCK blk2 WITH FRAME TITLE t2.
+  SELECT-OPTIONS:
+  f_pspid FOR proj-pspid ,
+  f_vernr FOR proj-vernr,
+  f_ZHTVT FOR ztps008b-zhtvt,
+  f_zkf FOR ztps008b-zkf.
+SELECTION-SCREEN END OF BLOCK blk2.
+
+INITIALIZATION.
+  %_F_PSPID_%_app_%-text = '项目编码'.
+  %_F_VERNR_%_app_%-text = '项目经理'.
+  %_F_ZHTVT_%_app_%-text = '合同状态'.
+  %_f_zkf_%_app_%-text = '客服'.
+  %_p1_%_app_%-text = '销售合同台账维护'.
+  %_p2_%_app_%-text = '施工合同台账维护'.
+  %_p3_%_app_%-text = '销售合同台账查询'.
+  %_p4_%_app_%-text = '施工合同台账查询'.
+  t1 = '基础信息'.
+  t2 = '查询条件'.
+
+START-OF-SELECTION.
+  IF p1 = 'X'.
+    PERFORM get_Receivable."收款
+    PERFORM show_Receivable.
+  ELSEIF p2 = 'X'.
+    PERFORM get_Payable."付款
+    PERFORM show_Payable.
+  ELSEIF p3 = 'X'.
+    PERFORM get_Receivable_008b.
+    PERFORM show_Receivable_008b.
+  ELSEIF p4 = 'X'.
+    PERFORM get_Payable_008c.
+    PERFORM show_Payable_008c.
+  ENDIF.
+FORM get_Receivable_008b.
+  CLEAR: itab.
+  SELECT
+    *
+    INTO CORRESPONDING FIELDS OF TABLE itab
+    FROM ztps008b
+    WHERE pspid IN f_pspid
+    AND vernr IN f_vernr
+    AND zkf IN f_zkf.
+
+
+ENDFORM.
+FORM  show_Receivable_008b.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'USR00' '历史项目' '' '' '' '',
+        'ZFZ' '分组' '' '' '' '',
+        'PSPID' '项目编码' '' '' '' '',
+        'POST1' '项目名称' '' '' '' '',
+        'BUTXT' '公司名称' '' '' '' '',
+        'ZHTVT' '合同现状' '' '' '' '',
+        'ZZYWY' '业务员' '' '' '' '',
+        'ZKF' '客服' '' '' '' '',
+        'VERNA' '项目经理' '' '' '' '',
+        'ZQYRQ' '签约日期' '' '' '' '',
+        'ZQSRQ' '签收日期' '' '' '' '',
+        'ZHTBH' '合同编号' '' '' '' '',
+        'ZHTXZ' '合同性质' '' '' '' '',
+        'NAME1' '客户名称' '' '' '' '',
+        'ZXMDZ' '项目地址' '' '' '' '',
+        'ZJZZC' '建筑主材' '' '' '' '',
+        'ZHTMJ' '合同面积' '' '' '' '',
+        'ZHTGQ' '合同工期' '' '' '' '',
+        'ZKGRQ' '开工日期' '' '' '' '',
+        'ZWGRQ' '完工日期' '' '' '' '',
+        'ZYSDW' '有无验收单' '' '' '' '',
+        'ZYSRQ' '验收日期' '' '' '' '',
+        'ZJSRQ' '结算日期' '' '' '' '',
+        'ZWKRQ' '尾款日期' '' '' '' '',
+        'ZZBRQ' '质保金日期' '' '' '' '',
+        'ZQDJE' '签订金额' '' '' '' '',
+        'ZJSJE' '结算金额' '' '' '' '',
+        'ZYSJE' '主合同进度应收款' '' '' '' '',
+        'ZYSKL' '应收款率' '' '' '' '',
+        'ZSUJE' '实收金额' '' '' '' '',
+        'ZSURQ' '实收日期' '' '' '' '',
+        'ZHKL' '回款率' '' '' '' '',
+        'ZQKZJ' '欠款总计' '' '' '' '',
+        'ZKPJE' '开票金额' '' '' '' '',
+        'ZKPRQ' '开票日期' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES itab fieldcat USING '' ''.
+ENDFORM.
+FORM  get_Payable_008c.
+  CLEAR: item.
+  SELECT
+    *
+    INTO CORRESPONDING FIELDS OF TABLE item
+    FROM ztps008c
+    WHERE pspid IN f_pspid.
+ENDFORM.
+FORM   show_Payable_008c.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'EBELN' '采购订单号' '' '' '' '',
+        'EBELP' '采购行项目' '' '' '' '',
+        'PSPID' '项目编码' '' '' '' '',
+        'POST1' '项目名称' '' '' '' '',
+        'ZHTXZ' '合同现状' '' '' '' '',
+        'ZHTBH' '合同编号' '' '' '' '',
+        'ZQDRQ' '签订日期' '' '' '' '',
+        'NAME1' '供应商名称' '' '' '' '',
+        'ZFZR' '负责人' '' '' '' '',
+        'ZGCMC' '工程名称' '' '' '' '',
+        'ASKTX' '分包项' '' '' '' '',
+        'ZQDJE' '签订金额' '' '' '' '',
+        'ZJSJE' '结算金额' '' '' ''  '',
+        'ZWGRQ' '完工日期' '' '' '' '',
+        'ZJSRQ' '结算日期' '' '' '' '',
+        'ZZBQ' '质保期' '' '' '' '',
+        'ZZBRQ' '质保日期' '' '' '' '',
+        'ZFKJE' '付款金额' '' '' '' '',
+        'ZFKBL' '付款比例' '' '' '' '',
+        'ZPMJE' '票面金额' '' '' '' '',
+        'ZAVFW' '安装费未付款金额' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES item fieldcat USING '' ''.
+ENDFORM.
+FORM get_Receivable.
+
+  SELECT
+    proj~pspid,
+    proj~post1,
+    proj~usr00,
+    ztps010a~zzywy,
+    ztps010a~zkf,
+    proj~vernr,
+    ztps010a~zhtbh,
+    ztps010a~kunnr,
+    ztps010a~zgcmc,
+    ztps010a~zxmdz,
+    ztps010a~zhtmj,
+    ztps010a~zhtgq,
+    proj~usr08,
+    ztps010a~zzbq,
+    ztps010a~zqdje,
+    proj~usr05,
+    ztps008a~zfz,
+    proj~vbukr,
+    vbap~matnr
+    FROM proj
+    INNER JOIN ztps010a ON ztps010a~pspid = proj~pspid
+    INNER JOIN ztps008a ON ztps008a~vernr = proj~vernr
+    INNER JOIN prps ON prps~psphi = proj~pspnr
+    INNER JOIN vbap ON vbap~ps_psp_pnr = prps~pspnr
+    WHERE ztps010a~pspid IN @f_pspid
+    AND ztps010a~verna IN @f_vernr
+    AND proj~plfaz <= ztps008a~zsxsj
+    AND prps~stufe = '2'
+    AND ztps010a~zkf IN @f_zkf
+    INTO CORRESPONDING FIELDS OF TABLE @itab.
+  SORT itab.
+  DELETE ADJACENT DUPLICATES FROM itab COMPARING ALL FIELDS.
+  LOOP AT itab INTO DATA(wa_tab).
+    SELECT SINGLE butxt
+      INTO wa_tab-butxt
+      FROM t001
+      WHERE bukrs = wa_tab-vbukr.
+    SELECT SINGLE wgbez
+      INTO wa_tab-zjzzc
+      FROM t023t
+      INNER JOIN mara ON mara~matkl = t023t~matkl
+      WHERE matnr = wa_tab-matnr.
+    SELECT SINGLE stat
+      INTO @DATA(ls_stat)
+      FROM jest
+      INNER JOIN proj ON proj~objnr = jest~objnr
+      WHERE proj~pspid = @wa_tab-pspid.
+    IF ls_stat = 'E0005'
+      OR ls_stat = 'E0006'
+      OR ls_stat = 'E0007'.
+      wa_tab-zysdw = '是'.
+    ELSE.
+      wa_tab-zysdw = '否'.
+    ENDIF.
+    SELECT SUM( dmbtr )
+      INTO wa_tab-zsuje
+      FROM ztfi_splitcont
+      WHERE pspid = wa_tab-pspid.
+    SELECT SUM( dmbtrtaxa )
+      INTO wa_tab-zkpje
+      FROM ztfi_gtre_hd
+      WHERE pspid = wa_tab-pspid.
+    MODIFY itab FROM wa_tab.
+  ENDLOOP.
+
+ENDFORM.
+
+FORM get_Payable.
+
+  SELECT
+    proj~pspid,
+    proj~post1,
+    ekkn~ebeln,
+    ekkn~ebelp,
+    ekko~zsghtqdsj AS zqdrq,
+    ekko~zsghtbh AS zhtbh,
+    ekko~lifnr,
+    ekko~zazsfzr AS zfzr,
+    ekko~zgcmc AS zgcmc,
+    proj~usr06 AS zjsje,
+    proj~usr09 AS zjsrq
+    FROM proj
+    INNER JOIN prps ON prps~psphi = proj~pspnr
+    INNER JOIN aufk ON prps~pspnr = aufk~pspel
+    INNER JOIN ekkn ON ekkn~nplnr = aufk~aufnr
+    INNER JOIN ekko ON ekkn~ebeln = ekko~ebeln
+    WHERE proj~pspid IN @f_pspid
+    AND prps~stufe = '2'
+    AND aufk~auart LIKE 'ZPS%'
+    AND ekko~bsart = 'Z02'
+    INTO CORRESPONDING FIELDS OF TABLE @item.
+  LOOP AT item INTO DATA(wa_tem).
+    SELECT SINGLE asktx
+      INTO wa_tem-asktx
+      FROM asmdt
+      INNER JOIN esll AS a ON a~srvpos = asmdt~asnum
+      INNER JOIN esll AS b ON a~packno = b~sub_packno
+      INNER JOIN ekpo ON ekpo~packno = b~packno
+      WHERE ekpo~ebeln = wa_tem-ebeln
+      AND ekpo~ebelp = wa_tem-ebelp.
+    SELECT SINGLE ekpo~brtwr
+      INTO wa_tem-zqdje
+      FROM ekpo
+      WHERE ekpo~ebeln = wa_tem-ebeln
+      AND ekpo~ebelp = wa_tem-ebelp.
+    SELECT SUM( dmbtr_b )
+      INTO wa_tem-zfkje
+      FROM ztfi_pyhd
+      WHERE ebeln = wa_tem-ebeln  .
+    SELECT SINGLE name1
+      INTO wa_tem-name1
+      FROM lfa1
+      WHERE lifnr = wa_tem-lifnr.
+    SELECT SUM( wrbtr ) AS zpmje
+      INTO wa_tem-zpmje
+      FROM rseg
+      WHERE ebeln = wa_tem-ebeln
+      AND ebelp = wa_tem-ebelp
+      AND shkzg = 'S'.
+
+    MODIFY item FROM wa_tem.
+  ENDLOOP.
+
+ENDFORM.
+
+FORM show_Receivable.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'USR00' '历史项目' '' '' '' '',
+        'ZFZ' '分组' '' '' '' '',
+        'PSPID' '项目编码' '' '' '' '',
+        'POST1' '项目名称' '' '' '' '',
+        'BUTXT' '公司名称' '' '' '' '',
+        'ZHTVT' '合同现状' '' '' '' 'X',
+        'ZZYWY' '业务员' '' '' '' '',
+        'ZKF' '客服' '' '' '' '',
+        'VERNA' '项目经理' '' '' '' '',
+        'ZQYRQ' '签约日期' '' '' '' '',
+        'ZQSRQ' '签收日期' '' '' '' 'X',
+        'ZHTBH' '合同编号' '' '' '' '',
+        'ZHTXZ' '合同性质' '' '' '' 'X',
+        'NAME1' '客户名称' '' '' '' '',
+        'ZXMDZ' '项目地址' '' '' '' '',
+        'ZJZZC' '建筑主材' '' '' '' '',
+        'ZHTMJ' '合同面积' '' '' '' '',
+        'ZHTGQ' '合同工期' '' '' '' '',
+        'ZKGRQ' '开工日期' '' '' '' '',
+        'ZWGRQ' '完工日期' '' '' '' 'X',
+        'ZYSDW' '有无验收单' '' '' '' '',
+        'ZYSRQ' '验收日期' '' '' '' 'X',
+        'ZJSRQ' '结算日期' '' '' '' 'X',
+        'ZWKRQ' '尾款日期' '' '' '' 'X',
+        'ZZBRQ' '质保金日期' '' '' '' '',
+        'ZQDJE' '签订金额' '' '' '' '',
+        'ZJSJE' '结算金额' '' '' '' '',
+        'ZYSJE' '主合同进度应收款' '' '' '' 'X',
+        'ZYSKL' '应收款率' '' '' '' '',
+        'ZSUJE' '实收金额' '' '' '' '',
+        'ZSURQ' '实收日期' '' '' '' '',
+        'ZHKL' '回款率' '' '' '' '',
+        'ZQKZJ' '欠款总计' '' '' '' '',
+        'ZKPJE' '开票金额' '' '' '' '',
+        'ZKPRQ' '开票日期' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES itab fieldcat USING 'X' ''.
+ENDFORM.
+
+FORM show_Payable.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'EBELN' '采购订单号' '' '' '' '',
+        'EBELP' '采购行项目' '' '' '' '',
+        'PSPID' '项目编码' '' '' '' '',
+        'POST1' '项目名称' '' '' '' '',
+        'ZHTXZ' '合同现状' '' '' '' '',
+        'ZHTBH' '合同编号' '' '' '' '',
+        'ZQDRQ' '签订日期' '' '' '' '',
+        'NAME1' '供应商名称' '' '' '' '',
+        'ZFZR' '负责人' '' '' '' '',
+        'ZGCMC' '工程名称' '' '' '' '',
+        'ASKTX' '分包项' '' '' '' '',
+        'ZQDJE' '签订金额' '' '' '' '',
+        'ZJSJE' '结算金额' '' '' ''  '',
+        'ZWGRQ' '完工日期' '' '' '' '',
+        'ZJSRQ' '结算日期' '' '' '' '',
+        'ZZBQ' '质保期' '' '' '' '',
+        'ZZBRQ' '质保日期' '' '' '' '',
+        'ZFKJE' '付款金额' '' '' '' '',
+        'ZFKBL' '付款比例' '' '' '' '',
+        'ZPMJE' '票面金额' '' '' '' '',
+        'ZAVFW' '安装费未付款金额' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES item fieldcat USING 'X' ''.
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA: lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD1' EXCLUDING lt_exfcode.
+ENDFORM. "set_status
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+  IF g_grid IS INITIAL.
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = g_grid.
+  ENDIF.
+  "失去焦点触发更新内表
+  CALL METHOD g_grid->register_edit_event
+    EXPORTING
+      i_event_id = cl_gui_alv_grid=>mc_evt_modified.
+
+  CALL METHOD g_grid->check_changed_data.
+  rs_selfield-refresh     = 'X'.
+  rs_selfield-col_stable  = 'X'.
+  rs_selfield-row_stable  = 'X'.
+  CASE r_ucomm.
+    WHEN '&BUT80'.
+      PERFORM but80."
+    WHEN '&IC1'.
+      IF p1 = 'X'.
+        IF rs_selfield-fieldname = 'ZSUJE'.
+          READ TABLE itab INDEX rs_selfield-tabindex INTO DATA(wa_tab).
+          IF sy-subrc = 0.
+            PERFORM display_zsuje USING wa_tab-pspid.
+          ENDIF.
+        ENDIF.
+        IF rs_selfield-fieldname = 'ZKPJE'.
+          CLEAR wa_tab.
+          READ TABLE itab INDEX rs_selfield-tabindex INTO wa_tab.
+          IF sy-subrc = 0.
+            PERFORM display_zkpje USING wa_tab-pspid.
+          ENDIF.
+        ENDIF.
+      ELSEIF p2 = 'X'.
+        IF rs_selfield-fieldname = 'ZFKJE'.
+          READ TABLE item INDEX rs_selfield-tabindex INTO DATA(wa_tem).
+          IF sy-subrc = 0.
+            PERFORM display_zfkje USING wa_tem-ebeln.
+          ENDIF.
+        ENDIF.
+        IF rs_selfield-fieldname = 'ZPMJE'.
+          READ TABLE item INDEX rs_selfield-tabindex INTO wa_tem.
+          IF sy-subrc = 0.
+            PERFORM display_zpmje USING wa_tem-ebeln wa_tem-ebelp.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+  ENDCASE.
+*  rs_selfield-row_stable = 'X'.
+*  rs_selfield-col_stable = 'X'.
+*  rs_selfield-refresh = 'X'.
+ENDFORM.
+
+FORM but80.
+  IF p1 = 'X'.
+    DATA: lt TYPE STANDARD TABLE OF ztps008b WITH HEADER LINE.
+    LOOP AT  itab INTO DATA(wa_tab).
+      MOVE-CORRESPONDING wa_tab TO lt.
+      APPEND lt.
+    ENDLOOP.
+    IF lt[] IS NOT INITIAL.
+      MODIFY ztps008b FROM TABLE lt.
+      IF  sy-subrc = 0.
+        MESSAGE '更新成功' TYPE 'S'.
+      ELSE.
+        MESSAGE '更新失败' TYPE 'E'.
+      ENDIF.
+    ENDIF.
+  ELSEIF  p2 = 'X'.
+    DATA: py TYPE STANDARD TABLE OF ztps008c  WITH HEADER LINE.
+    LOOP AT  item INTO DATA(wa_tem).
+      MOVE-CORRESPONDING wa_tem TO py.
+      APPEND py.
+    ENDLOOP.
+    IF py[] IS NOT INITIAL.
+      MODIFY ztps008c FROM TABLE py.
+      IF sy-subrc = 0.
+        MESSAGE '更新成功' TYPE 'S'.
+      ELSE.
+        MESSAGE '更新失败' TYPE 'E'.
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+
+FORM display_zsuje USING p_pspid.
+  DATA: go_alv    TYPE REF TO cl_salv_table,
+        go_funlst TYPE REF TO cl_salv_functions_list.
+  DATA: cxroot TYPE REF TO cx_root,
+        excmsg TYPE c.
+  CLEAR:go_alv,go_funlst.
+
+  SELECT
+    partner,
+    dmbtr
+    FROM ztfi_splitcont
+    WHERE pspid = @p_pspid
+    INTO TABLE @DATA(lt_item).
+  IF sy-subrc = 0.
+    TRY.
+        cl_salv_table=>factory(
+        IMPORTING
+        r_salv_table = go_alv   "导出ALV的容器对象
+        CHANGING
+        t_table = lt_item[] ).  "内容表
+      CATCH cx_root INTO cxroot.
+        excmsg = cxroot->get_text( ).
+        MESSAGE e000(oo) WITH excmsg.
+    ENDTRY.
+
+    go_funlst = go_alv->get_functions( ).
+    go_funlst->set_all( 'X' ).
+
+    "重新设置列名称
+    "go_alv->get_columns( )->get_column( 'MAKTX' )->set_long_text( 'TES删除' )."
+
+
+    IF go_alv IS BOUND."设置窗口大小与位置-
+      go_alv->set_screen_popup(
+      start_column = 30
+      end_column = 160
+      start_line = 5
+      end_line = 20 ).
+      go_alv->display( ).
+    ENDIF.
+
+  ENDIF.
+
+
+ENDFORM.
+
+FORM display_zkpje USING p_pspid.
+  DATA: go_alv    TYPE REF TO cl_salv_table,
+        go_funlst TYPE REF TO cl_salv_functions_list.
+  DATA: cxroot TYPE REF TO cx_root,
+        excmsg TYPE c.
+  CLEAR:go_alv,go_funlst.
+  SELECT
+    vbeln,
+    dmbtrtaxa
+    FROM ztfi_gtre_hd
+    WHERE pspid = @p_pspid
+    INTO TABLE @DATA(lt_item).
+  IF sy-subrc = 0.
+    TRY.
+        cl_salv_table=>factory(
+        IMPORTING
+        r_salv_table = go_alv   "导出ALV的容器对象
+        CHANGING
+        t_table = lt_item[] ).  "内容表
+      CATCH cx_root INTO cxroot.
+        excmsg = cxroot->get_text( ).
+        MESSAGE e000(oo) WITH excmsg.
+    ENDTRY.
+
+    go_funlst = go_alv->get_functions( ).
+    go_funlst->set_all( 'X' ).
+
+    "重新设置列名称
+    "go_alv->get_columns( )->get_column( 'MAKTX' )->set_long_text( 'TES删除' )."
+
+
+    IF go_alv IS BOUND."设置窗口大小与位置-
+      go_alv->set_screen_popup(
+      start_column = 30
+      end_column = 160
+      start_line = 5
+      end_line = 20 ).
+      go_alv->display( ).
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+FORM display_zfkje USING p_ebeln.
+  DATA: go_alv    TYPE REF TO cl_salv_table,
+        go_funlst TYPE REF TO cl_salv_functions_list.
+  DATA: cxroot TYPE REF TO cx_root,
+        excmsg TYPE c.
+  CLEAR:go_alv,go_funlst.
+  SELECT
+    ebeln,
+    dmbtr_b,
+    budat_zt
+    FROM ztfi_pyhd
+    WHERE ebeln = @p_ebeln
+    INTO TABLE @DATA(lt_item).
+  IF sy-subrc = 0.
+    TRY.
+        cl_salv_table=>factory(
+        IMPORTING
+        r_salv_table = go_alv   "导出ALV的容器对象
+        CHANGING
+        t_table = lt_item[] ).  "内容表
+      CATCH cx_root INTO cxroot.
+        excmsg = cxroot->get_text( ).
+        MESSAGE e000(oo) WITH excmsg.
+    ENDTRY.
+
+    go_funlst = go_alv->get_functions( ).
+    go_funlst->set_all( 'X' ).
+
+    "重新设置列名称
+    "go_alv->get_columns( )->get_column( 'MAKTX' )->set_long_text( 'TES删除' )."
+
+
+    IF go_alv IS BOUND."设置窗口大小与位置-
+      go_alv->set_screen_popup(
+      start_column = 30
+      end_column = 160
+      start_line = 5
+      end_line = 20 ).
+      go_alv->display( ).
+    ENDIF.
+
+  ENDIF.
+
+
+ENDFORM.
+
+FORM display_zpmje USING p_ebeln p_ebelp.
+  DATA: go_alv    TYPE REF TO cl_salv_table,
+        go_funlst TYPE REF TO cl_salv_functions_list.
+  DATA: cxroot TYPE REF TO cx_root,
+        excmsg TYPE c.
+  CLEAR:go_alv,go_funlst.
+  SELECT
+    ebeln,
+    ebelp,
+    shkzg,
+    wrbtr
+    FROM rseg
+    WHERE ebeln = @p_ebeln
+    AND ebelp = @p_ebelp
+    INTO TABLE @DATA(lt_item).
+  IF sy-subrc = 0.
+    TRY.
+        cl_salv_table=>factory(
+        IMPORTING
+        r_salv_table = go_alv   "导出ALV的容器对象
+        CHANGING
+        t_table = lt_item[] ).  "内容表
+      CATCH cx_root INTO cxroot.
+        excmsg = cxroot->get_text( ).
+        MESSAGE e000(oo) WITH excmsg.
+    ENDTRY.
+
+    go_funlst = go_alv->get_functions( ).
+    go_funlst->set_all( 'X' ).
+
+    "重新设置列名称
+    "go_alv->get_columns( )->get_column( 'MAKTX' )->set_long_text( 'TES删除' )."
+
+
+    IF go_alv IS BOUND."设置窗口大小与位置-
+      go_alv->set_screen_popup(
+      start_column = 30
+      end_column = 160
+      start_line = 5
+      end_line = 20 ).
+      go_alv->display( ).
+    ENDIF.
+
+  ENDIF.
+ENDFORM.

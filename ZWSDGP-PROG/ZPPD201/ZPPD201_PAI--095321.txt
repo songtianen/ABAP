@@ -1,0 +1,591 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD201_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TS 'ZPCD_FY'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GETS ACTIVE TAB
+MODULE ZPCD_FY_ACTIVE_TAB_GET INPUT.
+  OK_CODE = SY-UCOMM.
+  CASE OK_CODE.
+    WHEN C_ZPCD_FY-TAB1.
+      G_ZPCD_FY-PRESSED_TAB = C_ZPCD_FY-TAB1.
+    WHEN C_ZPCD_FY-TAB2.
+      G_ZPCD_FY-PRESSED_TAB = C_ZPCD_FY-TAB2.
+    WHEN C_ZPCD_FY-TAB3.
+      G_ZPCD_FY-PRESSED_TAB = C_ZPCD_FY-TAB3.
+    WHEN OTHERS.
+*&SPWIZARD:      DO NOTHING
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0900 INPUT.
+  SAVE_OK = OK_CODE.
+  CLEAR OK_CODE.
+  DATA:LINE TYPE I.
+  DATA: ZCD   TYPE ZTPP_202-ZCD,
+        ZKS   TYPE ZTPP_202-ZKS,
+        VBELN TYPE VBELN,
+        POSNR TYPE POSNR.
+  CASE SAVE_OK.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      IF RETCODE <> 'A'.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+    WHEN 'COPY'.
+      PERFORM COPY_ITEM.
+    WHEN 'CRTPCD'.
+      IF IT_JSXD[] IS INITIAL.
+        IF P_HT = 'X'.
+          MESSAGE '请先获取销售订单的技术详单后再操作。' TYPE 'I'.
+        ELSEIF P_WHT = 'X'.
+          MESSAGE '请先获取销售订单的排产单后再操作。' TYPE 'I'.
+        ENDIF.
+        RETURN.
+      ENDIF.
+      PERFORM CREATE_ZTPP_205A CHANGING GV_MSG ZCD ZKS VBELN POSNR."创建排产单
+*        PERFORM save_longtext.
+      IF GV_MSG = '排产单创建完成'.
+      ENDIF.
+      MESSAGE GV_MSG TYPE 'I'.
+*    WHEN 'PRINT'.
+*      IF it_jsxd[] IS INITIAL.
+*        MESSAGE '请创建完排产单再操作。' TYPE 'I'.
+*        RETURN.
+*      ENDIF.
+*      PERFORM printpcd.
+*    WHEN 'FTP'.
+*      IF it_jsxd[] IS INITIAL.
+*        MESSAGE '请创建完排产单再操作。' TYPE 'I'.
+*        RETURN.
+*      ENDIF.
+*      PERFORM ftp1.
+    WHEN 'OASP'.
+      CASE SY-TCODE.
+        WHEN 'ZPP205'.
+          IF WA_GGZD-ZPCDH IS INITIAL.
+            MESSAGE '生成排产单后再提交OA审批.' TYPE 'I'.
+            EXIT.
+          ENDIF.
+          IF WA_GGZD-ZADUIT = 'U'.
+            MESSAGE '排产单后已提交OA审批.' TYPE 'I'.
+            EXIT.
+          ENDIF.
+          PERFORM OASP USING WA_GGZD-ZPCDH CHANGING FLAG.
+          IF FLAG = 'S'.
+            UPDATE ZTPP_205 SET ZADUIT = 'U' WHERE ZPCDH = WA_GGZD-ZPCDH.
+            COMMIT WORK.
+            WA_GGZD-ZADUIT = 'U'.
+          ENDIF.
+        WHEN 'ZPP207'.
+          IF WA_GGZD-ZPCDH IS INITIAL.
+            MESSAGE '生成排产单后再提交OA审批.' TYPE 'I'.
+            EXIT.
+          ENDIF.
+          IF WA_GGZD-ZADUIT = 'U'.
+            MESSAGE '排产单后已提交OA审批.' TYPE 'I'.
+            EXIT.
+          ENDIF.
+          PERFORM OASP_JJ USING WA_GGZD-ZPCDH CHANGING FLAG.
+          IF FLAG = 'S'.
+            UPDATE ZTPP_205 SET ZADUIT = 'U' WHERE ZPCDH = WA_GGZD-ZPCDH.
+            COMMIT WORK.
+            WA_GGZD-ZADUIT = 'U'.
+          ENDIF.
+        WHEN OTHERS.
+          MESSAGE '请用事务码ZPP205或者ZPP207执行此功能' TYPE 'I'.
+          EXIT.
+      ENDCASE.
+
+    WHEN 'FILTER'.
+*      PERFORM fcode_tc_filter  USING p_tc_name p_table_name.
+    WHEN 'ZFTP'.
+      IF WA_GGZD-ZPCDH IS INITIAL.
+        MESSAGE S000(OO) WITH '生成排产单后再上传附件.' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      PERFORM UPLOADFILE USING WA_GGZD-ZPCDH.
+    WHEN OTHERS.
+
+  ENDCASE.
+
+*  CLEAR:OK_CODE.
+  CLEAR:SY-UCOMM.
+ENDMODULE.
+
+FORM COPY_ITEM .
+  DATA:LV_SELCOUNT TYPE I.
+  LOOP AT IT_JSXD WHERE SEL = 'X'.
+    LV_SELCOUNT = LV_SELCOUNT + 1.
+  ENDLOOP.
+  IF LV_SELCOUNT <> 1.
+    MESSAGE '请选中一行数据进行复制拆分.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+  READ TABLE IT_JSXD WITH KEY SEL = 'X'.
+
+  IT_JSXD-SEL = ''.
+  MODIFY IT_JSXD INDEX SY-TABIX.
+
+  CLEAR:IT_JSXD-ZPCDH.
+
+  INSERT IT_JSXD INDEX SY-TABIX.
+
+  SORT IT_JSXD BY MATNR.
+
+ENDFORM.
+
+FORM CREATE_ZTPP_205A CHANGING LV_MSG ZCD ZKS VBELN POSNR.
+  DATA:BEGIN OF IT_JSXD_JH OCCURS 0,
+*         vbeln    TYPE vbeln,
+*         posnr    TYPE posnr,
+*         matnr    TYPE matnr,
+         ZJSXDID  TYPE ZTPP_211-ZJSXDID,
+         ZJSXDDID TYPE ZTPP_211-ZJSXDDID,
+         ZCD      TYPE CHAR20,
+         ZKS_BCPC TYPE ZTPP_205A-ZKS,
+       END OF IT_JSXD_JH.
+  DATA:ZPCDH TYPE ZTPP_205A-ZPCDH.
+  CLEAR LV_MSG.
+  READ TABLE IT_JSXD WITH KEY SEL = 'X'.
+  IF SY-SUBRC <> 0.
+    LV_MSG = '选中需要生成排产单的行项目.' .
+    RETURN.
+  ELSE.
+    LOOP AT IT_JSXD WHERE ZPCDH IS NOT INITIAL AND SEL = 'X'.
+      EXIT.
+    ENDLOOP.
+    IF SY-SUBRC = 0.
+      LV_MSG = '已经生成排产单号的行项目不要重复选中.' .
+      RETURN.
+    ENDIF.
+    CLEAR:IT_JSXD_JH,IT_JSXD_JH[].
+    LOOP AT IT_JSXD WHERE SEL = 'X'.
+      IF IT_JSXD-ZKS_BCPC IS INITIAL.
+        LV_MSG = '排产块数为0，无法创建排产单.'.
+        RETURN.
+      ENDIF.
+      CLEAR IT_JSXD_JH.
+      MOVE-CORRESPONDING IT_JSXD TO IT_JSXD_JH.
+      COLLECT IT_JSXD_JH.
+    ENDLOOP.
+
+*汇总已创建排产单的长度的块数
+*    SELECT
+*        vbeln,
+*        posnr,
+*        matnr,
+*        jhxtdh,
+*        jhxthh,
+*        zcd,
+*        SUM( zks ) AS zks
+*        FROM ztpp_205a
+*        INTO TABLE @DATA(it_pcd_ypc)
+*      GROUP BY vbeln, posnr, matnr, zcd, jhxtdh, jhxthh
+*      HAVING vbeln = @it_pcd-vbeln AND posnr = @it_pcd-posnr AND matnr = @it_pcd-matnr.
+*校验排产块数不能大于技术详单块数
+    IF P_HT = 'X'.
+      LOOP AT IT_JSXD WHERE SEL = 'X'.
+        READ TABLE IT_JSXD_JH WITH KEY ZJSXDID = IT_JSXD-ZJSXDID  ZJSXDDID = IT_JSXD-ZJSXDDID.
+*      READ TABLE it_pcd_ypc INTO DATA(iw_pcd_ypc) WITH KEY jhxtdh = it_jsxd-jhxtdh jhxthh = it_jsxd-jhxthh.
+        IF IT_JSXD_JH-ZKS_BCPC + IT_JSXD-ZKS_YPC > IT_JSXD-ZKS.
+          LV_MSG = '排产块数超过技术详单块数.'.
+          RETURN.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
+  CHECK LV_MSG IS INITIAL.
+
+*  zcd = it_pcd_jh-zcd.
+*  zks = it_pcd_jh-zks.
+*  vbeln = it_pcd-vbeln.
+*  posnr = it_pcd-posnr.
+  PERFORM GET_SNRO_NUMBER CHANGING ZPCDH.
+  PERFORM DATA_TO_ZTPP_205A USING ZPCDH.
+  WA_GGZD-ZPCDH = ZPCDH.
+  LOOP AT IT_JSXD WHERE ZPCDH IS INITIAL AND SEL = 'X'.
+*    PERFORM get_snro_number CHANGING it_jsxd-zpcdh.
+*    PERFORM data_to_ztpp_205a.
+    IT_JSXD-ZPCDH = ZPCDH.
+    IT_JSXD-SEL = ''.
+    MODIFY IT_JSXD.
+  ENDLOOP.
+  LOOP AT IT_JSXD.
+    READ TABLE IT_JSXD_JH WITH KEY ZJSXDID = IT_JSXD-ZJSXDID  ZJSXDDID = IT_JSXD-ZJSXDDID.
+    IF SY-SUBRC EQ 0.
+      IT_JSXD-ZKS_YPC = IT_JSXD-ZKS_YPC + IT_JSXD_JH-ZKS_BCPC.
+      IT_JSXD-ZKS_WPC = IT_JSXD-ZKS - IT_JSXD-ZKS_YPC.
+    ENDIF.
+    MODIFY IT_JSXD.
+  ENDLOOP.
+  IF LV_MSG IS INITIAL.
+    LV_MSG = '排产单创建完成'.
+  ENDIF.
+ENDFORM.
+
+FORM GET_SNRO_NUMBER CHANGING P_NUMBR.
+  DATA: LV_NUMBR TYPE CHAR3.
+  SELECT COUNT( * ) FROM ZTPP_205A WHERE SYDAT = SY-DATUM.
+  IF SY-SUBRC NE 0.
+    CALL FUNCTION 'NUMBER_RANGE_INTERVAL_INIT'
+      EXPORTING
+        OBJECT            = 'ZGPPP01'
+        COMMIT            = 'X'
+      EXCEPTIONS
+        NO_INTERVAL_FOUND = 1
+        OBJECT_NOT_FOUND  = 2.
+    IF SY-SUBRC <> 0.
+      MESSAGE '初始化流水号失败.' TYPE 'S' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'NUMBER_RANGE_ENQUEUE'
+    EXPORTING
+      OBJECT           = 'ZGPPP01'
+    EXCEPTIONS
+      FOREIGN_LOCK     = 1
+      OBJECT_NOT_FOUND = 2
+      SYSTEM_FAILURE   = 3
+      OTHERS           = 4.
+  DO 5 TIMES.
+    IF SY-SUBRC = 0.
+      CALL FUNCTION 'NUMBER_GET_NEXT'
+        EXPORTING
+          NR_RANGE_NR = '01'
+          OBJECT      = 'ZGPPP01'
+        IMPORTING
+          NUMBER      = LV_NUMBR
+        EXCEPTIONS
+          OTHERS      = 4.
+
+      CALL FUNCTION 'NUMBER_RANGE_DEQUEUE'
+        EXPORTING
+          OBJECT = 'ZGPPP01'
+        EXCEPTIONS
+          OTHERS = 4.
+      EXIT.
+    ELSE.
+      WAIT UP TO 1 SECONDS.
+*      RAISE num_range_error.
+    ENDIF.
+  ENDDO.
+
+  IF LV_NUMBR IS INITIAL.
+    MESSAGE '流水号未生成.' TYPE 'S' DISPLAY LIKE 'E'.
+    STOP.
+  ELSE.
+    CONCATENATE 'PC' SY-DATUM+2(6) LV_NUMBR INTO P_NUMBR.
+  ENDIF.
+
+ENDFORM.
+
+FORM DATA_TO_ZTPP_205A USING ZPCDH TYPE ZTPP_205A-ZPCDH.
+  DATA:WA_ZTPP_205  LIKE ZTPP_205,
+       IT_ZTPP_205A LIKE STANDARD TABLE OF ZTPP_205A WITH HEADER LINE,
+       WA_ZTPP_205B LIKE ZTPP_205B,
+       ZPCDHH       TYPE ZTPP_205A-ZPCDHH,
+       ZPCSL        TYPE ZTPP_205-ZPCSL.
+  REFRESH:IT_ZTPP_205A.
+  CLEAR: ZPCDHH,ZPCSL.
+
+  LOOP AT IT_JSXD WHERE ZPCDH IS INITIAL AND SEL = 'X'.
+    CLEAR:WA_ZTPP_205,IT_ZTPP_205A,WA_ZTPP_205B.
+    MOVE-CORRESPONDING IT_PCD TO WA_ZTPP_205.
+    MOVE-CORRESPONDING IT_JSXD TO WA_ZTPP_205.
+    WA_ZTPP_205-WERKS = IT_PCD-WERKS.
+    WA_ZTPP_205-ZPCDH = ZPCDH.
+    WA_ZTPP_205-SYUSR = SY-UNAME.
+    WA_ZTPP_205-SYDAT = SY-DATUM.
+    WA_ZTPP_205-SYTIM = SY-UZEIT.
+    IF P_HT = 'X'.
+      WA_ZTPP_205-HTBS = 'X'.
+    ENDIF.
+
+    ADD 10 TO ZPCDHH.
+    MOVE-CORRESPONDING IT_PCD TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_JSXD TO IT_ZTPP_205A.
+    IT_ZTPP_205A-PROJN = IT_PCD-PROJN.
+    IT_ZTPP_205A-POSID = IT_PCD-POSID.
+    IT_ZTPP_205A-POST1 = IT_PCD-POST1.
+    IT_ZTPP_205A-WERKS = IT_PCD-WERKS.
+    IT_ZTPP_205A-ZPCDH = ZPCDH.
+    IT_ZTPP_205A-ZKS = IT_JSXD-ZKS_BCPC.
+    IT_ZTPP_205A-ZPCDHH = ZPCDHH.
+    IT_ZTPP_205A-SYUSR = SY-UNAME.
+    IT_ZTPP_205A-SYDAT = SY-DATUM.
+    IT_ZTPP_205A-SYTIM = SY-UZEIT.
+
+    IF P_HT = 'X'.
+      IT_ZTPP_205A-HTBS = 'X'.
+    ENDIF.
+    APPEND IT_ZTPP_205A.
+    ZPCSL = ZPCSL + IT_JSXD-ZPCSL.
+    IT_JSXD-ZPCDHH = ZPCDHH.
+    MODIFY IT_JSXD.
+  ENDLOOP.
+  WA_GGZD-ZPCDH = ZPCDH.
+  MOVE-CORRESPONDING WA_GGZD TO WA_ZTPP_205B.
+  WA_ZTPP_205-ZPCSL = ZPCSL.
+  INSERT ZTPP_205 FROM WA_ZTPP_205.
+  INSERT ZTPP_205A FROM TABLE IT_ZTPP_205A.
+  INSERT ZTPP_205B FROM WA_ZTPP_205B.
+  COMMIT WORK.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form oasp
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM OASP USING ZPCDH TYPE ZTPP_205-ZPCDH CHANGING RTYPE TYPE BAPI_MTYPE.
+  DATA: IN_TAB   TYPE TABLE OF ZSPP_218 WITH HEADER LINE,
+*        rtype  TYPE bapi_mtype,
+        RTMSG    TYPE BAPI_MSG,
+        FIELDS   TYPE TABLE OF SVAL WITH HEADER LINE,
+        P_NAME   TYPE STRING,
+        P_OUTPUT TYPE STRING.
+*填入发起人
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZTSD001'.
+  FIELDS-FIELDNAME = 'FQR'.
+  FIELDS-FIELDTEXT = '发起人'.
+  APPEND FIELDS.
+
+  CALL FUNCTION 'POPUP_GET_VALUES'
+    EXPORTING
+      POPUP_TITLE     = '流程发起人'
+    TABLES
+      FIELDS          = FIELDS
+    EXCEPTIONS
+      ERROR_IN_FIELDS = 1
+      OTHERS          = 2.
+  READ TABLE FIELDS INDEX 1.
+  IF FIELDS-VALUE IS INITIAL.
+    MESSAGE '请填入发起人' TYPE 'E'.
+    RETURN.
+  ENDIF.
+  P_NAME = FIELDS-VALUE.
+
+  SELECT SINGLE * INTO @DATA(WA_205) FROM ZTPP_205 WHERE ZPCDH = @ZPCDH.
+  SELECT * INTO TABLE @DATA(LT_205A) FROM ZTPP_205A WHERE ZPCDH = @ZPCDH.
+  SELECT SINGLE * INTO @DATA(WA_205B) FROM ZTPP_205B WHERE ZPCDH = @ZPCDH.
+  IF WA_205 IS INITIAL OR LT_205A IS INITIAL OR WA_205B IS INITIAL.
+    MESSAGE S004 WITH '排产单底表数据空' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  LOOP AT LT_205A INTO DATA(WA_205A).
+    CLEAR IN_TAB.
+    IN_TAB-WERKS   =   WA_205-WERKS.
+    IN_TAB-ZPCDH   =   WA_205-ZPCDH.
+    IN_TAB-CHSPL   =   WA_205-KWMENG.
+    IN_TAB-MEINS   =   WA_205-MEINS.
+
+    IN_TAB-ZYF        = WA_205B-ZYF       .
+    IN_TAB-ZCDTX      = WA_205B-ZCDTX     .
+    IN_TAB-ZBZFS      = WA_205B-ZBZFS     .
+    IN_TAB-ZDBFS      = WA_205B-ZDBFS     .
+    IN_TAB-ZZYYQ      = WA_205B-ZZYYQ     .
+    IN_TAB-BANFN      = WA_205B-BANFN.
+    IN_TAB-ZQGXX      = WA_205B-ZQGXX     .
+    IN_TAB-ZGJSYYQ    = WA_205B-ZGJSYYQ   .
+    IN_TAB-ZFLYQ      = WA_205B-ZFLYQ     .
+    IN_TAB-ZWBFMYQ    = WA_205B-ZWBFMYQ   .
+    IN_TAB-ZNBFMYQ    = WA_205B-ZNBFMYQ   .
+    IN_TAB-ZLCFBYQ    = WA_205B-ZLCFBYQ   .
+    IN_TAB-ZSCLX      = WA_205B-ZSCLX     .
+    IN_TAB-ZSCDW      = WA_205B-ZSCDW     .
+    IN_TAB-ZDDLX      = WA_205B-ZDDLX     .
+    IN_TAB-ZSFWBZJ    = WA_205B-ZSFWBZJ   .
+    IN_TAB-ZSFWCJG    = WA_205B-ZSFWCJG   .
+    IN_TAB-ZBZYQ      = WA_205B-ZBZYQ     .
+    IN_TAB-ZXCYQ      = WA_205B-ZXCYQ     .
+    IN_TAB-ZXCRZ      = WA_205B-ZXCRZ     .
+    IN_TAB-ZYMPP      = WA_205B-ZYMPP     .
+    IN_TAB-ZZJBJGF    = WA_205B-ZZJBJGF   .
+    IN_TAB-ZBHHSF     = WA_205B-ZBHHSF    .
+    IN_TAB-ZLZJBDJ    = WA_205B-ZLZJBDJ   .
+    IN_TAB-ZUZJBDJ    = WA_205B-ZUZJBDJ   .
+    IN_TAB-ZSFNBZJ    = WA_205B-ZSFNBZJ   .
+    IN_TAB-ZSSGD      = WA_205B-ZSFGD     .
+    IN_TAB-ZGDPCDH    = WA_205B-ZGDPCDH   .
+    IN_TAB-ZBC        = WA_205B-ZBC       .
+    IN_TAB-ZSFECJG    = WA_205B-ZSFECJG   .
+    IN_TAB-ZCKYQ      = WA_205B-ZCKYQ     .
+    IN_TAB-ZZWJJGQGFY = WA_205B-ZZWJJGQGFY.
+    IN_TAB-ZFBCK      = WA_205B-ZFBCK     .
+    IN_TAB-ZDBKS      = WA_205B-ZDBKS     .
+    IN_TAB-ZFJMS      = WA_205B-ZFJMS     .
+    IN_TAB-ZDKSL1     = WA_205B-ZDKSL1    .
+    IN_TAB-ZZMS       = WA_205B-ZZMS      .
+    IN_TAB-ZBCCD      = WA_205B-ZBCCD     .
+    IN_TAB-ZDPGG      = WA_205B-ZDPGG     .
+    IN_TAB-ZCKSL      = WA_205B-ZCKSL     .
+
+    IN_TAB-ZPCDHH   = WA_205A-ZPCDHH     .
+    IN_TAB-ZCD      = WA_205A-ZCD        .
+    IN_TAB-ZKS      = WA_205A-ZKS        .
+    IN_TAB-ZPCSL    = WA_205A-ZPCSL      .
+    IN_TAB-ZGKCB    = WA_205A-ZGKCB      .
+    IN_TAB-ZKHML    = WA_205A-ZKHML      .
+    IN_TAB-ZJCML    = WA_205A-ZJCML      .
+    IN_TAB-ZMLDCL   = WA_205A-ZMLDCL     .
+    IN_TAB-ZWBDJ    = WA_205A-ZWBDJ      .
+    IN_TAB-ZNBDJ    = WA_205A-ZNBDJ      .
+    IN_TAB-ZZZFY    = WA_205A-ZZZFY      .
+    IN_TAB-ZFCFY    = WA_205A-ZFCFY      .
+    IN_TAB-ZXCJG    = WA_205A-ZXCJG      .
+    IN_TAB-ZBZJJ    = WA_205A-ZBZJJ      .
+    IN_TAB-ZZK      = WA_205A-ZZHANKUAN  .
+    IN_TAB-ZZWCD    = WA_205A-ZCD        .
+    IN_TAB-ZXS      = WA_205A-ZXISHU     .
+    IN_TAB-ZJJYQ    = WA_205A-ZJJYQ      .
+    IN_TAB-ZTX      = WA_205A-ZFILE      .
+    IN_TAB-ZZWHD    = WA_205A-ZZWHD      .
+    IN_TAB-ZZS      = WA_205A-ZZS        .
+    IN_TAB-ZDK      = WA_205A-ZDKSL      .
+    IN_TAB-ZMB      = WA_205A-ZMB        .
+    IN_TAB-ZBCKD    = WA_205A-ZBCKD      .
+    IN_TAB-MATNR    = WA_205A-MATNR      .
+    SELECT SINGLE MAKTX
+      INTO IN_TAB-MAKTX
+      FROM MAKT
+      WHERE MATNR = IN_TAB-MATNR
+      AND   SPRAS = SY-LANGU.
+    IN_TAB-ZKHDJ    = WA_205A-ZKHDJ   .
+
+
+
+    APPEND IN_TAB.
+  ENDLOOP.
+
+
+  CALL FUNCTION 'ZFM_GP_PP_OA_PCD_SEND'
+    EXPORTING
+      P_NAME = P_NAME
+    IMPORTING
+*     P_OUTPUT       = p_output
+*     P_STATUS       =
+*     P_RESULT       =
+      RTYPE  = RTYPE
+      RTMSG  = RTMSG
+    TABLES
+      IN_TAB = IN_TAB
+*     T_RESULT       =
+    .
+  MESSAGE RTMSG TYPE 'I'.
+ENDFORM.
+
+
+FORM UPLOADFILE USING ZPCDH TYPE ZTPP_206-ZPCDH.
+  DATA:DJLX  TYPE ZTFILE_MANAGE_01-DJLX.
+  CALL FUNCTION 'ZFM_FTP_CALLZFTP'
+    EXPORTING
+      SAPNO = ZPCDH
+      SAPMK = 'PP'
+      DJLX  = 'PCD'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form oasp_jj
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_GGZD_ZPCDH
+*&      <-- FLAG
+*&---------------------------------------------------------------------*
+FORM OASP_JJ USING ZPCDH TYPE ZTPP_205-ZPCDH CHANGING RTYPE TYPE BAPI_MTYPE.
+  DATA:IN_TAB   TYPE TABLE OF ZSPP_225 WITH HEADER LINE,
+*        rtype  TYPE bapi_mtype,
+       RTMSG    TYPE BAPI_MSG,
+       FIELDS   TYPE TABLE OF SVAL WITH HEADER LINE,
+       P_NAME   TYPE STRING,
+       P_OUTPUT TYPE STRING.
+*填入发起人
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZTSD001'.
+  FIELDS-FIELDNAME = 'FQR'.
+  FIELDS-FIELDTEXT = '发起人'.
+  APPEND FIELDS.
+
+  CALL FUNCTION 'POPUP_GET_VALUES'
+    EXPORTING
+      POPUP_TITLE     = '流程发起人'
+    TABLES
+      FIELDS          = FIELDS
+    EXCEPTIONS
+      ERROR_IN_FIELDS = 1
+      OTHERS          = 2.
+  READ TABLE FIELDS INDEX 1.
+  IF FIELDS-VALUE IS INITIAL.
+    MESSAGE '请填入发起人' TYPE 'E'.
+    RETURN.
+  ENDIF.
+  P_NAME = FIELDS-VALUE.
+
+  SELECT SINGLE * INTO @DATA(WA_205) FROM ZTPP_205 WHERE ZPCDH = @ZPCDH.
+  SELECT * INTO TABLE @DATA(LT_205A) FROM ZTPP_205A WHERE ZPCDH = @ZPCDH.
+  SELECT SINGLE * INTO @DATA(WA_205B) FROM ZTPP_205B WHERE ZPCDH = @ZPCDH.
+  IF WA_205 IS INITIAL OR LT_205A IS INITIAL OR WA_205B IS INITIAL.
+    MESSAGE S004 WITH '排产单底表数据空' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  LOOP AT LT_205A INTO DATA(WA_205A).
+    CLEAR IN_TAB.
+    IN_TAB-ZCD        = WA_205A-ZCD         .
+    IN_TAB-ZKS        = WA_205A-ZKS         .
+    IN_TAB-ZPCSL      = WA_205A-ZPCSL       .
+    IN_TAB-ZZK        = WA_205A-ZZHANKUAN   .
+    IN_TAB-ZCD        = WA_205A-ZCD         .
+    IN_TAB-ZXS        = WA_205A-ZXISHU      .
+
+    IN_TAB-ZYF       =    WA_205B-ZYF      .
+    IN_TAB-ZCDTX     =    WA_205B-ZCDTX    .
+    IN_TAB-ZQY       =    WA_205B-ZQY      .
+    IN_TAB-ZBZFS     =    WA_205B-ZBZFS    .
+    IN_TAB-ZDBFS     =    WA_205B-ZDBFS    .
+    IN_TAB-ZZYYQ     =    WA_205B-ZZYYQ    .
+    IN_TAB-ZQGXX     =    WA_205B-ZQGXX    .
+    IN_TAB-ZCJ       =    WA_205B-ZCJ      .
+    IN_TAB-ZBCDZF    =    WA_205B-ZBCDZF   .
+    IN_TAB-ZGJSYYQ   =    WA_205B-ZGJSYYQ  .
+    IN_TAB-ZBHHSF    =    WA_205B-ZBHHSF   .
+    IN_TAB-ZLZJBDJ   =    WA_205B-ZLZJBDJ  .
+    IN_TAB-ZSFGD     =    WA_205B-ZSFGD    .
+    IN_TAB-ZGDPCDH   =    WA_205B-ZGDPCDH  .
+    IN_TAB-ZQTJJ     =    WA_205B-ZQTJJ    .
+    IN_TAB-ZQTJJBZ   =    WA_205B-ZQTJJBZ  .
+    IN_TAB-ZCXGDDSF  =    WA_205B-ZCXGDDSF .
+    IN_TAB-ZCXGSL    =    WA_205B-ZCXGSL   .
+    IN_TAB-ZCXGDJ    =    WA_205B-ZCXGDJ   .
+    IN_TAB-ZKDDDSF   =    WA_205B-ZKDDDSF  .
+    IN_TAB-ZKDSL     =    WA_205B-ZKDSL    .
+    IN_TAB-ZKDDJ     =    WA_205B-ZKDDJ    .
+    IN_TAB-ZJJDDSF   =    WA_205B-ZJJDDSF  .
+    IN_TAB-ZJJSL     =    WA_205B-ZJJSL    .
+    IN_TAB-ZJJDJ     =    WA_205B-ZJJDJ    .
+
+    APPEND IN_TAB.
+  ENDLOOP.
+  CALL FUNCTION 'ZFM_GP_PP_OA_PCDSH_POST'
+    EXPORTING
+      P_NAME = P_NAME
+* IMPORTING
+*     P_OUTPUT =
+*     P_STATUS =
+*     P_RESULT =
+*     FLAG   =
+*     MESSAGE  =
+    TABLES
+      IN_TAB = IN_TAB
+*     t_result =
+    .
+  MESSAGE RTMSG TYPE 'I'.
+ENDFORM.

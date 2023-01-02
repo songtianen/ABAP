@@ -1,0 +1,11 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD204_TZ
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZYFTZ_CON' ITSELF
+CONTROLS: ZYFTZ_CON TYPE TABLEVIEW USING SCREEN 0900.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZYFTZ_CON'
+DATA:     G_ZYFTZ_CON_LINES  LIKE SY-LOOPC.
+
+DATA:     OK_CODE LIKE SY-UCOMM.

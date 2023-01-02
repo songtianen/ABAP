@@ -1,0 +1,9 @@
+*----------------------------------------------------------------------*
+***INCLUDE WRPP_FCODES .
+*----------------------------------------------------------------------*
+
+CONSTANTS: FCODE_BGDE  LIKE T133D-FCODE VALUE 'BGDE', "Bed.Grp. L#schen
+           FCODE_BGPP  LIKE T133D-FCODE VALUE 'BGPP', "Bed.Grp. P-
+           FCODE_BGFP  LIKE T133D-FCODE VALUE 'BGFP', "Bed.Grp. P--
+           FCODE_BGNP  LIKE T133D-FCODE VALUE 'BGNP', "Bed.Grp. P+
+           FCODE_BGLP  LIKE T133D-FCODE VALUE 'BGLP'. "Bed.Grp. P++

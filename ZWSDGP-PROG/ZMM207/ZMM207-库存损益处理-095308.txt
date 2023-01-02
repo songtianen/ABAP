@@ -1,0 +1,258 @@
+*&---------------------------------------------------------------------*
+*& Report ZMM207
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZMM207.
+TABLES:SSCRFIELDS.
+TYPE-POOLS:SLIS.
+DATA:FIELDCAT TYPE SLIS_T_FIELDCAT_ALV.
+TYPES:BEGIN OF TY_OUT ,
+        WERKS     TYPE WERKS_D,
+        NAME1     TYPE NAME1,
+        LGORT     TYPE LGORT_D,
+        LGOBE     TYPE LGOBE,
+        MAT_PSPNR TYPE PRPS-POSID,
+        POST1     TYPE PRPS-POST1,
+        KOSTL     TYPE KOSTL,
+        KTEXT     TYPE CSKT-KTEXT,
+        MATNR     TYPE MATNR,
+        MAKTX     TYPE MAKTX,
+        CHARG     TYPE CHARG_D,
+        CLABS     TYPE CHAR10,
+        MEINS     TYPE MEINS,
+        ZKW       TYPE CHAR10,
+        ZPDUL     TYPE MENGE_D, "盘点/报废数量
+        ZIYR      TYPE CHAR10, "差异原因
+        ZPDRQ     TYPE CHAR10, "盘点日期
+        ZPDR      TYPE CHAR10, "盘点人
+      END OF TY_OUT.
+DATA:BEGIN OF ITAB OCCURS 0.
+       INCLUDE TYPE TY_OUT.
+DATA:  ZPDSJ TYPE CHAR10, "盘点时间
+       ZIYSL TYPE CHAR20, "差异数量
+       ZBFSL TYPE ZMM207T-ZBFSL,
+     END OF ITAB,
+     KYS       TYPE MENGE_D,
+     PDS       TYPE MENGE_D,
+     ZIYSL     TYPE MENGE_D,
+     P_OUTPUT  TYPE STRING,
+     P_STATUS  TYPE I,
+     P_RESULT  TYPE STRING,
+     INTERN    TYPE TABLE OF ALSMEX_TABLINE WITH HEADER LINE,
+     IN_TAB    TYPE TABLE OF ZMM207 WITH HEADER LINE,
+     T_RESULT  TYPE TABLE OF ZSMM_017 WITH HEADER LINE,
+     IT_UPLOAD TYPE TABLE OF TY_OUT WITH HEADER LINE.
+SELECTION-SCREEN BEGIN OF BLOCK B1 WITH FRAME TITLE T1.
+  PARAMETERS:P_SEL AS CHECKBOX,
+             P1    RADIOBUTTON GROUP GRD1 USER-COMMAND CLICK DEFAULT 'X',
+             P2    RADIOBUTTON GROUP GRD1.
+SELECTION-SCREEN END OF BLOCK B1.
+
+SELECTION-SCREEN FUNCTION KEY :1.
+
+AT SELECTION-SCREEN OUTPUT.
+  SSCRFIELDS-FUNCTXT_01 = '@14@导出模板'.
+  %_P_SEL_%_APP_%-TEXT = '复制到剪切板（勿复制标题）'.
+  %_P1_%_APP_%-TEXT = '盘点'.
+  %_P2_%_APP_%-TEXT = '报废'.
+
+AT SELECTION-SCREEN.
+  CASE SSCRFIELDS-UCOMM.
+    WHEN 'FC01'.
+      REFRESH FIELDCAT.
+      PERFORM FILLFIELD.
+      PERFORM ITABSTRUCTOCLIP(ZPUBFORM) USING FIELDCAT '' ''.
+  ENDCASE.
+
+START-OF-SELECTION.
+  PERFORM GETDATA.
+  PERFORM ALVSHOW.
+*&---------------------------------------------------------------------*
+*& Form GETDATA
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM GETDATA .
+  IF P_SEL NE 'X'.
+    MESSAGE S000(OO) WITH '请复制数据至剪切板后勾选' DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+  PERFORM CLIPTOITAB(ZPUBFORM) TABLES IT_UPLOAD.
+  IF IT_UPLOAD[] IS INITIAL.
+    MESSAGE S000(OO) WITH '上传无数据' DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+  LOOP AT IT_UPLOAD.
+    CLEAR: KYS,PDS,ITAB.
+    MOVE-CORRESPONDING IT_UPLOAD TO ITAB.
+    IF P1 = 'X'.
+      KYS = ITAB-CLABS.
+      PDS = ITAB-ZPDUL.
+      ZIYSL = PDS - KYS.
+      IF ZIYSL > 0 .
+        ITAB-ZIYSL =  PDS - KYS.
+        CONDENSE ITAB-ZIYSL.
+      ELSEIF ZIYSL < 0.
+*      ITAB-ziysl = kys - pds.
+        ITAB-ZIYSL =  PDS - KYS.
+        PERFORM SHIFTSIGN(ZPUBFORM) USING ITAB-ZIYSL.
+      ENDIF.
+    ENDIF.
+    APPEND ITAB.
+  ENDLOOP.
+  DATA: LT TYPE STANDARD TABLE OF ZMM207T WITH HEADER LINE.
+  DATA: ZNUMBER TYPE ZTNUMS_UPDATE-ZNUMBER10.
+  CALL FUNCTION 'ZNUMS_UPDATE'
+    EXPORTING
+      REPID    = SY-REPID
+      "WERKS          =
+      TCODE    = SY-TCODE
+      FLAG     = 'D'
+      "INITNUM        =
+      WEISHU   = '2'
+    IMPORTING
+      ZNUMBER  = ZNUMBER
+    EXCEPTIONS
+      OVERFLOW = 1
+      OTHERS   = 2.
+
+  LOOP AT ITAB .
+    MOVE-CORRESPONDING  ITAB TO  LT.
+    IF P2 = 'X'.
+      LT-ZBFSL = LT-ZPDUL.
+      ITAB-ZBFSL = LT-ZPDUL.
+*      CLEAR:LT-ZPDUL,ITAB-ZPDUL.
+    ENDIF.
+
+    LT-ZOAIT = SY-DATUM && ZNUMBER.
+    LT-ERNAM = SY-UNAME.
+    LT-ERDAT = SY-DATUM.
+    LT-ERZET = SY-UZEIT.
+    APPEND LT.
+    MODIFY ITAB.
+    CLEAR: ITAB, LT.
+  ENDLOOP.
+  IF  LT[] IS NOT INITIAL.
+    DELETE FROM ZMM207t.
+    COMMIT WORK.
+    MODIFY ZMM207t FROM TABLE LT.
+    COMMIT WORK.
+  ENDIF.
+ENDFORM.
+FORM ALVSHOW.
+  REFRESH FIELDCAT.
+  PERFORM FILLFIELD.
+  CASE 'X'.
+    WHEN P1.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT USING:
+                                                                        'ZIYSL' '差异数量' '' '' '' ''.
+  ENDCASE.
+  PERFORM ALVFM(ZPUBFORM) TABLES ITAB FIELDCAT USING 'X' ''.
+ENDFORM.
+FORM SET_STATUS USING RT_EXTAB TYPE SLIS_T_EXTAB.
+  DATA: LT_EXFCODE TYPE TABLE OF SY-UCOMM.
+  SET PF-STATUS 'STANDARD1' EXCLUDING LT_EXFCODE.
+ENDFORM. "set_status
+FORM USER_COMMAND USING R_UCOMM LIKE SY-UCOMM
+                        RS_SELFIELD TYPE SLIS_SELFIELD.
+
+  CASE R_UCOMM.
+    WHEN 'BUT80'.
+      PERFORM BUT80."再次推送
+  ENDCASE.
+  RS_SELFIELD-ROW_STABLE = 'X'.
+  RS_SELFIELD-COL_STABLE = 'X'.
+  RS_SELFIELD-REFRESH = 'X'.
+ENDFORM.
+FORM BUT80.
+  DATA:P_NAME TYPE STRING.
+  CLEAR:IN_TAB[].
+  LOOP AT ITAB .
+    CLEAR:IN_TAB.
+    MOVE-CORRESPONDING ITAB TO IN_TAB.
+    CONDENSE IN_TAB-ZIYSL."ADD 20221129 BY HANWQ
+    CASE 'X'.
+      WHEN P1.
+        IN_TAB-ZTYPE = '1'.
+        IF ITAB-ZIYSL IS INITIAL.
+          CONTINUE.
+        ENDIF.
+      WHEN P2.
+        IN_TAB-ZTYPE = '2'.
+        IF ITAB-ZPDUL IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        IN_TAB-ZBFSL = IN_TAB-ZPDUL.
+        CLEAR:IN_TAB-ZPDUL.
+    ENDCASE.
+    APPEND IN_TAB.
+  ENDLOOP.
+  IF IN_TAB[] IS INITIAL.
+    MESSAGE E000(OO) WITH '无可推送OA数据'.
+  ENDIF.
+  PERFORM FILLVALUE(ZPUBFORM) USING '流程发起人' '发起人' CHANGING P_NAME.
+  IF P_NAME IS INITIAL.
+    MESSAGE '请填入发起人' TYPE 'E'.
+    EXIT.
+  ENDIF.
+  CALL FUNCTION 'ZFM_GP_MM_OA_PJIY_POST'
+    EXPORTING
+      P_NAME   = P_NAME
+    IMPORTING
+      P_OUTPUT = P_OUTPUT
+      P_STATUS = P_STATUS
+      P_RESULT = P_RESULT
+    TABLES
+      IN_TAB   = IN_TAB
+      T_RESULT = T_RESULT.
+  IF P_STATUS = '200'.
+    MESSAGE '推送成功' TYPE 'S'.
+  ELSE.
+    MESSAGE '推送失败' TYPE 'E'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FILLFIELD
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FILLFIELD .
+  PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT USING:
+                                                        'WERKS' '工厂' '' '' '' '',
+                                                        'NAME1' '工厂名称' '' '' '' '',
+                                                        'LGORT' '库存地' '' '' '' '',
+                                                        'LGOBE' '库存地名称' '' '' '' '',
+                                                        'MAT_PSPNR' 'WBS项目定义' '' '' '' '',
+                                                        'POST1' 'WBS项目名称' '' '' '' '',
+                                                        'KOSTL' '成本中心编号' '' '' '' '',
+                                                        'KTEXT' '成本中心名称' '' '' '' '',
+                                                        'MATNR' '物料编码' 'X' '' '' '',
+                                                        'MAKTX' '物料描述' '' '' '' '',
+                                                        'CHARG' '批次' '' '' '' '',
+                                                        'CLABS' '非限制库存' 'Y' '' '' '',
+                                                        'MEINS' '单位' '' '' '' '',
+                                                        'ZKW' '库位' '' '' '' ''.
+  CASE 'X'.
+    WHEN P1.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT USING:
+                                                          'ZPDUL' '盘点数量' '' '' '' '',
+                                                          'ZIYR' '差异原因' '' '' '' '',
+                                                          'ZPDRQ' '盘点日期' '' '' '' '',
+                                                          'ZPDR' '盘点人' '' '' '' ''.
+    WHEN P2.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCAT USING:
+                                                          'ZPDUL' '报废数量' '' '' '' '',
+                                                          'ZIYR' '报废原因' '' '' '' '',
+                                                           'ZPDRQ' '报废日期' '' '' '' '',
+                                                          'ZPDR' '报废人' '' '' '' ''.
+  ENDCASE.
+
+ENDFORM.

@@ -1,0 +1,216 @@
+FUNCTION zfm_gp_oa_mm_getmblnr.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"     VALUE(LGORT) TYPE  LGORT_D
+*"     VALUE(ZJH) TYPE  CHAR20 OPTIONAL
+*"     VALUE(CHARG) TYPE  CHARG_D OPTIONAL
+*"     VALUE(MATNR) TYPE  MATNR OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      OUT_TAB STRUCTURE  ZSMM_210
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_MM_GETMBLNR'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:BEGIN OF it_knumv OCCURS 0,
+         knumv TYPE ekko-knumv,
+         kposn TYPE prcd_elements-kposn,
+       END OF it_knumv.
+  DATA:BEGIN OF it_charg OCCURS 0,
+         matnr TYPE matnr,
+         charg TYPE charg_d,
+       END OF it_charg.
+
+  " 取长文本用  23.11.2022 21:36:07 by kkw
+  DATA:BEGIN OF wa_key,
+         tdobject TYPE  stxl-tdobject,
+         tdname   TYPE  stxl-tdname,
+         tdid     TYPE  stxl-tdid,
+         tdspras  TYPE  stxl-tdspras,
+       END OF wa_key,
+       t_text TYPE TABLE OF tline WITH HEADER LINE.
+
+  DATA:rcharg LIKE RANGE OF mch1-charg WITH HEADER LINE,
+       rmatnr LIKE RANGE OF mch1-matnr WITH HEADER LINE.
+  REFRESH: rcharg,it_knumv,it_charg,rmatnr.
+  IF zjh IS NOT INITIAL.
+    SELECT
+      mch1~charg
+    INTO TABLE  @DATA(lt_jh)
+    FROM mch1
+      INNER JOIN ausp ON mch1~cuobj_bm = ausp~objek AND klart = '023'
+      INNER JOIN cabn ON ausp~atinn = cabn~atinn
+    WHERE cabn~atnam = 'Z02' AND ausp~atwrt = @zjh.
+    LOOP AT lt_jh INTO DATA(lw_jh).
+      CLEAR rcharg.
+      rcharg-sign    = 'I'.
+      rcharg-option  = 'EQ'.
+      rcharg-low     = lw_jh-charg.
+      APPEND rcharg.
+    ENDLOOP.
+  ENDIF.
+  IF charg IS NOT INITIAL.
+    CLEAR rcharg.
+    rcharg-sign    = 'I'.
+    rcharg-option  = 'EQ'.
+    rcharg-low     = charg.
+    APPEND rcharg.
+  ENDIF.
+
+  IF matnr IS NOT INITIAL.
+    CLEAR rmatnr.
+    rmatnr-sign    = 'I'.
+    rmatnr-option  = 'EQ'.
+    rmatnr-low     = matnr.
+    APPEND rmatnr.
+  ENDIF.
+  SELECT
+    mseg~mblnr,
+    mseg~zeile,
+    mseg~werks,
+    mseg~lgort,
+    t001l~lgobe,
+    mseg~budat_mkpf,
+    lfa1~lifnr,
+    lfa1~name1,
+    mseg~matnr,
+    mseg~menge,
+    ekpo~mwskz,
+    mara~meins,
+    mschl~msehl,
+    mara~bstme AS zmeins,
+    mschl1~msehl AS msehl1,
+    mseg~charg,
+    cx~smbln,
+    cx~sjahr,
+    cx~smblp,
+    ekko~knumv,
+    ekpo~ebelp,
+    prps~posid AS ps_psp_pnr,
+    prps~post1
+    INTO TABLE @DATA(ltab) FROM mseg
+    LEFT JOIN mseg AS cx ON mseg~mjahr = cx~sjahr AND  mseg~mblnr = cx~smbln AND mseg~zeile = cx~smblp
+    JOIN t001l ON mseg~lgort = t001l~lgort AND mseg~werks = t001l~werks
+    LEFT JOIN lfa1 ON mseg~lifnr = lfa1~lifnr
+    JOIN mara ON mseg~matnr = mara~matnr
+    JOIN ekpo ON mseg~ebeln = ekpo~ebeln AND mseg~ebelp = ekpo~ebelp
+    JOIN ekko ON ekpo~ebeln = ekko~ebeln
+    LEFT JOIN prps ON mseg~ps_psp_pnr = prps~pspnr
+    LEFT JOIN t006a AS mschl ON  mara~meins = mschl~msehi AND mschl~spras = @sy-langu
+    LEFT JOIN t006a AS mschl1 ON  mara~bstme = mschl1~msehi AND mschl1~spras = @sy-langu
+    WHERE mseg~werks = @werks
+    AND mseg~lgort = @lgort
+    AND mseg~charg IN @rcharg
+    AND mseg~bwart = '101'
+    AND mseg~kzbew = 'B'
+    AND mseg~matnr IN @rmatnr
+  .
+  DELETE ltab WHERE smbln IS NOT INITIAL.
+
+  LOOP AT ltab INTO DATA(wtab).
+    CLEAR: it_knumv,it_charg.
+    it_knumv-knumv = wtab-knumv.
+    it_knumv-kposn = wtab-ebelp.
+    COLLECT it_knumv.
+    it_charg-matnr = wtab-matnr.
+    it_charg-charg = wtab-charg.
+    COLLECT it_charg.
+  ENDLOOP.
+
+  IF it_knumv[] IS NOT INITIAL.
+    SELECT
+         prcd~knumv,
+         prcd~kposn,
+         prcd~stunr,
+         prcd~zaehk,
+         prcd~kbetr,
+         prcd~kschl
+         INTO TABLE @DATA(lt_prcd)
+         FROM prcd_elements AS prcd
+         FOR ALL ENTRIES IN @it_knumv
+         WHERE prcd~knumv = @it_knumv-knumv
+         AND prcd~kposn = @it_knumv-kposn
+         AND prcd~kschl IN ( 'PBXX','PB00' ).
+    DELETE lt_prcd WHERE kschl = 'PBXX' AND kbetr EQ 0.
+    SORT lt_prcd BY knumv kposn kschl DESCENDING.
+  ENDIF.
+
+  IF it_charg[] IS NOT INITIAL.
+    SELECT   mch1~matnr,
+             mch1~charg,
+*             cabn~atinn
+*             cabn~atnam
+*             cabn~atfor
+             ausp~atwrt
+*             ausp~atflv
+        INTO TABLE @DATA(lt_pctz)
+        FROM mch1 INNER JOIN ausp ON mch1~cuobj_bm = ausp~objek
+                                  AND klart = '023'
+                  INNER JOIN cabn ON ausp~atinn = cabn~atinn
+        FOR ALL ENTRIES IN @it_charg
+        WHERE mch1~matnr = @it_charg-matnr
+        AND   mch1~charg = @it_charg-charg
+        AND   cabn~atnam = 'Z03'.
+    SORT lt_pctz BY matnr charg .
+  ENDIF.
+
+  IF ltab IS NOT INITIAL.
+    SELECT marm~matnr,marm~meinh,mschl~msehl
+      INTO TABLE @DATA(lt_marm)
+      FROM marm
+      LEFT JOIN t006a AS mschl ON marm~meinh = mschl~msehi AND mschl~spras = @sy-langu
+      FOR ALL ENTRIES IN @ltab
+      WHERE marm~matnr = @ltab-matnr
+      AND marm~kzwso = 'B'.
+    SORT lt_marm BY matnr.
+  ENDIF.
+
+  LOOP AT ltab INTO wtab.
+    MOVE-CORRESPONDING wtab TO out_tab.
+    IF wtab-zmeins IS INITIAL.
+      out_tab-zmeins = out_tab-meins.
+      out_tab-msehl1 = out_tab-msehl.
+    ENDIF.
+    READ TABLE lt_marm INTO DATA(lw_marm) WITH KEY matnr = wtab-matnr BINARY SEARCH.
+    IF sy-subrc EQ 0 AND lw_marm-meinh IS NOT INITIAL.
+      out_tab-meins = lw_marm-meinh.
+      out_tab-msehl = lw_marm-msehl.
+    ENDIF.
+
+    READ TABLE lt_prcd INTO DATA(lw_prcd) WITH KEY knumv = wtab-knumv kposn = wtab-ebelp BINARY SEARCH.
+    IF sy-subrc EQ 0 .
+      out_tab-kbetr = lw_prcd-kbetr.
+    ENDIF.
+    PERFORM gettax(zpubform) USING '' wtab-mwskz CHANGING out_tab-text1.
+
+    READ TABLE lt_pctz INTO DATA(lw_pctx) WITH KEY matnr = wtab-matnr charg = wtab-charg BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      out_tab-zzyh = lw_pctx-atwrt.
+    ENDIF.
+*    PERFORM getlongtext(zpubform) USING 'GRUN' out_tab-matnr 'MATERIAL'
+*          CHANGING out_tab-maktx.
+    CLEAR wa_key.
+    wa_key-tdobject   = 'MATERIAL'.
+    wa_key-tdname     = out_tab-matnr.
+    wa_key-tdid       = 'GRUN'.
+    wa_key-tdspras    = sy-langu.
+    CLEAR:t_text[].
+    IMPORT tline = t_text[] FROM DATABASE stxl(tx) ID wa_key.
+    LOOP AT t_text.
+      CONCATENATE t_text-tdline out_tab-maktx INTO out_tab-maktx.
+    ENDLOOP   .
+
+    APPEND out_tab.
+  ENDLOOP.
+
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

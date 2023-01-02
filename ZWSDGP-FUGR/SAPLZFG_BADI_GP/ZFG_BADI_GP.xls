@@ -1,0 +1,32 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZFG_BADI_GP	ZDFLAG	结果标识 成功：Y 失败：N	域	CHAR	000001	000000	
+ZFG_BADI_GP	ZDMESSAGE	返回消息	域	CHAR	000500	000000	
+ZFG_BADI_GP	ZEMM_FLAG	结果标识 成功：Y 失败：N	数据元素	CHAR	000001	000000	ZDFLAG
+ZFG_BADI_GP	ZEMM_MESSAGE	返回消息	数据元素	CHAR	000500	000000	ZDMESSAGE
+ZFG_BADI_GP	ZE_CXBS	冲销标识	数据元素	CHAR	000001	000000	CHAR1
+ZFG_BADI_GP	ZE_KS_PS	工单块数	数据元素	QUAN	000015	000003	MENG15
+ZFG_BADI_GP	ZFICO_CONF_008	公司&工厂-段分配	透明表				
+ZFG_BADI_GP	ZFICO_CONF_009	财务增强检查事务代码	透明表				
+ZFG_BADI_GP	ZFICO_CONF_010	凭证类型与段平衡检查表	透明表				
+ZFG_BADI_GP	ZFICO_CONF_012	物料单位转换日志表	透明表				
+ZFG_BADI_GP	ZFMDATA	请不要做任何更改!!不要激活!!	透明表				
+ZFG_BADI_GP	ZFMDATACFG	ZILOG参数	透明表				
+ZFG_BADI_GP	ZSFMS_FIPOST	创建会计凭证结构	结构				
+ZFG_BADI_GP	ZSFMS_GETPCTX	获取批次特性	结构				
+ZFG_BADI_GP	ZSMMS_CHAR	批次特性CHAR类型	结构				
+ZFG_BADI_GP	ZSMM_060	结构	结构				
+ZFG_BADI_GP	ZSMM_208	钢品委外采购申请推oa结构	结构				
+ZFG_BADI_GP	ZSPP_221	计划板材型号块数	结构				
+ZFG_BADI_GP	ZSPP_222	SAP预留推MES结构	结构				
+ZFG_BADI_GP	ZSPUBS_0001	日期时间通用结构	结构				
+ZFG_BADI_GP	ZSSD264	增强传值	结构				
+ZFG_BADI_GP	ZTFI201	外贸合同海运费计提凭证日志表	透明表				
+ZFG_BADI_GP	ZTFI202	外贸合同海运费计提凭证日志表	透明表				
+ZFG_BADI_GP	ZTMM220	调拨单主表	透明表				
+ZFG_BADI_GP	ZTMM221	调拨单行项目表	透明表				
+ZFG_BADI_GP	ZTMM_011	物料主数据批导配置表	透明表				
+ZFG_BADI_GP	ZTMM_PCTXLOG	更新批次特性LOG	透明表				
+ZFG_BADI_GP	ZTPP316	生产包号-尺寸对照	透明表				
+ZFG_BADI_GP	ZTPP_205	钢品生产排产单主表	透明表				
+ZFG_BADI_GP	ZTPP_205B	排产单公共字段	透明表				
+ZFG_BADI_GP	ZTPP_206	生产计划表	透明表				

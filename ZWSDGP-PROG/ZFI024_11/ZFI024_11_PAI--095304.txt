@@ -1,0 +1,607 @@
+*&---------------------------------------------------------------------*
+*& Include ZFI024_11_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODUL FOR TC 'TC01'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE tc01_mark INPUT.
+  DATA: g_TC01_wa2 LIKE LINE OF zboitem.
+  IF tc01-line_sel_mode = 1
+  AND zboitem-sel = 'X'.
+    LOOP AT zboitem INTO g_TC01_wa2
+      WHERE sel = 'X'.
+      g_TC01_wa2-sel = ''.
+      MODIFY zboitem
+        FROM g_TC01_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY zboitem
+    INDEX tc01-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0100 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+  save_ok = sy-ucomm.
+*  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'YLPP'.
+      PERFORM read_it_alv.
+    WHEN 'ZXWC'.
+      PERFORM zxwc.
+*    WHEN 'COPY'.
+*      PERFORM copy_item.
+*    WHEN 'CRTPCD'.
+**      PERFORM read_it_alv.
+*      CLEAR:gv_msg.
+*      PERFORM create_ztpp016 CHANGING gv_msg."创建排产单
+*      PERFORM update_alv_pcmng.
+*      MESSAGE gv_msg TYPE 'I'.
+*    WHEN OTHERS.
+  ENDCASE.
+
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm,save_ok.
+ENDMODULE.
+FORM read_it_alv.
+  IF p1 = 'X'.
+    DATA: index_rows TYPE lvc_t_row,
+          index      LIKE LINE OF index_rows.
+    CLEAR index_rows.
+    REFRESH index_rows.
+    CALL METHOD go_grid->get_selected_rows
+      IMPORTING
+        et_index_rows = index_rows.
+    IF lines( index_rows ) = 0.
+      MESSAGE '请选择数据' TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+
+    CLEAR: ls_item,ls_item[],IT_pyrehd[].
+    LOOP AT index_rows INTO DATA(wa_rows).
+      READ TABLE item INDEX wa_rows-index.
+      MOVE-CORRESPONDING item TO ls_item.
+      APPEND ls_item.
+      CLEAR: item,ls_item.
+    ENDLOOP.
+    DATA: zbo_dmbtr  TYPE dmbtr,
+          item_dmbtr TYPE dmbtr.
+    CLEAR: zbo_dmbtr, item_dmbtr.
+    LOOP AT ls_item.
+      item_dmbtr = item_dmbtr + ls_item-dmbtr_apa.
+    ENDLOOP.
+    LOOP AT zboitem.
+      zbo_dmbtr = zbo_dmbtr + zboitem-wrbtr.
+    ENDLOOP.
+    IF p_zlsch = 'U' AND zbo_dmbtr <> item_dmbtr.
+      MESSAGE '票据金额必须和实付金额相等' TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  ELSEIF p2 = 'X' OR p3 = 'X'.
+    READ TABLE item WITH KEY sel = 'X'.
+    IF sy-subrc <> 0.
+      MESSAGE '请选择数据' TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+    LOOP AT item WHERE sel = 'X'.
+      MOVE-CORRESPONDING item TO ls_item.
+      APPEND ls_item.
+      CLEAR: ls_item, item.
+    ENDLOOP.
+  ENDIF.
+  DATA: lt_cotd TYPE STANDARD TABLE OF ztfi_pycotd WITH HEADER LINE.
+  IF ls_item[] IS NOT INITIAL.
+    CLEAR:lt_cotd[].
+    LOOP AT ls_item.
+      IF ls_item-dmbtr_apt = ls_item-dmbtr_apa.
+        lt_cotd-ebeln = ls_item-ebeln.
+        lt_cotd-loekz = 'X'.
+        lt_cotd-ernam = sy-uname.
+        lt_cotd-erdat = sy-datum.
+        lt_cotd-erzet = sy-uzeit.
+        COLLECT lt_cotd.
+        CLEAR: lt_cotd,ls_item.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+  IF lt_cotd[] IS NOT INITIAL.
+    MODIFY ztfi_pycotd FROM TABLE lt_cotd[].
+  ENDIF.
+
+  CLEAR: zoano,znumber.
+  CALL FUNCTION 'ZNUMS_UPDATE'
+    EXPORTING
+      repid   = sy-repid
+      flag    = 'D'
+      weishu  = '3'
+    IMPORTING
+      znumber = znumber.
+  zoano = 'FKSA' && sy-datum && znumber.
+  DATA: pyrees TYPE STANDARD TABLE OF ztfi_pyrees WITH HEADER LINE,
+        zoait  TYPE znumc3 VALUE 1.
+  CLEAR: pyrehd,pyrehd[].
+  LOOP AT ls_item.
+    pyrehd-zoano = zoano.
+    pyrehd-zoait = zoait.
+    pyrehd-zretype = '30'.
+    pyrehd-bukrs = p_bukrs.
+    SELECT SINGLE butxt
+      INTO pyrehd-butxt
+      FROM t001
+      WHERE bukrs = p_bukrs.
+    CLEAR: zefi_pycat,zefi_pycat[].
+    PERFORM getdomain(zpubform) TABLES zefi_pycat USING 'ZDFI_PYRETYPE'.
+    READ TABLE zefi_pycat WITH KEY domvalue_l = '30'.
+    pyrehd-ddtext = zefi_pycat-ddtext.
+    IF p1 = 'X'.
+      SELECT SINGLE telfx,eknam INTO
+      (@pyrehd-telfx,@pyrehd-zoauser)
+      FROM t024
+      WHERE ekgrp = @p_ekgrp.
+      pyrehd-zdept = pyrehd-telfx.
+    ELSE.
+      SELECT SINGLE zdept
+        INTO pyrehd-zdept
+        FROM zfi024_11
+        WHERE zwlnam = p_zwlnam.
+      pyrehd-zoauser = p_zwlnam.
+    ENDIF.
+    READ TABLE item WITH KEY ebeln = ls_item-ebeln.
+    pyrehd-waers = item-waers.
+    SELECT SINGLE  t001~butxt,t001~bukrs
+    INTO (@pyrehd-butxt,@pyrehd-bukrs)
+    FROM t001
+    INNER JOIN ekko ON ekko~bukrs = t001~bukrs
+    WHERE ekko~ebeln = @item-ebeln .
+    pyrehd-zpycat = p_zpycat.
+    SELECT SINGLE bustxt
+    INTO pyrehd-bustxt
+    FROM ztfi_dealtype
+    WHERE rptyp = 'P' AND zpycat = pyrehd-zpycat.
+    pyrehd-paytype = p_zlsch.
+    SELECT SINGLE text1
+    INTO pyrehd-text1
+    FROM t042z
+    WHERE zlsch = p_zlsch AND land1 = 'CN'.
+    pyrehd-zredat = sy-datum.
+    pyrehd-zpldat = p_zpldat.
+    pyrehd-zretx = p_zretx.
+    pyrehd-lifnr = p_lifnr.
+    SELECT SINGLE name1
+    INTO pyrehd-name1
+    FROM lfa1
+    WHERE lifnr = p_lifnr.
+    pyrehd-zyhzh_k = p_bankn.
+    SELECT SINGLE koinh,bankl
+    FROM but0bk
+    WHERE bankn = @p_bankn
+    INTO (@pyrehd-banka_k,@pyrehd-bankl_k).
+    IF pyrehd-banka_k IS INITIAL.
+      SELECT SINGLE name_org1
+        INTO pyrehd-banka_k
+        FROM but000
+        WHERE partner = p_lifnr.
+    ENDIF.
+    SELECT SINGLE swift,banka
+      FROM bnka
+      WHERE bankl = @pyrehd-bankl_k
+      INTO (@pyrehd-swift,@pyrehd-bankl_t_k).
+    pyrehd-zcont = ls_item-ebeln.
+    SELECT SINGLE zhth
+    INTO pyrehd-zcontr
+    FROM ekko
+    WHERE ebeln = ls_item-ebeln.
+    pyrehd-dmbtr_pln = ls_item-dmbtr_apa.
+    pyrehd-posid = ls_item-posid.
+    pyrehd-post1 = ls_item-post1.
+    APPEND pyrehd.
+    zoait = zoait + 1.
+    CLEAR:pyrehd.
+  ENDLOOP.
+  CLEAR zoait.
+  IT_pyrehd[] = pyrehd[].
+  SORT pyrehd BY zcont.
+  DELETE ADJACENT DUPLICATES FROM pyrehd COMPARING zcont.
+  LOOP AT pyrehd.
+    CLEAR:pyrehd-dmbtr_pln.
+    zoait = zoait + 1.
+    pyrehd-zoait = zoait.
+    LOOP AT IT_pyrehd WHERE zcont = pyrehd-zcont.
+      pyrehd-dmbtr_pln = pyrehd-dmbtr_pln + IT_pyrehd-dmbtr_pln.
+    ENDLOOP.
+    MODIFY pyrehd TRANSPORTING zoait dmbtr_pln.
+  ENDLOOP.
+
+  REFRESH fieldcat1.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat1 USING :
+        'ZOANO' 'OA流程' '' '' '' '',
+        'ZOAIT' 'OA流程子表序号' '' '' '' '',
+        'ZRETYPE' '付款申请类别' '' '' '' '',
+        'DDTEXT' '付款申请类别描述' '' '' '' '',
+        'ZDEPT' '部门' '' '' '' '',
+        'TELFX' '部门描述' '' '' '' '',
+        'WAERS' '货币' '' '' '' '',
+        'BUKRS' '公司代码' '' '' '' '',
+        'BUTXT' '公司名称' '' '' '' '',
+        'ZOAUSER' '采购组描述' '' '' '' '',
+        'ZPYCAT' '付款类型' '' '' '' '',
+        'BUSTXT' '付款类型描述' '' '' '' '',
+        'ZPYCTN' '付款内容' '' '' '' '',
+        'PAYTYPE' '付款方式' '' '' '' '',
+        'TEXT1' '付款方式描述' '' '' '' '',
+        'ZREDAT' '付款申请创建日期' '' '' '' '',
+        'ZPLDAT' '计划付款日期' '' '' '' '',
+        'ZBD1T' '天数1' '' '' '' '',
+        'DUEDATE' '账龄到期日' '' '' '' '',
+        'ZPYRETYPE_OA' '是否付款申请' '' '' '' '',
+        'ZPLAN' '计划内付款标识' '' '' '' '',
+        'ZRETX' '付款申请备注' '' '' '' 'X',
+        'LIFNR' '供应商编码' '' '' '' '',
+        'NAME1' '供应商名称' '' '' '' '',
+        'ZYHZH_K' '供应商银行账号' '' '' '' '',
+        'BANKA_K' '供应商账号名称' '' '' '' '',
+        'BANKL_K' '供应商联行号' '' '' '' '',
+        'BANKL_T_K' '供应商联行号名称' '' '' '' '',
+        'SWIFT' 'SWIFT/BIC' '' '' '' '',
+        'ZCONT' '合同号' '' '' '' '',
+        'ZCONTC' '关联合同号' '' '' '' '',
+        'ZCONTR' '外部合同号' '' '' '' '',
+        'DMBTR_PLN' '申请支付金额' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES pyrehd fieldcat1 USING 'X' 'USER_COMMAND1'.
+
+ENDFORM.
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA: lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD1' EXCLUDING lt_exfcode.
+ENDFORM. "set_status
+FORM user_command1 USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+  CASE r_ucomm.
+    WHEN '&BUT80'.
+      PERFORM but80."
+    WHEN 'BACK1' OR 'CANCEL1' OR 'EXIT1'.
+      SUBMIT zfi024_11 VIA SELECTION-SCREEN.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.
+
+FORM but80.
+
+  IF  flag IS INITIAL.
+    DATA: lt_ztfi_pyrees TYPE TABLE OF ztfi_pyrees WITH HEADER LINE,
+          lt_ztfi_pyarg  TYPE TABLE OF ztfi_pyarg WITH HEADER LINE,
+          lt_ztfi_pyrehd TYPE TABLE OF ztfi_pyrehd WITH HEADER LINE,
+          ls_zoait       TYPE i VALUE 1.
+
+    DATA: intab TYPE TABLE OF zsfi207 WITH HEADER LINE.
+    LOOP AT pyrehd.
+      MOVE-CORRESPONDING pyrehd TO intab.
+      intab-segment = p_segmnt.
+      SELECT SINGLE name
+        INTO intab-name2
+        FROM fagl_segmt
+        WHERE segment = p_segmnt.
+      SELECT SINGLE ktext
+        INTO intab-ktext
+        FROM   tcurt
+        WHERE waers = pyrehd-waers
+        AND spras = '1'.
+*汇总金额
+      LOOP AT item WHERE ebeln = pyrehd-zcont.
+        intab-dmbtr_tpp = intab-dmbtr_tpp + item-dmbtr_tpp.
+      ENDLOOP.
+      APPEND intab.
+      MODIFY pyrehd.
+      CLEAR: intab,pyrehd.
+    ENDLOOP.
+    READ TABLE pyrehd INDEX 1.
+    DATA: oaflag  TYPE zemm_flag,
+          p_name  TYPE string,
+          message TYPE zemm_message.
+    DATA: sum_dmbtr TYPE dmbtr.
+    CLEAR: sum_dmbtr.
+    LOOP AT  item.
+      sum_dmbtr = sum_dmbtr + item-dmbtr_ina.
+    ENDLOOP.
+    LOOP AT item WHERE dmbtr_ina = 0.
+      EXIT.
+    ENDLOOP.
+    IF sy-subrc = 0.
+      LOOP AT intab.
+        intab-payform = '8360848280731862759'.
+        intab-docsign = '-3229865313327363862'.
+        MODIFY intab.
+      ENDLOOP.
+    ELSE.
+      LOOP AT intab.
+        intab-payform = '8108653464166876771'.
+        intab-docsign = '-3229865313327363862'.
+        MODIFY intab.
+      ENDLOOP.
+    ENDIF.
+    CLEAR: ls_zoait.
+    ls_zoait = 1.
+    DELETE zboitem WHERE wrbtr = 0.
+    DATA:  char_it TYPE char03.
+    LOOP AT zboitem.
+      MOVE-CORRESPONDING zboitem TO intab1.
+      intab1-zoano = zoano.
+      char_it = ls_zoait.
+      CONDENSE char_it NO-GAPS.
+      intab1-zoait_p = char_it.
+      ls_zoait = ls_zoait + 1.
+      APPEND intab1.
+      CLEAR: intab1, zboitem.
+    ENDLOOP.
+    IF p1 = 'X'.
+      p_name = pyrehd-zoauser.
+    ELSEIF p2 = 'X' OR p3 = 'X'.
+      p_name = p_zwlnam.
+    ENDIF.
+
+    CALL FUNCTION 'ZFM_GP_FI_OA_FKSQ'
+      EXPORTING
+        p_name  = p_name
+      IMPORTING
+        flag    = oaflag
+        message = message
+*       P_RESULT       =
+*       P_STATUS       =
+*       P_OUTPUT       =
+      TABLES
+        intab   = intab
+        intab1  = intab1.
+    IF oaflag = 'Y'.
+      LOOP AT ls_item.
+        MOVE-CORRESPONDING ls_item TO lt_ztfi_pyrees.
+        lt_ztfi_pyrees-zoano =  zoano.
+        lt_ztfi_pyrees-zoait = ls_zoait.
+        APPEND lt_ztfi_pyrees.
+        CLEAR: lt_ztfi_pyrees, ls_item.
+        ls_zoait = ls_zoait + 1.
+      ENDLOOP.
+      IF  lt_ztfi_pyrees[] IS NOT INITIAL.
+        MODIFY ztfi_pyrees FROM TABLE lt_ztfi_pyrees.
+      ENDIF.
+      CLEAR:ls_zoait.
+      ls_zoait = 1.
+      LOOP AT zboitem.
+        lt_ztfi_pyarg-zoano = zoano.
+        lt_ztfi_pyarg-zpargn = ls_zoait.
+        lt_ztfi_pyarg-bukrs = p_bukrs.
+        SELECT SINGLE telfx eknam
+        INTO (lt_ztfi_pyarg-zdept,lt_ztfi_pyarg-zoauser)
+        FROM t024
+        WHERE ekgrp = p_ekgrp.
+        lt_ztfi_pyarg-zpycat = p_zpycat.
+        lt_ztfi_pyarg-paytype = p_zlsch.
+        lt_ztfi_pyarg-zredat = sy-datum.
+        lt_ztfi_pyarg-zpldat = p_zpldat.
+        lt_ztfi_pyarg-lifnr = p_lifnr.
+        lt_ztfi_pyarg-zyhzh_k = p_bankn.
+        lt_ztfi_pyarg-zbono = zboitem-zbono.
+        lt_ztfi_pyarg-billdate = zboitem-billdate.
+        lt_ztfi_pyarg-dmbtr_arg = zboitem-wrbtr.
+        lt_ztfi_pyarg-waers = 'CNY'.
+        lt_ztfi_pyarg-zyhzh = zboitem-accou.
+        APPEND lt_ztfi_pyarg.
+        CLEAR: zboitem, lt_ztfi_pyarg.
+        ls_zoait = ls_zoait + 1.
+      ENDLOOP.
+      IF lt_ztfi_pyarg[] IS NOT INITIAL.
+        MODIFY ztfi_pyarg FROM TABLE lt_ztfi_pyarg.
+      ENDIF.
+      LOOP AT  pyrehd.
+        MOVE-CORRESPONDING pyrehd TO lt_ztfi_pyrehd.
+        APPEND lt_ztfi_pyrehd.
+        CLEAR: pyrehd, lt_ztfi_pyrehd.
+      ENDLOOP.
+      IF lt_ztfi_pyrehd[] IS NOT INITIAL.
+        MODIFY ztfi_pyrehd FROM TABLE lt_ztfi_pyrehd.
+      ENDIF.
+      MESSAGE '更新成功' TYPE 'S'.
+      flag = 'X'.
+    ELSE.
+      MESSAGE '更新失败' TYPE 'E'.
+    ENDIF.
+  ELSE.
+    MESSAGE '已经更新' TYPE 'E'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  CANCEL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE cancel INPUT.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_ZBONO  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_zbono INPUT.
+  DATA: ot_tab TYPE TABLE OF zoa_rfc_pjxx_read_s1 WITH HEADER LINE,
+        zsqr   TYPE char10,
+        ls_zbo LIKE TABLE OF zboitem WITH HEADER LINE.
+  SELECT SINGLE eknam INTO
+  zsqr
+  FROM t024
+  WHERE ekgrp = p_ekgrp.
+
+  CALL FUNCTION 'ZOA_RFC_PJXX_READ'
+    EXPORTING
+      bukrs   = p_bukrs
+      paytype = p_zlsch
+*     LIFNR   =
+      zsqr    = zsqr
+* IMPORTING
+*     RTYPE   =
+*     RTMSG   =
+    TABLES
+      ot_tab  = ot_tab.
+*  LOOP AT ot_tab.
+*    ls_zbo-zbono = ot_tab-zbono.
+*    ls_zbo-wrbtr = ot_tab-wrbtr.
+*    ls_zbo-wname = ot_tab-wname.
+*    ls_zbo-wbzog = ot_tab-wbzog.
+*    ls_zbo-zbana = ot_tab-zbana.
+*    ls_zbo-wdate = ot_tab-wdate.
+*    ls_zbo-wverd = ot_tab-wverd.
+*    ls_zbo-eknam = ot_tab-eknam.
+*    ls_zbo-zydate = ot_tab-zydate.
+*    ls_zbo-billdate = ot_tab-billdate.
+*    ls_zbo-accou = ot_tab-accou.
+*    APPEND ls_zbo.
+*    CLEAR: ls_zbo, ot_tab.
+*  ENDLOOP.
+*将取到的值通过函数显示在搜索帮助显示框中
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+*     DDIC_STRUCTURE   = 'ZOA_RFC_PJXX_READ_S1'
+      retfield         = 'ZBONO'            "这个参数为帮助表中返回到选择屏幕的字段的参数
+*     pvalkey          = 'PROFI_TXT'
+      dynpprog         = sy-repid           "当前程序，不写会有问题
+      dynpnr           = sy-dynnr           "当前屏幕，不写会有问题
+      dynprofield      = 'ZBOITEM-ZBONO'       "选择屏幕上需要加F4帮助的字段
+*     STEPL            = 0
+*     WINDOW_TITLE     =
+*     VALUE            = ' '
+      value_org        = 'S'                "默认为C但是此处不用S不行
+*     MULTIPLE_CHOICE  = ' '
+*     DISPLAY          = ' '
+      callback_program = sy-repid
+      callback_form    = 'CB_FORM1'
+*     CALLBACK_METHOD  =
+*     MARK_TAB         =
+*  IMPORTING
+*     USER_RESET       =
+    TABLES
+      value_tab        = ot_tab         "F4帮助值的表
+*     FIELD_TAB        =
+*     RETURN_TAB       =
+*     DYNPFLD_MAPPING  =
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+ENDMODULE.
+FORM cb_form1 TABLES record_tab STRUCTURE seahlpres
+           CHANGING shlp TYPE shlp_descr_t
+                    callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  CLEAR:interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+*选中后自动带出(SHLPFIELD字段结构F0001)
+*  INTERFACE-SHLPFIELD+4(1) = '3'."F0001
+*  INTERFACE-VALFIELD = 'ITAB-ZJUANH'.
+*  APPEND INTERFACE TO SHLP-INTERFACE.
+  interface-shlpfield+4(1) = '1'.
+  interface-valfield = 'ZBOITEM-ACCOU'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '3'.
+  interface-valfield = 'ZBOITEM-BILLDATE'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '4'.
+  interface-valfield = 'ZBOITEM-WRBTR'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '6'.
+  interface-valfield = 'ZBOITEM-ZBANA'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '7'.
+  interface-valfield = 'ZBOITEM-WNAME'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '8'.
+  interface-valfield = 'ZBOITEM-WBZOG'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '9'.
+  interface-valfield = 'ZBOITEM-WDATE'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '10'.
+  interface-valfield = 'ZBOITEM-WVERD'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '14'.
+  interface-valfield = 'ZBOITEM-EKNAM'.
+  APPEND interface TO shlp-interface.
+
+  interface-shlpfield+4(1) = '15'.
+  interface-valfield = 'ZBOITEM-ZYDATE'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  DEALDATA  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE dealdata INPUT.
+  IF p_zlsch = 'U' OR p_zlsch = 'V'.
+    SELECT SINGLE wverd
+       INTO zboitem-wverd
+      FROM zbsed
+      WHERE zbono = zboitem-zbono
+      AND bukrs = p_bukrs
+      AND accou = zboitem-accou
+      AND billdate = zboitem-billdate.
+  ENDIF.
+  MODIFY zboitem FROM zboitem
+               INDEX tc01-current_line.
+ENDMODULE.
+
+FORM zxwc.
+
+  DATA: index_rows TYPE lvc_t_row,
+        index      LIKE LINE OF index_rows.
+  CLEAR index_rows.
+  REFRESH index_rows.
+  CALL METHOD go_grid->get_selected_rows
+    IMPORTING
+      et_index_rows = index_rows.
+  IF lines( index_rows ) = 0.
+    MESSAGE '请选择数据' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  CLEAR: ls_item,ls_item[],IT_pyrehd[].
+  DATA: lt_cotd TYPE STANDARD TABLE OF ztfi_pycotd WITH HEADER LINE.
+  LOOP AT index_rows INTO DATA(wa_rows).
+    READ TABLE item INDEX wa_rows-index.
+    lt_cotd-ebeln = item-ebeln.
+    lt_cotd-loekz = 'X'.
+    lt_cotd-ernam = sy-uname.
+    lt_cotd-erdat = sy-datum.
+    lt_cotd-erzet = sy-uzeit.
+    COLLECT lt_cotd.
+    CLEAR: item,lt_cotd.
+  ENDLOOP.
+  IF lt_cotd[] IS NOT INITIAL.
+    MODIFY ztfi_pycotd FROM TABLE lt_cotd[].
+    IF sy-subrc = 0.
+      MESSAGE '执行完成成功' TYPE 'S'.
+    ELSE.
+      MESSAGE '执行完成失败' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+ENDFORM.

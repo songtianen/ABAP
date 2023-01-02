@@ -1,0 +1,41 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD204_TZPBO
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZYFTZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE zyftz_con_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_tz LINES zyftz_con-lines.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZYFTZ_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE zyftz_con_get_lines OUTPUT.
+  g_zyftz_con_lines = sy-loopc.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0900 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_0900 OUTPUT.
+  SET PF-STATUS 'STA900'.
+  SET TITLEBAR 'TIT900' WITH '修改运费明细'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module MDL_CHANGE_INPUT OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE mdl_change_input OUTPUT.
+
+  LOOP AT SCREEN .
+    IF it_tz-zjsfs = 'DJ' AND screen-name = 'IT_TZ-ZWLDJ'.
+      screen-input = 1 .
+    ELSEIF  it_tz-zjsfs = 'ZC' AND screen-name = 'IT_TZ-ZYSJE'.
+      screen-input = 1 .
+    ENDIF.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+ENDMODULE.

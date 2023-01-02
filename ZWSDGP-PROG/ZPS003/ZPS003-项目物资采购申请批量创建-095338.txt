@@ -1,0 +1,497 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS003
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps003.
+TABLES: sscrfields,proj.
+TYPES: BEGIN OF ty_out,
+         matnr    TYPE matnr, "物料编码
+         maktx    TYPE maktx, "物料描述
+         menge    TYPE string, "需求数量
+         budat    TYPE budat, "需求日期
+         ekgrp    TYPE ekgrp, "采购组
+         pspid    TYPE ps_pspid, "项目编码
+         post1    TYPE ps_POST1, "项目名称
+         stufe    TYPE ps_STUFE, "WBS层级
+         wbsposid TYPE ps_POSID, "WBS编码
+         wbspost1 TYPE ps_POST1, "WBS描述
+         meins    TYPE meins_d, "计量单位
+         stprs    TYPE stprs, "标准价格
+         banfn    TYPE banfn, "采购申请编码
+         bnfpo    TYPE bnfpo, "采购申请行项目
+         rsnum    TYPE rsnum, "预留编码
+         rspos    TYPE rspos, "预留行项目
+         butxt    TYPE butxt, "校验信息
+         butxt1   TYPE butxt, "导入信息
+         sel,
+       END OF ty_out.
+DATA: fieldcat  TYPE slis_t_fieldcat_alv,
+      it_upload TYPE TABLE OF ty_out WITH HEADER LINE,
+      functxt   TYPE smp_dyntxt.
+
+DATA:
+  i_number                TYPE bapi_network_list-network,
+
+  it_BAPI_BUS2002_ACT_NEW TYPE STANDARD TABLE OF bapi_bus2002_act_new,
+  wa_BAPI_BUS2002_ACT_NEW TYPE bapi_bus2002_act_new.
+DATA:
+  ls_return                   TYPE      bapireturn1,
+  ls_e_result                 TYPE TABLE OF  bapi_status_result,
+  ls_I_ACTIVITY_SYSTEM_STATUS TYPE STANDARD TABLE OF bapi_act_mnt_system_status,
+  wa_E_MESSAGE_TABLE          TYPE bapi_meth_message,
+  it_E_MESSAGE_TABLE          TYPE STANDARD TABLE OF bapi_meth_message,
+  wa_I_COMPONENTS_ADD         TYPE bapi_network_comp_add,
+  it_I_COMPONENTS_ADD         TYPE STANDARD TABLE OF bapi_network_comp_add,
+
+  it_BAPI_BUS2002_NEW         TYPE STANDARD TABLE OF bapi_bus2002_new,
+  wa_BAPI_BUS2002_NEW         TYPE bapi_bus2002_new,
+
+  it_BAPIRET2                 TYPE STANDARD TABLE OF bapiret2,
+  wa_BAPIRET2                 TYPE bapiret2.
+
+PARAMETERS: p_pspid LIKE proj-pspid OBLIGATORY.
+SELECTION-SCREEN FUNCTION KEY :1.
+
+INITIALIZATION.
+  %_P_PSPID_%_app_%-text = '项目编码'.
+  functxt = '@14@导出模板'.
+  sscrfields-functxt_01 = functxt.
+
+AT SELECTION-SCREEN.
+  CASE sscrfields-ucomm.
+    WHEN 'FC01'.
+      REFRESH fieldcat.
+      PERFORM init_fieldcat(zpubform) TABLES fieldcat
+    USING :'' '物料编码' '' '' '' '',
+          '' '物料描述' '' '' '' '',
+          '' '需求数量' '' '' '' '',
+          '' '需求日期' '' '' '' '',
+          '' '采购组' '' '' '' ''.
+      PERFORM itabstructoclip(zpubform) USING fieldcat '' ''.
+  ENDCASE.
+
+START-OF-SELECTION.
+  PERFORM cliptoitab(zpubform) TABLES it_upload.
+  LOOP AT it_upload.
+    "校验WBS编码
+    SELECT SINGLE posid INTO @DATA(ls_posid)
+    FROM prps
+    INNER JOIN proj ON proj~pspnr = prps~psphi
+    WHERE proj~pspid = @p_pspid
+    AND prps~posid = @it_upload-wbsposid.
+    IF sy-subrc <> 0 .
+      it_upload-butxt = 'WBS编码异常'.
+    ENDIF.
+    "校验物料编码，需求数量，需求日期，采购组不能为空
+    IF  it_upload-matnr IS INITIAL OR it_upload-menge IS INITIAL
+    OR it_upload-budat IS INITIAL OR it_upload-ekgrp IS INITIAL.
+      it_upload-butxt = |{ it_upload-butxt }&物料编码，需求数量，需求日期，采购组不能为空|.
+    ENDIF.
+    "校验物料编码是否存在
+    SELECT SINGLE matnr INTO @DATA(ls_matnr)
+    FROM mara
+    WHERE matnr = @it_upload-matnr.
+    IF sy-subrc <> 0.
+      it_upload-butxt = |{ it_upload-butxt }&物料编码不存在|.
+    ENDIF.
+*    "检查数字格式
+*    DATA ls_output TYPE string.
+*    CLEAR ls_output.
+*    CALL FUNCTION 'CATS_NUMERIC_INPUT_CHECK'
+*      EXPORTING
+*        input  = it_upload-menge
+*      IMPORTING
+*        output = ls_output.
+*    IF ls_output IS INITIAL.
+*      it_upload-butxt = |{ it_upload-butxt }&需求数量不是数字格式|.
+*    ENDIF.
+    it_upload-pspid = p_pspid.
+    SELECT SINGLE post1 INTO it_upload-post1
+    FROM proj
+    WHERE pspid = p_pspid.
+    it_upload-stufe = 3.
+    it_upload-sel = 'X'.
+
+    MODIFY it_upload.
+  ENDLOOP.
+  PERFORM alvshow.
+FORM alvshow.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'SEL' '选择' '' '' '' '',
+        'POSID' '项目编码' '' '' '' '',
+        'POST1' '项目描述' '' '' '' '',
+        'STUFE' 'WBS层级' '' '' '' '',
+        'WBSPOSID' 'WBS编码' '' '' '' '',
+        'WBSPOST1' 'WBS描述' '' '' '' '',
+        'MATNR' '物料编码' '' '' '' '',
+        'MAKTX' '物料描述' '' '' '' '',
+        'MENGE' '需求数量' '' '' '' '',
+        'MEINS' '计量单位' '' '' '' '',
+        'STPRS' '标准价格' '' '' '' '',
+        'BANFN' '采购申请编码' '' '' '' '',
+        'BNFPO' '采购申请行项目' '' '' '' '',
+        'RSNUM' '预留编码' '' '' '' '',
+        'RSPOS' '预留行项目' '' '' '' '',
+        'BUTXT' '校验信息' '' '' '' '',
+        'BUTXT1' '导入信息' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES it_upload fieldcat USING 'X' ''.
+ENDFORM.
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA: lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD1' EXCLUDING lt_exfcode.
+ENDFORM. "set_status
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+  CASE r_ucomm.
+    WHEN '&BUT80'.
+      PERFORM but80."再次推送
+    WHEN '&BUT81'."全选
+      LOOP AT it_upload.
+        it_upload-sel = 'X'.
+        MODIFY it_upload.
+      ENDLOOP.
+    WHEN '&BUT82'."取消全选
+      LOOP AT it_upload.
+        it_upload-sel = ''.
+        MODIFY it_upload.
+      ENDLOOP.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.
+
+FORM but80.
+  SORT it_upload BY butxt.
+  DATA(firstbutxt) = it_upload[ 1 ]-butxt.
+  DATA(lines) = lines( it_upload ).
+  DATA(lastbutxt) = it_upload[ lines ]-butxt.
+  IF  firstbutxt IS NOT INITIAL OR lastbutxt IS NOT INITIAL.
+    MESSAGE '导入数据校验失败请修改' TYPE 'E'.
+    EXIT.
+  ENDIF.
+  READ TABLE it_upload WITH KEY sel = 'X'.
+  IF sy-subrc <> 0.
+    MESSAGE '请选择导入数据' TYPE 'E'.
+    EXIT.
+  ENDIF.
+  SORT it_upload BY banfn DESCENDING.
+  IF  it_upload[ 1 ]-banfn IS NOT INITIAL AND it_upload[ 1 ]-sel = 'X'.
+    MESSAGE '已经处理的数据请勿选择' TYPE 'E'.
+    EXIT.
+  ENDIF.
+  DATA(wa_upload) = it_upload[ 1 ].
+  CLEAR : wa_BAPI_BUS2002_NEW.
+  wa_BAPI_BUS2002_NEW-project_definition = p_pspid.       "项目定义
+  wa_BAPI_BUS2002_NEW-wbs_element        = wa_upload-wbsposid.       "工作分解结构元素 (WBS 元素)
+  wa_BAPI_BUS2002_NEW-short_text         = wa_upload-wbspost1.       "描述
+  wa_BAPI_BUS2002_NEW-network_type       ='ZPS1'."网络类型
+  wa_BAPI_BUS2002_NEW-plant              = '3000'.       "工厂
+  wa_BAPI_BUS2002_NEW-mrp_controller     = 'PS1'.       "MRP控制者
+
+  CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+  CALL FUNCTION 'BAPI_BUS2002_CREATE'
+    EXPORTING
+      i_network = wa_BAPI_BUS2002_NEW
+    TABLES
+      et_return = it_BAPIRET2.
+  "第四步：判断是否有错误消息
+  LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+    MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+        INTO wa_bapiret2-message
+        WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+             wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+    WRITE:/ '创建时报错:',wa_bapiret2-message.
+  ENDLOOP.
+
+
+  "第四步：如果有错误消息则退出
+  IF sy-subrc EQ 0.
+    CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+    CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+      EXPORTING
+        i_precommit_ok = 'Y'.
+  ENDIF.
+
+
+  CHECK sy-subrc NE 0.
+  "第四步：没有错误消息则执行预提交
+  CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+    TABLES
+      et_return = it_BAPIRET2.
+  LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+    MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+        INTO wa_bapiret2-message
+        WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+             wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+    WRITE:/ '预提交时报错:',wa_bapiret2-message.
+  ENDLOOP.
+
+
+  "第五步：预提交有错误消息则执行回滚
+  IF sy-subrc EQ 0.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+      IMPORTING
+        return = it_BAPIRET2.
+    CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+    CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+      EXPORTING
+        i_precommit_ok = 'Y'.
+  ELSE.
+    "第五步：预提交无错误消息则执行正式提交
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait   = 'X'
+      IMPORTING
+        return = wa_BAPIRET2.
+    WRITE:/ '网络创建成功:',wa_bapiret2-message.
+*   WBS元素创建成功
+
+    "第二步：赋值
+    ""网络号
+    CLEAR wa_BAPIRET2.
+    READ TABLE it_BAPIRET2 INTO wa_bapiret2  WITH KEY type = 'S' id = 'CNIF_PI' number = '003'.
+    IF sy-subrc = 0.
+      i_number = wa_bapiret2-message_v2.
+    ENDIF.
+    "作业赋值
+    wa_BAPI_BUS2002_ACT_NEW-activity           = '0010'.       "在网络和库网络中的作业编号
+    wa_BAPI_BUS2002_ACT_NEW-description        = wa_upload-wbspost1.       "工序短文本
+    wa_BAPI_BUS2002_ACT_NEW-control_key        = 'PS01'.       "控制码-内协(ZPS1)和成本（ZPS3）
+    wa_BAPI_BUS2002_ACT_NEW-wbs_element        = wa_upload-wbsposid.       "工作分解结构元素 (WBS 元素)
+    wa_BAPI_BUS2002_ACT_NEW-work_cntr          = ''.       "工作中心
+    wa_BAPI_BUS2002_ACT_NEW-work_activity      = ''.       "工作（时间单位H）
+    wa_BAPI_BUS2002_ACT_NEW-calculation_key    = 0.       "用于计算的码
+    wa_BAPI_BUS2002_ACT_NEW-acttype            = ''.       "活动类型
+    wa_BAPI_BUS2002_ACT_NEW-cost_elem          = ''.       "成本要素编码
+    wa_BAPI_BUS2002_ACT_NEW-profit_ctr         = ''.       "利润中心
+    wa_BAPI_BUS2002_ACT_NEW-activity_costs   = ''.       "作业中的成本
+    APPEND wa_BAPI_BUS2002_ACT_NEW TO it_BAPI_BUS2002_ACT_NEW.
+    "第三步：调用函数
+    CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+    CALL FUNCTION 'BAPI_BUS2002_ACT_CREATE_MULTI'
+      EXPORTING
+        i_number    = i_number
+      TABLES
+        it_activity = it_BAPI_BUS2002_ACT_NEW
+        et_return   = it_BAPIRET2.
+    "第四步：判断是否有错误消息
+    LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+      MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+          INTO wa_bapiret2-message
+          WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+               wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+      WRITE:/ '创建时报错:',wa_bapiret2-message.
+    ENDLOOP.
+
+
+    "第四步：如果有错误消息则退出
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+    ENDIF.
+
+
+    CHECK sy-subrc NE 0.
+    "第四步：没有错误消息则执行预提交
+    CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+      TABLES
+        et_return = it_BAPIRET2.
+
+    LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+      MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+          INTO wa_bapiret2-message
+          WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+               wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+      WRITE:/ '预提交时报错:',wa_bapiret2-message.
+    ENDLOOP.
+
+
+    "第五步：预提交有错误消息则执行回滚
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = it_BAPIRET2.
+      CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+      CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+        EXPORTING
+          i_precommit_ok = 'Y'.
+    ELSE.
+      "第五步：预提交无错误消息则执行正式提交
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          wait   = 'X'
+        IMPORTING
+          return = wa_BAPIRET2.
+      WRITE:/ '活动（作业）创建成功:',wa_bapiret2-message.
+*   WBS元素创建成功
+
+      "物料组件
+      DATA(ls_posnr) = 10.
+      CLEAR wa_upload.
+      LOOP AT it_upload INTO wa_upload
+      WHERE banfn IS INITIAL AND bnfpo IS INITIAL AND sel = 'X'.
+        wa_I_COMPONENTS_ADD-activity        = ls_posnr. "活动编号
+        wa_I_COMPONENTS_ADD-type_of_pur_resv = '5'. "采购类型
+        wa_I_COMPONENTS_ADD-material        = wa_upload-matnr."物料号
+        wa_I_COMPONENTS_ADD-entry_quantity  = wa_upload-menge.  "数量
+        wa_I_COMPONENTS_ADD-pur_group = wa_upload-ekgrp."采购组
+        wa_I_COMPONENTS_ADD-req_date        = wa_upload-budat."需求日期
+        wa_I_COMPONENTS_ADD-item_text       = wa_upload-maktx.  "项目文本行
+        wa_I_COMPONENTS_ADD-item_cat        = 'L'.
+        wa_I_COMPONENTS_ADD-base_uom        = wa_upload-meins. "基本计量单位
+        APPEND wa_I_COMPONENTS_ADD TO it_I_COMPONENTS_ADD.
+        ls_posnr = ls_posnr + 10.
+        CLEAR: wa_I_COMPONENTS_ADD.
+      ENDLOOP.
+
+      "第三步：调用函数
+      CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+      CALL FUNCTION 'BAPI_NETWORK_COMP_ADD'
+        EXPORTING
+          number           = i_NUMBER
+        IMPORTING
+          return           = wa_BAPIRET2
+        TABLES
+          i_components_add = it_I_COMPONENTS_ADD
+          e_message_table  = it_E_MESSAGE_TABLE.
+      APPEND wa_BAPIRET2 TO it_BAPIRET2.
+      "第四步：判断是否有错误消息
+      LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+        MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+            INTO wa_bapiret2-message
+            WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+                 wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+        WRITE:/ '创建时报错:',wa_bapiret2-message.
+      ENDLOOP.
+      "第四步：如果有错误消息则退出
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+
+      ENDIF.
+      CHECK sy-subrc NE 0.
+      "第四步：没有错误消息则执行预提交
+      CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+        TABLES
+          et_return = it_BAPIRET2.
+      LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+        MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+            INTO wa_bapiret2-message
+            WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+                 wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+        WRITE:/ '预提交时报错:',wa_bapiret2-message.
+      ENDLOOP.
+      "第五步：预提交有错误消息则执行回滚
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+          IMPORTING
+            return = it_BAPIRET2.
+        CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+        CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+          EXPORTING
+            i_precommit_ok = 'Y'.
+      ELSE.
+        "第五步：预提交无错误消息则执行正式提交
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait   = 'X'
+          IMPORTING
+            return = wa_BAPIRET2.
+        WRITE:/ '活动（作业）创建成功:',wa_bapiret2-message.
+*   WBS元素创建成功
+        "认为下达
+        CALL FUNCTION 'BAPI_PS_INITIALIZATION'.
+        CALL FUNCTION 'BAPI_BUS2002_SET_STATUS'
+          EXPORTING
+            number                   = i_NUMBER
+*           UNDO_SYSTEM_STATUS       =
+*           UNDO_USER_STATUS         =
+            set_system_status        = 'REL'
+*           SET_USER_STATUS          =
+          IMPORTING
+            return                   = ls_return
+          TABLES
+            i_activity_system_status = ls_I_ACTIVITY_SYSTEM_STATUS
+*           I_ACTIVITY_USER_STATUS   =
+            e_result                 = ls_e_result.
+
+        APPEND wa_BAPIRET2 TO it_BAPIRET2.
+        "第四步：判断是否有错误消息
+        LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+          MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+              INTO wa_bapiret2-message
+              WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+                   wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+          WRITE:/ '创建时报错:',wa_bapiret2-message.
+        ENDLOOP.
+        "第四步：如果有错误消息则退出
+        IF sy-subrc EQ 0.
+          CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+          CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+            EXPORTING
+              i_precommit_ok = 'Y'.
+        ENDIF.
+        CHECK sy-subrc NE 0.
+        "第四步：没有错误消息则执行预提交
+        CALL FUNCTION 'BAPI_PS_PRECOMMIT'
+          TABLES
+            et_return = it_BAPIRET2.
+        LOOP AT it_BAPIRET2 INTO wa_bapiret2 WHERE type CA 'AE'.
+          MESSAGE ID wa_bapiret2-id TYPE wa_bapiret2-type NUMBER wa_bapiret2-number
+              INTO wa_bapiret2-message
+              WITH wa_bapiret2-message_v1 wa_bapiret2-message_v2
+                   wa_bapiret2-message_v3 wa_bapiret2-message_v4.
+          WRITE:/ '预提交时报错:',wa_bapiret2-message.
+        ENDLOOP.
+        "第五步：预提交有错误消息则执行回滚
+        IF sy-subrc EQ 0.
+          CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+            IMPORTING
+              return = it_BAPIRET2.
+          CALL FUNCTION 'PS_FLAG_INIT_GLOBAL_FLAGS'.
+          CALL FUNCTION 'PS_FLAG_SET_GLOBAL_FLAGS'
+            EXPORTING
+              i_precommit_ok = 'Y'.
+        ELSE.
+          "第五步：预提交无错误消息则执行正式提交
+          CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+            EXPORTING
+              wait   = 'X'
+            IMPORTING
+              return = wa_BAPIRET2.
+          WRITE:/ '附加物料成功:',wa_bapiret2-message.
+          SELECT resb~rsnum,
+               resb~rspos,
+               rsdbs~banfn,
+               rsdbs~bnfpo,
+               resb~matnr
+          FROM resb
+          JOIN rkpf ON  rkpf~rsnum = resb~rsnum
+          LEFT JOIN rsdbs ON resb~rsnum = rsdbs~rsnum AND resb~rspos = rsdbs~rspos AND  resb~rsart = rsdbs~rsart
+          WHERE nplnr = @i_NUMBER
+          INTO TABLE @DATA(lt_resb).
+          LOOP AT it_upload ASSIGNING FIELD-SYMBOL(<wa_upload>).
+            DATA(idx1) = line_index( lt_resb[ matnr = <wa_upload>-matnr ] ).
+            IF  idx1 IS NOT INITIAL.
+              <wa_upload>-banfn = lt_resb[ idx1 ]-banfn.
+              <wa_upload>-bnfpo = lt_resb[ idx1 ]-bnfpo.
+              <wa_upload>-rsnum = lt_resb[ idx1 ]-rsnum.
+              <wa_upload>-rspos = lt_resb[ idx1 ]-rspos.
+            ENDIF.
+            CLEAR: idx1.
+          ENDLOOP.
+*   WBS元素创建成功
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.

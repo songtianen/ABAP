@@ -1,0 +1,319 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS001
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps001.
+TABLES: sscrfields,proj.
+TYPES: BEGIN OF ty_out,
+         pratx  TYPE ztps002a-pratx, "项目类型描述
+         post1  TYPE ps_post1,       "项目描述
+         verna  TYPE ps_verna, "项目负责人名称
+         plfaz  TYPE ps_plfaz_chg, "项目开始日期
+         plsez  TYPE ps_plsez_chg, "项目结束日期
+         werks  TYPE werks_d, "工厂
+         name1  TYPE NAME1_gp, "客户名称
+         profl  TYPE proj-profl, "项目参数文件
+         vernr  TYPE ps_vernr, "项目负责人编码
+         kunnr  TYPE kunnr, "客户编码
+         zlxr   TYPE ztps010a-zlxr, "客户联系人
+         xmssx  TYPE ztps010a-xmssx, "项目省市县
+         zxmdz  TYPE ztps010a-zxmdz, "项目地址
+         zcje   TYPE ztps010a-zcje, "成交金额
+         zkf    TYPE ztps010a-zkf, "客服
+         zbz    TYPE ztps010a-zbz, "备注
+         bukrs  TYPE bukrs, "公司
+         butxt  TYPE butxt, "校验备注
+         butxt1 TYPE butxt, "导入成功与否备注
+         ipd    TYPE bapipr-project_definition,
+       END OF ty_out.
+
+DATA: zxlmi       TYPE  proj-post1, "项目名称
+      g_date      TYPE sy-datum,
+      it_upload   TYPE TABLE OF ty_out WITH HEADER LINE,
+      zxmlx       TYPE  proj-profl, "项目类型
+      zxmlx_t     TYPE char20, "项目类型描述
+      zwerks      TYPE proj-werks, "工厂
+      zwerks_t    TYPE char20, "工厂描述
+      zxmfzr      TYPE proj-vernr, "项目负责人
+      zxmfzr_t    TYPE tcj04-verna, "项目负责人描述
+      zxmks       TYPE proj-plfaz, "项目开始日期
+      zxmjs       TYPE proj-plsez, "项目结束日期
+      zcustomer   TYPE kna1-lifnr, "客户
+      zcustomer_t TYPE char20, "客户描述
+      zlxr        TYPE ztps010a-zlxr, "客户联系人
+      zxmus       TYPE char50, "项目省市
+      zxmdz       TYPE char50, "项目地址
+      zcjje       TYPE char20, "成交金额
+      zkf         TYPE char20, "客服
+      zbz         TYPE char50, "备注
+      zxmbm       TYPE proj-pspid, "项目编码
+      zzsbm       TYPE ztps010a-zzsbm, "负责人主属部门
+      zzsbm_t     TYPE bezei20,
+      vkbur       TYPE ztps010a-vkbur, "销售办公室
+      vkbur_t     TYPE bezei20,
+      bzirk       TYPE ztps010a-bzirk, "销售地区
+      bzirk_t     TYPE bezei20,
+      ipd         TYPE bapipr-project_definition,
+      fieldcat    TYPE slis_t_fieldcat_alv,
+      functxt     TYPE smp_dyntxt,
+      rtype       TYPE  bapi_mtype,
+      rtmsg       TYPE  bapi_msg.
+DATA: intab TYPE TABLE OF ztps010a WITH HEADER LINE.
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE t2.
+  PARAMETERS:p1 RADIOBUTTON GROUP grd2 USER-COMMAND singleclick MODIF ID m5 DEFAULT 'X',
+             p2 RADIOBUTTON GROUP grd2 MODIF ID m5,
+             p3 RADIOBUTTON GROUP grd2 MODIF ID m5.
+  SELECT-OPTIONS:
+  f_pspid FOR proj-pspid MODIF ID m6 NO INTERVALS.
+SELECTION-SCREEN END OF BLOCK b2.
+SELECTION-SCREEN FUNCTION KEY :1.
+
+INITIALIZATION.
+  t2 = '功能选择'.
+  functxt = '@14@导出模板'.
+  sscrfields-functxt_01 = functxt.
+  %_p1_%_app_%-text = '单个创建项目'.
+  %_p2_%_app_%-text = '批量创建项目'.
+  %_p3_%_app_%-text = '删除项目'.
+  %_f_pspid_%_app_%-text = '项目编码'.
+
+AT SELECTION-SCREEN.
+  CASE sscrfields-ucomm.
+    WHEN 'FC01'.
+      REFRESH fieldcat.
+      PERFORM init_fieldcat(zpubform) TABLES fieldcat
+    USING :
+          '' '项目类型' '' '' '' '',
+          '' '项目描述' '' '' '' '',
+          '' '项目负责人名称' '' '' '' '',
+          '' '项目开始日期' '' '' '' '',
+          '' '项目结束日期' '' '' '' '',
+          '' '工厂' '' '' '' '',
+          '' '客户名称' '' '' '' '',
+          '' '项目类型代码' '' '' '' '',
+          '' '项目负责人编码' '' '' '' '',
+          '' '客户编码' '' '' '' '',
+          '' '客户联系人' '' '' '' '',
+          '' '项目省市县' '' '' '' '',
+          '' '项目地址' '' '' '' '',
+          '' '成交金额' '' '' '' '',
+          '' '客服' '' '' '' '',
+          '' '备注' '' '' '' ''.
+
+      PERFORM itabstructoclip(zpubform) USING fieldcat '' ''.
+  ENDCASE.
+
+AT SELECTION-SCREEN OUTPUT.
+
+  LOOP AT SCREEN.
+    CASE screen-group1.
+      WHEN 'M6'.
+        IF p1 = 'X' OR p2 = 'X'.
+          screen-active = 0.
+        ELSE.
+          screen-active = 1.
+        ENDIF.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+START-OF-SELECTION.
+  IF p1 = 'X'.
+    CALL SCREEN 100.
+  ELSEIF p2 = 'X'.
+    PERFORM cliptoitab(zpubform) TABLES it_upload.
+    LOOP AT it_upload.
+      "检查项目参数文件
+      SELECT SINGLE profidproj INTO @DATA(ls_profl)
+        FROM tcj4t
+        WHERE profidproj = @it_upload-profl
+        AND spras = '1'.
+      IF sy-subrc <> 0.
+        it_upload-butxt = '项目参数文件不存在'.
+      ENDIF.
+      "项目负责人编码
+      SELECT SINGLE vernr INTO @DATA(ls_vernr)
+        FROM tcj04
+        WHERE vernr = @it_upload-vernr.
+      IF sy-subrc <> 0 .
+        it_upload-butxt = |{ it_upload-butxt }&项目负责人不存在|.
+      ENDIF.
+      "客户编码
+      IF it_upload-kunnr IS NOT INITIAL.
+        SELECT SINGLE kunnr INTO @DATA(ls_kunnr)
+          FROM kna1
+          WHERE kunnr = @it_upload-kunnr.
+        IF sy-subrc <>  0.
+          it_upload-butxt = |{ it_upload-butxt }&客户编码不存在|.
+        ENDIF.
+      ENDIF.
+      "公司代码
+      SELECT SINGLE bukrs INTO it_upload-bukrs
+        FROM ztps001a WHERE werks = it_upload-werks.
+      IF sy-subrc <> 0.
+        it_upload-butxt = |{ it_upload-butxt }&公司不存在|.
+      ENDIF.
+      "利润中心
+      SELECT SINGLE prctr INTO @DATA(ls_PRCTR)
+        FROM ztps001a
+        WHERE werks = @it_upload-werks.
+      IF sy-subrc <> 0.
+        it_upload-butxt = |{ it_upload-butxt }&利润中心不存在|.
+      ENDIF.
+*      "检查开始日期
+*      CLEAR g_date.
+*      g_date = it_upload-plfaz.
+*      CALL FUNCTION 'DATE_CHECK_PLAUSIBILITY'
+*        EXPORTING
+*          date = g_date.
+*      IF sy-subrc = 0.
+*        it_upload-butxt = |{ it_upload-butxt }&开始日期格式不对|.
+*      ENDIF.
+*      "检查结束日期
+*      CLEAR g_date.
+*      g_date = it_upload-plsez.
+*      CALL FUNCTION 'DATE_CHECK_PLAUSIBILITY'
+*        EXPORTING
+*          date = g_date.
+*      IF sy-subrc = 0.
+*        it_upload-butxt = |{ it_upload-butxt }&结束日期格式不对|.
+*      ENDIF.
+
+      MODIFY it_upload.
+    ENDLOOP.
+    PERFORM alvshow.
+  ELSE .
+    PERFORM flag_del.
+  ENDIF.
+
+  INCLUDE zps001_f4_datei01.
+  INCLUDE zps001_f4_date1i01.
+  INCLUDE zps001_status_0100o01.
+  INCLUDE zps001_user_command_0100i01.
+FORM alvshow.
+  REFRESH fieldcat.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING :
+        'PRATX' '项目类型描述' '' '' '' '',
+        'POST1' '项目描述' '' '' '' '',
+        'VERNA' '项目负责人名称' '' '' '' '',
+        'PLFAZ' '项目开始日期' '' '' '' '',
+        'PLSEZ' '项目结束日期' '' '' '' '',
+        'WERKS' '工厂' '' '' '' '',
+        'NAME1' '客户名称' '' '' '' '',
+        'PROFL' '项目类型代码' '' '' '' '',
+        'VERNR' '项目负责人编码' '' '' '' '',
+        'KUNNR' '客户编码' '' '' '' '',
+        'ZLXR' '客户联系人' '' '' '' '',
+        'XMSSX' '项目省市县' '' '' '' '',
+        'ZXMDZ' '项目地址' '' '' '' '',
+        'ZCJE' '成交金额' '' '' '' '',
+        'ZKF' '客服' '' '' '' '',
+        'ZBZ' '备注' '' '' '' '',
+        'BUTXT' '校验信息' '' '' '' '',
+        'BUTXT1' '导入信息' '' '' '' '',
+        'IPD' '项目编码' '' '' '' ''.
+  PERFORM alvfm(zpubform) TABLES it_upload fieldcat USING 'X' ''.
+ENDFORM.
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA: lt_exfcode TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS 'STANDARD1' EXCLUDING lt_exfcode.
+ENDFORM. "set_status
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+  CASE r_ucomm.
+    WHEN '&BUT80'.
+      PERFORM but80."再次推送
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh = 'X'.
+ENDFORM.
+
+FORM but80.
+  SORT it_upload BY butxt.
+  DATA(firstbutxt) = it_upload[ 1 ]-butxt.
+  DATA(lines) = lines( it_upload ).
+  DATA(lastbutxt) = it_upload[ lines ]-butxt.
+  IF  firstbutxt IS NOT INITIAL OR lastbutxt IS NOT INITIAL.
+    MESSAGE '导入数据校验失败请修改' TYPE 'E'.
+    EXIT.
+  ENDIF.
+  LOOP AT it_upload INTO DATA(wa_upload).
+    CLEAR: intab,intab[].
+    DATA: usr04 TYPE usrquan13.
+    usr04 = wa_upload-zcje.
+    CALL FUNCTION 'ZFM_CRM2SAP_001'
+      EXPORTING
+        profl                = wa_upload-profl
+        post1                = wa_upload-post1
+        werks                = wa_upload-werks
+        vernr                = wa_upload-vernr
+        plfaz                = wa_upload-plfaz
+        plsez                = wa_upload-plsez
+        usr04                = usr04
+        flag                 = 'C'
+      " IVPROJECT_DEFINITION =
+        usr02                = wa_upload-kunnr
+      IMPORTING
+        "RTYPE                      =
+        "RTMSG                      =
+        ioproject_definition = ipd
+      TABLES
+        in_tab               = intab.
+    IF ipd IS INITIAL.
+      wa_upload-butxt1 = '创建失败'.
+    ELSE.
+      wa_upload-ipd = ipd.
+
+    ENDIF.
+    MODIFY it_upload FROM wa_upload.
+    CLEAR: ipd, wa_upload,usr04.
+  ENDLOOP.
+  DATA: lt TYPE STANDARD TABLE OF ztps010a WITH HEADER LINE.
+  LOOP AT it_upload WHERE ipd IS NOT INITIAL.
+    MOVE-CORRESPONDING it_upload TO lt.
+    lt-pspid = it_upload-ipd.
+    APPEND lt.
+  ENDLOOP.
+  IF lt[] IS NOT INITIAL.
+    MODIFY ztps010a FROM TABLE lt.
+  ENDIF.
+ENDFORM.
+
+INCLUDE zps001_f4_zxmlxi01.
+
+INCLUDE zps001_dealdatai01.
+
+FORM flag_del.
+  SELECT
+    *
+    INTO TABLE @DATA(lt_pspid)
+    FROM proj
+    WHERE pspid IN @f_pspid.
+
+  LOOP AT lt_pspid INTO DATA(wa_pspid).
+    CLEAR: intab,intab[].
+    CALL FUNCTION 'ZFM_CRM2SAP_001'
+      EXPORTING
+        flag                 = 'D'
+        ivproject_definition = wa_pspid-pspid
+      IMPORTING
+        rtype                = rtype
+        rtmsg                = rtmsg
+      TABLES
+        in_tab               = intab.
+
+    IF rtype = 'E'.
+      MESSAGE rtmsg TYPE 'E'.
+      RETURN.
+    ELSE.
+      UPDATE ztps010a SET dele = 'X' WHERE pspid = wa_pspid-pspid.
+    ENDIF.
+  ENDLOOP.
+  IF  sy-subrc = 0 .
+    MESSAGE '删除成功' TYPE 'S'.
+  ENDIF.
+
+ENDFORM.

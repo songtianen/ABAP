@@ -1,0 +1,541 @@
+FUNCTION ZFM_SD_AUTHCONTROL.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(AUTHACT) TYPE  ZE_AUTHACT
+*"     REFERENCE(DJLX) TYPE  CHAR10
+*"     REFERENCE(UCOMM) TYPE  SYST_UCOMM OPTIONAL
+*"     REFERENCE(VBELN) TYPE  VBELN_VA OPTIONAL
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"     REFERENCE(DISABLED)
+*"  TABLES
+*"      INTAB OPTIONAL
+*"      O_EXUCOMM STRUCTURE  ZSSD266 OPTIONAL
+*"  CHANGING
+*"     REFERENCE(O_VBELN) TYPE  VBELN OPTIONAL
+*"     REFERENCE(O_MODE) TYPE  CHAR1 OPTIONAL
+*"----------------------------------------------------------------------
+  DATA:BEGIN OF IT_BNAME OCCURS 0,
+         BNAME TYPE XUBNAME,
+       END OF IT_BNAME,
+       IT_UCOMM TYPE TABLE OF ZSSD266 WITH HEADER LINE,
+       IT_VBELN TYPE TABLE OF LIPS_KEY WITH HEADER LINE.
+  DATA:SDAUTHCONTROL TYPE CHAR10,
+       NUM           TYPE I,
+       STR           TYPE STRING.
+  DATA:WA  TYPE REF TO DATA,
+       WA1 TYPE REF TO DATA.
+  FIELD-SYMBOLS:<FS>  TYPE ANY,
+                <FS1>  TYPE ANY,
+                <WA>  TYPE ANY,
+                <WA1> TYPE ANY.
+  CLEAR:RTMSG,RTYPE,DISABLED,IT_UCOMM[],USR21,ADCP,
+  IT_VBELN[],USREFUS,*VBAK,NUM,STR,
+  IT_BNAME[].
+  DEFINE MSG.
+    RTYPE = &1.
+    RTMSG = &2.
+    IF &3 = 'X'.
+    RETURN.
+    ENDIF.
+  END-OF-DEFINITION.
+*添加数据检查闸口
+  PERFORM GETDATA(ZPUB_DATA) USING 'SDAUTHCONTROL' CHANGING SDAUTHCONTROL.
+  IF SDAUTHCONTROL = 'N'.
+    RETURN.
+  ENDIF.
+  SELECT SINGLE *
+    INTO *VBAK
+    FROM VBAK
+    WHERE VBELN = VBELN.
+  IF SY-SUBRC EQ 0.
+    SELECT *
+      INTO TABLE @DATA(IT_VBAP)
+      FROM VBAP
+      WHERE VBELN = @*VBAK-VBELN.
+  ENDIF.
+*取得SU01中账户的房间号
+  SELECT SINGLE *
+    FROM USREFUS
+    WHERE BNAME = SY-UNAME.
+  SELECT SINGLE *
+    FROM USR21
+    WHERE BNAME = SY-UNAME.
+  SELECT SINGLE *
+    FROM ADCP
+    WHERE ADDRNUMBER = USR21-ADDRNUMBER
+    AND   PERSNUMBER = USR21-PERSNUMBER.
+
+  SELECT *
+    INTO TABLE @DATA(IT_ZTSD218)
+    FROM ZTSD218
+    WHERE KUNNR = @ADCP-ROOMNUMBER.
+  SORT IT_ZTSD218 BY WERKS LGORT.
+  CASE AUTHACT.
+    WHEN 'A'."数据筛选
+      CREATE DATA WA LIKE LINE OF INTAB.
+      ASSIGN WA->* TO <WA>.
+      CASE DJLX.
+        WHEN 'HT'.
+          CASE SY-TCODE.
+            WHEN 'ZSD201' OR 'ZSD202' OR 'ZSD203'
+              OR 'ZSD051' OR 'ZSD209' OR 'ZPP205C'
+               OR 'ZPP205' OR 'ZPP207'."合同查看
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK.
+                MOVE-CORRESPONDING <WA> TO VBAK.
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'VTWEG' FIELD VBAK-VTWEG
+                ID 'ZLY' FIELD VBAK-ZHTLY.
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+            WHEN 'ZSD200A' OR 'ZSD220'."履约计划查看
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK.
+                MOVE-CORRESPONDING <WA> TO VBAK.
+*根据合同取履约&渠道
+                SELECT SINGLE *
+                  INTO @DATA(WA_VBAK1)
+                  FROM VBAK
+                  WHERE VBELN = @VBAK-VBELN.
+
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'VTWEG' FIELD WA_VBAK1-VTWEG
+                ID 'ZLY' FIELD WA_VBAK1-ZHTLY.
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+                CLEAR:WA_VBAK1.
+              ENDLOOP.
+              STR =  ` VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+            WHEN 'ZSD200B' OR 'ZSD200C' OR 'ZSD200D' OR 'ZSD200E'."履约计划查看
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK.
+                MOVE-CORRESPONDING <WA> TO VBAK.
+                MOVE-CORRESPONDING <WA> TO ZTSD200.
+*根据合同取履约&渠道
+                SELECT SINGLE *
+                  INTO @WA_VBAK1
+                  FROM VBAK
+                  WHERE VBELN = @VBAK-VBELN.
+
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'VTWEG' FIELD WA_VBAK1-VTWEG
+                ID 'ZLY'   FIELD WA_VBAK1-ZHTLY
+                ID 'ZPMC'  FIELD ZTSD200-ZPMCZH
+                ID 'ZJS'   FIELD ZTSD200-ZXTZH.
+
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'ZVBELN' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+                CLEAR:WA_VBAK1,ZTSD200.
+              ENDLOOP.
+              STR =  ` ZVBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+              WHEN 'ZSD208'."履约信贷查询
+              LOOP AT INTAB INTO <WA>.
+                MOVE-CORRESPONDING <WA> TO ZTSD201.
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'ZLY'   FIELD ZTSD201-ZCJE.
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'POSID' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+                CLEAR:ZTSD201.
+              ENDLOOP.
+              STR =  ` POSID = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+             WHEN 'ZSD210'."履约客户往来查询
+              LOOP AT INTAB INTO <WA>.
+                MOVE-CORRESPONDING <WA> TO ZTPS010A.
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'ZLY'   FIELD ZTPS010A-ZKFNR.
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'POSID' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+                CLEAR: ZTPS010A.
+              ENDLOOP.
+              STR =  ` POSID = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+             WHEN 'ZSD211'."销售出库查询
+              LOOP AT INTAB INTO <WA>.
+                ASSIGN COMPONENT 'ZHTLY' OF STRUCTURE <WA> TO <FS>.
+                ASSIGN COMPONENT 'VTWEG' OF STRUCTURE <WA> TO <FS1>.
+                IF SY-SUBRC EQ 0.
+                    AUTHORITY-CHECK OBJECT 'ZWSD01'
+                    ID 'VTWEG' FIELD <FS1>
+                    ID 'ZLY' FIELD  <FS>.
+                    IF SY-SUBRC NE 0.
+                      <FS> = 'DEL'.
+                      MODIFY INTAB FROM <WA>.
+                      clear:<FS>,<FS1>.
+                      CONTINUE.
+                    ENDIF.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` ZHTLY = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+          ENDCASE.
+        WHEN 'FH'.
+          CASE SY-TCODE.
+            WHEN 'ZSD203' OR 'ZSD205' OR 'ZSD206'."发货通知单查看保管签收
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK,VBAP,IT_VBELN.
+                MOVE-CORRESPONDING <WA> TO VBAK.
+                MOVE-CORRESPONDING <WA> TO VBAP.
+*根据发货通知单取合同
+                SELECT SINGLE *
+                  INTO @DATA(WA_VBAK)
+                  FROM VBAK
+                  WHERE VBELN = @VBAP-VGBEL.
+                CASE SY-TCODE.
+                  WHEN 'ZSD203'.
+                    AUTHORITY-CHECK OBJECT 'ZWSD01'
+                    ID 'VTWEG' FIELD VBAK-VTWEG
+                    ID 'ZLY' FIELD WA_VBAK-ZHTLY.
+                    IF SY-SUBRC NE 0.
+                      ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                      IF SY-SUBRC EQ 0.
+                        <FS> = 'DEL'.
+                      ENDIF.
+                      MODIFY INTAB FROM <WA>.
+                    ENDIF.
+                  WHEN 'ZSD205' OR 'ZSD206'.
+                    AUTHORITY-CHECK OBJECT 'ZWSD01'
+                    ID 'VTWEG' FIELD VBAK-VTWEG.
+                    IF SY-SUBRC NE 0.
+                      ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                      IF SY-SUBRC EQ 0.
+                        <FS> = 'DEL'.
+                      ENDIF.
+                      MODIFY INTAB FROM <WA>.
+                    ENDIF.
+                ENDCASE.
+*对于保管，一个单据里一个库存地工厂有权限，则可以看整单
+*IT_VBELN存放有权限看的单据
+                AUTHORITY-CHECK OBJECT 'ZWSD04'
+                ID 'ZFHCKBG' FIELD '02'. "02代表非保管，不走如下逻辑
+                IF SY-SUBRC = 0.
+                ELSE.
+                  READ TABLE IT_ZTSD218 INTO ZTSD218 WITH KEY WERKS = VBAP-WERKS
+                                                              LGORT = VBAP-LGORT
+                                                              BINARY SEARCH.
+                  IF SY-SUBRC EQ 0.
+                    IT_VBELN-VBELN = VBAP-VBELN.
+                    COLLECT IT_VBELN.
+                  ENDIF.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+*保管时，不存在的单据删除
+              AUTHORITY-CHECK OBJECT 'ZWSD04'
+                ID 'ZFHCKBG' FIELD '02'. "02代表非保管，不走如下逻辑
+              IF SY-SUBRC = 0.
+              ELSE.
+                SORT IT_VBELN BY VBELN.
+                LOOP AT INTAB INTO <WA>.
+                  CLEAR:VBAP.
+                  MOVE-CORRESPONDING <WA> TO VBAP.
+                  READ TABLE IT_VBELN WITH KEY VBELN = VBAP-VBELN BINARY SEARCH.
+                  IF SY-SUBRC NE 0.
+                    ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                    IF SY-SUBRC EQ 0.
+                      <FS> = 'DEL'.
+                    ENDIF.
+                    MODIFY INTAB FROM <WA>.
+                  ENDIF.
+                ENDLOOP.
+                STR =  ` VBELN = 'DEL' `.
+                DELETE INTAB WHERE (STR).
+              ENDIF.
+            WHEN 'ZSD204'."物流签收
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK.
+                MOVE-CORRESPONDING <WA> TO VBAK.
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'VTWEG' FIELD VBAK-VTWEG.
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+           WHEN 'ZSD209'."补差单查询
+              LOOP AT INTAB INTO <WA>.
+                ASSIGN COMPONENT 'ZHTLY' OF STRUCTURE <WA> TO <FS>.
+                ASSIGN COMPONENT 'VTWEG' OF STRUCTURE <WA> TO <FS1>.
+                IF SY-SUBRC EQ 0.
+                    AUTHORITY-CHECK OBJECT 'ZWSD01'
+                    ID 'VTWEG' FIELD <FS1>
+                    ID 'ZLY' FIELD  <FS>.
+                    IF SY-SUBRC NE 0.
+                      <FS> = 'DEL'.
+                      MODIFY INTAB FROM <WA>.
+                      clear:<FS>,<FS1>.
+                      CONTINUE.
+                    ENDIF.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` ZHTLY = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+           ENDCASE.
+        WHEN 'CK'.
+          CASE SY-TCODE.
+            WHEN 'ZSD206'.
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:LIKP,LIPS.
+*根据出库单取合同
+                MOVE-CORRESPONDING <WA> TO LIKP.
+                MOVE-CORRESPONDING <WA> TO LIPS.
+*取出发货通知单
+                SELECT SINGLE *
+                  FROM VBAP
+                  WHERE VBELN = LIPS-VGBEL
+                  AND   POSNR = LIPS-VGPOS.
+                IF SY-SUBRC EQ 0.
+*取出合同
+                  SELECT SINGLE *
+                    FROM VBAP
+                    WHERE VBELN = VBAP-VGBEL
+                    AND   POSNR = VBAP-VGPOS.
+                  IF SY-SUBRC EQ 0.
+                    SELECT SINGLE *
+                      FROM VBAK
+                      WHERE VBELN = VBAP-VBELN.
+                    AUTHORITY-CHECK OBJECT 'ZWSD01'
+                    ID 'VTWEG' FIELD VBAK-VTWEG
+                    ID 'ZLY' FIELD VBAK-ZHTLY.
+                    IF SY-SUBRC NE 0.
+                      ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                      IF SY-SUBRC EQ 0.
+                        <FS> = 'DEL'.
+                      ENDIF.
+                      MODIFY INTAB FROM <WA>.
+                      CONTINUE.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+*通过制单人筛选
+                CLEAR:IT_BNAME.
+                IT_BNAME-BNAME = LIKP-ERNAM.
+                COLLECT IT_BNAME.
+              ENDLOOP.
+              IF IT_BNAME[] IS NOT INITIAL.
+                SORT IT_BNAME BY BNAME.
+                SELECT USR21~BNAME,
+                       ADCP~ROOMNUMBER
+                  INTO TABLE @DATA(IT_GH)
+                  FROM USR21 INNER JOIN ADCP ON USR21~PERSNUMBER = ADCP~PERSNUMBER
+                                            AND USR21~ADDRNUMBER = ADCP~ADDRNUMBER
+                  FOR ALL ENTRIES IN @IT_BNAME
+                  WHERE USR21~BNAME = @IT_BNAME-BNAME.
+                SORT IT_GH BY BNAME.
+              ENDIF.
+*进行保管的筛选
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:LIKP,LIPS,VBAK.
+                MOVE-CORRESPONDING <WA> TO LIKP.
+                MOVE-CORRESPONDING <WA> TO LIPS.
+*取出发货通知单
+                SELECT SINGLE *
+                  FROM VBAK
+                  WHERE VBELN = LIPS-VGBEL.
+                READ TABLE IT_GH INTO DATA(WA_GH) WITH KEY BNAME = LIKP-ERNAM BINARY SEARCH.
+                IF SY-SUBRC EQ 0.
+                  AUTHORITY-CHECK OBJECT 'ZWSD01'
+                  ID 'VTWEG' FIELD VBAK-VTWEG
+                  ID 'ZBG' FIELD WA_GH-ROOMNUMBER.
+                  IF SY-SUBRC NE 0.
+                    ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                    IF SY-SUBRC EQ 0.
+                      <FS> = 'DEL'.
+                    ENDIF.
+                    MODIFY INTAB FROM <WA>.
+                  ENDIF.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+          ENDCASE.
+        WHEN 'NGNX'.
+          CASE SY-TCODE.
+            WHEN 'ZSD050'.
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK,VBAP.
+                MOVE-CORRESPONDING <WA> TO VBAP.
+                AUTHORITY-CHECK OBJECT 'ZWSD01'
+                ID 'ZMVGR3' FIELD VBAP-MVGR3.
+                IF SY-SUBRC NE 0.
+                  ASSIGN COMPONENT 'VBELN' OF STRUCTURE <WA> TO <FS>.
+                  IF SY-SUBRC EQ 0.
+                    <FS> = 'DEL'.
+                  ENDIF.
+                  MODIFY INTAB FROM <WA>.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+            WHEN 'ZSD051'.
+*ZSD051查询的是内销出库单与通知单号
+              LOOP AT INTAB INTO <WA>.
+                CLEAR:VBAK.
+                MOVE-CORRESPONDING <WA> TO VBAK.
+                ASSIGN COMPONENT 'R_HT_VBELN' OF STRUCTURE <WA> TO <FS>.
+                IF SY-SUBRC EQ 0.
+                  CLEAR:VBAK.
+                  SELECT SINGLE *
+                    FROM VBAK
+                    WHERE VBELN = <FS>.
+                  IF SY-SUBRC EQ 0.
+                    AUTHORITY-CHECK OBJECT 'ZWSD01'
+                    ID 'VTWEG' FIELD VBAK-VTWEG
+                    ID 'ZLY' FIELD VBAK-ZHTLY.
+                    IF SY-SUBRC NE 0.
+                      <FS> = 'DEL'.
+                      MODIFY INTAB FROM <WA>.
+                      CONTINUE.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+              ENDLOOP.
+              STR =  ` R_HT_VBELN = 'DEL' `.
+              DELETE INTAB WHERE (STR).
+            WHEN 'ZSD052'.
+          ENDCASE.
+      ENDCASE.
+    WHEN 'B'."按钮检查报错
+      CASE DJLX.
+        WHEN 'HT'."隐藏按钮
+          CLEAR:NUM.
+          CASE SY-TCODE.
+            WHEN 'ZSD201'.
+              CASE *VBAK-ZZT1.
+                WHEN '' OR 'A' OR 'B'."管控审核
+                  AUTHORITY-CHECK OBJECT 'ZWSD02'
+                  ID 'ZHTSP' FIELD '01'.
+                  IF SY-SUBRC NE 0.
+                    APPEND 'BUT04' TO IT_UCOMM.
+                    APPEND 'BUT07' TO IT_UCOMM.
+                  ENDIF.
+                WHEN 'C' OR 'D'."履约审核
+                  AUTHORITY-CHECK OBJECT 'ZWSD02'
+                  ID 'ZHTSP' FIELD '02'.
+                  IF SY-SUBRC NE 0.
+                    APPEND 'BUT01' TO IT_UCOMM.
+                    APPEND 'BUT11' TO IT_UCOMM.
+                    APPEND 'BUT02' TO IT_UCOMM.
+                    APPEND 'BUT04' TO IT_UCOMM.
+                    APPEND 'BUT07' TO IT_UCOMM.
+                    DISABLED = 'X'.
+                  ENDIF.
+              ENDCASE.
+            WHEN 'ZSD203'.
+              CASE UCOMM.
+                WHEN 'BUT01'.
+                  AUTHORITY-CHECK OBJECT 'ZWSD04'
+                  ID 'ZFHCKGL' FIELD '01'.
+                  IF SY-SUBRC NE 0.
+                    APPEND 'BUT01' TO IT_UCOMM.
+                    MSG 'E' '无发货通知单创建权限' ''.
+                  ENDIF.
+                WHEN ''.
+              ENDCASE.
+          ENDCASE.
+        WHEN 'FH'.
+          CASE SY-TCODE.
+            WHEN 'ZSD204'."签收后才开始控制按钮权限
+              IF *VBAK-ZTTZT = 'C'
+                AND *VBAK-ZWLY NE USREFUS-USERALIAS.
+                O_VBELN = *VBAK-VBELN.
+                O_MODE = 'S'.
+              ENDIF.
+            WHEN 'ZSD205'.
+              CLEAR:NUM.
+*有一条数据是自己签收的，则就可以操作
+              IF *VBAK-ZTTZT = 'E'.
+                LOOP AT IT_VBAP INTO VBAP.
+                  IF VBAP-ZBGY = USREFUS-USERALIAS.
+                    NUM = NUM + 1.
+                  ENDIF.
+                ENDLOOP.
+                IF NUM = 0.
+                  O_VBELN = *VBAK-VBELN.
+                  O_MODE = 'S'.
+                ENDIF.
+              ENDIF.
+            WHEN 'ZSD206'.
+              CASE UCOMM.
+                WHEN 'BUT01A'.
+                  AUTHORITY-CHECK OBJECT 'ZWSD04'
+                  ID 'ZFHCKGL' FIELD '02'.
+                  IF SY-SUBRC NE 0.
+                    APPEND 'BUT01A' TO IT_UCOMM.
+                    MSG 'E' '无创建出库单权限' ''.
+                  ENDIF.
+                WHEN 'BUT11' OR 'STOP'.
+*有一条数据是自己签收的，则就可以操作
+                  LOOP AT IT_VBAP INTO VBAP.
+                    IF VBAP-ZBGY = USREFUS-USERALIAS.
+                      NUM = NUM + 1.
+                    ENDIF.
+                  ENDLOOP.
+                  IF NUM = 0.
+                    MSG 'E' '只能操作自己签收的发货通知单' ''.
+                  ENDIF.
+              ENDCASE.
+          ENDCASE.
+        WHEN 'CK'.
+          CASE SY-TCODE.
+            WHEN 'ZSD206'.
+              AUTHORITY-CHECK OBJECT 'ZWSD04'
+              ID 'ZFHCKGL' FIELD '03'.
+              IF SY-SUBRC NE 0.
+                APPEND 'BUT04' TO IT_UCOMM.
+                APPEND 'BUT03' TO IT_UCOMM.
+                APPEND 'BUT05' TO IT_UCOMM.
+                APPEND 'BUT10' TO IT_UCOMM.
+                APPEND 'BUT11' TO IT_UCOMM.
+              ENDIF.
+          ENDCASE.
+      ENDCASE.
+  ENDCASE.
+
+
+  IF IT_UCOMM[] IS NOT INITIAL.
+    APPEND LINES OF IT_UCOMM TO O_EXUCOMM.
+  ENDIF.
+
+
+
+ENDFUNCTION.

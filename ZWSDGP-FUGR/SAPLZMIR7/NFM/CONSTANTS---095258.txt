@@ -1,0 +1,101 @@
+***INCLUDE /NFM/CONSTANTS .
+* Allgemeine Konstanten f¨¹r die NE-Metallabwicklung
+
+CONSTANTS:
+  /nfm/c_xflag VALUE 'X',                                   "#EC *
+* Applikationen:
+  BEGIN OF /nfm/c_kappl,                                    "#EC *
+    sd    LIKE t685-kappl   VALUE 'V ',         "Vertrieb
+    mm    LIKE t685-kappl   VALUE 'M ',         "Einkauf
+  END OF /nfm/c_kappl,
+* Kurstypen:
+  BEGIN OF /nfm/c_rate_art,                                 "#EC *
+    day   LIKE /nfm/trates-art VALUE 'T',       "Tageskurs
+    month LIKE /nfm/trates-art VALUE 'M',       "Monatskurs
+    perio LIKE /nfm/trates-art VALUE 'F',       "Buchungsperiodenkurs
+  END OF /nfm/c_rate_art,
+* NE-Belegtypen:
+  BEGIN OF /nfm/c_blt,                                      "#EC *
+    sd_order LIKE /nfm/torderpos-blt VALUE 'A', "Angebot, Auftrag
+    mm_order LIKE /nfm/torderpos-blt VALUE 'B', "Bestellung
+    billing  LIKE /nfm/torderpos-blt VALUE 'F', "Faktura
+    invoice  LIKE /nfm/torderpos-blt VALUE 'R', "Rechnung
+    default  LIKE /nfm/torderpos-blt VALUE 'V', "Vorschlag
+    storno   LIKE /nfm/torderpos-blt VALUE 'N', "Storno
+  END OF /nfm/c_blt,
+* Einkaufsbelegtypen:
+  BEGIN OF /nfm/c_bstyp,                                    "#EC *
+    anfr LIKE /nfm/data-bstyp VALUE 'A',     "Anfrage
+    banf LIKE /nfm/data-bstyp VALUE 'B',     "Bestellanforderung
+    best LIKE /nfm/data-bstyp VALUE 'F',     "Bestellung
+    guts LIKE /nfm/data-bstyp VALUE 'G',     "Gutschrift
+    info LIKE /nfm/data-bstyp VALUE 'I',     "Einkaufsinfo
+    kont LIKE /nfm/data-bstyp VALUE 'K',     "Kontrakt
+    lfpl LIKE /nfm/data-bstyp VALUE 'L',     "Lieferplan
+    lerf LIKE /nfm/data-bstyp VALUE 'Q',     "Leistungserfassungsblatt
+    rech LIKE /nfm/data-bstyp VALUE 'R',     "Rechnung
+    simu LIKE /nfm/data-bstyp VALUE 'S',     "Simulation
+    stog LIKE /nfm/data-bstyp VALUE 'M',     "Storno Gutsch.
+    stor LIKE /nfm/data-bstyp VALUE 'N',     "Stornierung
+    ordr LIKE /nfm/data-bstyp VALUE 'W',     "Orderbuch
+  END OF /nfm/c_bstyp,
+* NF-Code
+  /nfm/mv45a_fcode_nevw  LIKE t185-fcode VALUE '/NFM/DEF',  "#EC *
+  /nfm/mv45a_fcode_nerv  LIKE t185-fcode VALUE '/NFM/PROC', "#EC *
+* Vertriebsbelegtypen siehe Include RVVBTYP
+* Feldsteuerung:
+  BEGIN OF /nfm/c_field,                                    "#EC *
+    invis VALUE '1',
+    must  VALUE '2',
+    can   VALUE '3',
+    displ VALUE '4',
+  END OF /nfm/c_field,
+* Update-Kennzeichen:
+  BEGIN OF /nfm/c_updkz,                                    "#EC *
+    new VALUE 'I',                              "neu      = INSERT
+    upd VALUE 'U',                              "ge#ndert = UPDATE
+    del VALUE 'D',                              "gel#scht = DELETE
+  END OF /nfm/c_updkz,
+* Vorschlagstypen:
+  BEGIN OF /nfm/c_vtp,                                      "#EC *
+    sdord  LIKE /nfm/tdefault-vtp VALUE 'A ',    "Auftrag
+    socu   LIKE /nfm/tdefault-vtp VALUE 'V1',    "VkOrg/Kunde
+    socg   LIKE /nfm/tdefault-vtp VALUE 'V2',    "VkOrg/Kundengruppe
+    sorg   LIKE /nfm/tdefault-vtp VALUE 'V3',    "VkOrg
+    socuma LIKE /nfm/tdefault-vtp VALUE 'VA',    "VkOrg/Kunde/Material
+    socgma LIKE /nfm/tdefault-vtp VALUE 'VB',    "VkOrg/Kundengr./Mater.
+    soma   LIKE /nfm/tdefault-vtp VALUE 'VC',    "VkOrg/Material
+    socumg LIKE /nfm/tdefault-vtp VALUE 'VD',    "VkOrg/Kunde/Mater.gr.
+    socgmg LIKE /nfm/tdefault-vtp VALUE 'VE',    "VkOrg/Kundengr./Matgr.
+    somg   LIKE /nfm/tdefault-vtp VALUE 'VF',    "VkOrg/Materialgruppe
+    puord  LIKE /nfm/tdefault-vtp VALUE 'E ',    "Bestellung
+    posu   LIKE /nfm/tdefault-vtp VALUE 'E1',    "EkOrg/Lieferant
+    posg   LIKE /nfm/tdefault-vtp VALUE 'E2',    "EkOrg/Lieferantengr.
+    porg   LIKE /nfm/tdefault-vtp VALUE 'E3',    "EkOrg
+    posuma LIKE /nfm/tdefault-vtp VALUE 'EA',    "EkOrg/Liefer./Material
+    posgma LIKE /nfm/tdefault-vtp VALUE 'EB',    "EkOrg/Liefergr./Mater.
+    poma   LIKE /nfm/tdefault-vtp VALUE 'EC',    "EkOrg/Material
+    posumg LIKE /nfm/tdefault-vtp VALUE 'ED',    "EkOrg/Liefer/Mater.gr.
+    posgmg LIKE /nfm/tdefault-vtp VALUE 'EE',    "EkOrg/Liefergr./Matgr.
+    pomg   LIKE /nfm/tdefault-vtp VALUE 'EF',    "EkOrg/Materialgruppe
+    copy   LIKE /nfm/tdefault-vtp VALUE 'C ',    "Kopie vom Vorlagebeleg
+end of /nfm/c_vtp,
+* Transaktionstypen:
+begin of /nfm/c_act,                                        "#EC *
+  display like t180-aktyp value 'A',
+  change  like t180-aktyp value 'V',
+  CREATE  LIKE t180-aktyp value 'H',
+end of /nfm/c_act,
+*dark processing memory IDs
+begin of /nfm/c_tid_dk,                                     "#EC *
+  xne(18)     value '/NFM/XORDERPOS_DK',
+  yne(18)     value '/NFM/YORDERPOS_DK',
+  ine(18)     value '/NFM/IORDERPOS_DK',
+  xde(18)     value '/NFM/XDEFAULT_DK',
+  yde(18)     value '/NFM/YDEFAULT_DK',
+  ide(18)     value '/NFM/IDEFAULT_DK',
+  nfk(18)     value '/NFM/NF_COMM_DK',
+  eds(18)     value '/NFM/COVMAS_DK',
+  kon(18)     value '/NFM/KONSI_DK',
+  eed(18)     value '/NFM/ECOVMAS_DK',
+end of /nfm/c_tid_dk.

@@ -1,0 +1,552 @@
+FUNCTION zfm_gp_mm_cgxxjl_v2.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IT_INFORECORD STRUCTURE  ZSMM_228
+*"      ET_RETURN STRUCTURE  ZSMM_229
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_MM_CGXXJL_V2'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+*  DATA: BEGIN OF itab OCCURS 0,
+*          infnr TYPE eine-infnr,
+*          ekorg TYPE eine-ekorg,
+*          ekotx TYPE t024e-ekotx,
+*          werks TYPE eine-werks,
+*          namew TYPE t001w-name1,
+*          lifnr TYPE eina-lifnr,
+*          name1 TYPE lfa1-name1,
+*          matnr TYPE eina-matnr,
+*          maktx TYPE makt-maktx,
+*          esokz TYPE eine-esokz,
+*          esokt TYPE txt50,
+*          ekgrp TYPE eine-ekgrp,
+*          eknam TYPE t024-eknam,
+*          mwskz TYPE eine-mwskz,
+*          erdat TYPE eina-erdat,
+*          meins TYPE eina-meins,
+*          htj   TYPE konp-kbetr,
+*          kpein TYPE konp-kpein,
+*          datbi TYPE a017-datbi,
+*          datab TYPE a017-datab,
+*          bzf   TYPE konp-kbetr,
+*          jgf   TYPE konp-kbetr,
+*          einex TYPE c,
+*          htjx  TYPE c,
+*          bzfx  TYPE c,
+*          jgfx  TYPE c,
+*          ljjx  TYPE c,
+*          matkl TYPE mara-matkl,
+*          waers TYPE eine-waers,
+*          plifz TYPE marc-plifz,
+*          bismt TYPE mara-bismt,
+*          rtype TYPE bapi_mtype,
+*          rtmsg TYPE bapi_msg,
+*        END OF itab.
+  DATA: lv_type  TYPE bapi_mtype,
+        lv_msg   TYPE bapi_msg,
+        lv_infnr TYPE eine-infnr.
+  DATA: lv_upm  TYPE string,
+        lv_mode TYPE c,
+        erroglg TYPE c,
+        lv_htj  TYPE konp-kbetr.
+  DATA:ls_return_e   TYPE zsmm_229.
+  IF it_inforecord[] IS INITIAL.
+    rtype = 'E'.
+    rtmsg = 'it_inforecord[]不能为空'.
+    zfmdatasave2 'B'.
+    EXIT.
+  ENDIF.
+  CLEAR:itab,itab[].
+  LOOP AT it_inforecord.
+    CLEAR itab.
+    itab-matnr    =  it_inforecord-matnr  .
+    itab-lifnr    =  it_inforecord-lifnr  .
+    itab-ekorg    =  it_inforecord-ekorg  .
+    itab-esokz    =  it_inforecord-esokz  .
+    itab-werks    =  it_inforecord-werks  .
+    itab-datab    =  it_inforecord-datab  .
+    itab-datbi    =  it_inforecord-datbi  .
+    itab-meins    =  it_inforecord-bprme  .
+    itab-kpein    =  it_inforecord-peinh  .
+    itab-waers    =  it_inforecord-waers  .
+    itab-mwskz    =  it_inforecord-mwskz  .
+*    itab-zstatus  =  it_inforecord-zstatus.
+    itab-htj      =  it_inforecord-pbxx   .
+    itab-ekgrp    =  it_inforecord-ekgrp  .
+    APPEND itab.
+  ENDLOOP.
+
+
+  LOOP AT itab WHERE rtype = ''.
+    CLEAR:lv_type,
+          lv_msg,
+          lv_infnr,
+          lv_upm,
+          lv_mode.
+    SELECT SINGLE
+           b~plifz                                  "计划交货时间（天）
+      INTO itab-plifz
+      FROM mara AS a
+     INNER JOIN marc AS b
+        ON a~matnr = b~matnr
+     WHERE a~matnr = itab-matnr
+     AND b~werks = itab-werks
+      .
+*计划交货时间,若取不到，默认赋值“7”
+    IF itab-plifz IS INITIAL.
+      itab-plifz = '7'.
+    ENDIF.
+
+    PERFORM prices USING itab 'A018' 'PB00'
+                   CHANGING  lv_type lv_msg lv_mode.
+    CASE lv_mode.
+      WHEN 'I'.
+        lv_upm = '创建'.
+      WHEN 'U'.
+        lv_upm = '更新'.
+      WHEN OTHERS.
+        lv_upm = '维护'.
+    ENDCASE.
+
+    CASE lv_type.
+      WHEN 'S'.
+        itab-htjx = 'X'.
+        ls_return_e-type  = 'S'.
+        CONCATENATE ls_return_e-message  lv_upm '信息记录成功!' INTO ls_return_e-message.
+        APPEND ls_return_e TO et_return.
+        CLEAR:lv_type,
+              lv_msg,
+              lv_infnr.
+        PERFORM inforecord USING itab
+                           CHANGING lv_type lv_msg lv_infnr.
+        CASE lv_type.
+          WHEN 'S'.
+            ls_return_e-type  = 'S'.
+            ls_return_e-infnr = lv_infnr."采购信息号
+            CONCATENATE ls_return_e-message '更新条件记录价格成功!' lv_infnr INTO ls_return_e-message.
+            APPEND ls_return_e TO et_return.
+          WHEN OTHERS.
+            ls_return_e-type = 'E'.
+            ls_return_e-message = '更新条件记录价格失败:' && lv_msg.
+            APPEND ls_return_e TO et_return.
+        ENDCASE.
+      WHEN OTHERS.
+        erroglg = 'X'.
+        ls_return_e-type = 'E'.
+        ls_return_e-message = '更新条件记录价格失败:' && lv_msg.
+        CONCATENATE ls_return_e-message lv_upm '信息记录失败:'  lv_msg INTO ls_return_e-message.
+        APPEND ls_return_e TO et_return.
+    ENDCASE.
+    CLEAR:itab.
+  ENDLOOP.
+
+
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.
+
+FORM prices  USING wa LIKE LINE OF itab
+                   kotab TYPE kotab
+                   kschl TYPE kschl
+             CHANGING  type  TYPE bapi_mtype
+                       msg   TYPE bapi_msg
+                       mode  TYPE c.
+
+  DATA: lt_konp TYPE TABLE OF konp WITH HEADER LINE,
+        lt_a017 TYPE TABLE OF a017 WITH HEADER LINE,
+        lt_a018 TYPE TABLE OF a018 WITH HEADER LINE,
+        lt_a901 TYPE TABLE OF a901 WITH HEADER LINE,
+        lt_a902 TYPE TABLE OF a902 WITH HEADER LINE.
+
+  DATA: lt_condct  TYPE STANDARD TABLE OF bapicondct WITH HEADER LINE,
+        lt_condhd  TYPE STANDARD TABLE OF bapicondhd WITH HEADER LINE,
+        lt_condit  TYPE STANDARD TABLE OF bapicondit WITH HEADER LINE,
+        lt_condqs  TYPE STANDARD TABLE OF bapicondqs WITH HEADER LINE,
+        lt_condvs  TYPE STANDARD TABLE OF bapicondvs WITH HEADER LINE,
+        lt_return  TYPE STANDARD TABLE OF bapiret2   WITH HEADER LINE,
+        lt_knumhs  TYPE STANDARD TABLE OF bapiknumhs WITH HEADER LINE,
+        lt_initial TYPE STANDARD TABLE OF cnd_mem_initial WITH HEADER LINE.
+
+  DATA: ls_a017 TYPE a017,
+        ls_a018 TYPE a018,
+        ls_a901 TYPE a901,
+        ls_a902 TYPE a902,
+        ls_konp TYPE konp.
+
+  DATA: lv_message TYPE string,
+        lv_kschl   TYPE a017-kschl.
+
+
+  CASE kotab.
+    WHEN 'A018'.
+
+      SELECT *
+        INTO CORRESPONDING FIELDS OF TABLE lt_a018
+        FROM a018
+       WHERE kappl = 'M'
+         AND kschl =  kschl
+         AND lifnr = wa-lifnr
+         AND matnr = wa-matnr
+         AND ekorg = wa-ekorg
+         AND esokz = wa-esokz
+         AND datab > wa-datab.
+      IF sy-subrc = 0.
+        type = 'E'.
+        CONCATENATE '存在有效日期晚于' wa-datab '的合同记录请检查！ '
+               INTO lv_message.
+
+        msg = lv_message.
+        RETURN.
+      ENDIF.
+
+      ls_a018-lifnr = wa-lifnr.
+      ls_a018-matnr = wa-matnr.
+      ls_a018-ekorg = wa-ekorg.
+      ls_a018-esokz = wa-esokz.
+
+      SELECT *
+        INTO CORRESPONDING FIELDS OF TABLE lt_a018
+        FROM a018
+       WHERE kappl = 'M'
+         AND kschl = kschl
+         AND lifnr = wa-lifnr
+         AND matnr = wa-matnr
+         AND ekorg = wa-ekorg
+         AND esokz = wa-esokz
+         AND datab < wa-datab
+         AND datbi > wa-datab
+         AND knumh <> ''..
+
+      IF sy-subrc = 0.
+        mode = 'U'.
+
+        LOOP AT lt_a018.
+          IF lt_a018-datab < wa-datab AND lt_a018-datbi > wa-datab .
+            CLEAR:lt_condct.
+            lt_condct-operation  = '004'.                    "009创建 004更改 003删除
+            lt_condct-cond_usage = 'A'.                      "定价用途
+            lt_condct-table_no   = '018'.                    "定价表
+            lt_condct-applicatio = 'M'.                      "M:采购 V:销售
+            lt_condct-cond_type  = kschl.                    "条件类型
+            lt_condct-valid_from = lt_a018-datab.            "有效期开始
+            lt_condct-valid_to   = wa-datab - 1.             "有效期结束
+            MOVE ls_a018+9(55) TO lt_condct-varkey_long.     "定价表KEY信息组合
+            lt_condct-cond_no    = lt_a018-knumh.            "创建时该字段第一位需要为'$'，更新时为条件信息记录编号
+            APPEND lt_condct.
+
+            CLEAR:lt_condhd.
+            lt_condhd-operation  = '009'.
+            lt_condhd-created_by = sy-uname.
+            lt_condhd-creat_date = sy-datum.
+            lt_condhd-cond_usage = 'A'.
+            lt_condhd-table_no   = '018'.
+            lt_condhd-applicatio = 'M'.
+            lt_condhd-cond_type  = kschl.
+            lt_condhd-valid_from = lt_a018-datab.
+            lt_condhd-valid_to   = wa-datab - 1.
+            MOVE ls_a018+9(55) TO lt_condhd-varkey_long.
+            lt_condhd-cond_no    = lt_a018-knumh.
+            APPEND  lt_condhd.
+
+            CLEAR:ls_konp.
+            SELECT SINGLE *
+              INTO CORRESPONDING FIELDS OF ls_konp
+              FROM konp
+             WHERE knumh = lt_a018-knumh.
+
+            CLEAR:lt_condit.
+            lt_condit-operation  = '004'.
+            lt_condit-applicatio = 'M'.
+            lt_condit-cond_type  =  kschl.
+            lt_condit-cond_no    =  lt_a018-knumh.
+            lt_condit-cond_count = 01.                  "必须为01
+            lt_condit-scaletype  = ls_konp-stfkz.
+            lt_condit-calctypcon = ls_konp-krech.
+            lt_condit-cond_value = ls_konp-kbetr.
+            lt_condit-condcurr   = ls_konp-konwa.
+            lt_condit-cond_p_unt = ls_konp-kpein.
+            lt_condit-cond_unit  = ls_konp-kmein.
+            lt_condit-condcurren = ls_konp-konwa.
+            lt_condit-cond_unit  = ls_konp-kmein.
+            lt_condit-currency   = ls_konp-konwa.
+            APPEND lt_condit.
+
+          ENDIF.
+        ENDLOOP.
+
+      ELSE.
+        mode = 'I'.
+      ENDIF.
+
+      CLEAR:lt_condct,lt_condhd,lt_condit.
+      CLEAR:lt_a018.
+
+      SELECT *
+        INTO CORRESPONDING FIELDS OF TABLE lt_a018
+        FROM a018
+       WHERE kappl = 'M'
+         AND kschl =  kschl
+         AND lifnr = wa-lifnr
+         AND matnr = wa-matnr
+         AND ekorg = wa-ekorg
+         AND esokz = wa-esokz
+         AND datab = wa-datab
+         AND knumh <> ''.
+
+      IF sy-subrc = 0.
+        READ TABLE lt_a018 INDEX 1.
+        lt_condct-operation  = '004'.                    "009创建 004更改 003删除
+        lt_condct-cond_no    = lt_a018-knumh.
+
+        lt_condhd-operation  = '004'.
+        lt_condhd-cond_no    = lt_a018-knumh.
+
+        lt_condit-operation  = '004'.
+        lt_condit-cond_no    = lt_a018-knumh.
+
+        mode = 'U'.
+      ELSE.
+        lt_condct-operation  = '009'.                    "009创建 004更改 003删除
+        lt_condct-cond_no    = '$000000001'.             "创建时该字段第一位需要为'$'，更新时为条件信息记录编号
+
+        lt_condhd-operation  = '009'.
+        lt_condhd-cond_no    = '$000000001'.
+
+        lt_condit-operation  = '009'.
+        lt_condit-cond_no    = '$000000001'.
+      ENDIF.
+
+      lt_condct-cond_usage = 'A'.                      "定价用途
+      lt_condct-table_no   = '018'.                    "定价表
+      lt_condct-applicatio = 'M'.                      "M:采购 V:销售
+      lt_condct-cond_type  = kschl.                    "条件类型
+      lt_condct-valid_from = wa-datab.                 "有效期开始
+      lt_condct-valid_to   = wa-datbi.                 "有效期结束
+      MOVE ls_a018+9(55) TO lt_condct-varkey_long.     "定价表KEY信息组合
+
+      APPEND lt_condct.
+
+
+      lt_condhd-created_by = sy-uname.
+      lt_condhd-creat_date = sy-datum.
+      lt_condhd-cond_usage = 'A'.
+      lt_condhd-table_no   = '018'.
+      lt_condhd-applicatio = 'M'.
+      lt_condhd-cond_type  = kschl.
+      lt_condhd-valid_from = wa-datab.
+      lt_condhd-valid_to   = wa-datbi.
+      MOVE ls_a018+9(55) TO lt_condhd-varkey_long.
+      APPEND  lt_condhd.
+
+      lt_condit-applicatio = 'M'.
+      lt_condit-cond_type  =  kschl..
+      lt_condit-cond_count = 01.                       "必须为01
+      lt_condit-scaletype  = 'A'.
+      lt_condit-calctypcon = 'C'.
+      lt_condit-cond_value = wa-htj.
+      lt_condit-condcurr   = wa-waers.
+      lt_condit-cond_p_unt = wa-kpein.
+      lt_condit-cond_unit  = wa-meins.
+      lt_condit-condcurren = wa-waers.
+      lt_condit-cond_unit  = wa-meins.
+      lt_condit-currency   = wa-waers.
+      APPEND lt_condit.
+
+    WHEN OTHERS.
+  ENDCASE.
+
+
+  CALL FUNCTION 'BAPI_PRICES_CONDITIONS'
+    TABLES
+      ti_bapicondct  = lt_condct
+      ti_bapicondhd  = lt_condhd
+      ti_bapicondit  = lt_condit
+      ti_bapicondqs  = lt_condqs
+      ti_bapicondvs  = lt_condvs
+      to_bapiret2    = lt_return
+      to_bapiknumhs  = lt_knumhs
+      to_mem_initial = lt_initial
+    EXCEPTIONS
+      update_error   = 1
+      OTHERS         = 2.
+
+  LOOP AT lt_return  WHERE type CA 'AEX'.
+    CONCATENATE lv_message lt_return-message
+    INTO lv_message SEPARATED BY '/'.
+  ENDLOOP.
+
+  IF sy-subrc = 0.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+    SHIFT lv_message.
+    type = 'E'.
+    msg = lv_message.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    type = 'S'.
+  ENDIF.
+
+ENDFORM.
+
+FORM inforecord  USING wa LIKE LINE OF itab
+                 CHANGING type  TYPE bapi_mtype
+                          msg   TYPE bapi_msg
+                          infnr TYPE eine-infnr.
+
+  DATA: ls_eina    TYPE mewieina,
+        ls_eina_e  TYPE mewieina,
+        ls_einax   TYPE mewieinax,
+        ls_eine    TYPE mewieine,
+        ls_eine_e  TYPE mewieine,
+        ls_einex   TYPE mewieinex,
+        lt_returne TYPE TABLE OF bapireturn WITH HEADER LINE,
+        lv_message TYPE string,
+        lv_htj     TYPE konp-kbetr,
+        lv_factor  TYPE isoc_factor.
+
+  CALL FUNCTION 'CURRENCY_CONVERTING_FACTOR'
+    EXPORTING
+      currency          = wa-waers
+    IMPORTING
+      factor            = lv_factor
+    EXCEPTIONS
+      too_many_decimals = 1
+      OTHERS            = 2.
+
+  IF lv_factor <> 0.
+    lv_htj =   wa-htj / lv_factor.
+  ENDIF.
+
+  IF wa-infnr IS NOT INITIAL.
+
+    ls_eine-info_rec  = wa-infnr.
+    ls_einex-info_rec = 'X'.
+
+    ls_eine-purch_org  = wa-ekorg.
+*    ls_eine-plant      = wa-werks.
+    ls_eine-info_type  = wa-esokz.
+    ls_eine-orderpr_un = wa-meins.
+
+    ls_einex-purch_org  = 'X'.
+*    ls_einex-plant      = 'X'.
+    ls_einex-info_type  = 'X'.
+    ls_einex-orderpr_un = 'X'.
+
+    ls_eine-net_price  = wa-htj.
+    ls_eine-price_unit = wa-kpein.
+    ls_eine-eff_price  = wa-htj.
+    ls_eine-price_date = wa-datbi.
+    ls_eine-currency   = wa-waers.
+
+    ls_einex-net_price  = 'X'.
+    ls_einex-price_unit = 'X'.
+    ls_einex-eff_price  = 'X'.
+    ls_einex-price_date = 'X'.
+    ls_einex-currency   = 'X'.
+
+    ls_eina-info_rec  = wa-infnr.
+    ls_eina-var_ord_un = '1'.
+    ls_einax-info_rec = 'X'.
+    ls_einax-var_ord_un = '1'.
+
+    ls_eina-material = wa-matnr.
+    ls_eina-vendor   = wa-lifnr.
+
+
+    ls_einax-material = 'X'.
+    ls_einax-vendor   = 'X'.
+  ELSE.
+    ls_eina-po_unit    = wa-meins.
+    ls_eina-created_at = sy-datum.
+    ls_eina-created_by = sy-uname.
+
+    ls_einax-po_unit    = 'X'.
+    ls_einax-created_at = 'X'.
+    ls_einax-created_by = 'X'.
+
+    ls_eina-material = wa-matnr.
+    ls_eina-vendor   = wa-lifnr.
+    ls_eina-var_ord_un = '1'.
+
+    ls_einax-material = 'X'.
+    ls_einax-vendor   = 'X'.
+    ls_einax-var_ord_un = '1'.
+
+    ls_eine-plnd_delry = wa-plifz.
+    ls_eine-purch_org  = wa-ekorg.
+    ls_eine-nrm_po_qty = 1.
+    ls_eine-info_type  = wa-esokz.
+    ls_eine-price_unit = wa-kpein.
+    ls_eine-orderpr_un = wa-meins.
+
+    ls_einex-plnd_delry = 'X'.
+    ls_einex-purch_org  = 'X'.
+    ls_einex-nrm_po_qty = 'X'.
+    ls_einex-info_type  = 'X'.
+    ls_einex-price_unit = 'X'.
+    ls_einex-orderpr_un = 'X'.
+
+    ls_eine-pur_group  = wa-ekgrp.
+    ls_eine-tax_code   = wa-mwskz.
+
+    ls_einex-pur_group  = 'X'.
+    ls_einex-tax_code   = 'X'.
+
+    IF wa-werks IS NOT INITIAL.
+      ls_eine-plant      = wa-werks.
+      ls_einex-plant     = 'X'.
+    ENDIF.
+
+    ls_eine-net_price  = lv_htj.
+    ls_eine-price_unit = wa-kpein.
+    ls_eine-eff_price  = lv_htj.
+    ls_eine-price_date = wa-datbi.
+    ls_eine-currency   = wa-waers.
+
+    ls_einex-net_price  = 'X'.
+    ls_einex-price_unit = 'X'.
+    ls_einex-eff_price  = 'X'.
+    ls_einex-price_date = 'X'.
+    ls_einex-currency   = 'X'.
+  ENDIF.
+
+  SET UPDATE TASK LOCAL.
+
+  CALL FUNCTION 'ME_INFORECORD_MAINTAIN'
+    EXPORTING
+      i_eina  = ls_eina
+      i_einax = ls_einax
+      i_eine  = ls_eine
+      i_einex = ls_einex
+    IMPORTING
+      e_eina  = ls_eina_e
+      e_eine  = ls_eine_e
+    TABLES
+      return  = lt_returne.
+
+  LOOP AT lt_returne  WHERE type CA 'AEX'.
+    CONCATENATE lv_message lt_returne-message
+          INTO lv_message SEPARATED BY '/'.
+  ENDLOOP.
+
+  IF sy-subrc = 0.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+    SHIFT lv_message.
+    type = 'E'.
+    msg = lv_message.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+    type = 'S'.
+    infnr = ls_eine_e-info_rec.
+
+  ENDIF.
+ENDFORM.

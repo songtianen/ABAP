@@ -1,0 +1,61 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZMIR7O01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module GET_INSTANCE OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE get_instance OUTPUT.
+
+  IF o_badi_fdcb_subbas04 IS INITIAL.
+
+    CALL METHOD cl_exithandler=>get_instance_for_subscreens
+      CHANGING
+        instance                      = o_badi_fdcb_subbas04
+      EXCEPTIONS
+        no_reference                  = 1
+        no_interface_reference        = 2
+        no_exit_interface             = 3
+        data_incons_in_exit_managem   = 4
+        class_not_implement_interface = 5
+        OTHERS                        = 6.
+    IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*            WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+
+  ENDIF.
+
+* object created  ?
+  CHECK NOT o_badi_fdcb_subbas04 IS INITIAL.
+
+* get data from main screen
+
+  CALL METHOD o_badi_fdcb_subbas04->get_data_from_screen_object
+    IMPORTING
+      ex_invfo = invfo.
+  rbkp-zce = invfo-zce.
+  rbkp-zfpno = invfo-zfpno.
+
+  "BREAK basis1.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*& Module SCREEN_MODIFY OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE screen_modify OUTPUT.
+  LOOP AT SCREEN.
+*    CASE sy-tcode.
+*      WHEN
+**         'FB60' OR 'FB65' OR 'FB70' OR 'FB75'
+*           'MIRO' OR 'MIR4' OR 'MIR7'.
+*        screen-input = 1.
+*      WHEN OTHERS.
+    screen-input = 1.
+*    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+ENDMODULE.

@@ -1,0 +1,22 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV14                                                   *
+*----------------------------------------------------------------------*
+
+*---- Besondere Dispowerte ------------------------------------------
+CONSTANTS:
+        DISVFB LIKE T438A-DISVF VALUE 'B', "Bestellpunktverfahren
+        DISVFD LIKE T438A-DISVF VALUE 'D', "Plangesteuerte Dispo
+        DISVFM LIKE T438A-DISVF VALUE 'M', "Leitteileplanung
+        DISVFN LIKE T438A-DISVF VALUE 'N', "keine Disposition
+        DISVFR LIKE T438A-DISVF VALUE 'R', "Rythmische Disposition
+        DISVFW LIKE T438A-DISVF VALUE 'W', "Nachschubdisposition
+        DISVFX LIKE T438A-DISVF VALUE 'X', "Ohne Dispo mitSt¨¹liufl#sung
+        LOSVFO LIKE T439A-LOSVF VALUE 'O', "Optimierungslosgr##e
+        LOSVFS LIKE T439A-LOSVF VALUE 'S', "Standardlosgr##e
+        LOSVFP LIKE T439A-LOSVF VALUE 'P', "Periodenlosgr##e
+        LOSKZE LIKE T439A-LOSKZ VALUE 'E', "Exakte Losgr##e
+        LOSKZF LIKE T439A-LOSKZ VALUE 'F', "Feste Bestellmenge
+        LOSKZS LIKE T439A-LOSKZ VALUE 'S', "Fixe/Gesplitte Bestellmenge
+        LOSKZH LIKE T439A-LOSKZ VALUE 'H', "Auff¨¹llen bis H#chstbestand
+        PERKZP LIKE MARC-PERKZ  VALUE 'P', "Planungsperioden
+        DISVFC LIKE T438A-DISVF VALUE 'C'.

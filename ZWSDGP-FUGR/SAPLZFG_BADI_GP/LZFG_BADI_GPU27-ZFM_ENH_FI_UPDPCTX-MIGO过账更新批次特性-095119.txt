@@ -1,0 +1,561 @@
+FUNCTION ZFM_ENH_FI_UPDPCTX.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(XMKPF) TYPE  TY_T_MKPF OPTIONAL
+*"     VALUE(XMSEG) TYPE  TY_T_MSEG OPTIONAL
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_ENH_FI_UPDPCTX'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+  DATA:BEGIN OF IT_ATNAM OCCURS 0,
+         TYPE  TYPE CHAR1,
+         ATNAM TYPE ATNAM,
+       END OF IT_ATNAM,
+       BEGIN OF IT_MLDOCS OCCURS 0,
+         MJAHR TYPE MLDOC-AWORG,
+         MBLNR TYPE MLDOC-AWREF,
+         ZEILE TYPE MLDOC-AWITEM,
+       END OF IT_MLDOCS,
+       BEGIN OF IT_AUFNRSUM OCCURS 0.
+         INCLUDE STRUCTURE CKI_AUFNR.
+  DATA: MENGE TYPE MENGE_D,
+       END OF IT_AUFNRSUM,
+       BEGIN OF IT_EBELPSUM OCCURS 0.
+         INCLUDE STRUCTURE EKPO_KEY.
+  DATA: MENGE TYPE MENGE_D,
+       END OF IT_EBELPSUM,
+       IT_EBELP        TYPE TABLE OF EKPO_KEY WITH HEADER LINE,
+       IT_ZTMM_PCTXLOG TYPE TABLE OF ZTMM_PCTXLOG WITH HEADER LINE,
+       IT_MCHAS        TYPE TABLE OF MCHA WITH HEADER LINE,
+       IT_PCTX         TYPE TABLE OF ZSFMS_GETPCTX WITH HEADER LINE,
+       IT_AUFNR        TYPE TABLE OF CKI_AUFNR WITH HEADER LINE,
+       IT_CHAR         TYPE TABLE OF ZSMMS_CHAR WITH HEADER LINE.
+  DATA:WA_MSEG  TYPE MSEG,
+       FLAG     TYPE CHAR1,
+       BWART    TYPE BWART,
+       MENGESUM TYPE MENGE_D.
+  CLEAR:IT_ZTMM_PCTXLOG[],IT_ZTMM_PCTXLOG,IT_MCHAS[],IT_ATNAM[],
+  IT_MLDOCS[],IT_EBELP[],IT_AUFNR[],MENGESUM,IT_AUFNRSUM[],
+  IT_EBELPSUM[],BWART.
+  CHECK XMSEG IS NOT INITIAL.
+*先取出系统中现有批次特性
+  LOOP AT XMSEG INTO MSEG.
+    CLEAR:IT_MCHAS,IT_MLDOCS,IT_EBELP.
+    IF MSEG-SHKZG = 'H'.
+      MSEG-MENGE = MSEG-MENGE * -1.
+    ENDIF.
+    IT_MCHAS-MATNR = MSEG-MATNR.
+    IT_MCHAS-CHARG = MSEG-CHARG.
+    IT_MCHAS-WERKS = MSEG-WERKS.
+    IT_MLDOCS-MJAHR = MSEG-MJAHR.
+    IT_MLDOCS-MBLNR = MSEG-MBLNR.
+    IT_MLDOCS-ZEILE = MSEG-ZEILE.
+    IT_EBELP-EBELN = MSEG-EBELN.
+    IT_EBELP-EBELP = MSEG-EBELP.
+    IT_AUFNR-AUFNR = MSEG-AUFNR.
+    IT_AUFNRSUM-AUFNR = MSEG-AUFNR.
+    IT_AUFNRSUM-MENGE = MSEG-MENGE.
+    IT_EBELPSUM = IT_EBELP.
+    IT_EBELPSUM-MENGE = MSEG-MENGE.
+    COLLECT :IT_MLDOCS,IT_MCHAS,IT_EBELP,
+    IT_AUFNRSUM,IT_AUFNR,IT_EBELPSUM.
+    IF MSEG-BWART = '601'.
+      BWART = MSEG-BWART.
+    ENDIF.
+  ENDLOOP.
+*若为销售出库
+  SORT IT_AUFNRSUM BY AUFNR.
+  SORT IT_EBELPSUM BY EBELN EBELP.
+
+  CALL FUNCTION 'ZFMS_05_GETPCTX'
+    TABLES
+      INTAB  = IT_MCHAS
+      OUTTAB = IT_PCTX.
+  SORT IT_PCTX BY MATNR CHARG ATNAM.
+*需要检查是否为空的
+*A-101+B/F
+  APPEND 'AZ60' TO IT_ATNAM.
+  APPEND 'AZ61' TO IT_ATNAM.
+  APPEND 'AZ62' TO IT_ATNAM.
+  APPEND 'AZ63' TO IT_ATNAM.
+  APPEND 'AZ64' TO IT_ATNAM.
+  APPEND 'AZ65' TO IT_ATNAM.
+  APPEND 'AZ66' TO IT_ATNAM.
+  APPEND 'AZ67' TO IT_ATNAM.
+  APPEND 'AZ68' TO IT_ATNAM.
+  APPEND 'AZ69' TO IT_ATNAM.
+  APPEND 'AZ76' TO IT_ATNAM.
+*B-601
+  APPEND 'BZ70' TO IT_ATNAM.
+  APPEND 'BZ71' TO IT_ATNAM.
+  APPEND 'BZ72' TO IT_ATNAM.
+*C-301,311,309+需要置空的
+  APPEND 'CZ60' TO IT_ATNAM.
+  APPEND 'CZ61' TO IT_ATNAM.
+  APPEND 'CZ62' TO IT_ATNAM.
+  APPEND 'CZ63' TO IT_ATNAM.
+  APPEND 'CZ64' TO IT_ATNAM.
+  APPEND 'CZ65' TO IT_ATNAM.
+  APPEND 'CZ66' TO IT_ATNAM.
+  APPEND 'CZ67' TO IT_ATNAM.
+  APPEND 'CZ68' TO IT_ATNAM.
+  APPEND 'CZ69' TO IT_ATNAM.
+*取MLDOC
+  SORT IT_MLDOCS BY MJAHR MBLNR ZEILE.
+  IF IT_MLDOCS[] IS NOT INITIAL.
+    SELECT *
+      INTO TABLE @DATA(IT_MLDOC)
+      FROM MLDOC
+      FOR ALL ENTRIES IN @IT_MLDOCS
+      WHERE AWORG = @IT_MLDOCS-MJAHR
+        AND AWREF = @IT_MLDOCS-MBLNR
+        AND AWITEM = @IT_MLDOCS-ZEILE.
+    SORT IT_MLDOC BY AWORG AWREF AWITEM.
+  ENDIF.
+*取采购订单
+  DELETE IT_EBELP WHERE EBELN IS INITIAL.
+  IF IT_EBELP[] IS NOT INITIAL.
+    SORT IT_EBELP BY EBELN EBELP.
+*汇总101数量
+    SELECT *
+      INTO TABLE @DATA(IT_EKBE)
+      FROM EKBE
+      FOR ALL ENTRIES IN @IT_EBELP
+      WHERE EBELN = @IT_EBELP-EBELN
+      AND   EBELP = @IT_EBELP-EBELP
+      AND   VGABE = '1'
+      AND   BWART = '101'
+      AND   NOT EXISTS ( SELECT * FROM M_MBMPS   "未被冲销
+                                       WHERE M_MBMPS~SJAHR = EKBE~GJAHR AND
+                                             M_MBMPS~SMBLN = EKBE~BELNR AND
+                                             M_MBMPS~SMBLP = EKBE~BUZEI ).
+    SORT IT_EKBE BY EBELN EBELP BELNR GJAHR BUZEI.
+  ENDIF.
+  DELETE IT_AUFNR WHERE AUFNR IS INITIAL.
+  IF IT_AUFNR[] IS NOT INITIAL.
+    SORT IT_AUFNR BY AUFNR.
+    SELECT *
+      INTO TABLE @DATA(IT_AUFM)
+      FROM AUFM
+      FOR ALL ENTRIES IN @IT_AUFNR
+      WHERE AUFNR = @IT_AUFNR-AUFNR
+      AND   BWART = '101'
+      AND   NOT EXISTS ( SELECT * FROM M_MBMPS   "未被冲销
+                                       WHERE M_MBMPS~SJAHR = AUFM~MJAHR AND
+                                             M_MBMPS~SMBLN = AUFM~MBLNR AND
+                                             M_MBMPS~SMBLP = AUFM~ZEILE ).
+    SORT IT_AUFM BY AUFNR.
+  ENDIF.
+
+
+  LOOP AT XMSEG INTO MSEG.
+    CLEAR:IT_CHAR[],RTYPE,RTMSG,IT_ZTMM_PCTXLOG.
+*101+B/F
+    CASE MSEG-BWART.
+      WHEN '101'.
+        CASE MSEG-KZBEW.
+          WHEN 'B' OR 'F'.
+            CLEAR:IT_PCTX,BP001.
+            LOOP AT IT_ATNAM WHERE TYPE = 'A'.
+              CLEAR:IT_PCTX,IT_CHAR.
+              READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                          CHARG = MSEG-CHARG
+                                          ATNAM = IT_ATNAM-ATNAM
+                                          BINARY SEARCH.
+              IF IT_PCTX-ATWRT IS INITIAL
+                OR IT_PCTX-ATWRT = ''.
+                IT_CHAR-NO = IT_PCTX-ATNAM.
+                CASE IT_CHAR-NO.
+                  WHEN 'Z60'.
+                    IT_CHAR-VALUE = MSEG-WERKS.
+                  WHEN 'Z61'.
+                    IT_CHAR-VALUE = MSEG-PRCTR.
+                  WHEN 'Z62'.
+                    SELECT SINGLE SEGMENT
+                      INTO IT_CHAR-VALUE
+                      FROM CEPC
+                      WHERE PRCTR = MSEG-PRCTR
+                      AND   KOKRS = 'WISD'.
+                  WHEN 'Z63'.
+                    IT_CHAR-VALUE = MSEG-BUKRS.
+                  WHEN 'Z64'.
+                    IT_CHAR-VALUE = MSEG-CHARG.
+                  WHEN 'Z65'.
+                    IT_CHAR-VALUE = MSEG-MATNR.
+                  WHEN 'Z66'.
+                    IT_CHAR-VALUE = MSEG-MBLNR.
+                  WHEN 'Z67'.
+                    IT_CHAR-VALUE = MSEG-MJAHR.
+                  WHEN 'Z68'.
+                    IT_CHAR-VALUE = MSEG-ZEILE.
+                  WHEN 'Z69'.
+                    READ TABLE IT_MLDOC INTO MLDOC WITH KEY AWORG = MSEG-MJAHR
+                                                            AWREF = MSEG-MBLNR
+                                                            AWITEM = MSEG-ZEILE
+                                                            BINARY SEARCH.
+                    IF SY-SUBRC EQ 0.
+                      IT_CHAR-VALUE = MLDOC-KALNR.
+                    ENDIF.
+                  WHEN 'Z76'.
+                    IF MSEG-KZBEW = 'F'.
+                      IT_CHAR-VALUE = 'X'.
+                    ENDIF.
+                ENDCASE.
+                APPEND IT_CHAR.
+              ENDIF.
+            ENDLOOP.
+*101+B+VBUND
+            CASE MSEG-KZBEW.
+              WHEN 'B'.
+                SELECT SINGLE *
+                  FROM BP001
+                  WHERE PARTNER = MSEG-LIFNR.
+                IF BP001-VBUND IS NOT INITIAL.
+                  CLEAR:IT_CHAR.
+                  IT_CHAR-NO = 'Z77'.
+                  IT_CHAR-VALUE = MSEG-MBLNR.
+                  APPEND IT_CHAR.
+                  CLEAR:IT_CHAR.
+                  IT_CHAR-NO = 'Z78'.
+                  IT_CHAR-VALUE = MSEG-MJAHR.
+                  APPEND IT_CHAR.
+                  CLEAR:IT_CHAR.
+                  IT_CHAR-NO = 'Z79'.
+                  IT_CHAR-VALUE = MSEG-ZEILE.
+                  APPEND IT_CHAR.
+                  READ TABLE IT_MLDOC INTO MLDOC WITH KEY AWORG = MSEG-MJAHR
+                                                          AWREF = MSEG-MBLNR
+                                                          AWITEM = MSEG-ZEILE
+                                                          BINARY SEARCH.
+                  IF SY-SUBRC EQ 0.
+                    CLEAR:IT_CHAR.
+                    IT_CHAR-NO = 'Z80'.
+                    IT_CHAR-VALUE = MLDOC-KALNR.
+                    APPEND IT_CHAR.
+                  ENDIF.
+                ENDIF.
+              WHEN 'F'.
+            ENDCASE.
+        ENDCASE.
+      WHEN '601'."B-601+L+H
+        CASE MSEG-KZBEW.
+          WHEN 'L'.
+            IF MSEG-SHKZG = 'H'.
+              LOOP AT IT_ATNAM WHERE TYPE = 'B'.
+                CLEAR:IT_PCTX,IT_CHAR.
+                READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                            CHARG = MSEG-CHARG
+                                            ATNAM = IT_ATNAM-ATNAM
+                                            BINARY SEARCH.
+                IF IT_PCTX-ATWRT IS INITIAL
+                  OR IT_PCTX-ATWRT = ''.
+                  IT_CHAR-NO = IT_PCTX-ATNAM.
+                  CASE IT_CHAR-NO.
+                    WHEN 'Z70'.
+                      IT_CHAR-VALUE = MSEG-MAT_KDAUF.
+                    WHEN 'Z71'.
+                      IT_CHAR-VALUE = MSEG-MAT_KDPOS.
+                    WHEN 'Z72'.
+                      READ TABLE IT_MLDOC INTO MLDOC WITH KEY AWORG = MSEG-MJAHR
+                                                              AWREF = MSEG-MBLNR
+                                                              AWITEM = MSEG-ZEILE
+                                                              BINARY SEARCH.
+                      IF SY-SUBRC EQ 0.
+                        IT_CHAR-VALUE = MLDOC-KALNR.
+                      ENDIF.
+                  ENDCASE.
+                  APPEND IT_CHAR.
+                ENDIF.
+              ENDLOOP.
+            ENDIF.
+        ENDCASE.
+      WHEN '102'.
+        CLEAR:WA_MSEG.
+        CASE MSEG-KZBEW.
+          WHEN 'B'.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z66'
+                                        BINARY SEARCH.
+            WA_MSEG-SMBLN = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z67'
+                                        BINARY SEARCH.
+            WA_MSEG-SJAHR = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z68'
+                                        BINARY SEARCH.
+            WA_MSEG-SMBLP = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z77'
+                                        BINARY SEARCH.
+            WA_MSEG-MBLNR = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z78'
+                                        BINARY SEARCH.
+            WA_MSEG-MJAHR = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z79'
+                                        BINARY SEARCH.
+            WA_MSEG-ZEILE = IT_PCTX-ATWRT.
+*汇总101数量
+            CLEAR:MENGESUM,FLAG.
+            LOOP AT IT_EKBE INTO EKBE WHERE EBELN = MSEG-EBELN
+                                        AND EBELP = MSEG-EBELP.
+              MENGESUM = MENGESUM + EKBE-MENGE.
+            ENDLOOP.
+
+            IF WA_MSEG-SJAHR = MSEG-SJAHR
+              AND WA_MSEG-SMBLN = MSEG-SMBLN
+              AND WA_MSEG-SMBLP = MSEG-SMBLP.
+              FLAG = 'A'.
+            ELSEIF WA_MSEG-MJAHR = MSEG-SJAHR
+                 AND WA_MSEG-MBLNR = MSEG-SMBLN
+                 AND WA_MSEG-ZEILE = MSEG-SMBLP.
+              FLAG = 'B'.
+            ENDIF.
+            CASE FLAG.
+              WHEN 'A' OR 'B'.
+                IF MENGESUM GE MSEG-MENGE.
+*置空
+                  LOOP AT IT_ATNAM WHERE TYPE = 'C'.
+                    CLEAR:IT_PCTX,IT_CHAR.
+                    READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                                CHARG = MSEG-CHARG
+                                                ATNAM = IT_ATNAM-ATNAM
+                                                BINARY SEARCH.
+                    IF SY-SUBRC EQ 0.
+                      IT_CHAR-NO = IT_ATNAM-ATNAM.
+                      IT_CHAR-VALUE = ''.
+                      APPEND IT_CHAR.
+                    ENDIF.
+                  ENDLOOP.
+                  IF MENGESUM GT MSEG-MENGE.
+                    READ TABLE IT_EKBE INTO EKBE WITH KEY EBELN = MSEG-EBELN
+                                                          EBELP = MSEG-EBELP.
+                    IF SY-SUBRC EQ 0.
+                      READ TABLE IT_CHAR WITH KEY NO = 'Z65'.
+                      IF SY-SUBRC EQ 0.
+                        DELETE IT_CHAR WHERE NO = 'Z65'.
+                      ENDIF.
+                      CLEAR:IT_CHAR.
+                      IT_CHAR-NO = 'Z65'.
+                      IT_CHAR-VALUE = EKBE-MATNR.
+                      APPEND IT_CHAR.
+                      READ TABLE IT_CHAR WITH KEY NO = 'Z66'.
+                      IF SY-SUBRC EQ 0.
+                        DELETE IT_CHAR WHERE NO = 'Z66'.
+                      ENDIF.
+                      CLEAR:IT_CHAR.
+                      IT_CHAR-NO = 'Z66'.
+                      IT_CHAR-VALUE = EKBE-BELNR.
+                      APPEND IT_CHAR.
+                      READ TABLE IT_CHAR WITH KEY NO = 'Z67'.
+                      IF SY-SUBRC EQ 0.
+                        DELETE IT_CHAR WHERE NO = 'Z67'.
+                      ENDIF.
+                      CLEAR:IT_CHAR.
+                      IT_CHAR-NO = 'Z67'.
+                      IT_CHAR-VALUE = EKBE-GJAHR.
+                      APPEND IT_CHAR.
+                      READ TABLE IT_CHAR WITH KEY NO = 'Z68'.
+                      IF SY-SUBRC EQ 0.
+                        DELETE IT_CHAR WHERE NO = 'Z68'.
+                      ENDIF.
+                      CLEAR:IT_CHAR.
+                      IT_CHAR-NO = 'Z68'.
+                      IT_CHAR-VALUE = EKBE-BUZEI.
+                      APPEND IT_CHAR.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+            ENDCASE.
+            IF FLAG = 'B'.
+              CLEAR:IT_CHAR.
+              IT_CHAR-NO = 'Z77'.
+              IT_CHAR-VALUE = MSEG-MBLNR.
+              APPEND IT_CHAR.
+              CLEAR:IT_CHAR.
+              IT_CHAR-NO = 'Z78'.
+              IT_CHAR-VALUE = MSEG-MJAHR.
+              APPEND IT_CHAR.
+              CLEAR:IT_CHAR.
+              IT_CHAR-NO = 'Z79'.
+              IT_CHAR-VALUE = MSEG-ZEILE.
+              APPEND IT_CHAR.
+              READ TABLE IT_MLDOC INTO MLDOC WITH KEY AWORG = MSEG-MJAHR
+                                                      AWREF = MSEG-MBLNR
+                                                      AWITEM = MSEG-ZEILE
+                                                      BINARY SEARCH.
+              IF SY-SUBRC EQ 0.
+                CLEAR:IT_CHAR.
+                IT_CHAR-NO = 'Z80'.
+                IT_CHAR-VALUE = MLDOC-KALNR.
+                APPEND IT_CHAR.
+              ENDIF.
+            ENDIF.
+          WHEN 'F'.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z66'
+                                        BINARY SEARCH.
+            WA_MSEG-SJAHR = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z67'
+                                        BINARY SEARCH.
+            WA_MSEG-SMBLN = IT_PCTX-ATWRT.
+            CLEAR:IT_PCTX.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = 'Z68'
+                                        BINARY SEARCH.
+            WA_MSEG-SMBLP = IT_PCTX-ATWRT.
+*判断汇总数量
+            CLEAR:MENGESUM,IT_AUFNRSUM.
+            LOOP AT IT_AUFM INTO AUFM WHERE AUFNR = MSEG-AUFNR.
+              MENGESUM = MENGESUM + AUFM-MENGE.
+            ENDLOOP.
+            READ TABLE IT_AUFNRSUM WITH KEY AUFNR = MSEG-AUFNR BINARY SEARCH.
+            IT_AUFNRSUM-MENGE = ABS( IT_AUFNRSUM-MENGE ).
+            IF ( WA_MSEG-SJAHR = MSEG-SJAHR
+              AND WA_MSEG-SMBLN = MSEG-SMBLN
+              AND WA_MSEG-SMBLP = MSEG-SMBLP )
+              OR ( MENGESUM GT IT_AUFNRSUM-MENGE
+              AND  IT_AUFNRSUM-MENGE GT 0 ).
+*置空
+              LOOP AT IT_ATNAM WHERE TYPE = 'C'.
+                CLEAR:IT_PCTX,IT_CHAR.
+                READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                            CHARG = MSEG-CHARG
+                                            ATNAM = IT_ATNAM-ATNAM
+                                            BINARY SEARCH.
+                IF SY-SUBRC EQ 0.
+                  IT_CHAR-NO = IT_ATNAM-ATNAM.
+                  IT_CHAR-VALUE = ''.
+                  APPEND IT_CHAR.
+                ENDIF.
+              ENDLOOP.
+            ENDIF.
+        ENDCASE.
+      WHEN '311' OR '301' OR '309'."C
+        IF MSEG-SHKZG = 'S'
+          AND ( MSEG-MATNR NE MSEG-UMMAT
+          OR    MSEG-CHARG NE MSEG-UMCHA ).
+          LOOP AT IT_ATNAM WHERE TYPE = 'C'.
+            CLEAR:IT_PCTX,IT_CHAR.
+            READ TABLE IT_PCTX WITH KEY MATNR = MSEG-MATNR
+                                        CHARG = MSEG-CHARG
+                                        ATNAM = IT_ATNAM-ATNAM
+                                        BINARY SEARCH.
+            IF IT_PCTX-ATWRT IS INITIAL
+              OR IT_PCTX-ATWRT = ''.
+              IT_CHAR-NO = IT_PCTX-ATNAM.
+              CASE IT_CHAR-NO.
+                WHEN 'Z60'.
+                  IT_CHAR-VALUE = MSEG-WERKS.
+                WHEN 'Z61'.
+                  IT_CHAR-VALUE = MSEG-PRCTR.
+                WHEN 'Z62'.
+                  SELECT SINGLE SEGMENT
+                    INTO IT_CHAR-VALUE
+                    FROM CEPC
+                    WHERE PRCTR = MSEG-PRCTR
+                    AND   KOKRS = 'WISD'.
+                WHEN 'Z63'.
+                  IT_CHAR-VALUE = MSEG-BUKRS.
+                WHEN 'Z64'.
+                  IT_CHAR-VALUE = MSEG-CHARG.
+                WHEN 'Z65'.
+                  IT_CHAR-VALUE = MSEG-MATNR.
+                WHEN 'Z66'.
+                  IT_CHAR-VALUE = MSEG-MBLNR.
+                WHEN 'Z67'.
+                  IT_CHAR-VALUE = MSEG-MJAHR.
+                WHEN 'Z68'.
+                  IT_CHAR-VALUE = MSEG-ZEILE.
+                WHEN 'Z69'.
+                  READ TABLE IT_MLDOC INTO MLDOC WITH KEY AWORG = MSEG-MJAHR
+                                                          AWREF = MSEG-MBLNR
+                                                          AWITEM = MSEG-ZEILE
+                                                          BINARY SEARCH.
+                  IF SY-SUBRC EQ 0.
+                    IT_CHAR-VALUE = MLDOC-KALNR.
+                  ENDIF.
+              ENDCASE.
+              APPEND IT_CHAR.
+            ENDIF.
+          ENDLOOP.
+*更新前序物料
+          CLEAR:IT_CHAR.
+          IT_CHAR-NO = 'Z73'.
+          IT_CHAR-VALUE = MSEG-UMWRK.
+          APPEND IT_CHAR.
+          CLEAR:IT_CHAR.
+          IT_CHAR-NO = 'Z74'.
+          IT_CHAR-VALUE = MSEG-UMCHA.
+          APPEND IT_CHAR.
+          CLEAR:IT_CHAR.
+          IT_CHAR-NO = 'Z75'.
+          IT_CHAR-VALUE = MSEG-UMMAT.
+          APPEND IT_CHAR.
+        ENDIF.
+    ENDCASE.
+
+    IF IT_CHAR[] IS NOT INITIAL.
+      CALL FUNCTION 'ZMMS_UPDATE_OBJCL'
+        EXPORTING
+          MATNR  = MSEG-MATNR
+          CHARG  = MSEG-CHARG
+          WERKS  = MSEG-WERKS
+        IMPORTING
+          RTYPE  = RTYPE
+          RTMSG  = RTMSG
+        TABLES
+          CHAR   = IT_CHAR
+        EXCEPTIONS
+          OTHERS = 1.
+      MOVE-CORRESPONDING MSEG TO IT_ZTMM_PCTXLOG.
+      IT_ZTMM_PCTXLOG-RTYPE = RTYPE.
+      IT_ZTMM_PCTXLOG-RTMSG = RTMSG.
+      IT_ZTMM_PCTXLOG-SAPMK = 'FICO'.
+      IT_ZTMM_PCTXLOG-ZDATE = SY-DATUM.
+      IT_ZTMM_PCTXLOG-ZTIME = SY-UZEIT.
+      IT_ZTMM_PCTXLOG-ZNAME = SY-UNAME.
+      APPEND IT_ZTMM_PCTXLOG.
+    ENDIF.
+  ENDLOOP.
+
+  IF IT_ZTMM_PCTXLOG[] IS NOT INITIAL.
+    MODIFY ZTMM_PCTXLOG FROM TABLE IT_ZTMM_PCTXLOG.
+    COMMIT WORK.
+  ENDIF.
+  CLEAR:RTYPE,RTMSG.
+  LOOP AT IT_ZTMM_PCTXLOG WHERE RTYPE = 'E'.
+    CONCATENATE IT_ZTMM_PCTXLOG-RTMSG  RTMSG INTO RTMSG.
+  ENDLOOP.
+  IF SY-SUBRC = 0.
+    RTYPE = 'E'.
+  ELSE.
+    RTMSG = 'SUCCESS'.
+    RTYPE = 'S'.
+  ENDIF.
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.

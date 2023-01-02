@@ -1,0 +1,41 @@
+*&---------------------------------------------------------------------*
+*& Report ZPPR204
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmr204.
+
+DATA: ok_code LIKE sy-ucomm.
+DATA: save_ok LIKE sy-ucomm.
+
+CALL SCREEN 9000.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9000 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_9000 OUTPUT.
+  SET PF-STATUS 'STA9000' .
+  SET TITLEBAR 'TIT9000' WITH '收付款计划'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_9000 INPUT.
+  save_ok = ok_code.
+  CLEAR ok_code.
+  CASE save_ok.
+    WHEN 'EXIT'.
+      LEAVE PROGRAM.
+    WHEN OTHERS.
+      CALL 'AUTH_CHECK_TCODE' ID 'TCODE' FIELD save_ok.
+      IF sy-subrc NE 0.
+        screen-input = '0'.
+        MODIFY SCREEN.
+      ELSE.
+        CALL TRANSACTION save_ok.
+      ENDIF.
+  ENDCASE.
+ENDMODULE.

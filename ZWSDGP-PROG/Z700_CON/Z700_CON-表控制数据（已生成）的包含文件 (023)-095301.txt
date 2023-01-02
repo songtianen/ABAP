@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*& Include ZMMD201_CON
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZDBDWH_CON' ITSELF
+CONTROLS: ZDBDWH_CON TYPE TABLEVIEW USING SCREEN 0700.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZDBDWH_CON'
+DATA:     G_ZDBDWH_CON_LINES  LIKE SY-LOOPC.

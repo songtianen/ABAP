@@ -1,0 +1,1000 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMR011
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd202 MESSAGE-ID zxmd_msg.
+
+TABLES: mard, ztmm230.                          "部门领料单
+
+DATA: goodsmvt_header TYPE bapi2017_gm_head_01.
+DATA: goodsmvt_code   TYPE bapi2017_gm_code.
+DATA: goodsmvt_item   TYPE STANDARD TABLE OF bapi2017_gm_item_create WITH HEADER LINE.
+DATA: return          TYPE STANDARD TABLE OF bapiret2 WITH HEADER LINE.
+DATA: initem          TYPE TABLE OF bapi2017_gm_item_04 WITH HEADER LINE.
+
+DATA: BEGIN OF mthead.
+        INCLUDE STRUCTURE bapi2017_gm_head_ret.
+DATA: END OF mthead.
+
+DATA: BEGIN OF ot_stock OCCURS 0.
+DATA: zlydh   TYPE ztmm230-zlydh.
+DATA: mblnr   TYPE ztmm230-mblnr.
+DATA: flag    TYPE flag.
+DATA: message TYPE bapiret2-message.
+DATA: END OF ot_stock.
+
+DATA: BEGIN OF itab OCCURS 0.
+DATA: zlydh  TYPE ztmm230-zlydh.   "领用单号
+DATA: mblnr  TYPE ztmm230-mblnr.   "物料凭证
+DATA: mjahr  TYPE ztmm230-mjahr.   "物料凭证的年份
+DATA: budat  TYPE ztmm230-budat.   "过账日期
+DATA: werks  TYPE ztmm230-werks.   "工厂编码
+DATA: name1  TYPE t001w-name1.      "工厂名称
+DATA: kostl  TYPE ztmm230-kostl.   "使用部门
+DATA: kostlt TYPE cskt-ktext.       "使用部门名称
+DATA: bwart  TYPE ztmm230-bwart.   "移动类型
+DATA: aufnr  TYPE ztmm230-aufnr.   "内部订单号
+DATA: lgobe  TYPE t001l-lgobe.      "库存地点
+DATA: zspbs  TYPE ztmm230-zspbs.   "审批标识
+DATA: zgzbs  TYPE ztmm230-zgzbs.   "过账标识
+DATA: zdel   TYPE ztmm230-zdel.    "冲销标识
+DATA: sel.                          "行选择列
+DATA: icon   TYPE icon-id.          "图标
+DATA: msg    TYPE bapiret2-message. "消息
+DATA: END OF itab.
+
+DATA: wa_itab LIKE LINE OF itab.
+
+DATA: BEGIN OF wa_head.
+DATA: zlydh TYPE ztmm230-zlydh.   "领用单号
+DATA: budat TYPE ztmm230-budat.   "过账日期
+DATA: werks TYPE ztmm230-werks.   "工厂编码
+DATA: name1 TYPE t001w-name1.      "工厂名称
+DATA: kostl TYPE ztmm230-kostl.   "成本中心
+DATA: ktext TYPE cskt-ktext.       "成本中心名称
+DATA: aufnr TYPE ztmm230-aufnr.   "内部订单号
+DATA: bwart TYPE ztmm230-bwart.   "移动类型
+DATA: lgort TYPE ztmm230-lgort.   "库存地
+DATA: lgobe TYPE t001l-lgobe.      "库存地名称
+DATA: grtxt TYPE t157e-grtxt.   "移动原因名称
+DATA: END OF wa_head.
+
+DATA: BEGIN OF it_item OCCURS 0.
+DATA: zlydhh TYPE ztmm230-zlydhh. "行号
+DATA: matnr TYPE ztmm230-matnr.   "物料编码
+DATA: maktx TYPE makt-maktx.       "物料描述
+DATA: zlyl TYPE ztmm230-zlyl.     "领用量
+DATA: meins TYPE mara-meins.       "单位
+DATA: END OF it_item.
+
+DATA: lt_save     TYPE TABLE OF ztmm230 WITH HEADER LINE.
+DATA: lt_ztmm_002 TYPE TABLE OF ztmm230 WITH HEADER LINE.
+DATA: lt_itab     LIKE itab  OCCURS 0    WITH HEADER LINE.
+
+DATA: num TYPE i.
+
+RANGES:s_zgzbs FOR ztmm230-zgzbs.
+
+DATA: fieldcat TYPE slis_t_fieldcat_alv.
+
+*&---------------------------------------------------------------------*
+*&  工厂
+*&---------------------------------------------------------------------*
+PARAMETERS: p_werks LIKE itab-werks OBLIGATORY.
+
+*&---------------------------------------------------------------------*
+*&  领料单号
+*&---------------------------------------------------------------------*
+SELECT-OPTIONS: s_zlydh FOR itab-zlydh.
+
+*&---------------------------------------------------------------------*
+*&  过账日期
+*&---------------------------------------------------------------------*
+SELECT-OPTIONS: s_budat FOR itab-budat MODIF ID m1.
+
+*&---------------------------------------------------------------------*
+*&  库存地点
+*&---------------------------------------------------------------------*
+SELECT-OPTIONS: s_lgort FOR mard-lgort.
+
+*&---------------------------------------------------------------------*
+*&  过账
+*&---------------------------------------------------------------------*
+PARAMETERS: p_r1 RADIOBUTTON GROUP grd1 USER-COMMAND singleclick DEFAULT 'X'.
+
+*&---------------------------------------------------------------------*
+*&  冲销
+*&---------------------------------------------------------------------*
+PARAMETERS: p_r2 RADIOBUTTON GROUP grd1.
+
+INITIALIZATION.
+  %_p_werks_%_app_%-text   = '工厂'.
+  %_s_zlydh_%_app_%-text   = '领料单号'.
+  %_s_budat_%_app_%-text   = '过账日期'.
+  %_s_lgort_%_app_%-text   = '库存地点'.
+  %_p_r1_%_app_%-text      = '过账'.
+  %_p_r2_%_app_%-text      = '冲销'.
+
+AT SELECTION-SCREEN OUTPUT .
+  LOOP AT SCREEN.
+    CASE screen-group1.
+      WHEN 'M1'.
+        CASE 'X'.
+          WHEN p_r1.
+            CLEAR s_budat[].
+            screen-active = 0.
+          WHEN p_r2.
+            screen-active = 1.
+        ENDCASE.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+*&---------------------------------------------------------------------*
+*&  权限控制
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+  AUTHORITY-CHECK OBJECT 'M_MATE_WRK'
+  ID 'ACTVT' FIELD '03'
+  ID 'WERKS' FIELD p_werks.
+  IF sy-subrc <> 0.
+    MESSAGE s000(oo) WITH '没有工厂' p_werks '的权限' DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_zlydh-low.
+  PERFORM frm_f4help_low.  "F4搜索帮助LOW
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_zlydh-high.
+  PERFORM frm_f4help_high. "F4搜索帮助HIGH
+
+START-OF-SELECTION.
+
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+
+  PERFORM getdata.
+
+  IF itab[] IS INITIAL.
+    MESSAGE s014 DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+  PERFORM updatelog(zreplog) IF FOUND.
+
+  PERFORM alvshow.
+
+*&---------------------------------------------------------------------*
+*& FORM FRM_F4HELP_LOW
+*&---------------------------------------------------------------------*
+*& F4搜索帮助LOW
+*&----------------------------------------------------------------------*
+FORM frm_f4help_low.
+  DATA:BEGIN OF t_tab OCCURS 0.
+  DATA:zlydh TYPE ztmm230-zlydh.
+  DATA:END OF t_tab.
+
+*& 取数
+  SELECT DISTINCT zlydh
+    INTO TABLE t_tab
+  FROM ztmm230
+  ORDER BY zlydh.
+
+*& 调用展示函数
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield    = 'ZLYDH'        "表格要显示的字段
+      dynpprog    = sy-repid       "返回程序
+      dynpnr      = sy-dynnr       "屏幕
+      dynprofield = 'S_ZLYDH-LOW'  "往页面回填值的地方
+      value_org   = 'S'            "显示类型
+    TABLES
+      value_tab   = t_tab.         "传进去的表格 帮助的内表
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                           "FRM_F4HELP
+
+*&---------------------------------------------------------------------*
+*& FORM FRM_F4HELP_HIGH
+*&---------------------------------------------------------------------*
+*& F4搜索帮助HIGH
+*&----------------------------------------------------------------------*
+FORM frm_f4help_high.
+  DATA:BEGIN OF t_tab OCCURS 0.
+  DATA:zlydh TYPE ztmm230-zlydh.
+  DATA:END OF t_tab.
+
+*& 取数
+  SELECT DISTINCT zlydh
+    INTO TABLE t_tab
+  FROM ztmm230
+  ORDER BY zlydh.
+
+*& 调用展示函数
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield    = 'ZLYDH'        "表格要显示的字段
+      dynpprog    = sy-repid       "返回程序
+      dynpnr      = sy-dynnr       "屏幕
+      dynprofield = 'S_ZLYDH-HIGH' "往页面回填值的地方
+      value_org   = 'S'            "显示类型
+    TABLES
+      value_tab   = t_tab.         "传进去的表格 帮助的内表
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                           "FRM_F4HELP
+
+*&---------------------------------------------------------------------*
+*&  显示ALV报表
+*&---------------------------------------------------------------------*
+FORM alvshow.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING:
+    'ICON'   '状态'         '' '' '' '',
+    'MSG'    '消息'         '' '' '' '',
+    'ZLYDH'  '领用单号'     '' '' '' '',
+    'MBLNR'  '物料凭证'     '' '' '' '',
+    'BUDAT'  '过账日期'     '' '' '' '',
+    'WERKS'  '工厂编码'     '' '' '' '',
+    'NAME1'  '工厂名称'     '' '' '' '',
+    'KOSTL'  '使用部门'     '' '' '' '',
+    'KOSTLT' '使用部门名称' '' '' '' '',
+    'BWART'  '移动类型'     '' '' '' '',
+    'AUFNR'  '内部订单号'   '' '' '' '',
+    'LGOBE'  '库存地点'     '' '' '' '',
+    'ZSPBS'  '审批标识'     '' '' '' '',
+    'ZGZBS'  '过账标识'     '' p_r2 '' '',
+    'ZDEL'   '冲销标识'     '' p_r1 '' ''.
+  PERFORM alvfm(zpubform) TABLES itab fieldcat USING 'X' ''.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&  获取数据
+*&---------------------------------------------------------------------*
+FORM getdata.
+  CLEAR: s_zgzbs.
+  s_zgzbs-sign = 'I'.
+  s_zgzbs-option = 'EQ'.
+  s_zgzbs-low = ''.
+  APPEND s_zgzbs.
+
+  IF p_r2 = 'X'.
+    s_zgzbs-sign = 'I'.
+    s_zgzbs-option = 'EQ'.
+    s_zgzbs-low = 'X'.
+    APPEND s_zgzbs.
+  ENDIF.
+
+  SELECT
+    zlydh
+    mblnr
+    mjahr
+    budat
+    ztmm230~werks
+    t001w~name1
+    ztmm230~kostl
+    cskt2~ktext AS kostlt
+    bwart
+    aufnr
+    t001l~lgobe
+    zspbs
+    zgzbs
+    zdel
+  INTO TABLE itab
+  FROM ztmm230
+    INNER JOIN t001w ON t001w~werks = ztmm230~werks
+    INNER JOIN t001l ON t001l~lgort = ztmm230~lgort
+    LEFT  JOIN cskt AS cskt2 ON cskt2~kostl = ztmm230~kostl
+  WHERE ztmm230~werks = p_werks
+    AND ztmm230~zlydh IN s_zlydh
+    AND ztmm230~lgort IN s_lgort
+    AND ztmm230~zgzbs IN s_zgzbs
+    AND ztmm230~budat IN s_budat
+    AND ztmm230~zdel <> 'X'.
+
+  SORT itab BY zlydh.
+  DELETE ADJACENT DUPLICATES FROM itab COMPARING zlydh.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&  调用自定义GUI状态
+*&---------------------------------------------------------------------*
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  DATA lt_exfcode TYPE TABLE OF sy-ucomm.
+  REFRESH:lt_exfcode.
+  IF p_r1 <> 'X'.
+    APPEND 'BUTGZ' TO lt_exfcode.
+  ELSE.
+    APPEND 'BUTCX' TO lt_exfcode.
+  ENDIF.
+  SET PF-STATUS 'STANDARD' EXCLUDING lt_exfcode.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&  用户命令
+*&---------------------------------------------------------------------*
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+  CLEAR:num.
+  CASE r_ucomm.
+    WHEN 'BUTXS'.
+      PERFORM butxs.
+    WHEN 'BUTGZ'.
+      PERFORM butgz.
+    WHEN 'BUTCX'.
+      PERFORM butcx.
+  ENDCASE.
+
+*ALV实时刷新
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&  点击【显示单号详细信息】按钮
+*&---------------------------------------------------------------------*
+FORM butxs.
+  LOOP AT itab INTO wa_itab WHERE sel = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num <> 1.
+    MESSAGE e018.
+    EXIT.
+  ENDIF.
+
+  SELECT SINGLE zlydh budat ztmm230~werks t001w~name1 cskt~kostl cskt~ktext aufnr ztmm230~bwart t001l~lgort t001l~lgobe t157e~grtxt
+  INTO wa_head
+  FROM ztmm230
+    INNER JOIN t001w ON t001w~werks = ztmm230~werks
+    LEFT  JOIN cskt ON cskt~kostl = ztmm230~kostl
+    INNER JOIN t001l ON t001l~lgort = ztmm230~lgort
+    LEFT  JOIN t157e ON t157e~grund = ztmm230~grund AND t157e~bwart = '201' AND t157e~spras = '1'
+  WHERE zlydh = wa_itab-zlydh.
+
+  IF sy-subrc <> 0.
+    MESSAGE e014.
+    EXIT.
+  ENDIF.
+
+*  SELECT ZLYDHH ZTMM230~MATNR MAKT~MAKTX ZLYL MARA~MEINS ZYJHX ZJWLX ZJWJF CHARG "modify 20220118 by hanwq
+  SELECT zlydhh ztmm230~matnr makt~maktx zlyl zdanw
+  INTO TABLE it_item
+  FROM ztmm230
+    INNER JOIN makt ON makt~matnr = ztmm230~matnr
+*    INNER JOIN MARA ON MARA~MATNR = ZTMM230~MATNR "modify 20220118 by hanwq
+  WHERE zlydh = wa_itab-zlydh.
+
+  IF sy-subrc <> 0.
+    MESSAGE e014.
+    EXIT.
+  ENDIF.
+
+  CALL SCREEN 9001.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&  点击【过账】按钮
+*&---------------------------------------------------------------------*
+FORM butgz.
+  CLEAR: lt_itab, lt_itab[].
+  DATA: message TYPE bapiret2-message.
+  DATA: err     TYPE i.
+  DATA: len     TYPE i.
+
+*& 收集被选中的领料单主表数据
+  LOOP AT itab INTO lt_itab WHERE sel = 'X'.
+    APPEND lt_itab.
+  ENDLOOP.
+
+  IF lt_itab IS INITIAL.
+    MESSAGE s000(oo) WITH '请至少选择一行数据!' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+*& 取被选中的领料单完整数据
+  SELECT *
+    INTO TABLE lt_ztmm_002
+    FROM ztmm230
+      FOR ALL ENTRIES IN lt_itab
+  WHERE zlydh = lt_itab-zlydh.
+
+  CLEAR: lt_itab, lt_itab[].
+
+  LOOP AT itab WHERE sel = 'X'.
+    CLEAR: goodsmvt_header, goodsmvt_code, goodsmvt_item, goodsmvt_item[].
+    CLEAR: mthead, return, return[].
+
+    goodsmvt_header-pstng_date = sy-datum.
+    goodsmvt_header-doc_date   = sy-datum.
+    goodsmvt_code = '03'."MB1A
+
+    LOOP AT lt_ztmm_002 WHERE zlydh = itab-zlydh.
+      goodsmvt_item-plant       = lt_ztmm_002-werks.  "工厂
+      goodsmvt_item-move_type   = lt_ztmm_002-bwart.  "移动类型
+      IF lt_ztmm_002-grund IS NOT INITIAL.
+        goodsmvt_item-move_reas = lt_ztmm_002-grund.  "移动原因
+      ENDIF.
+*      goodsmvt_item-move_stloc  = lt_ztmm_002-umlgo.  "收货/发货库存地点
+      goodsmvt_item-stge_loc    = lt_ztmm_002-lgort.  "库存地
+      goodsmvt_item-entry_qnt   = lt_ztmm_002-zlyl.   "以单位计的数量
+      goodsmvt_item-costcenter  = lt_ztmm_002-kostl.  "成本中心
+      goodsmvt_item-orderid     = lt_ztmm_002-aufnr.  "订单编号
+      goodsmvt_item-material    = lt_ztmm_002-matnr.  "物料号
+      goodsmvt_item-entry_uom   = lt_ztmm_002-zdanw.  "单位
+*      IF lt_ztmm_002-charg IS NOT INITIAL.
+*        goodsmvt_item-batch     = lt_ztmm_002-charg.  "批次
+*      ENDIF.
+      APPEND goodsmvt_item.
+      CLEAR: goodsmvt_item, lt_ztmm_002.
+    ENDLOOP.
+
+*& 货物移动BAPI
+    CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+      EXPORTING
+        goodsmvt_header  = goodsmvt_header
+        goodsmvt_code    = goodsmvt_code
+      IMPORTING
+        goodsmvt_headret = mthead
+      TABLES
+        goodsmvt_item    = goodsmvt_item
+        return           = return.
+
+    CLEAR: message.
+    LOOP AT return WHERE type CA 'AEX'.
+      IF return-message IS INITIAL.
+        PERFORM msgtotext(zpubform) USING return-id
+              return-number
+              return-message_v1
+              return-message_v2
+              return-message_v3
+              return-message_v4
+        CHANGING return-message.
+      ENDIF.
+      CONCATENATE return-message message INTO message SEPARATED BY '/'.
+      CLEAR return.
+    ENDLOOP.
+
+    IF mthead-mat_doc IS INITIAL OR message IS NOT INITIAL.
+      PERFORM bapi_rollback.
+
+      itab-icon = '@0A@'.
+      len = strlen( message ) - 1.
+*      IF LEN > 0.
+*        ITAB-MSG = MESSAGE+2(LEN).
+*      ENDIF.
+      "20220103修改by kkw。
+      itab-msg = message.
+      MODIFY itab.
+      err = err + 1.
+    ELSE.
+      PERFORM bapi_commit.
+
+*& 更新表
+      UPDATE ztmm230
+      SET
+        mblnr = mthead-mat_doc
+        mjahr = mthead-doc_year
+        budat = goodsmvt_header-doc_date
+        zgzbs = 'X'
+      WHERE zlydh = itab-zlydh.
+      COMMIT WORK.
+
+      DELETE itab[].
+    ENDIF.
+  ENDLOOP.
+
+  CLEAR: itab.
+
+  IF err > 0.
+    MESSAGE s000(oo) WITH '过账失败!' DISPLAY LIKE 'E'.
+  ELSE.
+    MESSAGE s000(oo) WITH '过账成功!'.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&  点击【冲销】按钮
+*&---------------------------------------------------------------------*
+FORM butcx.
+  DATA: err TYPE i.
+  DATA: len TYPE i.
+  CLEAR: num.
+  LOOP AT itab WHERE sel = 'X'.
+    num = num + 1.
+
+    IF itab-zgzbs = 'X'."已过账
+      PERFORM mbst(zpubform) TABLES initem
+      USING itab-mblnr itab-mjahr itab-budat
+            CHANGING itab-msg.
+      IF itab-msg+0(1) EQ 'E'.
+        itab-icon = '@0A@'.
+        len = strlen( itab-msg ) - 3.
+        IF len > 0.
+          itab-msg = itab-msg+2(len).
+        ENDIF.
+        MODIFY itab.
+        err = err + 1.
+      ELSE.
+*  & 更新表
+        UPDATE ztmm230
+        SET zdel = 'X'
+        WHERE zlydh = itab-zlydh.
+        COMMIT WORK.
+        DELETE itab[].
+      ENDIF.
+    ELSE.               "未过账
+      UPDATE ztmm230
+      SET zdel = 'X'
+      WHERE zlydh = itab-zlydh.
+      COMMIT WORK.
+      DELETE itab[].
+    ENDIF.
+
+  ENDLOOP.
+
+  CLEAR: itab.
+
+  IF num = 0.
+    MESSAGE s000(oo) WITH '请至少选择一行数据!' DISPLAY LIKE 'E'.
+  ELSEIF err > 0.
+    MESSAGE s000(oo) WITH '冲销失败!' DISPLAY LIKE 'E'.
+  ELSE.
+    MESSAGE s000(oo) WITH '冲销成功!'.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& FORM BAPI_ROLLBACK
+*&---------------------------------------------------------------------*
+FORM bapi_rollback.
+  CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+ENDFORM.                    "BAPI_ROLLBACK
+
+*&---------------------------------------------------------------------*
+*& FORM BAPI_COMMIT
+*&---------------------------------------------------------------------*
+FORM bapi_commit.
+  CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+    EXPORTING
+      wait = 'X'.
+ENDFORM.                    "BAPI_COMMIT
+
+*&对于9000屏幕流，已废弃但未删除以备再用
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'TABLE0' ITSELF
+CONTROLS: table0 TYPE TABLEVIEW USING SCREEN 9000.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'TABLE0'
+DATA:     g_table0_lines  LIKE sy-loopc.
+
+DATA:     ok_code LIKE sy-ucomm.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'TABLE0'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE table0_change_tc_attr OUTPUT.
+  DESCRIBE TABLE itab LINES table0-lines.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'TABLE0'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE table0_get_lines OUTPUT.
+  g_table0_lines = sy-loopc.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'TABLE0'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE table0_modify INPUT.
+  MODIFY itab
+    INDEX table0-current_line.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'TABLE0'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE table0_mark INPUT.
+  DATA: g_TABLE0_wa2 LIKE LINE OF itab.
+  IF table0-line_sel_mode = 1
+  AND itab-sel = 'X'.
+    LOOP AT itab INTO g_TABLE0_wa2
+      WHERE sel = 'X'.
+      g_TABLE0_wa2-sel = ''.
+      MODIFY itab
+        FROM g_TABLE0_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY itab
+    INDEX table0-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'TABLE0'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE table0_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'TABLE0'
+                              'ITAB'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+
+*----------------------------------------------------------------------*
+*   INCLUDE TABLECONTROL_FORMS                                         *
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_OK_TC                                               *
+*&---------------------------------------------------------------------*
+FORM user_ok_tc USING    p_tc_name TYPE dynfnam
+                         p_table_name
+                         p_mark_name
+                CHANGING p_ok      LIKE sy-ucomm.
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA: l_ok     TYPE sy-ucomm,
+        l_offset TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+*&SPWIZARD: Table control specific operations                          *
+*&SPWIZARD: evaluate TC name and operations                            *
+  SEARCH p_ok FOR p_tc_name.
+  IF sy-subrc <> 0.
+    EXIT.
+  ENDIF.
+  l_offset = strlen( p_tc_name ) + 1.
+  l_ok = p_ok+l_offset.
+*&SPWIZARD: execute general and TC specific operations                 *
+  CASE l_ok.
+    WHEN 'INSR'.                      "insert row
+      PERFORM fcode_insert_row USING    p_tc_name
+                                        p_table_name.
+      CLEAR p_ok.
+
+    WHEN 'DELE'.                      "delete row
+      PERFORM fcode_delete_row USING    p_tc_name
+                                        p_table_name
+                                        p_mark_name.
+      CLEAR p_ok.
+
+    WHEN 'P--' OR                     "top of list
+         'P-'  OR                     "previous page
+         'P+'  OR                     "next page
+         'P++'.                       "bottom of list
+      PERFORM compute_scrolling_in_tc USING p_tc_name
+                                            l_ok.
+      CLEAR p_ok.
+*     WHEN 'L--'.                       "total left
+*       PERFORM FCODE_TOTAL_LEFT USING P_TC_NAME.
+*
+*     WHEN 'L-'.                        "column left
+*       PERFORM FCODE_COLUMN_LEFT USING P_TC_NAME.
+*
+*     WHEN 'R+'.                        "column right
+*       PERFORM FCODE_COLUMN_RIGHT USING P_TC_NAME.
+*
+*     WHEN 'R++'.                       "total right
+*       PERFORM FCODE_TOTAL_RIGHT USING P_TC_NAME.
+*
+    WHEN 'MARK'.                      "mark all filled lines
+      PERFORM fcode_tc_mark_lines USING p_tc_name
+                                        p_table_name
+                                        p_mark_name   .
+      CLEAR p_ok.
+
+    WHEN 'DMRK'.                      "demark all filled lines
+      PERFORM fcode_tc_demark_lines USING p_tc_name
+                                          p_table_name
+                                          p_mark_name .
+      CLEAR p_ok.
+
+*     WHEN 'SASCEND'   OR
+*          'SDESCEND'.                  "sort column
+*       PERFORM FCODE_SORT_TC USING P_TC_NAME
+*                                   l_ok.
+
+  ENDCASE.
+
+ENDFORM.                              " USER_OK_TC
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_INSERT_ROW                                         *
+*&---------------------------------------------------------------------*
+FORM fcode_insert_row
+              USING    p_tc_name           TYPE dynfnam
+                       p_table_name             .
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_lines_name       LIKE feld-name.
+  DATA l_selline          LIKE sy-stepl.
+  DATA l_lastline         TYPE i.
+  DATA l_line             TYPE i.
+  DATA l_table_name       LIKE feld-name.
+  FIELD-SYMBOLS <tc>                 TYPE cxtab_control.
+  FIELD-SYMBOLS <table>              TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <lines>              TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: get looplines of TableControl                              *
+  CONCATENATE 'G_' p_tc_name '_LINES' INTO l_lines_name.
+  ASSIGN (l_lines_name) TO <lines>.
+
+*&SPWIZARD: get current line                                           *
+  GET CURSOR LINE l_selline.
+  IF sy-subrc <> 0.                   " append line to table
+    l_selline = <tc>-lines + 1.
+*&SPWIZARD: set top line                                               *
+    IF l_selline > <lines>.
+      <tc>-top_line = l_selline - <lines> + 1 .
+    ELSE.
+      <tc>-top_line = 1.
+    ENDIF.
+  ELSE.                               " insert line into table
+    l_selline = <tc>-top_line + l_selline - 1.
+    l_lastline = <tc>-top_line + <lines> - 1.
+  ENDIF.
+*&SPWIZARD: set new cursor line                                        *
+  l_line = l_selline - <tc>-top_line + 1.
+
+*&SPWIZARD: insert initial line                                        *
+  INSERT INITIAL LINE INTO <table> INDEX l_selline.
+  <tc>-lines = <tc>-lines + 1.
+*&SPWIZARD: set cursor                                                 *
+  SET CURSOR 1 l_line.
+
+ENDFORM.                              " FCODE_INSERT_ROW
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_DELETE_ROW                                         *
+*&---------------------------------------------------------------------*
+FORM fcode_delete_row
+              USING    p_tc_name           TYPE dynfnam
+                       p_table_name
+                       p_mark_name   .
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: delete marked lines                                        *
+  DESCRIBE TABLE <table> LINES <tc>-lines.
+
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    IF <mark_field> = 'X'.
+      DELETE <table> INDEX syst-tabix.
+      IF sy-subrc = 0.
+        <tc>-lines = <tc>-lines - 1.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                              " FCODE_DELETE_ROW
+
+*&---------------------------------------------------------------------*
+*&      Form  COMPUTE_SCROLLING_IN_TC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*      -->P_OK       ok code
+*----------------------------------------------------------------------*
+FORM compute_scrolling_in_tc USING    p_tc_name
+                                      p_ok.
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_tc_new_top_line     TYPE i.
+  DATA l_tc_name             LIKE feld-name.
+  DATA l_tc_lines_name       LIKE feld-name.
+  DATA l_tc_field_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <lines>      TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+*&SPWIZARD: get looplines of TableControl                              *
+  CONCATENATE 'G_' p_tc_name '_LINES' INTO l_tc_lines_name.
+  ASSIGN (l_tc_lines_name) TO <lines>.
+
+
+*&SPWIZARD: is no line filled?                                         *
+  IF <tc>-lines = 0.
+*&SPWIZARD: yes, ...                                                   *
+    l_tc_new_top_line = 1.
+  ELSE.
+*&SPWIZARD: no, ...                                                    *
+    CALL FUNCTION 'SCROLLING_IN_TABLE'
+      EXPORTING
+        entry_act      = <tc>-top_line
+        entry_from     = 1
+        entry_to       = <tc>-lines
+        last_page_full = 'X'
+        loops          = <lines>
+        ok_code        = p_ok
+        overlapping    = 'X'
+      IMPORTING
+        entry_new      = l_tc_new_top_line
+      EXCEPTIONS
+*       NO_ENTRY_OR_PAGE_ACT  = 01
+*       NO_ENTRY_TO    = 02
+*       NO_OK_CODE_OR_PAGE_GO = 03
+        OTHERS         = 0.
+  ENDIF.
+
+*&SPWIZARD: get actual tc and column                                   *
+  GET CURSOR FIELD l_tc_field_name
+             AREA  l_tc_name.
+
+  IF syst-subrc = 0.
+    IF l_tc_name = p_tc_name.
+*&SPWIZARD: et actual column                                           *
+      SET CURSOR FIELD l_tc_field_name LINE 1.
+    ENDIF.
+  ENDIF.
+
+*&SPWIZARD: set the new top line                                       *
+  <tc>-top_line = l_tc_new_top_line.
+
+
+ENDFORM.                              " COMPUTE_SCROLLING_IN_TC
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_TC_MARK_LINES
+*&---------------------------------------------------------------------*
+*       marks all TableControl lines
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*----------------------------------------------------------------------*
+FORM fcode_tc_mark_lines USING p_tc_name
+                               p_table_name
+                               p_mark_name.
+*&SPWIZARD: EGIN OF LOCAL DATA-----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: mark all filled lines                                      *
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    <mark_field> = 'X'.
+  ENDLOOP.
+ENDFORM.                                          "fcode_tc_mark_lines
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_TC_DEMARK_LINES
+*&---------------------------------------------------------------------*
+*       demarks all TableControl lines
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*----------------------------------------------------------------------*
+FORM fcode_tc_demark_lines USING p_tc_name
+                                 p_table_name
+                                 p_mark_name .
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: demark all filled lines                                    *
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    <mark_field> = space.
+  ENDLOOP.
+ENDFORM.                                          "fcode_tc_mark_lines
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'TABLE1' ITSELF
+CONTROLS: table1 TYPE TABLEVIEW USING SCREEN 9001.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'TABLE1'
+DATA:     g_table1_lines  LIKE sy-loopc.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'TABLE1'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE table1_change_tc_attr OUTPUT.
+  DESCRIBE TABLE it_item LINES table1-lines.
+ENDMODULE.
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'TABLE1'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE table1_get_lines OUTPUT.
+  g_table1_lines = sy-loopc.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'TABLE1'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE table1_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'TABLE1'
+                              'IT_ITEM'
+                              ' '
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9001 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE status_9001 OUTPUT.
+  DATA lt_exfcode1 TYPE TABLE OF sy-ucomm.
+  SET PF-STATUS '9001' EXCLUDING lt_exfcode1.
+* SET PF-STATUS 'xxxxxxxx'.
+* SET TITLEBAR 'xxx'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_9001 INPUT.
+  CLEAR ok_code.
+  ok_code = sy-ucomm.
+  CASE ok_code+0(5).
+    WHEN 'BUTTC'."退出按钮
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+  CLEAR sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit INPUT.
+  ok_code = sy-ucomm.
+  CASE ok_code+0(5).
+    WHEN 'BUTTC'."退出按钮
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.

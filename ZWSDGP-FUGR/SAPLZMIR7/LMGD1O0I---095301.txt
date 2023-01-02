@@ -1,0 +1,20 @@
+*----------------------------------------------------------------------*
+*        Module LESEN_STEUERTAB OUTPUT                                 *
+* Die interne Tabelle STEUERTAB wird f¨¹r die aktuelle Zeile gelesen    *
+*----------------------------------------------------------------------*
+MODULE LESEN_STEUERTAB OUTPUT.
+
+  IF SY-STEPL = 1.
+    ST_ZLEPROSEITE = SY-LOOPC.
+  ENDIF.
+
+  ST_AKT_ZEILE = ST_ERSTE_ZEILE + SY-STEPL.
+
+*-------Lesen aktuelle Zeile interne Tabelle---------------------
+  READ TABLE STEUERTAB INDEX ST_AKT_ZEILE.
+
+  IF SY-SUBRC NE 0.
+    EXIT FROM STEP-LOOP.
+  ENDIF.
+
+ENDMODULE.                             " LESEN_STEUERTAB OUTPUT

@@ -1,0 +1,186 @@
+*@#@@[SAP]
+DEFINE zfmdatasave1.
+  data: header_gd type header_fb,
+        tables_gd type rsfb_para with header line,
+        import_gd type rsfb_para with header line,
+        export_gd type rsfb_para with header line,
+        change_gd type rsfb_para with header line,
+        pname_gd  type tfdir-pname.
+  data: begin of zilogkeystr,
+          name   like zfmdata-name  ,
+          erdat  like zfmdata-erdat ,
+          stamp  like zfmdata-stamp ,
+          indx   like zfmdata-indx  ,
+          fdname like zfmdata-fdname,
+        end of zilogkeystr.
+  data: wa_zilogdata    type zfmdata ,
+        wa_zfmdatacfg type zfmdatacfg,
+        zilogtsl        type timestampl ,
+        zilogtsstr(30),
+        zilogindx       type numc1 ,
+        zilogfsstr      type string,
+        zilogstopallrecord , "不再记录所有的函数LOG
+        zilogrecordnodata,   "只记录调用历史，不记录具体数据
+        zilogrecordfmstop .  "不记录本函数LOG
+  data: zilogt1    type i,
+        zilogt2    type i,
+        zilogzonlo type sy-zonlo.
+  data: loginusers type table of uinfo with header line ,
+        curusertid type          sy-index .
+  data: lt_zilogfmstack type table of sys_calls with header line .
+  field-symbols: <fs_zrfclog> type any .
+
+  header_gd-name = &1.
+  call function 'SYSTEM_CALLSTACK'
+    importing
+      et_callstack = lt_zilogfmstack[].
+  read table lt_zilogfmstack index 1.
+  header_gd-name = lt_zilogfmstack-eventname.
+
+  select single * into wa_zfmdatacfg
+    from zfmdatacfg
+    bypassing buffer
+    where fname = 'STOPALLFMRECORD'.
+  if sy-subrc = 0.
+    zilogstopallrecord = 'X'.
+  endif.
+
+  select single * into wa_zfmdatacfg from zfmdatacfg
+    where fname = header_gd-name.
+  if wa_zfmdatacfg-exitfm = 'X' and zilogstopallrecord = ''.
+    return.
+  endif.
+  if wa_zfmdatacfg-brkuser = sy-uname and zilogstopallrecord = ''.
+    sy-subrc = 4.
+    sy-fmkey = ''.
+    while sy-subrc = 4 and sy-fmkey = ''.
+      select single * into wa_zfmdatacfg from zfmdatacfg
+        where fname = header_gd-name and
+              brkuser <> sy-uname.
+    endwhile.
+  endif.
+  if wa_zfmdatacfg-nrindex = 'H'.
+    zilogrecordnodata = 'X'.
+  endif.
+  if wa_zfmdatacfg-nrindex = 'N'.
+    zilogrecordfmstop = 'X'.
+  endif.
+
+  if zilogstopallrecord = '' and zilogrecordfmstop = ''
+                             and zilogrecordnodata = ''.
+    select single pname into pname_gd from tfdir
+      where funcname =  header_gd-name.
+    call function 'FUNCTION_INCLUDE_SPLIT'
+      exporting
+        program       = pname_gd
+      importing
+        group         = header_gd-area
+        namespace     = header_gd-namespace
+      exceptions
+        error_message = 1
+        othe          = 12.
+    if sy-subrc = 0.
+      concatenate header_gd-namespace header_gd-area
+                    into header_gd-area.
+      call method cl_fb_parameter_db=>read
+        importing
+          tables = tables_gd[]
+          import = import_gd[]
+          export = export_gd[]
+          change = change_gd[]
+        changing
+          header = header_gd.
+    endif.
+  endif.
+
+  if zilogstopallrecord = '' and zilogrecordfmstop = ''.
+    get run time field zilogt1.
+    get time stamp field zilogtsl.
+    zilogkeystr-name = header_gd-name.
+    if sy-zonlo is initial.
+      zilogzonlo = 'UTC+8'.
+    else.
+      zilogzonlo = sy-zonlo.
+    endif.
+    write zilogtsl time zone zilogzonlo to zilogtsstr .
+    zilogkeystr-erdat = sy-datum.
+    zilogkeystr-stamp = zilogtsstr+11(15).
+
+    call function 'THUSRINFO'
+      tables
+        usr_tabl = loginusers.
+    call function 'TH_USER_INFO'
+      importing
+        tid = curusertid.
+    read table loginusers with key tid = curusertid.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE zfmdatasave2.
+  if zilogstopallrecord = '' and zilogrecordfmstop = ''.
+    get run time field zilogt2.
+    zilogindx = zilogindx + 1 .
+    if zilogindx < 10 and zilogindx na wa_zfmdatacfg-nrindex and
+       ( zilogrecordnodata = '' or zilogrecordnodata = 'X' and zilogindx = 1 ) .
+      zilogkeystr-indx   = zilogindx.
+      wa_zilogdata-area  = sy-repid+4.
+      wa_zilogdata-ernam = sy-uname.
+      wa_zilogdata-memo  = &1 .
+      wa_zilogdata-erdat = sy-datum.
+      wa_zilogdata-uterm = loginusers-term .
+      wa_zilogdata-secds = ( zilogt2 - zilogt1 ) / 1000000 .
+
+      if wa_zfmdatacfg-rtypemp <> ''.
+        assign (wa_zfmdatacfg-rtypemp) to <fs_zrfclog>.
+      else.
+        assign ('RTYPE') to <fs_zrfclog>.
+      endif.
+      if sy-subrc = 0.
+        wa_zilogdata-rtype = <fs_zrfclog>.
+      endif.
+
+      if wa_zfmdatacfg-rtmsgmp <> ''.
+        assign (wa_zfmdatacfg-rtmsgmp) to <fs_zrfclog>.
+      else.
+        assign ('RTMSG') to <fs_zrfclog>.
+      endif.
+      if sy-subrc = 0.
+        wa_zilogdata-rtmsg = <fs_zrfclog>.
+      endif.
+
+      loop at import_gd.
+        assign (import_gd-parameter) to <fs_zrfclog>.
+        check sy-subrc = 0 .
+        zilogkeystr-fdname = import_gd-parameter.
+        export <fs_zrfclog> to database zfmdata(fl) id zilogkeystr from wa_zilogdata.
+      endloop.
+
+      loop at change_gd.
+        assign (change_gd-parameter) to <fs_zrfclog>.
+        check sy-subrc = 0 .
+        zilogkeystr-fdname = change_gd-parameter.
+        export <fs_zrfclog> to database zfmdata(fl) id zilogkeystr from wa_zilogdata.
+      endloop.
+
+      loop at export_gd.
+        assign (export_gd-parameter) to <fs_zrfclog>.
+        check sy-subrc = 0 .
+        zilogkeystr-fdname = export_gd-parameter.
+        export <fs_zrfclog> to database zfmdata(fl) id zilogkeystr from wa_zilogdata.
+      endloop.
+
+      loop at tables_gd.
+        concatenate tables_gd-parameter '[]' into zilogfsstr.
+        assign (zilogfsstr) to <fs_zrfclog>.
+        check sy-subrc = 0 .
+        zilogkeystr-fdname = tables_gd-parameter.
+        export <fs_zrfclog> to database zfmdata(fl) id zilogkeystr from wa_zilogdata.
+      endloop.
+
+      if import_gd[] is initial and change_gd[] is initial and
+         export_gd[] is initial and tables_gd[] is initial.
+        export &1 to database zfmdata(fl) id zilogkeystr from wa_zilogdata.
+      endif.
+    endif.
+  endif.
+END-OF-DEFINITION.

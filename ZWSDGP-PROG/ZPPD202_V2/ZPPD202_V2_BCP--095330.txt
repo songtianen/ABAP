@@ -1,0 +1,9 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD202_V2_BCP
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZBCP_CON' ITSELF
+CONTROLS: ZBCP_CON TYPE TABLEVIEW USING SCREEN 920.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZBCP_CON'
+DATA:     G_ZBCP_CON_LINES  LIKE SY-LOOPC.

@@ -1,0 +1,37 @@
+*----------------------------------------------------------------------*
+*   INCLUDE /NFM/GLOBAL_DATA                                           *
+*   Globale Daten, die auch ¨¹ber das Memory geschleust werden          *
+*----------------------------------------------------------------------*
+constants:  tid_xne(15)  value '/NFM/XORDERPOS',
+            tid_yne(15)  value '/NFM/YORDERPOS',
+            tid_ine(15)  value '/NFM/IORDERPOS',
+            tid_xde(15)  value '/NFM/XDEFAULT',
+            tid_yde(15)  value '/NFM/YDEFAULT',
+            tid_ide(15)  value '/NFM/IDEFAULT',
+            tid_nfk(15)  value '/NFM/NF_COMM',
+            tid_eds(15)  value '/NFM/COVMAS',
+            tid_kon(15)  value '/NFM/KONSI',
+            tid_eed(15)  value '/NFM/ECOVMAS'.
+* for proper updation of condition data in KONV.
+constants: tid_gold(15) value '/NFM/OLDNUMBERS'.
+* END OF CHANGE.
+data: /nfm/g_tbasic like /nfm/tbasic,
+      /nfm/g_xorderpos_tbl like /nfm/orderpos_vb  "NE-Eintr#ge
+                  occurs 0 with header line,
+      /nfm/g_yorderpos_tbl like /nfm/orderpos_vb  "zu l#schende Eintr#ge
+                  occurs 0 with header line,
+      /nfm/g_iorderpos_tbl type /nfm/iorderpos occurs 0   "Index-Tabelle
+                           with header line,
+      /nfm/g_nf_comm_tbl like /nfm/nf_comm occurs 10
+                         with header line,
+      /nfm/g_covmas_tbl like /nfm/tcovmas occurs 0  "Eindeckungsbest#nde
+                        with header line,
+      /nfm/g_konsi_tbl like /nfm/konsi occurs 0    "Beistellungsbest#nde
+                       with header line,
+      /nfm/g_covpar_tbl like /nfm/covpar occurs 0  "Beisteller
+                        with header line.
+data: /nfm/answer.                               " Antwort aus Popup
+DATA:       /nfm/stock_comm_tbl like /nfm/nf_comm occurs 0
+                         with header line.
+data : /nfm/g_tvta type tvta,
+       g_vtwku_char_x(1) type c.

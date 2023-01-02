@@ -1,0 +1,107 @@
+FUNCTION zfm_gp_oa_pp_getaufnr.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(WERKS) TYPE  WERKS_D
+*"     VALUE(CHARG) TYPE  CHARG_D
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      OUT_TAB STRUCTURE  ZSPP_219
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_PP_GETAUFNR'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+  DATA:it_mch1s TYPE TABLE OF mcha WITH HEADER LINE,
+       outtab   TYPE TABLE OF zsfms_getpctx WITH HEADER LINE.
+*  aufnr = |{ aufnr ALPHA = IN }|.
+*  SELECT
+*    z~werks
+*    z~aufnr
+*    z~matnr
+*    makt~maktx
+*    z~zpcdh
+*    z~name1
+**    z5~projn
+*    z~bstkd
+*    INTO CORRESPONDING FIELDS OF TABLE out_tab
+*  FROM ztpp_206 AS z
+*    JOIN makt ON z~matnr = makt~matnr AND makt~spras = sy-langu
+**    JOIN ztpp_205 AS z5 ON z~zpcdh = z5~zpcdh AND z~zpcdhh = z5~zpcdhh
+*    WHERE z~werks = werks AND z~aufnr = aufnr AND z~del_gd NE 'X'.
+  SELECT SINGLE aufnr,matnr INTO ( @DATA(aufnr),@DATA(matnr) ) FROM mseg WHERE charg = @charg AND werks = @werks.
+  IF aufnr IS INITIAL.
+    fillmsgr 'E' '查无此工单'.
+  ENDIF.
+  SELECT
+    z~werks,
+    z~aufnr,
+    z~matnr,
+    makt~maktx,
+    z~zpcdh,
+    z~name1,
+    z5~projn,
+    z~bstkd
+    INTO TABLE @DATA(lt_out)
+  FROM ztpp_206 AS z
+*    JOIN ztpp_205a AS z5a ON z~zpcdh = z5a~zpcdh AND z~zpcdhh = z5a~zpcdhh
+    JOIN ztpp_205 AS z5 ON  z~zpcdh = z5~zpcdh
+    JOIN makt ON z~matnr = makt~matnr AND makt~spras = @sy-langu
+    WHERE z~werks = @werks AND z~aufnr = @aufnr AND z~del_gd NE 'X'.
+  IF lt_out IS INITIAL.
+    fillmsgr 'E' '工单不存在.'.
+  ELSE.
+    fillmsgr 'S' '查询成功.'.
+  ENDIF.
+*  "取包号
+*  REFRESH:it_mch1s,outtab.
+*  CLEAR:it_mch1s.
+*  it_mch1s-matnr = matnr.
+*  it_mch1s-charg = charg.
+*  APPEND it_mch1s.
+*  CALL FUNCTION 'ZFMS_05_GETPCTX'
+*    EXPORTING
+*      atnam  = 'Z20'
+*    TABLES
+*      intab  = it_mch1s
+*      outtab = outtab
+*    EXCEPTIONS
+*      OTHERS = 1.
+*  READ TABLE outtab WITH KEY matnr = matnr
+*                              charg = charg
+*                              atnam = 'Z20'
+*                              BINARY SEARCH.
+*  IF sy-subrc EQ 0.
+*    LOOP AT out_tab.
+*      out_tab-zpc = charg.
+*      out_tab-zbh = outtab-atwrt.
+*      MODIFY out_tab.
+*    ENDLOOP.
+*  ENDIF.
+  SELECT charg,zbh INTO TABLE @DATA(lt_316) FROM ztpp316 WHERE werks = @werks AND charg = @charg.
+  SORT lt_316 BY charg zbh.
+  DELETE ADJACENT DUPLICATES FROM lt_316 COMPARING charg zbh.
+  REFRESH out_tab.
+  LOOP AT lt_out INTO DATA(lw_out).
+    LOOP AT lt_316 INTO DATA(lw_316).
+      CLEAR out_tab.
+      MOVE-CORRESPONDING lw_out TO out_tab.
+      out_tab-zbh = lw_316-zbh.
+      out_tab-zpc = charg.
+      APPEND out_tab.
+    ENDLOOP.
+    IF sy-subrc NE 0.
+      CLEAR out_tab.
+      MOVE-CORRESPONDING lw_out TO out_tab.
+      out_tab-zpc = charg.
+      APPEND out_tab.
+    ENDIF.
+  ENDLOOP.
+
+  zfmdatasave2 'R'.
+
+
+
+
+ENDFUNCTION.

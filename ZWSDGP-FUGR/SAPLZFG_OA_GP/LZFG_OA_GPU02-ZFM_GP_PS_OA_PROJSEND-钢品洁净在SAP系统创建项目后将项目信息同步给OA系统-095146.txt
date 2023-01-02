@@ -1,0 +1,134 @@
+FUNCTION zfm_gp_ps_oa_projsend.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     REFERENCE(POSID) TYPE  PRPS-POSID
+*"     REFERENCE(POST1) TYPE  PRPS-POST1
+*"     REFERENCE(STUFE) TYPE  PRPS-STUFE
+*"     REFERENCE(USR04) TYPE  PROJ-USR04
+*"     REFERENCE(P_NAME) TYPE  STRING
+*"  EXPORTING
+*"     REFERENCE(RTYPE) TYPE  BAPI_MTYPE
+*"     REFERENCE(RTMSG) TYPE  BAPI_MSG
+*"     REFERENCE(P_OUTPUT) TYPE  STRING
+*"     REFERENCE(P_STATUS) TYPE  I
+*"     REFERENCE(P_RESULT) TYPE  STRING
+*"  TABLES
+*"      T_RESULT STRUCTURE  ZSMM_017 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_PS_OA_PROJSEND'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  TYPES: BEGIN OF ty_out,
+           posid TYPE  prps-posid,
+           post1 TYPE  prps-post1,
+           stufe TYPE  prps-stufe,
+           usr04 TYPE  proj-usr04,
+         END OF ty_out.
+  DATA: gt_tab TYPE TABLE OF ty_out,
+        gs_tab LIKE LINE OF gt_tab.
+
+  CLEAR:gs_tab,gt_tab.
+  gs_tab-posid = posid.
+  gs_tab-post1 = post1.
+  gs_tab-stufe = stufe.
+  gs_tab-usr04 = usr04.
+  APPEND gs_tab TO gt_tab.
+
+
+
+  DATA:BEGIN OF wa_input1,
+         intab TYPE TABLE OF ty_out, "zssd_023,
+       END OF wa_input1,
+       BEGIN OF wa_input,
+         data LIKE wa_input1,
+       END OF wa_input,
+       BEGIN OF wa_output1,
+         tresult TYPE TABLE OF zsmm_017,
+       END OF wa_output1,
+       BEGIN OF wa_output,
+         data LIKE wa_output1,
+       END OF wa_output.
+
+
+  CLEAR:oastr1,oastr2,oaurl,wa_input,wa_output,
+  oahead[],oasta,oamsg.
+*  CASE sy-sysid.
+*    WHEN 'DEV'.
+*      oaurl = 'http://192.168.0.88:8080/seeyon/rest/dee/task/SD0001'.
+*    WHEN 'QAS'.
+*    WHEN 'PRD'.
+*  ENDCASE.
+*URL改为可配置，ZMM000
+  PERFORM getdata(zpub_data) USING 'ZFM_GP_PS_OA_PROJSEND' CHANGING oaurl.
+  CHECK oaurl IS NOT INITIAL.
+*根据传入数据转JSON
+  wa_input-data-intab = gt_tab."ot_stock[].
+*SAP结构转JSON
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr1
+      data    = wa_input
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  SHIFT oastr1 LEFT  DELETING LEADING  '{'.
+
+  CONCATENATE '{"senderLoginName":"'
+*  CONCATENATE '{"SENDER":"'
+  p_name
+  '",'
+  oastr1 INTO oastr1.
+
+  p_result = oastr1.
+
+
+*获取TOKEN
+  CALL FUNCTION 'ZFM_GETOATOKEN'
+    IMPORTING
+      output = oastr2
+    EXCEPTIONS
+      OTHERS = 1.
+  "zfmdatasave2 'R'.
+  " CHECK OASTR2 IS NOT INITIAL.
+*填入HEADER
+  CLEAR:oamsg,oasta.
+  REFRESH:oahead.
+  CLEAR oahead.
+  oahead-name = 'token'.
+  oahead-value = oastr2.
+  APPEND oahead.
+*调用函数HTTP
+  CLEAR oastr2.
+
+  PERFORM replace(zpubform) USING 'https' 'http' CHANGING oaurl.
+  CALL FUNCTION 'ZFMS_15_HTTP'
+    EXPORTING
+      input     = oastr1
+      url       = oaurl
+      reqmethod = 'POST' "HTTP 方法
+      http1_1   = 'X' "协议1.1/1.0
+    IMPORTING
+      output    = oastr2 "返回JSON报文
+      rtmsg     = oamsg "消息
+      status    = oasta "HTTP状态
+    TABLES
+      header    = oahead
+    EXCEPTIONS
+      OTHERS    = 1.
+*返回报文转为SAP结构
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      jsonstr = oastr2
+      data    = wa_output
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  t_result[] = wa_output-data-tresult.
+  p_status = oasta.
+  p_output = oamsg.
+*  P_RESULT = OASTR2.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

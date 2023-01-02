@@ -1,0 +1,193 @@
+FUNCTION ZDM_ENH_PP_CO02_TBSJ.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(AUFNR) TYPE  AUFNR OPTIONAL
+*"     VALUE(ZKS1) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS2) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS3) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS4) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS5) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS6) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS7) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS8) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS9) TYPE  CHAR20 OPTIONAL
+*"     VALUE(ZKS10) TYPE  CHAR20 OPTIONAL
+*"  EXPORTING
+*"     VALUE(FLAG) TYPE  ZEMM_FLAG
+*"     VALUE(MESSAGE) TYPE  ZEMM_MESSAGE
+*"  TABLES
+*"      INTAB STRUCTURE  ZSPP_221
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_MM_POPOST'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+
+  DATA: GAMNG TYPE AFKO-GAMNG VALUE 0.
+  DATA: STS   TYPE ZEMM_FLAG VALUE 'N'."是否更新AFKO 总数量 默认否
+  DATA: PSKS   TYPE ZE_KS_PS.
+  LOOP AT INTAB.
+    CASE INTAB-TABIX.
+      WHEN '1'.
+        IF ZKS1 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS1.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS1.
+        ENDIF.
+      WHEN '2'.
+        IF ZKS2 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS2.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS2.
+        ENDIF.
+
+      WHEN '3'.
+        IF ZKS3 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS3.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS3.
+        ENDIF.
+
+      WHEN '4'.
+        IF ZKS4 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS4.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS4.
+        ENDIF.
+
+      WHEN '5'.
+        IF ZKS5 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS5.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS5.
+        ENDIF.
+
+      WHEN '6'.
+        IF ZKS6 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS6.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS6.
+        ENDIF.
+
+      WHEN '7'.
+        IF ZKS7 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS7.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS7.
+        ENDIF.
+
+      WHEN '8'.
+        IF ZKS8 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS8.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS8.
+        ENDIF.
+
+      WHEN '9'.
+        IF ZKS9 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS9.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS9.
+        ENDIF.
+
+      WHEN '10'.
+        IF ZKS10 = INTAB-ZKS .
+          CONTINUE.
+        ELSE.
+          STS = 'Y'.
+          PSKS = ZKS10.
+          UPDATE ZTPP_206 SET PSKS = PSKS WHERE PLNUM = INTAB-PLNUM AND PLNUMHH = INTAB-PLNUMHH .
+          IF SY-SUBRC <> 0.
+            FLAG = 'N'.
+            EXIT.
+          ENDIF.
+          GAMNG = GAMNG + INTAB-ZBCXH * ZKS10.
+        ENDIF.
+
+      WHEN OTHERS.
+
+    ENDCASE.
+  ENDLOOP.
+
+  IF FLAG <> 'N' AND STS = 'Y'.
+    UPDATE AFKO SET GAMNG = GAMNG WHERE AUFNR = AUFNR .
+    IF SY-SUBRC <> 0 .
+      FLAG = 'N'.
+      MESSAGE = '更新AFKO失败'.
+      ZFMDATASAVE2 'R'.
+    ELSE.
+      COMMIT WORK.
+      FLAG = 'Y'.
+      MESSAGE = '成功'.
+      ZFMDATASAVE2 'R'.
+    ENDIF.
+  ELSEIF FLAG <> 'N'.
+    FLAG = 'N'.
+    MESSAGE = '更新ZTPP_206失败'.
+    ZFMDATASAVE2 'R'.
+  ENDIF.
+
+ENDFUNCTION.

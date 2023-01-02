@@ -1,0 +1,30 @@
+FUNCTION zfm_oa2sap_juvi.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_ITAB STRUCTURE  ZTPS011A
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_OA2SAP_JUVI'.
+  zfmdatasave2 'B'.
+
+
+  IF in_itab[] IS INITIAL.
+    rtype = 'E'.
+    rtmsg = '传入内表为空'.
+    EXIT.
+  ENDIF.
+  MODIFY ztps011a FROM TABLE in_itab.
+  IF sy-subrc = 0.
+    rtype = 'S'.
+    rtmsg = '成功'.
+  ELSE.
+    rtype = 'E'.
+    rtmsg = '失败'.
+  ENDIF.
+  zfmdatasave2 'R'.
+
+
+ENDFUNCTION.

@@ -1,0 +1,11 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZMMD201B	ZSFMS_GETPCTX	获取批次特性	结构				
+ZMMD201B	ZSMMS_CHAR	批次特性CHAR类型	结构				
+ZMMD201B	ZSMM_223	锁定/解锁同步WMS入参抬头	结构				
+ZMMD201B	ZSMM_224	锁定/解锁同步WMS入参明细	结构				
+ZMMD201B	ZSMM_226	SAP合同释放/取消释放同步WMS入参	结构				
+ZMMD201B	ZTMM220	调拨单主表	透明表				
+ZMMD201B	ZTMM221	调拨单行项目表	透明表				
+ZMMD201B	ZTMM222	锁定解锁库存表	透明表				
+ZMMD201B	ZTPP316	生产包号-尺寸对照	透明表				
+ZMMD201B	ZTPS010A	CRM项目信息记录表	透明表				

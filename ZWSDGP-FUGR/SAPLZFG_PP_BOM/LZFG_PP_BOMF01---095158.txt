@@ -1,0 +1,7260 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZFG_PP_BOMF01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Form frm_xc_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260D
+*&      --> LT_CABN
+*&      --> LT_DD03L
+*&      --> LT_RETDATA
+*&---------------------------------------------------------------------*
+FORM frm_xc_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+*据取到的物料组、板型-ZBX、板厚-ZBH、芯材种类-ZXCZL到芯材配置表中取出:
+*芯材长度-ZLENGTH、
+*芯材宽度-ZKD，当配置表中取到“空”时取ZBK、
+*芯材厚度-ZHD,当配置表中取到“空”时取ZBH；
+*根据特征值到AUSP表中特征值-ATWRT查找对象号-OBJEK是否有值，如果有值则取出，
+*如取出多条多个则根据品名到MARA-ZZL1中进行排除
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_bx      TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbh     TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxczl   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxcrz   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxccd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_message TYPE bapi_msg,
+        lv_zbk     TYPE bapi1003_alloc_values_char-value_char,
+*        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_cpkd    TYPE p,
+        lv_etype   TYPE c.
+
+  CLEAR: lv_bx, lv_zbh, lv_zxczl.
+*需要获取 成品特性中的 版型 - ZBX / 外板形状 - ZWBXZ
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+     OR charact = 'ZXCZL'
+     OR charact = 'ZXCRZ'
+     OR charact = 'ZBK'
+     OR charact = 'ZXCCD'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+      lv_zbh = ls_char-value_char.
+
+*防止abap 异常
+      TRY .
+          gv_c_zbh_p = lv_zbh.
+
+        CATCH cx_root INTO DATA(lr_cxroot).
+          lv_etype = 'A'. "A - 成品宽度值错误
+          pc_msg = lr_cxroot->get_text( ).
+          CONCATENATE TEXT-010 "查询
+                      TEXT-013 "芯材
+                      TEXT-011 "时，
+                      TEXT-014 "成品
+                      TEXT-024 "板厚
+                      TEXT-022 "值
+                      TEXT-016 "错误。
+                      pc_msg
+                      INTO pc_msg
+                      .
+
+      ENDTRY.
+
+    ELSEIF ls_char-charact = 'ZXCZL'.
+      lv_zxczl = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZXCRZ'.
+      lv_zxcrz = ls_char-value_char.
+*
+    ELSEIF ls_char-charact = 'ZXCCD'.
+      lv_zxccd = ls_char-value_char.
+*
+    ELSEIF ls_char-charact = 'ZBK'.
+      lv_zbk = ls_char-value_char.
+
+*防止abap 异常
+      TRY .
+          gv_c_zbk_p = lv_zbk.
+
+*板宽没有具体数值的时候默认ZBK=1000
+          IF pu_retztpp260c-matkl = 'A0500'
+            AND gv_c_zbk_p = 0.
+            gv_c_zbk_p = 1000.
+            lv_zbk = '1000'.
+
+          ENDIF.
+
+        CATCH cx_root INTO lr_cxroot.
+          lv_etype = 'A'. "A - 成品宽度值错误
+          pc_msg = lr_cxroot->get_text( ).
+          CONCATENATE TEXT-010 "查询
+                      TEXT-013 "芯材
+                      TEXT-011 "时，
+                      TEXT-009 "成品宽度值
+                      TEXT-016 "错误。
+                      pc_msg
+                      INTO pc_msg
+                  SEPARATED BY space.
+
+      ENDTRY.
+
+    ENDIF.
+  ENDLOOP.
+
+  IF pu_retztpp260c-matkl = 'A0500'.
+    gv_c_zbk_p = 1000.
+    lv_zbk = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+
+*逻辑错误
+  IF lv_etype = 'A'.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "芯材 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = pc_type.
+    ls_retdata-message = pc_msg.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+  SORT pt_cabn BY atnam adzhl.
+
+  DATA: lt_auspconds TYPE zttpp_231_input,
+        ls_auspconds LIKE LINE OF lt_auspconds,
+        lt_auspdata  TYPE zttpp_231_output,
+        ls_auspdata  LIKE LINE OF lt_auspdata.
+
+  LOOP AT pt_ztpp260d
+  INTO DATA(ls_ztpp260d)
+
+  WHERE werks = pu_retztpp260c-werks
+    AND matkl = pu_retztpp260c-matkl
+    AND zxt = pu_retztpp260c-zxt
+    AND zbx = lv_bx
+    AND zbh = lv_zbh
+    AND zxczl = lv_zxczl
+*    AND zbk = lv_zbk
+    .
+
+*防止abap 异常
+    TRY .
+        gv_zlength_p = ls_ztpp260d-zlength.
+
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-041 "长度
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+*防止abap 异常
+    TRY .
+        gv_zqgsyllz_p = ls_ztpp260d-zqgsyllz.
+
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-015 "切割损益理论值
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+
+*防止abap 异常
+    TRY .
+        gv_zkd_p = ls_ztpp260d-zkd.
+        IF gv_zkd_p = 0.
+          gv_zkd_p = gv_c_zbk_p.
+
+        ENDIF.
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-042 "宽度
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+*防止abap 异常
+    TRY .
+        gv_zhd_p = ls_ztpp260d-zhd.
+        IF gv_zhd_p = 0.
+          gv_zhd_p = gv_c_zbh_p.
+
+        ENDIF.
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-017 "厚度
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+    IF lv_etype = 'A'.
+      pc_type = 'E'.
+      ls_retdata-zindex = gv_index. "芯材 顺序编号
+      ls_retdata-zclass = TEXT-013. "芯材
+      ls_retdata-zxt = pu_retztpp260c-zxt.
+      ls_retdata-type = pc_type.
+      ls_retdata-message = pc_msg.
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+*组件物料组
+*特性内外码
+    LOOP AT pt_cabn INTO DATA(ls_cabn)
+      WHERE atnam = 'ZHD'
+         OR atnam = 'ZLENGTH'
+         OR atnam = 'ZKD'
+         OR atnam = 'ZRZ'
+         OR atnam = 'ZCD'
+*           OR atnam = 'ZZSX'
+*           OR atnam = 'ZXCZL'
+*           OR atnam = 'ZBH'
+         .
+      ls_auspconds-atinn = ls_cabn-atinn.
+      ls_auspconds-atnam = ls_cabn-atnam.
+
+      CASE ls_auspconds-atnam.
+        WHEN 'ZKD'.
+          ls_auspconds-atwrt = gv_zkd_p.
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+        WHEN 'ZHD'.
+          ls_auspconds-atwrt = gv_zhd_p.
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+        WHEN 'ZLENGTH'.
+          ls_auspconds-atwrt = gv_zlength_p.
+
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+*          WHEN 'ZZSX'.
+*            ls_auspconds-atwrt = ls_ztpp260d-zzsx.
+
+        WHEN 'ZRZ'.
+          ls_auspconds-atwrt = lv_zxcrz.
+
+        WHEN 'ZCD'.
+          IF lv_zxccd EQ '无'.
+            CONTINUE.
+
+          ENDIF.
+
+          ls_auspconds-atwrt = lv_zxccd.
+*
+
+*        WHEN 'ZBH'.
+*          ls_auspconds-atwrt = lv_zbh.
+
+      ENDCASE.
+
+
+      APPEND ls_auspconds TO lt_auspconds.
+      CLEAR ls_auspconds.
+    ENDLOOP.
+
+    CLEAR: lt_auspdata[].
+
+    CALL FUNCTION 'ZFM_GP_GET_AUSP'
+      EXPORTING
+        it_auspconds = lt_auspconds
+        ip_werks     = pu_retztpp260c-werks
+      IMPORTING
+        et_retdata   = lt_auspdata.
+
+    SORT lt_auspdata BY objek.
+    DELETE ADJACENT DUPLICATES FROM lt_auspdata
+    COMPARING objek.
+
+    DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+    IF lv_lines > 1.
+      RANGES ra_matnr FOR mara-matnr.
+
+      LOOP AT lt_auspdata INTO ls_auspdata.
+        ra_matnr-sign = 'I'.
+        ra_matnr-option = 'EQ'.
+        ra_matnr-low = ls_auspdata-objek.
+        APPEND ra_matnr.
+        CLEAR ra_matnr.
+
+      ENDLOOP.
+
+
+
+*通过品名 再过滤一次
+      SELECT
+        mara~matnr,
+        mara~zzl1,
+        makt~maktx
+        INTO TABLE @DATA(lt_makt)
+        FROM mara
+        INNER JOIN makt
+        ON makt~matnr = mara~matnr
+
+        WHERE mara~matnr IN @ra_matnr
+          AND mara~zzl1 = @ls_ztpp260d-zzl1
+          AND makt~spras = '1'
+        .
+      IF sy-subrc = 0.
+        SORT lt_makt BY matnr.
+
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "芯材 顺序编号
+        ls_retdata-zclass = TEXT-013. "芯材
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-type = pc_type.
+        ls_retdata-auspconds = lt_auspconds[].
+        CONCATENATE TEXT-034 "通过品名
+                    ls_ztpp260d-zzl1
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+
+      ENDIF.
+
+      DESCRIBE TABLE lt_makt LINES lv_lines.
+
+      IF lv_lines = 1.
+        READ TABLE lt_makt INTO DATA(ls_makt) INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_makt-matnr.
+
+        ENDIF.
+      ELSE.
+        LOOP AT lt_makt INTO ls_makt.
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+          ls_idnrklist-zzl1 = ls_makt-zzl1.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+        IF lv_zxccd EQ '无'.
+
+          READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+          IF sy-subrc = 0.
+            ls_retdata-idnrk = ls_auspdata-objek.
+
+          ELSE.
+*找不到时 要报错
+            pc_type = 'E'.
+            ls_retdata-zindex = gv_index. "芯材 顺序编号
+            ls_retdata-zclass = TEXT-013. "芯材
+            ls_retdata-zxt = pu_retztpp260c-zxt.
+            ls_retdata-type = pc_type.
+
+            LOOP AT lt_auspconds INTO ls_auspconds.
+              CONCATENATE ls_auspconds-atnam
+                          ls_auspconds-atwrt
+                          INTO DATA(lv_tx)
+                          SEPARATED BY space.
+
+              CONCATENATE ls_retdata-message
+                          lv_tx
+                     INTO ls_retdata-message
+                     SEPARATED BY space.
+
+            ENDLOOP.
+            CONCATENATE TEXT-036 "通过特性
+                        ls_retdata-message
+                        TEXT-035 "过滤后，无数据。
+                   INTO ls_retdata-message.
+
+            APPEND ls_retdata TO pt_retdata.
+            CLEAR ls_retdata.
+
+            EXIT.
+
+          ENDIF.
+
+        ELSE.
+          ls_retdata-type = 'E'.
+*        ls_retdata-message = '存在多个组件,无法自动选择'.
+          CONCATENATE ls_retdata-message
+                      '存在多个组件,无法自动选择'
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+
+        ENDIF.
+
+      ENDIF.
+
+    ELSE.
+      READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+      IF sy-subrc = 0.
+        ls_retdata-idnrk = ls_auspdata-objek.
+
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "芯材 顺序编号
+        ls_retdata-zclass = TEXT-013. "芯材
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-type = pc_type.
+
+        LOOP AT lt_auspconds INTO ls_auspconds.
+          CONCATENATE ls_auspconds-atnam
+                      ls_auspconds-atwrt
+                      INTO lv_tx
+                      SEPARATED BY space.
+
+          CONCATENATE ls_retdata-message
+                      lv_tx
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+        ENDLOOP.
+        CONCATENATE TEXT-036 "通过特性
+                    ls_retdata-message
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+
+      ENDIF.
+
+    ENDIF.
+
+    CLEAR : lt_auspconds[], lt_auspdata[], lt_makt[].
+    ls_retdata-zxt = ls_ztpp260d-zxt.
+*      ls_retdata-idnrk = ls_ztpp260e-matnr.
+    ls_retdata-meins = ls_ztpp260d-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260d-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260d-zyl.
+    ELSE.
+      IF ls_ztpp260d-zylgs NE ''.
+        CLEAR lv_message.
+        PERFORM frm_gongshi
+        USING ls_ztpp260d-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+                 .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "芯材 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "展宽 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-013 "芯材
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+                TEXT-031 "板厚
+                lv_zbh
+                TEXT-032 "芯材种类
+                lv_zxczl
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_get_configs
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&---------------------------------------------------------------------*
+FORM frm_get_configs
+  TABLES
+    pt_matkl TYPE zttpp_228_input
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260o STRUCTURE ztpp_260o
+    pt_ztpp260u STRUCTURE ztpp_260u
+    pt_ztpp260a5 STRUCTURE ztpp_260a5
+  .
+
+*  CHECK pt_matkl[] IS NOT INITIAL.
+
+*判断物料组是否存在半成品
+  SELECT
+    *
+    INTO TABLE pt_ztpp260a
+    FROM ztpp_260a
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260a BY werks matkl.
+
+  ENDIF.
+
+*内板属性
+  SELECT
+    *
+    INTO TABLE pt_ztpp260b
+    FROM ztpp_260b
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+*      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260b BY werks znbcz znbcd
+                        znbtc znbdc znbqd "znbxz
+*                        zbx
+                        .
+
+  ENDIF.
+
+*芯材
+  SELECT
+    *
+    INTO TABLE pt_ztpp260d
+    FROM ztpp_260d
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260d BY werks matkl zbx zbh zxczl.
+
+  ENDIF.
+
+*胶水
+  SELECT
+    *
+    INTO TABLE pt_ztpp260n
+    FROM ztpp_260n
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260n BY werks matkl zbx zxt.
+
+  ENDIF.
+
+*粘合剂黑料
+  SELECT
+    *
+    INTO TABLE pt_ztpp260j
+    FROM ztpp_260j
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260j BY werks matkl zbx zxt.
+
+  ENDIF.
+
+*封边黑料
+  SELECT
+    *
+    INTO TABLE pt_ztpp260i
+    FROM ztpp_260i
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260i BY werks matkl zbx zxczl zxt.
+
+  ENDIF.
+
+*白料
+  SELECT
+    *
+    INTO TABLE pt_ztpp260h
+    FROM ztpp_260h
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260h BY werks matkl zbx zxczl zxt.
+
+  ENDIF.
+
+*白料
+  SELECT
+    *
+    INTO TABLE pt_ztpp260g
+    FROM ztpp_260g
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260g BY werks matkl zbx zbh zxt.
+
+  ENDIF.
+
+*海绵条
+  SELECT
+    *
+    INTO TABLE pt_ztpp260m
+    FROM ztpp_260m
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260m BY werks matkl zbx zbh zxt.
+
+  ENDIF.
+
+*PE保护膜
+  SELECT
+    *
+    INTO TABLE pt_ztpp260e
+    FROM ztpp_260e
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260e BY werks zxt matkl zbx zwbxz.
+
+  ENDIF.
+
+*内外板展宽加量
+  SELECT
+    *
+    INTO TABLE pt_ztpp260c
+    FROM ztpp_260c
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260c BY werks matkl zbx zwbxz zxt.
+
+  ENDIF.
+
+*外板属性
+  SELECT
+    *
+    INTO TABLE pt_ztpp260l
+    FROM ztpp_260l
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+*      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260l BY werks zwbcz zwbcd zwbtc zwbdc zwbqd.
+
+  ENDIF.
+
+*品名配置表
+  SELECT
+    *
+    INTO TABLE pt_ztpp260p
+    FROM ztpp_260p
+*    FOR ALL ENTRIES IN pt_matkl
+*    WHERE werks = pt_matkl-werks
+*      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260p BY zpmid.
+
+  ENDIF.
+
+*特性组合配置表
+  SELECT
+    *
+    INTO TABLE pt_ztpp260q
+    FROM ztpp_260q
+*    FOR ALL ENTRIES IN pt_matkl
+*    WHERE werks = pt_matkl-werks
+*      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260q BY ztxgroup.
+
+  ENDIF.
+
+*BOM序号与产品对应表
+  SELECT
+    *
+    INTO TABLE pt_ztpp260r
+    FROM ztpp_260r
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+*      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260r BY werks zxt.
+
+  ENDIF.
+
+*瓦楞白料
+  SELECT
+    *
+    INTO TABLE pt_ztpp260s
+    FROM ztpp_260s
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260s BY werks zxt matkl zbx zxczl.
+
+  ENDIF.
+
+*预制金属板压瓦
+  SELECT
+    *
+    INTO TABLE pt_ztpp260t
+    FROM ztpp_260t
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260t BY werks zxt matkl zbxgg.
+
+  ENDIF.
+
+*特殊无纺布
+  SELECT
+    *
+    INTO TABLE pt_ztpp260u
+    FROM ztpp_260u
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260u BY werks zxt matkl zbx zoption zhd.
+
+  ENDIF.
+
+
+*组框
+  SELECT
+    *
+    INTO TABLE pt_ztpp260o
+    FROM ztpp_260o
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260u BY werks zxt matkl zbx zhd.
+
+  ENDIF.
+
+*
+  SELECT
+    *
+    INTO TABLE pt_ztpp260a5
+    FROM ztpp_260a5
+    FOR ALL ENTRIES IN pt_matkl
+    WHERE werks = pt_matkl-werks
+      AND matkl = pt_matkl-matkl
+    .
+  IF sy-subrc = 0.
+    SORT pt_ztpp260a5 BY werks zxt matkl zfhdj zxczl.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_js_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260N
+*&      --> LT_CABN
+*&      --> LT_DD03L
+*&      --> LT_RETDATA
+*&---------------------------------------------------------------------*
+FORM frm_js_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA: lv_etype   TYPE bapi_mtype,
+        lv_message TYPE bapi_msg.
+
+  READ TABLE pt_char INTO DATA(ls_char)
+  WITH KEY charact = 'ZBK'
+  .
+  IF sy-subrc = 0.
+*防止abap 异常
+    TRY .
+        gv_c_zbk_p = ls_char-value_char.
+
+      CATCH cx_root INTO DATA(lr_cxroot).
+        lv_etype = 'A'. "A - 成品宽度值错误
+        lv_message = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-001 "胶水
+                    TEXT-011 "时，
+                    TEXT-009 "成品宽度值
+                    TEXT-016 "错误。
+                    lv_message
+                    INTO lv_message
+                SEPARATED BY space.
+
+    ENDTRY.
+
+  ENDIF.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+*    lv_zbk = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+*逻辑错误
+  IF lv_etype = 'A'.
+*    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "粘合剂黑料 顺序编号
+    ls_retdata-zclass = TEXT-001. "胶水
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = 'E'.
+    ls_retdata-message = lv_message.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+
+*需要获取 成品特性中的 版型 - ZBX
+  READ TABLE pt_char INTO ls_char
+  WITH KEY charact = 'ZBX'
+  .
+  IF sy-subrc = 0.
+
+*通过配置表取 组件 * 根据线体返回
+    LOOP AT pt_ztpp260n
+    INTO DATA(ls_ztpp260n)
+    WHERE zxt = pu_retztpp260c-zxt
+      AND matkl = pu_retztpp260c-matkl
+      AND zbx = ls_char-value_char
+      .
+      ls_retdata-zxt = ls_ztpp260n-zxt.
+      ls_retdata-idnrk = ls_ztpp260n-matnr.
+      ls_retdata-meins = ls_ztpp260n-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+      IF ls_ztpp260n-zyl IS NOT INITIAL.
+
+        ls_retdata-zyl = ls_ztpp260n-zyl.
+      ELSE.
+        IF ls_ztpp260n-zylgs NE ''.
+          PERFORM frm_gongshi
+          USING ls_ztpp260n-zylgs
+          CHANGING ls_retdata-zyl
+                   lv_message
+                   .
+
+          IF lv_message NE ''.
+            CONCATENATE ls_retdata-message
+                        lv_message
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+            ls_retdata-type = 'E'.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+
+      ls_retdata-zindex = gv_index. "胶水 顺序编号
+      ls_retdata-zclass = TEXT-001. "胶水
+      IF ls_retdata-zyl = 0.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+        CONCATENATE ls_retdata-message
+                    '用量不得为 0'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ENDIF.
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+    ENDLOOP.
+
+
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_nhjhl_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260M
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&---------------------------------------------------------------------*
+FORM frm_nhjhl_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA: lv_etype   TYPE bapi_mtype,
+        lv_message TYPE bapi_msg.
+
+  DATA: lv_bx TYPE bapi1003_alloc_values_char-value_char.
+
+  CLEAR: lv_bx.
+*需要获取 成品特性中的 版型 - ZBX / 板厚 - ZBH
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBK'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBK'.
+*防止abap 异常
+
+      gv_c_zbk_p = ls_char-value_char.
+
+    ENDIF.
+  ENDLOOP.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+*    lv_zbk = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+*逻辑错误
+  IF lv_etype = 'A'.
+*    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "粘合剂黑料 顺序编号
+    ls_retdata-zclass = TEXT-002. "粘合剂黑料
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = 'E'.
+    ls_retdata-message = lv_message.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260j
+  INTO DATA(ls_ztpp260j)
+  WHERE werks = pu_retztpp260c-werks
+    AND zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    .
+    ls_retdata-zxt = ls_ztpp260j-zxt.
+    ls_retdata-idnrk = ls_ztpp260j-matnr.
+    ls_retdata-meins = ls_ztpp260j-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260j-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260j-zyl.
+    ELSE.
+      IF ls_ztpp260j-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260j-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+
+            .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "粘合剂黑料 顺序编号
+    ls_retdata-zclass = TEXT-002. "粘合剂黑料
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+
+    ls_retdata-zindex = gv_index. "粘合剂黑料 顺序编号
+    ls_retdata-zclass = TEXT-002. "粘合剂黑料
+    ls_retdata-type = 'E'.
+    CONCATENATE TEXT-010 "查询
+                TEXT-002 "粘合剂黑料
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_gongshi
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_ZTPP260J_ZYLGS
+*&      <-- LS_RETDATA_ZYL
+*&---------------------------------------------------------------------*
+FORM frm_gongshi
+  USING
+    pu_zylgs TYPE ze_ylgs
+  CHANGING
+    pc_zyl TYPE ze_yl
+    pc_message TYPE bapi_msg
+  .
+
+
+
+  DATA: dataf TYPE f,
+        datap TYPE lbkum.
+
+
+  CALL FUNCTION 'CHECK_FORMULA'
+    EXPORTING
+      formula           = pu_zylgs
+      program           = sy-repid
+      routine           = 'FRM_CHECK_FORMULA'
+*     UNIT_OF_MEASURE   = ' '
+* IMPORTING
+*     FUNCNAME          =
+*     MESSAGE           =
+*     POS               =
+*     SUBRC             =
+    EXCEPTIONS
+      error_in_formula  = 1
+      missing_parameter = 2
+      OTHERS            = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+          INTO pc_message.
+
+    RETURN.
+
+  ENDIF.
+
+  CALL FUNCTION 'EVAL_FORMULA'
+    EXPORTING
+      formula                 = pu_zylgs
+      program                 = sy-repid
+      routine                 = 'FRM_GET_FORMULA_VALUE'
+    IMPORTING
+      value                   = dataf
+    EXCEPTIONS
+      division_by_zero        = 1
+      exp_error               = 2
+      formula_table_not_valid = 3
+      invalid_expression      = 4
+      invalid_value           = 5
+      log_error               = 6
+      parameter_error         = 7
+      sqrt_error              = 8
+      units_not_valid         = 9
+      missing_parameter       = 10
+      OTHERS                  = 11.
+*  BREAK cuijunhu.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+          INTO pc_message.
+
+    RETURN.
+
+  ELSE.
+
+    pc_zyl = dataf.
+*    MOVE dataf TO datap.
+*    WRITE:/ formula, datap.
+  ENDIF.
+
+ENDFORM.
+
+FORM frm_check_formula USING VALUE(name)
+                       CHANGING VALUE(subrc).
+  subrc = 0.
+
+ENDFORM.
+
+
+FORM frm_get_formula_value USING VALUE(name)
+                  CHANGING VALUE(value)
+                           VALUE(subrc).
+
+
+  subrc = 0.
+  value = 0.
+  CASE name.
+    WHEN 'C_ZBH'."成品板厚
+      value = gv_c_zbh_p.
+
+    WHEN 'C_ZBK'."成品板宽
+      value = gv_c_zbk_p.
+
+    WHEN 'ZHD'.
+      value = gv_zhd_p.
+
+    WHEN 'ZBH'.
+      value = gv_c_zbh_p.
+
+    WHEN 'ZRH'.
+      value = gv_c_zrh_p.
+
+    WHEN 'ZQGSYLLZ'.
+      value = gv_zqgsyllz_p.
+*    WHEN 'D'.
+*      value = d_val.
+  ENDCASE.
+ENDFORM.                    "VAR_GET
+
+
+*&---------------------------------------------------------------------*
+*& Form frm_fbhl_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260I
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&---------------------------------------------------------------------*
+FORM frm_fbhl_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA: lv_etype   TYPE bapi_mtype,
+        lv_message TYPE bapi_msg.
+
+  DATA: lv_bx   TYPE bapi1003_alloc_values_char-value_char,
+        lv_xczl TYPE bapi1003_alloc_values_char-value_char.
+
+  CLEAR: lv_bx, lv_xczl.
+*需要获取 成品特性中的 版型 - ZBX / 芯材种类 - ZXCZL
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZXCZL'
+     OR charact = 'ZBH'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZXCZL'.
+      lv_xczl = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+
+*防止abap 异常
+      TRY .
+          gv_c_zbh_p = ls_char-value_char.
+
+        CATCH cx_root INTO DATA(lr_cxroot).
+          lv_etype = 'A'. "A - 成品宽度值错误
+          lv_message = lr_cxroot->get_text( ).
+          CONCATENATE TEXT-010 "查询
+                      TEXT-003 "封边黑料
+                      TEXT-011 "时，
+                      TEXT-024 "板厚
+                      TEXT-016 "错误。
+                      lv_message
+                      INTO lv_message
+                  SEPARATED BY space.
+
+      ENDTRY.
+    ENDIF.
+  ENDLOOP.
+
+*逻辑错误
+  IF lv_etype = 'A'.
+*    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "粘合剂黑料 顺序编号
+    ls_retdata-zclass = TEXT-002. "粘合剂黑料
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = 'E'.
+    ls_retdata-message = lv_message.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260i
+  INTO DATA(ls_ztpp260i)
+  WHERE zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zxczl = lv_xczl
+    .
+    ls_retdata-zxt = ls_ztpp260i-zxt.
+    ls_retdata-idnrk = ls_ztpp260i-matnr.
+    ls_retdata-meins = ls_ztpp260i-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260i-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260i-zyl.
+    ELSE.
+      IF ls_ztpp260i-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260i-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message.
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "封边黑料 顺序编号
+    ls_retdata-zclass = TEXT-003. "封边黑料
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_fbbl_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260H
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&---------------------------------------------------------------------*
+FORM frm_fbbl_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA: lv_etype   TYPE bapi_mtype,
+        lv_message TYPE bapi_msg.
+
+  DATA: lv_bx   TYPE bapi1003_alloc_values_char-value_char,
+        lv_xczl TYPE bapi1003_alloc_values_char-value_char.
+
+  CLEAR: lv_bx, lv_xczl.
+*需要获取 成品特性中的 版型 - ZBX / 芯材种类 - ZXCZL
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZXCZL'
+     OR charact = 'ZBH'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZXCZL'.
+      lv_xczl = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+
+*防止abap 异常
+      TRY .
+          gv_c_zbh_p = ls_char-value_char.
+
+        CATCH cx_root INTO DATA(lr_cxroot).
+          lv_etype = 'A'. "A - 成品宽度值错误
+          lv_message = lr_cxroot->get_text( ).
+          CONCATENATE TEXT-010 "查询
+                      TEXT-004 "封边白料
+                      TEXT-011 "时，
+                      TEXT-024 "板厚
+                      TEXT-016 "错误。
+                      lv_message
+                      INTO lv_message
+                  SEPARATED BY space.
+
+      ENDTRY.
+
+    ENDIF.
+  ENDLOOP.
+
+*逻辑错误
+  IF lv_etype = 'A'.
+*    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "粘合剂黑料 顺序编号
+    ls_retdata-zclass = TEXT-002. "粘合剂黑料
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = 'E'.
+    ls_retdata-message = lv_message.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260h
+  INTO DATA(ls_ztpp260h)
+  WHERE zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zxczl = lv_xczl
+    .
+    ls_retdata-zxt = ls_ztpp260h-zxt.
+    ls_retdata-idnrk = ls_ztpp260h-matnr.
+    ls_retdata-meins = ls_ztpp260h-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260h-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260h-zyl.
+    ELSE.
+      IF ls_ztpp260h-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260h-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+                 .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "封边白料 顺序编号
+    ls_retdata-zclass = TEXT-004. "封边白料
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_jd_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260G
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&---------------------------------------------------------------------*
+FORM frm_jd_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA lv_message TYPE bapi_msg.
+
+  DATA: lv_bx TYPE bapi1003_alloc_values_char-value_char,
+        lv_bh TYPE bapi1003_alloc_values_char-value_char.
+
+  CLEAR: lv_bx, lv_bh.
+*需要获取 成品特性中的 版型 - ZBX / 板厚 - ZBH
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+      lv_bh = ls_char-value_char.
+
+    ENDIF.
+  ENDLOOP.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+*    lv_zbk = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260g
+  INTO DATA(ls_ztpp260g)
+  WHERE zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zbh = lv_bh
+    .
+    ls_retdata-zxt = ls_ztpp260g-zxt.
+    ls_retdata-idnrk = ls_ztpp260g-matnr.
+    ls_retdata-meins = ls_ztpp260g-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260g-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260g-zyl.
+    ELSE.
+      IF ls_ztpp260g-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260g-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+          .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "胶带 顺序编号
+    ls_retdata-zclass = TEXT-005. "胶带
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+
+    ls_retdata-zindex = gv_index. "胶带 顺序编号
+    ls_retdata-zclass = TEXT-005. "胶带
+    ls_retdata-type = 'E'.
+    CONCATENATE TEXT-010 "查询
+                TEXT-005 "胶带
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+                TEXT-024 "板厚
+                lv_bh
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_hmt_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260M
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&---------------------------------------------------------------------*
+FORM frm_hmt_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA lv_message TYPE bapi_msg.
+
+  DATA: lv_bx TYPE bapi1003_alloc_values_char-value_char,
+        lv_bh TYPE bapi1003_alloc_values_char-value_char.
+
+  CLEAR: lv_bx, lv_bh.
+*需要获取 成品特性中的 版型 - ZBX / 板厚 - ZBH
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+      lv_bh = ls_char-value_char.
+
+    ENDIF.
+  ENDLOOP.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+*    lv_zbk = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260m
+  INTO DATA(ls_ztpp260m)
+  WHERE zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zbh = lv_bh
+    .
+    ls_retdata-zxt = ls_ztpp260m-zxt.
+    ls_retdata-idnrk = ls_ztpp260m-matnr.
+    ls_retdata-meins = ls_ztpp260m-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260m-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260m-zyl.
+    ELSE.
+      IF ls_ztpp260m-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260m-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+          .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "海绵条 顺序编号
+    ls_retdata-zclass = TEXT-006. "海绵条
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+
+    ls_retdata-zindex = gv_index. "海绵条 顺序编号
+    ls_retdata-zclass = TEXT-006. "海绵条
+    ls_retdata-type = 'E'.
+    CONCATENATE TEXT-010 "查询
+                TEXT-006 "海绵条
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+                TEXT-024 "板厚
+                lv_bh
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_pebhm_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260E
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&---------------------------------------------------------------------*
+FORM frm_pebhm_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+  USING
+*    pu_retztpp260c-matkl TYPE matkl
+*    pu_retztpp260c-werks TYPE werks_d
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_bx    TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zkd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbys TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbtc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbfm TYPE bapi1003_alloc_values_char-value_char,
+*        lv_cpkd  TYPE p,
+        lv_etype TYPE c.
+
+  DATA: lt_auspconds TYPE zttpp_231_input,
+        ls_auspconds LIKE LINE OF lt_auspconds,
+        lt_auspdata  TYPE zttpp_231_output,
+        ls_auspdata  LIKE LINE OF lt_auspdata.
+
+  CLEAR: lv_bx, lv_zwbxz.
+
+*PE保护膜（外板）：
+*物料组-MATKL、板型-ZBX、当外板形状-ZWBXZ，到PE保护膜配置表取：
+*PE保护膜厚度-ZHD、PE保护膜颜色-ZYS、
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZWBXZ'
+     OR charact = 'ZBK'
+     OR charact = 'ZWBYS'
+     OR charact = 'ZWBCZ'
+     OR charact = 'ZWBTC'
+     OR charact = 'ZWBFM'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBTC'.
+      lv_zwbtc = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBCZ'.
+      lv_zwbcz = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBXZ'.
+      lv_zwbxz = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBYS'.
+      lv_zwbys = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBFM'.
+      lv_zwbfm = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBK'.
+      gv_c_zbk_p = ls_char-value_char.
+
+    ENDIF.
+  ENDLOOP.
+  IF pu_retztpp260c-matkl = 'A0500'.
+    gv_c_zbk_p = 1000.
+*    lv_cpkd = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+*外板保护膜取值
+*去AUSP 反找物流 取值时的特性范围框定
+  IF lv_etype = 'A'.
+    "说明成品宽度不是数字，有问题，报错了就没法找了
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "PE保护膜 顺序编号
+    ls_retdata-zclass = TEXT-007. "PE保护膜-内板
+    ls_retdata-type = pc_type.
+    ls_retdata-message = pc_msg.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+*非V8波纹 时， 配置表中 空表示
+  IF lv_zwbxz NE 'V8波纹'.
+    CLEAR lv_zwbxz.
+
+  ENDIF.
+
+  LOOP AT pt_ztpp260e
+  INTO DATA(ls_ztpp260e)
+  WHERE werks = pu_retztpp260c-werks
+    AND zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zwbxz = lv_zwbxz
+    .
+    ls_retdata-zxt = ls_ztpp260e-zxt.
+
+*没有配置 物料号的时候， 要通过特性找 AUSP
+
+*当涂层种类=“辉彩”时，ZHD="6S",ZYS=“透明”，
+*ZND=“磨砂专用”；当涂层种类≠“辉彩”时，ZHD="4S",ZYS=“透明”，
+*ZND=“低增长普粘”，PE保护膜宽度-ZKD=成品宽度-ZKD+宽度加量-ZKDJL  ，
+*印字要求-ZYZYQ默认"无印字"  ,内板PE保护膜用量-ZNYL； 并取出
+    CASE lv_zwbtc.
+      WHEN '辉彩'.
+        IF pu_retztpp260c-matkl = 'A0300'.
+
+
+        ELSE.
+
+          ls_ztpp260e-zhd = '6'.
+          ls_ztpp260e-zys = '透明'.
+          ls_ztpp260e-znd = '磨砂专用'.
+        ENDIF.
+
+      WHEN OTHERS.
+        IF pu_retztpp260c-matkl = 'A0300'.
+
+
+        ELSE.
+
+          ls_ztpp260e-zhd = '4'.
+          ls_ztpp260e-zys = '透明'.
+          ls_ztpp260e-znd = '低增长普粘'.
+        ENDIF.
+
+    ENDCASE.
+
+    CLEAR lt_auspconds[].
+    LOOP AT pt_cabn INTO DATA(ls_cabn)
+      WHERE atnam = 'ZHDS'
+         OR atnam = 'ZYS'
+         OR atnam = 'ZND'
+         OR atnam = 'ZKD'
+         OR atnam = 'ZYZYQ'
+         .
+      ls_auspconds-atinn = ls_cabn-atinn.
+      ls_auspconds-atnam = ls_cabn-atnam.
+
+*PE保护膜宽度-ZKD=成品宽度-ZKD+宽度加量-ZKDJL、
+      CASE ls_auspconds-atnam.
+        WHEN 'ZKD'.
+          IF pu_retztpp260c-matkl = 'A0500'.
+            ls_auspconds-atwrt = gv_c_zbk_p.
+
+          ELSE.
+            ls_auspconds-atwrt = gv_c_zbk_p + ls_ztpp260e-znbjl.
+
+          ENDIF.
+
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+        WHEN 'ZHDS'.
+          ls_auspconds-atwrt = ls_ztpp260e-zhd.
+
+        WHEN 'ZND'.
+*当涂层种类-ZTCZL=“辉彩”时，粘度-ZND=“磨砂膜专用膜”
+*当外板材质-ZWBCZ=“烨辉彩涂钢”时，粘度-ZND=“白银灰专用膜”当外板材质-ZWBCZ≠“辉彩彩涂钢”
+*或“烨辉彩涂钢”时粘度-ZND=“防静电”
+          IF pu_retztpp260c-matkl = 'A0300'.
+            IF lv_zwbtc = '辉彩'.
+              ls_auspconds-atwrt = '磨砂膜专用膜'.
+
+            ELSE.
+
+              IF lv_zwbcz EQ '烨辉彩涂钢'.
+                ls_auspconds-atwrt = '白银灰专用膜'.
+
+              ELSE.
+                ls_auspconds-atwrt = '防静电'.
+
+              ENDIF.
+
+            ENDIF.
+
+          ELSE.
+
+            ls_auspconds-atwrt = ls_ztpp260e-znd.
+
+          ENDIF.
+
+        WHEN 'ZYS'.
+*颜色-ZYS：当外板覆膜-ZWBFM=“覆白膜”时颜色-ZYS=“白色”，外板覆膜-ZWBFM≠“覆白膜”时颜色-ZYS=“透明”
+          IF pu_retztpp260c-matkl = 'A0300'.
+            IF lv_zwbfm = '覆白膜'.
+              ls_auspconds-atwrt = '白色'.
+
+            ELSE.
+              ls_auspconds-atwrt = '透明'.
+
+            ENDIF.
+          ELSE.
+            ls_auspconds-atwrt = ls_ztpp260e-zys.
+
+          ENDIF.
+
+*印字要求默认"无"，
+        WHEN 'ZYZYQ'.
+          ls_auspconds-atwrt = '无印字'.
+
+      ENDCASE.
+
+
+      APPEND ls_auspconds TO lt_auspconds.
+      CLEAR ls_auspconds.
+    ENDLOOP.
+
+    CLEAR: lt_auspdata[].
+    IF pu_retztpp260c-matkl = 'A0300'.
+*当粘度-ZND=“防静电”时保护膜厚度-ZHD=“5S”，当粘度-ZND≠“防静电”时保护膜厚度-ZHD=“6S”
+      READ TABLE lt_auspconds
+      INTO ls_auspconds
+      WITH KEY atnam = 'ZND'.
+      IF sy-subrc = 0.
+
+        READ TABLE lt_auspconds
+        ASSIGNING FIELD-SYMBOL(<fs_ausp>)
+        WITH KEY atnam = 'ZHDS'.
+        IF sy-subrc = 0.
+          IF ls_auspconds-atwrt = '防静电'.
+            <fs_ausp>-atwrt = '5'.
+
+          ELSE.
+            <fs_ausp>-atwrt = '6'.
+
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+    ELSE.
+
+    ENDIF.
+
+    CALL FUNCTION 'ZFM_GP_GET_AUSP'
+      EXPORTING
+        it_auspconds = lt_auspconds
+        ip_werks     = pu_retztpp260c-werks
+      IMPORTING
+        et_retdata   = lt_auspdata.
+
+    SORT lt_auspdata BY objek.
+    DELETE ADJACENT DUPLICATES FROM lt_auspdata
+    COMPARING objek.
+
+    DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+    IF lv_lines > 1.
+*      ls_retdata-type = 'E'.
+*      ls_retdata-message = '存在多个组件,无法自动选择'.
+
+
+      RANGES ra_matnr FOR mara-matnr.
+
+      LOOP AT lt_auspdata INTO ls_auspdata.
+        ra_matnr-sign = 'I'.
+        ra_matnr-option = 'EQ'.
+        ra_matnr-low = ls_auspdata-objek.
+        APPEND ra_matnr.
+        CLEAR ra_matnr.
+
+      ENDLOOP.
+
+*通过品名 再过滤一次
+      SELECT
+        mara~matnr,
+        mara~zzl1,
+        makt~maktx
+        INTO TABLE @DATA(lt_makt)
+        FROM mara
+        INNER JOIN makt
+        ON makt~matnr = mara~matnr
+
+        WHERE mara~matnr IN @ra_matnr
+*          AND mara~zzl1 = @ls_ztpp260d-zzl1
+          AND makt~spras = '1'
+        .
+      IF sy-subrc = 0.
+        SORT lt_makt BY matnr.
+
+      ELSE.
+**找不到时 要报错
+*        pc_type = 'E'.
+*        ls_retdata-zindex = gv_index. "芯材 顺序编号
+*        ls_retdata-zclass = TEXT-013. "芯材
+*        ls_retdata-zxt = pu_retztpp260c-zxt.
+*        ls_retdata-type = pc_type.
+*        ls_retdata-auspconds = lt_auspconds[].
+*        CONCATENATE TEXT-034 "通过品名
+*                    ls_ztpp260d-zzl1
+*                    TEXT-035 "过滤后，无数据。
+*               INTO ls_retdata-message.
+*
+*        APPEND ls_retdata TO pt_retdata.
+*        CLEAR ls_retdata.
+*
+*        EXIT.
+
+      ENDIF.
+
+      DESCRIBE TABLE lt_makt LINES lv_lines.
+
+      IF lv_lines = 1.
+        READ TABLE lt_makt INTO DATA(ls_makt) INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_makt-matnr.
+
+        ENDIF.
+      ELSE.
+        LOOP AT lt_makt INTO ls_makt.
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+          ls_idnrklist-zzl1 = ls_makt-zzl1.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+*        IF lv_zxccd EQ '无'.
+
+        READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_auspdata-objek.
+
+        ELSE.
+*找不到时 要报错
+          pc_type = 'E'.
+          ls_retdata-zindex = gv_index. "PE保护膜-内板 顺序编号
+          ls_retdata-zclass = TEXT-007. "PE保护膜-内板
+          ls_retdata-zxt = pu_retztpp260c-zxt.
+          ls_retdata-type = pc_type.
+
+          LOOP AT lt_auspconds INTO ls_auspconds.
+            CONCATENATE ls_auspconds-atnam
+                        ls_auspconds-atwrt
+                        INTO DATA(lv_tx)
+                        SEPARATED BY space.
+
+            CONCATENATE ls_retdata-message
+                        lv_tx
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+
+          ENDLOOP.
+          CONCATENATE TEXT-036 "通过特性
+                      ls_retdata-message
+                      TEXT-035 "过滤后，无数据。
+                 INTO ls_retdata-message.
+
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+          EXIT.
+
+        ENDIF.
+
+*        ELSE.
+*          ls_retdata-type = 'E'.
+**        ls_retdata-message = '存在多个组件,无法自动选择'.
+*          CONCATENATE ls_retdata-message
+*                      '存在多个组件,无法自动选择'
+*                 INTO ls_retdata-message
+*                 SEPARATED BY space.
+*
+*
+*        ENDIF.
+
+      ENDIF.
+
+    ELSE.
+      READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+      IF sy-subrc = 0.
+        ls_retdata-idnrk = ls_auspdata-objek.
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "PE保护膜-外板 顺序编号
+        ls_retdata-zclass = TEXT-007. "PE保护膜-内板
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-type = pc_type.
+
+        LOOP AT lt_auspconds INTO ls_auspconds.
+          CONCATENATE ls_auspconds-atnam
+                      ls_auspconds-atwrt
+                      INTO lv_tx
+                      SEPARATED BY space.
+
+          CONCATENATE ls_retdata-message
+                      lv_tx
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+        ENDLOOP.
+        CONCATENATE TEXT-036 "通过特性
+                    ls_retdata-message
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+
+      ENDIF.
+
+
+      CLEAR : lt_auspconds[], lt_auspdata[].
+
+    ENDIF.
+
+    ls_retdata-meins = ls_ztpp260e-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260e-znyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260e-znyl.
+    ELSE.
+*        IF ls_ztpp260e-zylgs NE ''.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260e-zylgs
+*          CHANGING ls_retdata-zyl.
+*
+*        ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "PE保护膜 顺序编号
+    ls_retdata-zclass = TEXT-007. "PE保护膜-内板
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "展宽 顺序编号
+    ls_retdata-zclass = TEXT-007. "PE保护膜-内板
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-007 "PE保护膜-内板
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+
+                TEXT-052 "外板形状
+                lv_zwbxz
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_wbsx_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260L
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LS_DATALIST_MATKL
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_wbsx_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+  USING
+    pu_retztpp260c-matkl TYPE matkl
+    pu_retztpp260c-werks TYPE werks_d
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+  DATA: ls_ztpp260l LIKE LINE OF pt_ztpp260l,
+        ls_ztpp260c LIKE LINE OF pt_ztpp260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA: lv_bx    TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zkd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbys TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_cpkd  TYPE p,
+        lv_etype TYPE c.
+
+  CLEAR: lv_bx, lv_zwbxz.
+*需要获取 成品特性中的 外板材质-ZWBCZ
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZWBCZ'
+  .
+    IF ls_char-charact = 'ZWBCZ'.
+      lv_zwbcz = ls_char-value_char.
+
+    ENDIF.
+  ENDLOOP.
+
+  IF sy-subrc = 0.
+
+**外板保护膜取值
+**去AUSP 反找物流 取值时的特性范围框定
+*    IF lv_etype = 'A'..
+*      "说明成品宽度不是数字，有问题，报错了就没法找了
+*      pc_type = 'E'.
+*      ls_retdata-zindex = 6. "PE保护膜 顺序编号
+*      ls_retdata-zclass = TEXT-008. "PE保护膜-外板
+*      ls_retdata-type = pc_type.
+*      ls_retdata-message = pc_msg.
+*
+*      APPEND ls_retdata TO pt_retdata.
+*      CLEAR ls_retdata.
+*
+*      RETURN.
+*
+*    ENDIF.
+
+    SORT pt_cabn BY atnam adzhl.
+
+    DATA: lt_auspconds TYPE zttpp_231_input,
+          ls_auspconds LIKE LINE OF lt_auspconds,
+          lt_auspdata  TYPE zttpp_231_output,
+          ls_auspdata  LIKE LINE OF lt_auspdata.
+
+    LOOP AT pt_ztpp260l
+    INTO ls_ztpp260l
+    WHERE zwbcz = lv_zwbcz
+      .
+
+      LOOP AT pt_ztpp260c
+        INTO ls_ztpp260c.
+
+        LOOP AT pt_cabn INTO DATA(ls_cabn)
+          WHERE atnam = 'ZWBCD'
+             OR atnam = 'ZWBTC'
+             OR atnam = 'ZWBDC'
+             OR atnam = 'ZWBQD'
+             OR atnam = 'ZWBXZ'
+             OR atnam = 'ZBX'
+             OR atnam = 'ZBK'
+             .
+          ls_auspconds-atinn = ls_cabn-atinn.
+          ls_auspconds-atnam = ls_cabn-atnam.
+
+          CASE ls_auspconds-atnam.
+            WHEN 'ZWBCD'.
+              ls_auspconds-atwrt = ls_ztpp260l-zwbcd.
+
+            WHEN 'ZWBTC'.
+              ls_auspconds-atwrt = ls_ztpp260l-zwbtc.
+
+            WHEN 'ZWBDC'.
+              ls_auspconds-atwrt = ls_ztpp260l-zwbdc.
+
+            WHEN 'ZWBQD'.
+              ls_auspconds-atwrt = ls_ztpp260l-zwbqd.
+
+*            WHEN 'ZWBXZ'.
+*              ls_auspconds-atwrt = ls_ztpp260l-zwbxz.
+
+*            WHEN 'ZBX'.
+*              ls_auspconds-atwrt = ls_ztpp260l-zbx.
+
+          ENDCASE.
+
+
+          APPEND ls_auspconds TO lt_auspconds.
+          CLEAR ls_auspconds.
+        ENDLOOP.
+
+        CLEAR: lt_auspdata[].
+
+        CALL FUNCTION 'ZFM_GP_GET_AUSP'
+          EXPORTING
+            it_auspconds = lt_auspconds
+            ip_werks     = pu_retztpp260c-werks
+          IMPORTING
+            et_retdata   = lt_auspdata.
+
+        SORT lt_auspdata BY objek.
+        DELETE ADJACENT DUPLICATES FROM lt_auspdata
+        COMPARING objek.
+
+        DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+        IF lv_lines > 1.
+          ls_retdata-type = 'E'.
+          ls_retdata-message = '存在多个组件,无法自动选择'.
+
+        ELSE.
+          READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+          IF sy-subrc = 0.
+            ls_retdata-idnrk = ls_auspdata-objek.
+
+          ENDIF.
+
+        ENDIF.
+
+        CLEAR : lt_auspconds[], lt_auspdata[].
+*      ls_retdata-zxt = ls_ztpp260e-zxt.
+**      ls_retdata-idnrk = ls_ztpp260e-matnr.
+*      ls_retdata-meins = ls_ztpp260e-meins.
+
+**如果用量维护，就直接取，如果没有维护查公式
+*      IF ls_ztpp260e-zwyl IS NOT INITIAL.
+*
+*        ls_retdata-zyl = ls_ztpp260e-zwyl.
+*      ELSE.
+*        IF ls_ztpp260e-zylgs NE ''.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260e-zylgs
+*          CHANGING ls_retdata-zyl.
+*
+*        ENDIF.
+*
+*      ENDIF.
+
+        ls_retdata-zindex = 5. "外板 顺序编号
+        ls_retdata-zclass = TEXT-018. "外板
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+      ENDLOOP.
+    ENDLOOP.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_zhank_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260C
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LS_DATALIST_MATKL
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_zhank_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_retztpp260c STRUCTURE ztpp_260c
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c-matkl TYPE matkl
+    pu_retztpp260c-werks TYPE werks_d
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+  DATA: ls_ztpp260c LIKE LINE OF pt_ztpp260c,
+        ls_retdata  LIKE LINE OF pt_retdata.
+
+  DATA: lv_bx    TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zkd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbh   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbys TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+*        lv_zbh_p TYPE ztpp_260c-zhd,
+        lv_etype TYPE c.
+
+  CLEAR: pt_retztpp260c[], lv_bx, lv_zbh,
+         lv_zwbxz.
+*需要获取 成品特性中的 外板材质-ZWBCZ
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+     OR charact = 'ZWBXZ'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBXZ'.
+      lv_zwbxz = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+      lv_zbh = ls_char-value_char.
+**防止abap 异常
+*      TRY .
+*          lv_zbh_p = lv_zbh.
+*
+*        CATCH cx_root INTO DATA(lr_cxroot).
+*          lv_etype = 'A'. "A -
+*          pc_msg = lr_cxroot->get_text( ).
+*          CONCATENATE TEXT-010 "查询
+*                      TEXT-019 "展宽
+*                      TEXT-011 "时，
+*                      TEXT-014 "成品
+*                      TEXT-024 "板厚
+*                      TEXT-022 "值
+*                      TEXT-016 "错误。
+*                      pc_msg
+*                      INTO pc_msg
+*                      .
+*
+*      ENDTRY.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  IF sy-subrc = 0.
+
+    IF lv_etype = 'A'.
+      pc_type = 'E'.
+      ls_retdata-zindex = 1. "展宽 顺序编号
+      ls_retdata-zclass = TEXT-019. "展宽
+      ls_retdata-type = pc_type.
+      ls_retdata-message = pc_msg.
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+*非V8波纹 时， 配置表中 空表示
+    IF lv_zwbxz NE 'V8波纹'.
+      CLEAR lv_zwbxz.
+
+    ENDIF.
+
+    RANGES ra_bh FOR ztpp_260c-zhd.
+    LOOP AT pt_ztpp260c
+    INTO ls_ztpp260c
+    WHERE werks = pu_retztpp260c-werks
+      AND matkl = pu_retztpp260c-matkl
+      AND zbx = lv_bx
+      AND zwbxz = lv_zwbxz
+      .
+
+*板厚没有数， 就不做区间对比
+      IF lv_zbh NE ''.
+
+        IF ls_ztpp260c-zoption = ''.
+
+        ELSE.
+          ra_bh-sign = 'I'.
+          ra_bh-option = ls_ztpp260c-zoption.
+          ra_bh-low = ls_ztpp260c-zhd.
+          APPEND ra_bh.
+
+        ENDIF.
+
+        IF lv_zbh IN ra_bh.
+          APPEND ls_ztpp260c TO pt_retztpp260c.
+          CLEAR ls_ztpp260c.
+        ELSE.
+*        CONTINUE.
+
+        ENDIF.
+
+      ELSE.
+
+        APPEND ls_ztpp260c TO pt_retztpp260c.
+        CLEAR ls_ztpp260c.
+
+      ENDIF.
+
+
+      CLEAR: ra_bh, ra_bh[].
+
+    ENDLOOP.
+
+    IF pt_retztpp260c[] IS INITIAL.
+      pc_type = 'E'.
+      ls_retdata-zindex = 1. "展宽 顺序编号
+      ls_retdata-zclass = TEXT-019. "展宽
+      ls_retdata-type = pc_type.
+      CONCATENATE TEXT-010 "查询
+                  TEXT-019 "展宽
+                  TEXT-011 "时，
+                  TEXT-016 "错误。
+                  TEXT-025 "条件：
+                  TEXT-026 "工厂
+                  pu_retztpp260c-werks
+                  TEXT-027 "物料组
+                  pu_retztpp260c-matkl
+                  TEXT-028 "板型
+                  lv_bx
+                  TEXT-029 "外板材质
+                  lv_zwbxz
+                  INTO ls_retdata-message
+                  .
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_wb_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260D
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LS_DATALIST_MATKL
+*&      --> LS_DATALIST_WERKS
+*&      --> LS_RETZTPP260C_ZXT
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_wb_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_retztpp260l TYPE ztpp_260l
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+*  DATA: lv_znbhd_p TYPE p.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbhd TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbys TYPE bapi1003_alloc_values_char-value_char,
+*        lv_znbfm TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbtc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbdc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbk   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbk_p TYPE p,
+*        lv_zxczl TYPE bapi1003_alloc_values_char-value_char.
+*        lv_zxcrz   TYPE bapi1003_alloc_values_char-value_char,
+*        lv_message TYPE bapi_msg,
+**        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_etype TYPE c.
+
+  CLEAR: lv_zwbcz,lv_zbk,lv_zwbys,lv_zwbhd,lv_zbk_p,lv_zwbtc,
+         lv_zwbxz, lv_zwbdc .
+
+*  BREAK cuijunhu.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+    lv_zbk = '1000'.
+
+  ENDIF.
+
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+*需要获取 成品特性中的 内板产地 作为 后面逻辑中 内板材质使用
+  READ TABLE pt_char INTO DATA(ls_char)
+  WITH KEY charact = 'ZWBCD' "内板产地
+  .
+  IF sy-subrc = 0.
+
+    SORT pt_cabn BY atnam adzhl.
+
+    DATA: lt_auspconds TYPE zttpp_231_input,
+          ls_auspconds LIKE LINE OF lt_auspconds,
+          lt_auspdata  TYPE zttpp_231_output,
+          ls_auspdata  LIKE LINE OF lt_auspdata.
+
+    READ TABLE pt_ztpp260l
+    INTO DATA(ls_ztpp260l)
+
+    WITH KEY werks = pu_retztpp260c-werks
+*             matkl = pu_retztpp260c-matkl
+*      AND znbcz = lv_znbcz
+*原 ZNBCZ 不用了， 换成 ZNBCD
+             zwbcz = ls_char-value_char
+      .
+
+    IF sy-subrc NE 0.
+      pc_type = 'E'.
+      ls_retdata-zindex = gv_index. "外板 顺序编号
+      ls_retdata-zclass = TEXT-018. "外板
+      ls_retdata-zxt = pu_retztpp260c-zxt.
+      ls_retdata-type = pc_type.
+      CONCATENATE TEXT-010 "查询
+                  TEXT-018 "内板
+                  TEXT-011 "时，
+                  TEXT-016 "错误。
+                  TEXT-025 "条件：
+                  TEXT-026 "工厂
+                  pu_retztpp260c-werks
+                  TEXT-027 "物料组
+                  pu_retztpp260c-matkl
+                  TEXT-029 "外板材质
+                  ls_char-value_char
+                  INTO ls_retdata-message
+                  .
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+    MOVE-CORRESPONDING ls_ztpp260l TO pc_retztpp260l.
+
+*根据品名 找到对应 特性值组号
+    READ TABLE pt_ztpp260p
+    INTO DATA(ls_ztpp260p)
+    WITH KEY zpmid = ls_ztpp260l-zpmid
+    BINARY SEARCH.
+    IF sy-subrc = 0.
+
+
+*根据组号，确定组件特性值对应字段
+      LOOP AT pt_ztpp260q
+      INTO DATA(ls_ztpp260q)
+      WHERE ztxgroup = ls_ztpp260p-ztxgroup.
+
+
+*根据配置表，逻辑区分来判断取值逻辑
+        CASE ls_ztpp260q-zlogic.
+          WHEN '01'.
+*取配置表
+            READ TABLE pt_cabn INTO DATA(ls_cabn)
+              WITH KEY atinn = ls_ztpp260q-wbatinn.
+
+            IF sy-subrc = 0.
+              ASSIGN COMPONENT ls_cabn-atnam
+              OF STRUCTURE ls_ztpp260l
+              TO FIELD-SYMBOL(<fs_01>).
+              IF <fs_01> IS ASSIGNED.
+                READ TABLE pt_cabn INTO ls_cabn
+                  WITH KEY atinn = ls_ztpp260q-atinn.
+
+                IF sy-subrc = 0.
+                  ls_auspconds-atinn = ls_cabn-atinn.
+                  ls_auspconds-atnam = ls_cabn-atnam.
+                  ls_auspconds-atwrt = <fs_01>.
+
+                  APPEND ls_auspconds TO lt_auspconds.
+                  CLEAR ls_auspconds.
+
+                  UNASSIGN <fs_01>.
+
+                ENDIF.
+              ENDIF.
+            ENDIF.
+
+
+
+          WHEN '02'.
+*取成品特性
+*特性内外码
+            READ TABLE pt_cabn INTO ls_cabn
+              WITH KEY atinn = ls_ztpp260q-wbatinn.
+
+            IF sy-subrc = 0.
+*要取 成品特性的某个特性
+              READ TABLE pt_char
+              INTO ls_char
+              WITH KEY charact = ls_cabn-atnam
+              BINARY SEARCH
+              .
+
+              IF sy-subrc = 0.
+                IF ls_char-value_char = '无'.
+                  ASSIGN COMPONENT ls_cabn-atnam
+                  OF STRUCTURE ls_ztpp260l
+                  TO <fs_01>.
+                  IF <fs_01> IS ASSIGNED.
+                    READ TABLE pt_cabn INTO ls_cabn
+                      WITH KEY atinn = ls_ztpp260q-atinn.
+
+                    IF sy-subrc = 0.
+                      ls_auspconds-atinn = ls_cabn-atinn.
+                      ls_auspconds-atnam = ls_cabn-atnam.
+                      ls_auspconds-atwrt = <fs_01>.
+
+                      APPEND ls_auspconds TO lt_auspconds.
+                      CLEAR ls_auspconds.
+
+                      UNASSIGN <fs_01>.
+
+                    ENDIF.
+                  ENDIF.
+
+                ELSE.
+
+                  READ TABLE pt_cabn INTO ls_cabn
+                    WITH KEY atinn = ls_ztpp260q-atinn.
+
+                  IF sy-subrc = 0.
+
+                    ls_auspconds-atinn = ls_cabn-atinn.
+                    ls_auspconds-atnam = ls_cabn-atnam.
+                    ls_auspconds-atwrt = ls_char-value_char.
+
+                    APPEND ls_auspconds TO lt_auspconds.
+                    CLEAR ls_auspconds.
+
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+
+*要通过逻辑， 计算展宽加量得出结果
+          WHEN '03'.
+            READ TABLE pt_char
+            INTO ls_char
+            WITH KEY charact = 'ZBK'
+            BINARY SEARCH
+            .
+            IF sy-subrc = 0.
+              lv_zbk = ls_char-value_char.
+**防止abap 异常
+              TRY .
+                  lv_zbk_p = lv_zbk.
+                  lv_zbk_p = lv_zbk_p + pu_retztpp260c-zwbzkjl.
+
+                CATCH cx_root INTO DATA(lr_cxroot).
+                  lv_etype = 'A'. "A - 成品宽度值错误
+                  pc_msg = lr_cxroot->get_text( ).
+                  CONCATENATE TEXT-010 "查询
+                              TEXT-020 "内板
+                              TEXT-011 "时，
+                              TEXT-023 "成品
+                              TEXT-021 "板宽
+                              TEXT-022 "值
+                              TEXT-016 "错误。
+                              pc_msg
+                              INTO pc_msg
+                          SEPARATED BY space.
+
+              ENDTRY.
+
+            ELSE.
+              lv_zbk_p = gv_c_zbk_p.
+
+            ENDIF.
+*特性内外码
+            IF lv_etype NE 'A'.
+
+              READ TABLE pt_cabn INTO ls_cabn
+                WITH KEY atinn = ls_ztpp260q-atinn.
+
+              IF sy-subrc = 0.
+                ls_auspconds-atinn = ls_cabn-atinn.
+                ls_auspconds-atnam = ls_cabn-atnam.
+                ls_auspconds-atwrt = lv_zbk_p.
+                CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+                APPEND ls_auspconds TO lt_auspconds.
+                CLEAR ls_auspconds.
+              ENDIF.
+
+            ENDIF.
+
+        ENDCASE.
+
+      ENDLOOP.
+
+    ENDIF.
+
+*去AUSP 反找物流 取值时的特性范围框定
+    IF lv_etype = 'A'.
+      pc_type = 'E'.
+      ls_retdata-zindex = gv_index. "内板 顺序编号
+      ls_retdata-zclass = TEXT-020. "内板
+      ls_retdata-zxt = pu_retztpp260c-zxt.
+      ls_retdata-type = pc_type.
+      ls_retdata-message = pc_msg.
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+    CLEAR: lt_auspdata[].
+
+    CALL FUNCTION 'ZFM_GP_GET_AUSP'
+      EXPORTING
+        it_auspconds = lt_auspconds
+        ip_werks     = pu_retztpp260c-werks
+      IMPORTING
+        et_retdata   = lt_auspdata.
+
+    SORT lt_auspdata BY objek.
+    DELETE ADJACENT DUPLICATES FROM lt_auspdata
+    COMPARING objek.
+
+    DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+    IF lv_lines > 1.
+      RANGES ra_matnr FOR mara-matnr.
+
+      LOOP AT lt_auspdata INTO ls_auspdata.
+        ra_matnr-sign = 'I'.
+        ra_matnr-option = 'EQ'.
+        ra_matnr-low = ls_auspdata-objek.
+        APPEND ra_matnr.
+        CLEAR ra_matnr.
+
+      ENDLOOP.
+
+      SELECT
+        matnr,
+        maktx
+        INTO TABLE @DATA(lt_makt)
+        FROM makt
+
+        WHERE matnr IN @ra_matnr
+          AND spras = '1'
+        .
+      IF sy-subrc = 0.
+        SORT lt_makt BY matnr.
+
+      ENDIF.
+
+      LOOP AT lt_makt INTO DATA(ls_makt).
+        ls_idnrklist-idnrk = ls_makt-matnr.
+        ls_idnrklist-maktx = ls_makt-maktx.
+
+        APPEND ls_idnrklist TO ls_retdata-idnrklist.
+        CLEAR ls_idnrklist.
+
+      ENDLOOP.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '存在多个组件,无法自动选择'.
+      CONCATENATE ls_retdata-message
+                  '存在多个组件,无法自动选择'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ELSE.
+      READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+      IF sy-subrc = 0.
+        ls_retdata-idnrk = ls_auspdata-objek.
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "外板 顺序编号
+        ls_retdata-zclass = TEXT-018. "外板
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-type = pc_type.
+
+        ls_retdata-zyl = '1.042'.
+        ls_retdata-meins = 'M'.
+        ls_retdata-zpmid = ls_ztpp260p-zpmid.
+        ls_retdata-zpmms = ls_ztpp260p-zpmms.
+*如果找不到,要通过特性创建MDM
+        ls_retdata-auspconds[] = lt_auspconds[].
+
+        LOOP AT lt_auspconds INTO ls_auspconds.
+          CONCATENATE ls_auspconds-atnam
+                      ls_auspconds-atwrt
+                      INTO DATA(lv_tx)
+                      SEPARATED BY space.
+
+          CONCATENATE ls_retdata-message
+                      lv_tx
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+        ENDLOOP.
+        CONCATENATE TEXT-036 "通过特性
+                    ls_retdata-message
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+      ENDIF.
+
+    ENDIF.
+
+    CLEAR : lt_auspconds[], lt_auspdata[].
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+*      ls_retdata-idnrk = ls_ztpp260e-matnr.
+*      ls_retdata-meins = ls_ztpp260b-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+*      IF ls_ztpp260b-zyl IS NOT INITIAL.
+*
+*    ls_retdata-zyl = 1.
+    ls_retdata-zyl = '1.042'.
+    ls_retdata-meins = 'M'.
+
+*      ELSE.
+*        IF ls_ztpp260b-zylgs NE ''.
+*          CLEAR lv_message.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260b-zylgs
+*          CHANGING ls_retdata-zyl
+*                   lv_message
+*                   .
+*          IF lv_message NE ''.
+*            CONCATENATE ls_retdata-message
+*                        lv_message
+*                   INTO ls_retdata-message
+*                   SEPARATED BY space.
+*            ls_retdata-type = 'E'.
+*          ENDIF.
+*        ENDIF.
+*
+*      ENDIF.
+
+    ls_retdata-zindex = gv_index. "外板 顺序编号
+    ls_retdata-zclass = TEXT-018. "外板
+
+    ls_retdata-zpmid = ls_ztpp260p-zpmid.
+    ls_retdata-zpmms = ls_ztpp260p-zpmms.
+
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ELSE.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "外板 顺序编号
+    ls_retdata-zclass = TEXT-018. "外板
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-018 "外板
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-037 "找不到成品的
+                TEXT-029 "外板材质
+                TEXT-038 "特性值
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_nb_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260B
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LS_DATALIST_MATKL
+*&      --> LS_DATALIST_WERKS
+*&      --> LS_RETZTPP260C_ZXT
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_nb_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+*  DATA: lv_znbhd_p TYPE p.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_znbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_znbhd TYPE bapi1003_alloc_values_char-value_char,
+        lv_znbcb TYPE bapi1003_alloc_values_char-value_char,
+        lv_znbys TYPE bapi1003_alloc_values_char-value_char,
+*        lv_znbfm TYPE bapi1003_alloc_values_char-value_char,
+        lv_znbtc TYPE bapi1003_alloc_values_char-value_char,
+        lv_znbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_znbdc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbk   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbk_p TYPE p,
+*        lv_zxczl TYPE bapi1003_alloc_values_char-value_char.
+*        lv_zxcrz   TYPE bapi1003_alloc_values_char-value_char,
+*        lv_message TYPE bapi_msg,
+**        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_etype TYPE c.
+
+  CLEAR: lv_znbcz,lv_zbk,lv_znbys,lv_znbhd,lv_zbk_p,lv_znbtc,
+         lv_znbxz, lv_znbdc .
+
+*  BREAK cuijunhu.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+    lv_zbk = '1000'.
+
+  ENDIF.
+
+  CONDENSE gv_c_zbk_p NO-GAPS.
+*需要获取 成品特性中的 内板产地 作为 后面逻辑中 内板材质使用
+  READ TABLE pt_char INTO DATA(ls_char)
+  WITH KEY charact = 'ZNBCD' "内板产地
+  .
+  IF sy-subrc = 0.
+
+    SORT pt_cabn BY atnam adzhl.
+
+    DATA: lt_auspconds TYPE zttpp_231_input,
+          ls_auspconds LIKE LINE OF lt_auspconds,
+          lt_auspdata  TYPE zttpp_231_output,
+          ls_auspdata  LIKE LINE OF lt_auspdata.
+
+    READ TABLE pt_ztpp260b
+    INTO DATA(ls_ztpp260b)
+
+    WITH KEY werks = pu_retztpp260c-werks
+*             matkl = pu_retztpp260c-matkl
+             znbcz = ls_char-value_char
+      .
+
+    IF sy-subrc NE 0.
+      pc_type = 'E'.
+      ls_retdata-zindex = gv_index. "内板 顺序编号
+      ls_retdata-zclass = TEXT-020. "内板
+      ls_retdata-zxt = pu_retztpp260c-zxt.
+      ls_retdata-type = pc_type.
+      CONCATENATE TEXT-010 "查询
+                  TEXT-020 "内板
+                  TEXT-011 "时，
+                  TEXT-016 "错误。
+                  TEXT-025 "条件：
+                  TEXT-026 "工厂
+                  pu_retztpp260c-werks
+                  TEXT-027 "物料组
+                  pu_retztpp260c-matkl
+                  TEXT-033 "内板材质
+                  ls_char-value_char
+                  INTO ls_retdata-message
+                  .
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+*    ls_auspconds-atinn = ls_cabn-atinn.
+*    ls_auspconds-atnam = ls_char-charact.
+*    ls_auspconds-atwrt = ls_char-value_char.
+*
+*    APPEND ls_auspconds TO lt_auspconds.
+*    CLEAR ls_auspconds.
+
+*根据品名 找到对应 特性值组号
+    READ TABLE pt_ztpp260p
+    INTO DATA(ls_ztpp260p)
+    WITH KEY zpmid = ls_ztpp260b-zpmid
+    BINARY SEARCH.
+    IF sy-subrc = 0.
+
+
+*根据组号，确定组件特性值对应字段
+      LOOP AT pt_ztpp260q
+      INTO DATA(ls_ztpp260q)
+      WHERE ztxgroup = ls_ztpp260p-ztxgroup.
+
+
+*根据配置表，逻辑区分来判断取值逻辑
+        CASE ls_ztpp260q-zlogic.
+          WHEN '01'.
+*取配置表
+            READ TABLE pt_cabn INTO DATA(ls_cabn)
+              WITH KEY atinn = ls_ztpp260q-nbatinn.
+
+            IF sy-subrc = 0.
+              ASSIGN COMPONENT ls_cabn-atnam
+              OF STRUCTURE ls_ztpp260b
+              TO FIELD-SYMBOL(<fs_01>).
+              IF <fs_01> IS ASSIGNED.
+                READ TABLE pt_cabn INTO ls_cabn
+                  WITH KEY atinn = ls_ztpp260q-atinn.
+
+                IF sy-subrc = 0.
+                  ls_auspconds-atinn = ls_cabn-atinn.
+                  ls_auspconds-atnam = ls_cabn-atnam.
+                  ls_auspconds-atwrt = <fs_01>.
+
+                  APPEND ls_auspconds TO lt_auspconds.
+                  CLEAR ls_auspconds.
+
+                  UNASSIGN <fs_01>.
+
+                ENDIF.
+              ENDIF.
+            ENDIF.
+
+
+
+          WHEN '02'.
+*取成品特性
+*特性内外码
+            READ TABLE pt_cabn INTO ls_cabn
+              WITH KEY atinn = ls_ztpp260q-nbatinn.
+
+            IF sy-subrc = 0.
+*要取 成品特性的某个特性
+              READ TABLE pt_char
+              INTO ls_char
+              WITH KEY charact = ls_cabn-atnam
+              BINARY SEARCH
+              .
+              IF sy-subrc = 0.
+*如果成品特性是 无, 就要取 配置表
+                IF ls_char-value_char = '无'.
+                  ASSIGN COMPONENT ls_cabn-atnam
+                  OF STRUCTURE ls_ztpp260b
+                  TO <fs_01>.
+                  IF <fs_01> IS ASSIGNED.
+                    READ TABLE pt_cabn INTO ls_cabn
+                      WITH KEY atinn = ls_ztpp260q-atinn.
+
+                    IF sy-subrc = 0.
+                      ls_auspconds-atinn = ls_cabn-atinn.
+                      ls_auspconds-atnam = ls_cabn-atnam.
+                      ls_auspconds-atwrt = <fs_01>.
+
+                      APPEND ls_auspconds TO lt_auspconds.
+                      CLEAR ls_auspconds.
+
+                      UNASSIGN <fs_01>.
+
+                    ENDIF.
+                  ENDIF.
+
+                ELSE.
+
+                  READ TABLE pt_cabn INTO ls_cabn
+                    WITH KEY atinn = ls_ztpp260q-atinn.
+
+                  IF sy-subrc = 0.
+                    ls_auspconds-atinn = ls_cabn-atinn.
+                    ls_auspconds-atnam = ls_cabn-atnam.
+                    ls_auspconds-atwrt = ls_char-value_char.
+
+                    APPEND ls_auspconds TO lt_auspconds.
+                    CLEAR ls_auspconds.
+
+                  ENDIF.
+
+                ENDIF.
+
+              ENDIF.
+            ENDIF.
+
+*要通过逻辑， 计算展宽加量得出结果
+          WHEN '03'.
+            READ TABLE pt_char
+            INTO ls_char
+            WITH KEY charact = 'ZBK'
+            BINARY SEARCH
+            .
+            IF sy-subrc = 0.
+              lv_zbk = ls_char-value_char.
+**防止abap 异常
+              TRY .
+                  lv_zbk_p = lv_zbk.
+                  lv_zbk_p = lv_zbk_p + pu_retztpp260c-znbzkjl.
+
+                CATCH cx_root INTO DATA(lr_cxroot).
+                  lv_etype = 'A'. "A - 成品宽度值错误
+                  pc_msg = lr_cxroot->get_text( ).
+                  CONCATENATE TEXT-010 "查询
+                              TEXT-020 "内板
+                              TEXT-011 "时，
+                              TEXT-023 "成品
+                              TEXT-021 "板宽
+                              TEXT-022 "值
+                              TEXT-016 "错误。
+                              pc_msg
+                              INTO pc_msg
+                          SEPARATED BY space.
+
+              ENDTRY.
+
+            ELSE.
+              lv_zbk_p = gv_c_zbk_p.
+
+            ENDIF.
+*特性内外码
+            IF lv_etype NE 'A'.
+
+              READ TABLE pt_cabn INTO ls_cabn
+                WITH KEY atinn = ls_ztpp260q-atinn.
+
+              IF sy-subrc = 0.
+                ls_auspconds-atinn = ls_cabn-atinn.
+                ls_auspconds-atnam = ls_cabn-atnam.
+                ls_auspconds-atwrt = lv_zbk_p.
+                CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+                APPEND ls_auspconds TO lt_auspconds.
+                CLEAR ls_auspconds.
+              ENDIF.
+
+            ENDIF.
+
+        ENDCASE.
+
+      ENDLOOP.
+
+*去AUSP 反找物流 取值时的特性范围框定
+      IF lv_etype = 'A'.
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "内板 顺序编号
+        ls_retdata-zclass = TEXT-020. "内板
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-zpmid = ls_ztpp260p-zpmid.
+        ls_retdata-zpmms = ls_ztpp260p-zpmms.
+        ls_retdata-type = pc_type.
+        ls_retdata-message = pc_msg.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        RETURN.
+
+      ENDIF.
+
+      CLEAR: lt_auspdata[].
+
+      CALL FUNCTION 'ZFM_GP_GET_AUSP'
+        EXPORTING
+          it_auspconds = lt_auspconds
+          ip_werks     = pu_retztpp260c-werks
+        IMPORTING
+          et_retdata   = lt_auspdata.
+
+      SORT lt_auspdata BY objek.
+      DELETE ADJACENT DUPLICATES FROM lt_auspdata
+      COMPARING objek.
+
+      DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+      IF lv_lines > 1.
+        RANGES ra_matnr FOR mara-matnr.
+
+        LOOP AT lt_auspdata INTO ls_auspdata.
+          ra_matnr-sign = 'I'.
+          ra_matnr-option = 'EQ'.
+          ra_matnr-low = ls_auspdata-objek.
+          APPEND ra_matnr.
+          CLEAR ra_matnr.
+
+        ENDLOOP.
+        SELECT
+          matnr,
+          maktx
+          INTO TABLE @DATA(lt_makt)
+          FROM makt
+
+          WHERE matnr IN @ra_matnr
+            AND spras = '1'
+          .
+        IF sy-subrc = 0.
+          SORT lt_makt BY matnr.
+
+        ENDIF.
+
+        LOOP AT lt_makt INTO DATA(ls_makt).
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '存在多个组件,无法自动选择'.
+        CONCATENATE ls_retdata-message
+                    '存在多个组件,无法自动选择'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ELSE.
+        READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_auspdata-objek.
+        ELSE.
+*找不到时 要报错
+          pc_type = 'E'.
+          ls_retdata-zindex = gv_index. "内板 顺序编号
+          ls_retdata-zclass = TEXT-020. "内板
+          ls_retdata-zxt = pu_retztpp260c-zxt.
+          ls_retdata-type = pc_type.
+          ls_retdata-zyl = '1.042'.
+          ls_retdata-meins = 'M'.
+          ls_retdata-zpmid = ls_ztpp260p-zpmid.
+          ls_retdata-zpmms = ls_ztpp260p-zpmms.
+*如果找不到,要通过特性创建MDM
+          ls_retdata-auspconds[] = lt_auspconds[].
+
+          LOOP AT lt_auspconds INTO ls_auspconds.
+            CONCATENATE ls_auspconds-atnam
+                        ls_auspconds-atwrt
+                        INTO DATA(lv_tx)
+                        SEPARATED BY space.
+
+            CONCATENATE ls_retdata-message
+                        lv_tx
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+
+          ENDLOOP.
+          CONCATENATE TEXT-036 "通过特性
+                      ls_retdata-message
+                      TEXT-035 "过滤后，无数据。
+                 INTO ls_retdata-message.
+
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+          EXIT.
+
+        ENDIF.
+
+      ENDIF.
+
+      CLEAR : lt_auspconds[], lt_auspdata[].
+      ls_retdata-zxt = pu_retztpp260c-zxt.
+*      ls_retdata-idnrk = ls_ztpp260e-matnr.
+*      ls_retdata-meins = ls_ztpp260b-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+*      IF ls_ztpp260b-zyl IS NOT INITIAL.
+*
+      ls_retdata-zyl = '1.042'.
+      ls_retdata-meins = 'M'.
+*      ELSE.
+*        IF ls_ztpp260b-zylgs NE ''.
+*          CLEAR lv_message.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260b-zylgs
+*          CHANGING ls_retdata-zyl
+*                   lv_message
+*                   .
+*          IF lv_message NE ''.
+*            CONCATENATE ls_retdata-message
+*                        lv_message
+*                   INTO ls_retdata-message
+*                   SEPARATED BY space.
+*            ls_retdata-type = 'E'.
+*          ENDIF.
+*        ENDIF.
+*
+*      ENDIF.
+
+      ls_retdata-zindex = gv_index. "内板 顺序编号
+      ls_retdata-zclass = TEXT-020. "内板
+
+      ls_retdata-zpmid = ls_ztpp260p-zpmid.
+      ls_retdata-zpmms = ls_ztpp260p-zpmms.
+      IF ls_retdata-zyl = 0.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+        CONCATENATE ls_retdata-message
+                    '用量不得为 0'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ENDIF.
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+    ENDIF.
+
+
+
+
+
+  ELSE.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "内板 顺序编号
+    ls_retdata-zclass = TEXT-020. "内板
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-020 "内板
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-037 "找不到成品的
+                TEXT-033 "内板材质
+                TEXT-038 "特性值
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_tswfb_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260N
+*&      --> LT_RETDATA
+*&      --> LS_DATALIST_MATKL
+*&      --> LS_DATALIST_WERKS
+*&      --> LS_RETZTPP260C
+*&---------------------------------------------------------------------*
+FORM frm_tswfb_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260u STRUCTURE ztpp_260u
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+*    pu_retztpp260c-matkl TYPE matkl
+*    pu_retztpp260c-werks TYPE werks_d
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA lv_message TYPE bapi_msg.
+
+  DATA: lv_zbx TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbh TYPE bapi1003_alloc_values_char-value_char.
+
+*需要获取 成品特性中的 版型 - ZBX
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+    OR charact = 'ZBH'
+  .
+    CASE ls_char-charact.
+      WHEN 'ZBX'.
+        lv_zbx = ls_char-value_char.
+
+      WHEN 'ZBH'.
+        lv_zbh = ls_char-value_char.
+
+    ENDCASE.
+
+  ENDLOOP.
+
+  RANGES ra_zbh FOR ztpp_260u-zhd.
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260u
+  INTO DATA(ls_ztpp260u)
+  WHERE werks = pu_retztpp260c-werks
+    AND zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_zbx
+    .
+
+    CLEAR ra_zbh[].
+    ra_zbh-sign = 'I'.
+    ra_zbh-option = ls_ztpp260u-zoption.
+    ra_zbh-low = ls_ztpp260u-zhd.
+    APPEND ra_zbh.
+    CLEAR ra_zbh.
+
+    CHECK lv_zbh IN ra_zbh.
+
+    ls_retdata-zxt = ls_ztpp260u-zxt.
+    ls_retdata-idnrk = ls_ztpp260u-matnr.
+    ls_retdata-meins = ls_ztpp260u-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260u-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260u-zyl.
+    ELSE.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "特殊无纺布 顺序编号
+    ls_retdata-zclass = TEXT-039. "特殊无纺布
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_yzjsbyw_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260T
+*&      --> LT_RETDATA
+*&      --> LS_RETZTPP260C
+*&---------------------------------------------------------------------*
+FORM frm_yzjsbyw_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_retztpp260t STRUCTURE ztpp_260t
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_matkl TYPE matkl
+    pu_werks TYPE werks_d
+    .
+
+  CASE pu_matkl.
+    WHEN 'B0106'
+      OR 'B0103'
+      .
+
+      DATA ls_retdata LIKE LINE OF pt_retdata.
+      DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+
+      SORT pt_cabn BY atnam adzhl.
+
+      DATA: lt_auspconds TYPE zttpp_231_input,
+            ls_auspconds LIKE LINE OF lt_auspconds,
+            lt_auspdata  TYPE zttpp_231_output,
+            ls_auspdata  LIKE LINE OF lt_auspdata.
+
+      DATA lv_zpmid TYPE ztpp_260p-zpmid.
+*物料组特定
+      lv_zpmid = '镀锌带钢'.
+
+*根据品名 找到对应 特性值组号
+      READ TABLE pt_ztpp260p
+      INTO DATA(ls_ztpp260p)
+      WITH KEY zpmid = lv_zpmid
+      BINARY SEARCH.
+      IF sy-subrc = 0.
+
+
+*根据组号，确定组件特性值对应字段
+        LOOP AT pt_ztpp260q
+        INTO DATA(ls_ztpp260q)
+        WHERE ztxgroup = ls_ztpp260p-ztxgroup.
+
+*取成品特性
+*特性内外码
+          READ TABLE pt_cabn INTO DATA(ls_cabn)
+            WITH KEY atinn = ls_ztpp260q-atinn.
+
+          IF sy-subrc = 0.
+*要取 成品特性的某个特性
+            DATA(lv_atnam) = ls_cabn-atnam.
+
+
+            IF ls_cabn-atnam = 'ZDCBZ'.
+              ls_auspconds-atinn = ls_cabn-atinn.
+              ls_auspconds-atnam = ls_cabn-atnam.
+              ls_auspconds-atwrt = '常规'.
+
+              APPEND ls_auspconds TO lt_auspconds.
+              CLEAR ls_auspconds.
+
+            ELSE.
+              IF lv_atnam = 'ZKD'.
+                lv_atnam = 'ZYCZK'.
+
+              ENDIF.
+
+              READ TABLE pt_char
+              INTO DATA(ls_char)
+              WITH KEY charact = lv_atnam
+              BINARY SEARCH
+              .
+
+              IF sy-subrc = 0.
+
+                ls_auspconds-atinn = ls_cabn-atinn.
+                ls_auspconds-atnam = ls_cabn-atnam.
+                ls_auspconds-atwrt = ls_char-value_char.
+
+                APPEND ls_auspconds TO lt_auspconds.
+                CLEAR ls_auspconds.
+
+              ELSE.
+
+              ENDIF.
+
+            ENDIF.
+
+
+          ENDIF.
+
+        ENDLOOP.
+
+      ENDIF.
+
+      CLEAR: lt_auspdata[].
+
+      CALL FUNCTION 'ZFM_GP_GET_AUSP'
+        EXPORTING
+          it_auspconds = lt_auspconds
+          ip_werks     = pu_werks
+        IMPORTING
+          et_retdata   = lt_auspdata.
+
+      SORT lt_auspdata BY objek.
+      DELETE ADJACENT DUPLICATES FROM lt_auspdata
+      COMPARING objek.
+
+      DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+      IF lv_lines > 1.
+        RANGES ra_matnr FOR mara-matnr.
+
+        LOOP AT lt_auspdata INTO ls_auspdata.
+          ra_matnr-sign = 'I'.
+          ra_matnr-option = 'EQ'.
+          ra_matnr-low = ls_auspdata-objek.
+          APPEND ra_matnr.
+          CLEAR ra_matnr.
+
+        ENDLOOP.
+
+        SELECT
+          matnr,
+          maktx
+          INTO TABLE @DATA(lt_makt)
+          FROM makt
+
+          WHERE matnr IN @ra_matnr
+            AND spras = '1'
+          .
+        IF sy-subrc = 0.
+          SORT lt_makt BY matnr.
+
+        ENDIF.
+
+        LOOP AT lt_makt INTO DATA(ls_makt).
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '存在多个组件,无法自动选择'.
+        CONCATENATE ls_retdata-message
+                    '存在多个组件,无法自动选择'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ELSE.
+        READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_auspdata-objek.
+        ELSE.
+*找不到时 要报错
+*          pc_type = 'E'.
+          ls_retdata-zindex = gv_index. "预制金属板压瓦 顺序编号
+          ls_retdata-zclass = TEXT-040. "预制金属板压瓦
+          ls_retdata-zxt = '檩条1号线'.
+          ls_retdata-type = 'E'.
+
+          ls_retdata-zyl = '1.004'.
+          ls_retdata-meins = 'M'.
+          ls_retdata-zpmid = ls_ztpp260p-zpmid.
+          ls_retdata-zpmms = ls_ztpp260p-zpmms.
+*如果找不到,要通过特性创建MDM
+          ls_retdata-auspconds[] = lt_auspconds[].
+
+          LOOP AT lt_auspconds INTO ls_auspconds.
+            CONCATENATE ls_auspconds-atnam
+                        ls_auspconds-atwrt
+                        INTO DATA(lv_tx)
+                        SEPARATED BY space.
+
+            CONCATENATE ls_retdata-message
+                        lv_tx
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+
+          ENDLOOP.
+          CONCATENATE TEXT-036 "通过特性
+                      ls_retdata-message
+                      TEXT-035 "过滤后，无数据。
+                 INTO ls_retdata-message.
+
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+          EXIT.
+        ENDIF.
+
+      ENDIF.
+
+      CLEAR : lt_auspconds[], lt_auspdata[].
+      ls_retdata-zxt = '檩条1号线'.
+      ls_retdata-zyl = '1.004'.
+      ls_retdata-meins = 'M'.
+
+      ls_retdata-zindex = gv_index. "预制金属板压瓦 顺序编号
+      ls_retdata-zclass = TEXT-040. "预制金属板压瓦
+
+      ls_retdata-zpmid = ls_ztpp260p-zpmid.
+      ls_retdata-zpmms = ls_ztpp260p-zpmms.
+
+      IF ls_retdata-zyl = 0.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+        CONCATENATE ls_retdata-message
+                    '用量不得为 0'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ENDIF.
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+
+    WHEN OTHERS.
+
+*      DATA ls_retdata LIKE LINE OF pt_retdata.
+      DATA lv_message TYPE bapi_msg.
+*需要获取 成品特性中的 版型 - ZBX
+      READ TABLE pt_char INTO ls_char
+*      WITH KEY charact = 'ZXHGG'
+      WITH KEY charact = 'ZBX'
+      .
+      IF sy-subrc = 0.
+
+*通过配置表取 组件 * 根据线体返回
+        LOOP AT pt_ztpp260t
+        INTO DATA(ls_ztpp260t)
+        WHERE werks = pu_werks
+*      AND zxt = pu_retztpp260c-zxt
+          AND matkl = pu_matkl
+          AND zbxgg = ls_char-value_char
+          .
+
+          APPEND ls_ztpp260t TO pt_retztpp260t.
+
+          ls_retdata-zxt = ls_ztpp260t-zxt.
+          ls_retdata-idnrk = ls_ztpp260t-zbhmwlkd.
+          ls_retdata-meins = ls_ztpp260t-meins_bhmyl.
+
+*如果用量维护，就直接取，如果没有维护查公式
+          IF ls_ztpp260t-zbhmyl IS NOT INITIAL.
+
+            ls_retdata-zyl = ls_ztpp260t-zbhmyl.
+          ELSE.
+
+
+          ENDIF.
+
+          ls_retdata-zindex = gv_index. "预制金属板压瓦 顺序编号
+          ls_retdata-zclass = TEXT-040. "预制金属板压瓦
+          IF ls_retdata-zyl = 0.
+
+            ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+            CONCATENATE ls_retdata-message
+                        '用量不得为 0'
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+
+          ENDIF.
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+        ENDLOOP.
+        IF sy-subrc NE 0.
+
+          ls_retdata-zindex = gv_index. "预制金属板压瓦 顺序编号
+          ls_retdata-zclass = TEXT-040. "预制金属板压瓦
+
+          ls_retdata-type = 'E'.
+          CONCATENATE TEXT-010 "查询
+                      TEXT-040 "预制金属板压瓦
+                      TEXT-011 "时，
+                      TEXT-016 "错误。
+                      TEXT-025 "条件：
+                      TEXT-026 "工厂
+                      pu_werks
+                      TEXT-027 "物料组
+                      pu_matkl
+                      TEXT-028 "板型
+                      ls_char-value_char
+                      INTO ls_retdata-message
+                      .
+
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+        ENDIF.
+
+
+      ENDIF.
+
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_wlbl_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260S
+*&      --> LT_RETDATA
+*&      --> LS_RETZTPP260C
+*&---------------------------------------------------------------------*
+FORM frm_wlbl_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+*    pu_retztpp260c-matkl TYPE matkl
+*    pu_retztpp260c-werks TYPE werks_d
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA lv_message TYPE bapi_msg.
+*需要获取 成品特性中的 版型 - ZBX
+*  READ TABLE pt_char INTO DATA(ls_char)
+*  WITH KEY charact = 'ZBX'
+  .
+  DATA: lv_bx    TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxczl TYPE bapi1003_alloc_values_char-value_char.
+
+  LOOP AT pt_char INTO DATA(ls_char)
+    WHERE charact = 'ZBX'
+       OR charact = 'ZXCZL'
+    .
+    CASE ls_char-charact.
+      WHEN 'ZBX'.
+        lv_bx = ls_char-value_char.
+
+      WHEN 'ZXCZL'.
+        lv_zxczl = ls_char-value_char.
+
+      WHEN OTHERS.
+    ENDCASE.
+
+  ENDLOOP.
+*  IF sy-subrc = 0.
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260s
+  INTO DATA(ls_ztpp260s)
+  WHERE werks = pu_retztpp260c-werks
+    AND zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zxczl = lv_zxczl
+    .
+    ls_retdata-zxt = ls_ztpp260s-zxt.
+    ls_retdata-idnrk = ls_ztpp260s-matnr.
+    ls_retdata-meins = ls_ztpp260s-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260s-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260s-zyl.
+    ELSE.
+*        IF ls_ztpp260u-zylgs NE ''.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260n-zylgs
+*          CHANGING ls_retdata-zyl
+*                   lv_message
+*                   .
+*
+*          IF lv_message NE ''.
+*            CONCATENATE ls_retdata-message
+*                        lv_message
+*                   INTO ls_retdata-message
+*                   SEPARATED BY space.
+*            ls_retdata-type = 'E'.
+*          ENDIF.
+*        ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "特殊无纺布 顺序编号
+    ls_retdata-zclass = TEXT-039. "特殊无纺布
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+
+
+*  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_bomxh_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_ZTPP260R
+*&      --> LT_RETDATA
+*&      --> LS_RETZTPP260C
+*&---------------------------------------------------------------------*
+FORM frm_bomxh_process
+  TABLES
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  .
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+
+  READ TABLE pt_ztpp260r
+  INTO DATA(ls_ztpp260r)
+  WITH KEY werks = pu_retztpp260c-werks
+           zxt = pu_retztpp260c-zxt
+           BINARY SEARCH.
+  IF sy-subrc = 0.
+    ls_retdata-stlal = ls_ztpp260r-stlal.
+
+  ELSE.
+    ls_retdata-stlal = '01'.
+
+  ENDIF.
+
+  MODIFY pt_retdata
+  FROM ls_retdata
+  TRANSPORTING stlal
+  WHERE stlal = ''.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_lcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_lcd
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260u STRUCTURE ztpp_260u
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+
+  DATA ls_retztpp260l TYPE ztpp_260l.
+
+*芯材
+  gv_index = gv_index + 1.
+  PERFORM frm_xc_process
+  TABLES pt_char
+         pt_ztpp260d
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+**内板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_nb_process
+*  TABLES pt_char
+*         pt_ztpp260b
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+**
+**外板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wb_process
+*  TABLES pt_char
+*         pt_ztpp260l
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING ls_retztpp260l
+*           pc_type
+*           pc_message.
+
+
+*PE保护膜-外板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhmwb_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+        ls_retztpp260l
+  CHANGING pc_type
+           pc_message.
+
+*通过 特性值 反找 组件物料
+*PE保护膜-内板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhm_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+
+*通过 特性值 反找 组件物料
+*海绵条
+  gv_index = gv_index + 1.
+  PERFORM frm_hmt_process
+  TABLES pt_char
+         pt_ztpp260m
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶带
+  gv_index = gv_index + 1.
+  PERFORM frm_jd_process
+  TABLES pt_char
+         pt_ztpp260g
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*白料
+  gv_index = gv_index + 1.
+  PERFORM frm_fbbl_process
+  TABLES pt_char
+         pt_ztpp260h
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*封边黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_fbhl_process
+  TABLES pt_char
+         pt_ztpp260i
+         pt_retdata
+  USING pu_retztpp260c.
+
+
+*通过 特性值 反找 组件物料
+*粘合剂黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_nhjhl_process
+  TABLES pt_char
+         pt_ztpp260j
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶水
+  gv_index = gv_index + 1.
+  PERFORM frm_js_process
+  TABLES pt_char
+         pt_ztpp260n
+         pt_retdata
+  USING pu_retztpp260c.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_lcj
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_lcj
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260u STRUCTURE ztpp_260u
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+
+  DATA ls_retztpp260l TYPE ztpp_260l.
+
+*芯材
+  gv_index = gv_index + 1.
+  PERFORM frm_xc_process
+  TABLES pt_char
+         pt_ztpp260d
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+**内板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_nb_process
+*  TABLES pt_char
+*         pt_ztpp260b
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+*
+**外板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wb_process
+*  TABLES pt_char
+*         pt_ztpp260l
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING ls_retztpp260l
+*           pc_type
+*           pc_message.
+
+
+*PE保护膜-外板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhmwb_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+        ls_retztpp260l
+  CHANGING pc_type
+           pc_message.
+
+*通过 特性值 反找 组件物料
+*PE保护膜-内板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhm_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+
+*通过 特性值 反找 组件物料
+*海绵条
+  gv_index = gv_index + 1.
+  PERFORM frm_hmt_process
+  TABLES pt_char
+         pt_ztpp260m
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶带
+  gv_index = gv_index + 1.
+  PERFORM frm_jd_process
+  TABLES pt_char
+         pt_ztpp260g
+         pt_retdata
+  USING pu_retztpp260c.
+
+
+*通过 特性值 反找 组件物料
+*粘合剂黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_nhjhl_process
+  TABLES pt_char
+         pt_ztpp260j
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶水
+  gv_index = gv_index + 1.
+  PERFORM frm_js_process
+  TABLES pt_char
+         pt_ztpp260n
+         pt_retdata
+  USING pu_retztpp260c.
+
+**瓦楞白料
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wlbl_process
+*  TABLES pt_char
+*         pt_ztpp260s
+*         pt_retdata
+*  USING pu_retztpp260c.
+*
+**特殊无纺布
+*  gv_index = gv_index + 1.
+*  PERFORM frm_tswfb_process
+*  TABLES pt_char
+*         pt_ztpp260u
+*         pt_retdata
+*  USING pu_retztpp260c.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_lcz
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_lcz
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260u STRUCTURE ztpp_260u
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+
+  DATA: ls_retztpp260l TYPE ztpp_260l.
+
+*芯材
+  gv_index = gv_index + 1.
+  PERFORM frm_xc_process
+  TABLES pt_char
+         pt_ztpp260d
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+**内板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_nb_process
+*  TABLES pt_char
+*         pt_ztpp260b
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+*
+**外板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wb_process
+*  TABLES pt_char
+*         pt_ztpp260l
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING ls_retztpp260l
+*           pc_type
+*           pc_message.
+
+*PE保护膜-外板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhmwb_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+        ls_retztpp260l
+  CHANGING pc_type
+           pc_message.
+
+*通过 特性值 反找 组件物料
+*PE保护膜
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhm_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+*  IF lv_message NE ''.
+*    CONCATENATE ls_ret-message
+*                lv_message
+*           INTO ls_ret-message
+*           SEPARATED BY space.
+*    CLEAR lv_message.
+*
+*  ENDIF.
+
+*通过 特性值 反找 组件物料
+*海绵条
+  gv_index = gv_index + 1.
+  PERFORM frm_hmt_process
+  TABLES pt_char
+         pt_ztpp260m
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶带
+  gv_index = gv_index + 1.
+  PERFORM frm_jd_process
+  TABLES pt_char
+         pt_ztpp260g
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*白料
+  gv_index = gv_index + 1.
+  PERFORM frm_fbbl_process
+  TABLES pt_char
+         pt_ztpp260h
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*封边黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_fbhl_process
+  TABLES pt_char
+         pt_ztpp260i
+         pt_retdata
+  USING pu_retztpp260c.
+
+
+*通过 特性值 反找 组件物料
+*粘合剂黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_nhjhl_process
+  TABLES pt_char
+         pt_ztpp260j
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶水
+  gv_index = gv_index + 1.
+  PERFORM frm_js_process
+  TABLES pt_char
+         pt_ztpp260n
+         pt_retdata
+  USING pu_retztpp260c.
+
+**瓦楞白料
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wlbl_process
+*  TABLES pt_char
+*         pt_ztpp260s
+*         pt_retdata
+*  USING pu_retztpp260c.
+*
+***预制金属板压瓦
+**  gv_index = gv_index + 1.
+**  PERFORM frm_yzjsbyw_process
+**  TABLES pt_char
+**         pt_ztpp260t
+**         pt_retdata
+**  USING pu_retztpp260c.
+*
+**特殊无纺布
+*  gv_index = gv_index + 1.
+*  PERFORM frm_tswfb_process
+*  TABLES pt_char
+*         pt_ztpp260u
+*         pt_retdata
+*  USING pu_retztpp260c.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_lcm
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_lcm
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260o STRUCTURE ztpp_260o
+    pt_ztpp260u STRUCTURE ztpp_260u
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+
+  DATA ls_retztpp260l TYPE ztpp_260l.
+
+*芯材
+  gv_index = gv_index + 1.
+  PERFORM frm_xc_process
+  TABLES pt_char
+         pt_ztpp260d
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+**内板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_nb_process
+*  TABLES pt_char
+*         pt_ztpp260b
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+**
+**外板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wb_process
+*  TABLES pt_char
+*         pt_ztpp260l
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING ls_retztpp260l
+*           pc_type
+*           pc_message.
+
+*PE保护膜-外板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhmwb_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+        ls_retztpp260l
+  CHANGING pc_type
+           pc_message.
+
+
+*PE保护膜-内板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhm_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+*通过 特性值 反找 组件物料
+*海绵条
+  gv_index = gv_index + 1.
+  PERFORM frm_hmt_process
+  TABLES pt_char
+         pt_ztpp260m
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶带
+  gv_index = gv_index + 1.
+  PERFORM frm_jd_process
+  TABLES pt_char
+         pt_ztpp260g
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*粘合剂黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_nhjhl_process
+  TABLES pt_char
+         pt_ztpp260j
+         pt_retdata
+  USING pu_retztpp260c.
+
+*胶水
+  gv_index = gv_index + 1.
+  PERFORM frm_js_process
+  TABLES pt_char
+         pt_ztpp260n
+         pt_retdata
+  USING pu_retztpp260c.
+
+*组框
+  gv_index = gv_index + 1.
+  PERFORM frm_zk_process
+  TABLES pt_char
+         pt_ztpp260o
+         pt_retdata
+  USING pu_retztpp260c.
+*
+**瓦楞白料
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wlbl_process
+*  TABLES pt_char
+*         pt_ztpp260s
+*         pt_retdata
+*  USING pu_retztpp260c.
+*
+***预制金属板压瓦
+**  gv_index = gv_index + 1.
+**  PERFORM frm_yzjsbyw_process
+**  TABLES pt_char
+**         pt_ztpp260t
+**         pt_retdata
+**  USING pu_retztpp260c.
+*
+**特殊无纺布
+*  gv_index = gv_index + 1.
+*  PERFORM frm_tswfb_process
+*  TABLES pt_char
+*         pt_ztpp260u
+*         pt_retdata
+*  USING pu_retztpp260c.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_fhb
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_fhb
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260u STRUCTURE ztpp_260u
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+  DATA ls_retztpp260l TYPE ztpp_260l.
+*芯材
+  gv_index = gv_index + 1.
+
+  PERFORM frm_xc_process_fhb
+  TABLES pt_char
+         pt_ztpp260d
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+**内板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_nb_process
+*  TABLES pt_char
+*         pt_ztpp260b
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+**
+**外板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wb_process
+*  TABLES pt_char
+*         pt_ztpp260l
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING ls_retztpp260l
+*           pc_type
+*           pc_message.
+
+*PE保护膜-外板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhmwb_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+        ls_retztpp260l
+  CHANGING pc_type
+           pc_message.
+
+*PE保护膜-内板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhm_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+*白料
+  gv_index = gv_index + 1.
+  PERFORM frm_fbbl_process
+  TABLES pt_char
+         pt_ztpp260h
+         pt_retdata
+  USING pu_retztpp260c.
+
+*粘合剂黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_nhjhl_process
+  TABLES pt_char
+         pt_ztpp260j
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶水
+  gv_index = gv_index + 1.
+  PERFORM frm_js_process
+  TABLES pt_char
+         pt_ztpp260n
+         pt_retdata
+  USING pu_retztpp260c.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_yxb
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_yxb
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260u STRUCTURE ztpp_260u
+  USING
+    pu_matkl TYPE matkl
+    pu_werks TYPE werks_d
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+
+  DATA: lt_retztpp260t TYPE TABLE OF ztpp_260t.
+*预制金属板压瓦
+  gv_index = gv_index + 1.
+  PERFORM frm_yzjsbyw_process
+  TABLES pt_char
+         pt_cabn
+         pt_ztpp260t
+         pt_ztpp260p
+         pt_ztpp260q
+         lt_retztpp260t
+         pt_retdata
+  USING pu_matkl
+        pu_werks
+        .
+
+  gv_index = gv_index + 1.
+
+  DATA ls_ztpp260c LIKE LINE OF pt_ztpp260c.
+
+  LOOP AT lt_retztpp260t
+    INTO DATA(ls_retztpp260t).
+
+*外板
+    PERFORM frm_wb_process_yxb
+    TABLES pt_char
+           pt_ztpp260l
+           pt_retdata
+           pt_cabn
+           pt_ztpp260p
+           pt_ztpp260q
+    USING ls_retztpp260t
+    CHANGING pc_type
+             pc_message.
+
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_wb_process_yxb
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PT_CHAR
+*&      --> PT_ZTPP260L
+*&      --> PT_RETDATA
+*&      --> PT_CABN
+*&      --> PT_ZTPP260P
+*&      --> PT_ZTPP260Q
+*&      --> LS_ZTPP260C
+*&      <-- PC_TYPE
+*&      <-- PC_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_wb_process_yxb
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+  USING
+    pu_retztpp260t TYPE ztpp_260t
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+*  DATA: lv_znbhd_p TYPE p.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbhd TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbys TYPE bapi1003_alloc_values_char-value_char,
+*        lv_znbfm TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbtc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbdc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbk   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbk_p TYPE p,
+*        lv_zxczl TYPE bapi1003_alloc_values_char-value_char.
+*        lv_zxcrz   TYPE bapi1003_alloc_values_char-value_char,
+*        lv_message TYPE bapi_msg,
+**        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_etype TYPE c.
+
+  CLEAR: lv_zwbcz,lv_zbk,lv_zwbys,lv_zwbhd,lv_zbk_p,lv_zwbtc,
+         lv_zwbxz, lv_zwbdc .
+
+*  BREAK cuijunhu.
+
+*需要获取 成品特性中的 内板产地 作为 后面逻辑中 内板材质使用
+  READ TABLE pt_char INTO DATA(ls_char)
+  WITH KEY charact = 'ZCD' "产地
+  .
+  IF sy-subrc = 0.
+
+    SORT pt_cabn BY atnam adzhl.
+
+    DATA: lt_auspconds TYPE zttpp_231_input,
+          ls_auspconds LIKE LINE OF lt_auspconds,
+          lt_auspdata  TYPE zttpp_231_output,
+          ls_auspdata  LIKE LINE OF lt_auspdata.
+
+    LOOP AT pt_ztpp260l
+    INTO DATA(ls_ztpp260l)
+    WHERE werks = pu_retztpp260t-werks
+*      AND zwbcd = ls_char-value_char "要查外板产地
+      AND zwbcz = ls_char-value_char
+      .
+
+*根据品名 找到对应 特性值组号
+      READ TABLE pt_ztpp260p
+      INTO DATA(ls_ztpp260p)
+      WITH KEY zpmid = ls_ztpp260l-zpmid
+      BINARY SEARCH.
+      IF sy-subrc = 0.
+
+
+*根据组号，确定组件特性值对应字段
+        LOOP AT pt_ztpp260q
+        INTO DATA(ls_ztpp260q)
+        WHERE ztxgroup = ls_ztpp260p-ztxgroup.
+
+          CASE pu_retztpp260t-matkl.
+            WHEN 'B0106'
+              OR 'B0103'
+              .
+*取配置表
+              READ TABLE pt_cabn INTO DATA(ls_cabn)
+                WITH KEY atinn = ls_ztpp260q-atinn.
+
+              IF sy-subrc = 0.
+
+                IF ls_cabn-atnam = 'ZBMCL'.
+
+                  ls_auspconds-atinn = ls_cabn-atinn.
+                  ls_auspconds-atnam = ls_cabn-atnam.
+                  ls_auspconds-atwrt = '无处理'.
+
+                  APPEND ls_auspconds TO lt_auspconds.
+                  CLEAR ls_auspconds.
+
+                ELSE.
+*要取 成品特性的某个特性
+                  READ TABLE pt_char
+                  INTO ls_char
+                  WITH KEY charact = ls_cabn-atnam
+                  BINARY SEARCH
+                  .
+
+                  IF sy-subrc = 0.
+
+                    ls_auspconds-atinn = ls_cabn-atinn.
+                    ls_auspconds-atnam = ls_cabn-atnam.
+                    ls_auspconds-atwrt = ls_char-value_char.
+
+                    APPEND ls_auspconds TO lt_auspconds.
+                    CLEAR ls_auspconds.
+
+                  ENDIF.
+
+                ENDIF.
+              ENDIF.
+
+            WHEN OTHERS.
+*其他物料组 直接取配置表
+              READ TABLE pt_cabn INTO ls_cabn
+                WITH KEY atinn = ls_ztpp260q-dbatinn.
+
+              IF sy-subrc = 0.
+
+                IF ls_cabn-atnam = 'ZBMCL'.
+
+                  ls_auspconds-atinn = ls_cabn-atinn.
+                  ls_auspconds-atnam = ls_cabn-atnam.
+                  ls_auspconds-atwrt = '无处理'.
+
+                  APPEND ls_auspconds TO lt_auspconds.
+                  CLEAR ls_auspconds.
+
+                ELSE.
+
+                  ASSIGN COMPONENT ls_cabn-atnam
+                  OF STRUCTURE ls_ztpp260l
+                  TO FIELD-SYMBOL(<fs_01>).
+                  IF <fs_01> IS ASSIGNED.
+                    READ TABLE pt_cabn INTO ls_cabn
+                      WITH KEY atinn = ls_ztpp260q-atinn.
+
+                    IF sy-subrc = 0.
+                      ls_auspconds-atinn = ls_cabn-atinn.
+                      ls_auspconds-atnam = ls_cabn-atnam.
+                      ls_auspconds-atwrt = <fs_01>.
+
+                      APPEND ls_auspconds TO lt_auspconds.
+                      CLEAR ls_auspconds.
+
+                      UNASSIGN <fs_01>.
+
+                    ENDIF.
+*配置表找不到的特性 ， 找 成品特性
+
+                  ELSE.
+                    READ TABLE pt_char
+                    INTO ls_char
+                    WITH KEY charact = ls_cabn-atnam
+                    BINARY SEARCH
+                    .
+
+                    IF sy-subrc = 0.
+
+                      ls_auspconds-atinn = ls_cabn-atinn.
+                      ls_auspconds-atnam = ls_cabn-atnam.
+                      ls_auspconds-atwrt = ls_char-value_char.
+
+                      APPEND ls_auspconds TO lt_auspconds.
+                      CLEAR ls_auspconds.
+
+                    ENDIF.
+
+                  ENDIF.
+
+                ENDIF.
+              ENDIF.
+
+
+          ENDCASE.
+        ENDLOOP.
+
+*要加 ZKD
+        READ TABLE pt_cabn INTO ls_cabn
+          WITH KEY atnam = 'ZKD'.
+
+        IF sy-subrc = 0.
+          ls_auspconds-atinn = ls_cabn-atinn.
+          ls_auspconds-atnam = ls_cabn-atnam.
+          ls_auspconds-atwrt = pu_retztpp260t-zylzk.
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+          APPEND ls_auspconds TO lt_auspconds.
+          CLEAR ls_auspconds.
+        ENDIF.
+
+*要加 ZHD
+        READ TABLE pt_cabn INTO ls_cabn
+          WITH KEY atnam = 'ZHD'.
+
+        IF sy-subrc = 0.
+
+          READ TABLE pt_char
+          INTO ls_char
+          WITH KEY charact = ls_cabn-atnam
+          BINARY SEARCH
+          .
+
+          IF sy-subrc = 0.
+
+            ls_auspconds-atinn = ls_cabn-atinn.
+            ls_auspconds-atnam = ls_cabn-atnam.
+            ls_auspconds-atwrt = ls_char-value_char.
+
+            APPEND ls_auspconds TO lt_auspconds.
+            CLEAR ls_auspconds.
+
+          ENDIF.
+
+        ENDIF.
+
+      ENDIF.
+
+      CLEAR: lt_auspdata[].
+
+      CALL FUNCTION 'ZFM_GP_GET_AUSP'
+        EXPORTING
+          it_auspconds = lt_auspconds
+          ip_werks     = pu_retztpp260t-werks
+        IMPORTING
+          et_retdata   = lt_auspdata.
+
+      SORT lt_auspdata BY objek.
+      DELETE ADJACENT DUPLICATES FROM lt_auspdata
+      COMPARING objek.
+
+      DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+      IF lv_lines > 1.
+        RANGES ra_matnr FOR mara-matnr.
+
+        LOOP AT lt_auspdata INTO ls_auspdata.
+          ra_matnr-sign = 'I'.
+          ra_matnr-option = 'EQ'.
+          ra_matnr-low = ls_auspdata-objek.
+          APPEND ra_matnr.
+          CLEAR ra_matnr.
+
+        ENDLOOP.
+
+        SELECT
+          matnr,
+          maktx
+          INTO TABLE @DATA(lt_makt)
+          FROM makt
+
+          WHERE matnr IN @ra_matnr
+            AND spras = '1'
+          .
+        IF sy-subrc = 0.
+          SORT lt_makt BY matnr.
+
+        ENDIF.
+
+        LOOP AT lt_makt INTO DATA(ls_makt).
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '存在多个组件,无法自动选择'.
+        CONCATENATE ls_retdata-message
+                    '存在多个组件,无法自动选择'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ELSE.
+        READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_auspdata-objek.
+        ELSE.
+*找不到时 要报错
+          pc_type = 'E'.
+          ls_retdata-zindex = gv_index. "外板 顺序编号
+          ls_retdata-zclass = TEXT-018. "外板
+          ls_retdata-zxt = pu_retztpp260t-zxt.
+          ls_retdata-type = pc_type.
+          ls_retdata-zpmid = ls_ztpp260p-zpmid.
+          ls_retdata-zpmms = ls_ztpp260p-zpmms.
+*如果找不到,要通过特性创建MDM
+          ls_retdata-auspconds[] = lt_auspconds[].
+
+          LOOP AT lt_auspconds INTO ls_auspconds.
+            CONCATENATE ls_auspconds-atnam
+                        ls_auspconds-atwrt
+                        INTO DATA(lv_tx)
+                        SEPARATED BY space.
+
+            CONCATENATE ls_retdata-message
+                        lv_tx
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+
+          ENDLOOP.
+          CONCATENATE TEXT-036 "通过特性
+                      ls_retdata-message
+                      TEXT-035 "过滤后，无数据。
+                 INTO ls_retdata-message.
+
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+          EXIT.
+        ENDIF.
+
+      ENDIF.
+
+      CLEAR : lt_auspconds[], lt_auspdata[].
+      ls_retdata-zxt = pu_retztpp260t-zxt.
+*      ls_retdata-idnrk = ls_ztpp260e-matnr.
+*      ls_retdata-meins = ls_ztpp260b-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+*      IF ls_ztpp260b-zyl IS NOT INITIAL.
+*
+      ls_retdata-zyl = '1.042'.
+      ls_retdata-meins = 'M'.
+*      ls_retdata-zyl = 1.
+*      ELSE.
+*        IF ls_ztpp260b-zylgs NE ''.
+*          CLEAR lv_message.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260b-zylgs
+*          CHANGING ls_retdata-zyl
+*                   lv_message
+*                   .
+*          IF lv_message NE ''.
+*            CONCATENATE ls_retdata-message
+*                        lv_message
+*                   INTO ls_retdata-message
+*                   SEPARATED BY space.
+*            ls_retdata-type = 'E'.
+*          ENDIF.
+*        ENDIF.
+*
+*      ENDIF.
+
+      ls_retdata-zindex = gv_index. "外板 顺序编号
+      ls_retdata-zclass = TEXT-018. "外板
+
+      IF ls_retdata-zyl = 0.
+
+        ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+        CONCATENATE ls_retdata-message
+                    '用量不得为 0'
+               INTO ls_retdata-message
+               SEPARATED BY space.
+
+      ENDIF.
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+    ENDLOOP.
+
+    IF sy-subrc NE 0.
+      pc_type = 'E'.
+      ls_retdata-zindex = gv_index. "外板 顺序编号
+      ls_retdata-zclass = TEXT-018. "外板
+      ls_retdata-zxt = pu_retztpp260t-zxt.
+      ls_retdata-type = pc_type.
+      CONCATENATE TEXT-010 "查询
+                  TEXT-018 "外板
+                  TEXT-011 "时，
+                  TEXT-016 "错误。
+                  TEXT-025 "条件：
+                  TEXT-026 "工厂
+                  pu_retztpp260t-werks
+*                  TEXT-027 "物料组
+*                  pu_retztpp260c-matkl
+                  TEXT-043 "产地
+                  ls_char-value_char
+                  INTO ls_retdata-message
+                  .
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+
+  ELSE.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "外板 顺序编号
+    ls_retdata-zclass = TEXT-018. "外板
+    ls_retdata-zxt = pu_retztpp260t-zxt.
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-018 "外板
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-037 "找不到成品的
+                TEXT-043 "产地
+                TEXT-038 "特性值
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_pebhmwb_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PT_CHAR
+*&      --> PT_ZTPP260E
+*&      --> PT_RETDATA
+*&      --> PT_CABN
+*&      --> PU_RETZTPP260C
+*&      <-- PC_TYPE
+*&      <-- PC_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_pebhmwb_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+  USING
+*    pu_retztpp260c-matkl TYPE matkl
+*    pu_retztpp260c-werks TYPE werks_d
+    pu_retztpp260c TYPE ztpp_260c
+    pu_retztpp260l TYPE ztpp_260l
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_bx    TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbxz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zkd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbys TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbtc TYPE bapi1003_alloc_values_char-value_char,
+        lv_zwbfm TYPE bapi1003_alloc_values_char-value_char,
+*        lv_cpkd  TYPE p,
+        lv_etype TYPE c.
+
+  DATA: lt_auspconds TYPE zttpp_231_input,
+        ls_auspconds LIKE LINE OF lt_auspconds,
+        lt_auspdata  TYPE zttpp_231_output,
+        ls_auspdata  LIKE LINE OF lt_auspdata.
+
+  CLEAR: lv_bx, lv_zwbxz.
+
+*PE保护膜（外板）：
+*物料组-MATKL、板型-ZBX、当外板形状-ZWBXZ，到PE保护膜配置表取：
+*PE保护膜厚度-ZHD、PE保护膜颜色-ZYS、
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZWBXZ'
+     OR charact = 'ZBK'
+     OR charact = 'ZWBYS'
+     OR charact = 'ZWBCZ'
+     OR charact = 'ZWBTC'
+     OR charact = 'ZWBFM'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBTC'.
+      lv_zwbtc = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBCZ'.
+      lv_zwbcz = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBXZ'.
+      lv_zwbxz = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBYS'.
+      lv_zwbys = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZWBFM'.
+      lv_zwbfm = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBK'.
+      gv_c_zbk_p = ls_char-value_char.
+
+    ENDIF.
+  ENDLOOP.
+*
+*外板保护膜取值
+*去AUSP 反找物流 取值时的特性范围框定
+  IF lv_etype = 'A'..
+    "说明成品宽度不是数字，有问题，报错了就没法找了
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "PE保护膜 顺序编号
+    ls_retdata-zclass = TEXT-007. "PE保护膜-内板
+    ls_retdata-type = pc_type.
+    ls_retdata-message = pc_msg.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+*非V8波纹 时， 配置表中 空表示
+  IF lv_zwbxz NE 'V8波纹'.
+    CLEAR lv_zwbxz.
+
+  ENDIF.
+
+  IF pu_retztpp260c-matkl = 'A0500'.
+    gv_c_zbk_p = 1000.
+*    lv_cpkd = 1000.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+
+  SORT pt_cabn BY atnam adzhl.
+
+  CLEAR lt_auspconds[].
+  LOOP AT pt_ztpp260e
+  INTO DATA(ls_ztpp260e)
+  WHERE werks = pu_retztpp260c-werks
+    AND zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_bx
+    AND zwbxz = lv_zwbxz
+    .
+
+*若配置表中的厚度-ZHD、颜色-ZYS、粘度-ZND为空时：
+*当涂层种类=“辉彩”时，ZHD="6S",ZYS=“透明”，ZND=“磨砂专用”；
+*当涂层种类≠“辉彩”时，ZHD="4S",ZYS=“黑白”，ZND=“高粘”，用量同上；
+    IF ls_ztpp260e-zhd = ''
+      AND ls_ztpp260e-zys = ''
+      AND ls_ztpp260e-znd = ''
+      .
+      CASE lv_zwbtc.
+        WHEN '辉彩'.
+
+          IF pu_retztpp260c-matkl = 'A0300'.
+
+
+          ELSE.
+
+            ls_ztpp260e-zhd = '6'.
+            ls_ztpp260e-zys = '透明'.
+            ls_ztpp260e-znd = '磨砂专用'.
+          ENDIF.
+        WHEN OTHERS.
+          IF pu_retztpp260c-matkl = 'A0300'.
+
+          ELSE.
+            ls_ztpp260e-zhd = '4'.
+            ls_ztpp260e-zys = '黑白'.
+            ls_ztpp260e-znd = '高粘'.
+          ENDIF.
+
+      ENDCASE.
+
+    ENDIF.
+
+    LOOP AT pt_cabn INTO DATA(ls_cabn)
+      WHERE atnam = 'ZHDS'
+         OR atnam = 'ZYS'
+         OR atnam = 'ZND'
+         OR atnam = 'ZKD'
+         OR atnam = 'ZYZYQ'
+         .
+      ls_auspconds-atinn = ls_cabn-atinn.
+      ls_auspconds-atnam = ls_cabn-atnam.
+
+*PE保护膜宽度-ZKD=成品宽度-ZKD+宽度加量-ZKDJL、
+      CASE ls_auspconds-atnam.
+        WHEN 'ZKD'.
+
+          IF pu_retztpp260c-matkl = 'A0200'
+            AND lv_bx = '防火板'
+            .
+            IF gv_c_zbk_p = 1000.
+              ls_auspconds-atwrt = gv_c_zbk_p + 10.
+
+            ELSE.
+              ls_auspconds-atwrt = gv_c_zbk_p + 35.
+
+            ENDIF.
+
+          ELSEIF pu_retztpp260c-matkl = 'A0500'.
+            ls_auspconds-atwrt = gv_c_zbk_p.
+
+          ELSE.
+            ls_auspconds-atwrt = gv_c_zbk_p + ls_ztpp260e-zpebhmkdjl.
+
+          ENDIF.
+
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+        WHEN 'ZHDS'.
+          ls_auspconds-atwrt = ls_ztpp260e-zhd.
+
+*当外板形状-ZWBXZ=V8波纹时，
+*PE保护膜宽度-ZKD=成品宽度-ZKD+宽度加量-ZKDJL、
+*当外板形状-ZWBXZ≠V8波纹时，PE保护膜宽度-ZKD=成品宽度-ZKD+宽度加量-ZKDJL、
+*PE保护膜粘度-ZND：
+*外板材质-ZWBCZ=“烨辉彩涂钢”时，粘度为“磨砂专用”；
+*当外板颜色-ZWBYS=“银色“时，粘度为“白银灰”，
+*当外板材质-ZWBCZ≠“烨辉彩涂钢”且当外板颜色-ZWBYS≠“银色“时，粘度为“高粘”，
+*印字要求-ZYZYQ默认"无印字"，
+*用量根据“1”取到的物料组-MATKL、版型-ZBX、线体-取对应配置表中的外板PE保护膜用量-ZWYL；
+
+        WHEN 'ZND'.
+
+          IF pu_retztpp260c-matkl = 'A0300'.
+            IF lv_zwbtc = '辉彩'.
+              ls_auspconds-atwrt = '磨砂膜专用膜'.
+
+            ELSE.
+
+              IF lv_zwbcz EQ '烨辉彩涂钢'.
+                ls_auspconds-atwrt = '白银灰专用膜'.
+
+              ELSE.
+                ls_auspconds-atwrt = '防静电'.
+
+              ENDIF.
+
+            ENDIF.
+
+          ELSE.
+
+            IF lv_zwbcz EQ '烨辉彩涂钢'.
+*            ELSEIF lv_zwbcz EQ '彩涂钢*辉彩'.
+              ls_auspconds-atwrt = '磨砂专用'.
+
+            ELSEIF lv_zwbys EQ '银色'.
+*            ls_auspconds-atwrt = '白银灰'.
+              ls_auspconds-atwrt = '高粘'.
+
+            ELSEIF lv_zwbcz NE '烨辉彩涂钢'
+              AND lv_zwbys NE '银色'.
+              ls_auspconds-atwrt = '高粘'.
+
+            ENDIF.
+          ENDIF.
+
+        WHEN 'ZYS'.
+*颜色-ZYS：当外板覆膜-ZWBFM=“覆白膜”时颜色-ZYS=“白色”，外板覆膜-ZWBFM≠“覆白膜”时颜色-ZYS=“透明”
+          IF pu_retztpp260c-matkl = 'A0300'.
+            IF lv_zwbfm = '覆白膜'.
+              ls_auspconds-atwrt = '白色'.
+
+            ELSE.
+              ls_auspconds-atwrt = '透明'.
+
+            ENDIF.
+          ELSE.
+            ls_auspconds-atwrt = ls_ztpp260e-zys.
+          ENDIF.
+
+*印字要求默认"无"，
+        WHEN 'ZYZYQ'.
+          ls_auspconds-atwrt = '无印字  '.
+
+      ENDCASE.
+
+
+      APPEND ls_auspconds TO lt_auspconds.
+      CLEAR ls_auspconds.
+    ENDLOOP.
+
+    CLEAR: lt_auspdata[].
+
+    IF pu_retztpp260c-matkl = 'A0300'.
+*当粘度-ZND=“防静电”时保护膜厚度-ZHD=“5S”，当粘度-ZND≠“防静电”时保护膜厚度-ZHD=“6S”
+      READ TABLE lt_auspconds
+      INTO ls_auspconds
+      WITH KEY atnam = 'ZND'.
+      IF sy-subrc = 0.
+
+        READ TABLE lt_auspconds
+        ASSIGNING FIELD-SYMBOL(<fs_ausp>)
+        WITH KEY atnam = 'ZHDS'.
+        IF sy-subrc = 0.
+          IF ls_auspconds-atwrt = '防静电'.
+            <fs_ausp>-atwrt = '5'.
+
+          ELSE.
+            <fs_ausp>-atwrt = '6'.
+
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+    ELSE.
+
+    ENDIF.
+
+    CALL FUNCTION 'ZFM_GP_GET_AUSP'
+      EXPORTING
+        it_auspconds = lt_auspconds
+        ip_werks     = pu_retztpp260c-werks
+      IMPORTING
+        et_retdata   = lt_auspdata.
+
+    SORT lt_auspdata BY objek.
+    DELETE ADJACENT DUPLICATES FROM lt_auspdata
+    COMPARING objek.
+
+    DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+    IF lv_lines > 1.
+*      ls_retdata-type = 'E'.
+*      ls_retdata-message = '存在多个组件,无法自动选择'.
+
+      RANGES ra_matnr FOR mara-matnr.
+
+      LOOP AT lt_auspdata INTO ls_auspdata.
+        ra_matnr-sign = 'I'.
+        ra_matnr-option = 'EQ'.
+        ra_matnr-low = ls_auspdata-objek.
+        APPEND ra_matnr.
+        CLEAR ra_matnr.
+
+      ENDLOOP.
+
+*通过品名 再过滤一次
+      SELECT
+        mara~matnr,
+        mara~zzl1,
+        makt~maktx
+        INTO TABLE @DATA(lt_makt)
+        FROM mara
+        INNER JOIN makt
+        ON makt~matnr = mara~matnr
+
+        WHERE mara~matnr IN @ra_matnr
+*          AND mara~zzl1 = @ls_ztpp260d-zzl1
+          AND makt~spras = '1'
+        .
+      IF sy-subrc = 0.
+        SORT lt_makt BY matnr.
+
+      ELSE.
+**找不到时 要报错
+*        pc_type = 'E'.
+*        ls_retdata-zindex = gv_index. "芯材 顺序编号
+*        ls_retdata-zclass = TEXT-013. "芯材
+*        ls_retdata-zxt = pu_retztpp260c-zxt.
+*        ls_retdata-type = pc_type.
+*        ls_retdata-auspconds = lt_auspconds[].
+*        CONCATENATE TEXT-034 "通过品名
+*                    ls_ztpp260d-zzl1
+*                    TEXT-035 "过滤后，无数据。
+*               INTO ls_retdata-message.
+*
+*        APPEND ls_retdata TO pt_retdata.
+*        CLEAR ls_retdata.
+*
+*        EXIT.
+
+      ENDIF.
+
+      DESCRIBE TABLE lt_makt LINES lv_lines.
+
+      IF lv_lines = 1.
+        READ TABLE lt_makt INTO DATA(ls_makt) INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_makt-matnr.
+
+        ENDIF.
+      ELSE.
+
+        LOOP AT lt_makt INTO ls_makt.
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+          ls_idnrklist-zzl1 = ls_makt-zzl1.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+*        IF lv_zxccd EQ '无'.
+
+        READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_auspdata-objek.
+
+        ELSE.
+*找不到时 要报错
+          pc_type = 'E'.
+          ls_retdata-zindex = gv_index. "PE保护膜-外板 顺序编号
+          ls_retdata-zclass = TEXT-008. "PE保护膜-外板
+          ls_retdata-zxt = pu_retztpp260c-zxt.
+          ls_retdata-type = pc_type.
+
+          LOOP AT lt_auspconds INTO ls_auspconds.
+            CONCATENATE ls_auspconds-atnam
+                        ls_auspconds-atwrt
+                        INTO DATA(lv_tx)
+                        SEPARATED BY space.
+
+            CONCATENATE ls_retdata-message
+                        lv_tx
+                   INTO ls_retdata-message
+                   SEPARATED BY space.
+
+          ENDLOOP.
+          CONCATENATE TEXT-036 "通过特性
+                      ls_retdata-message
+                      TEXT-035 "过滤后，无数据。
+                 INTO ls_retdata-message.
+
+          APPEND ls_retdata TO pt_retdata.
+          CLEAR ls_retdata.
+
+          EXIT.
+
+        ENDIF.
+
+*        ELSE.
+*          ls_retdata-type = 'E'.
+**        ls_retdata-message = '存在多个组件,无法自动选择'.
+*          CONCATENATE ls_retdata-message
+*                      '存在多个组件,无法自动选择'
+*                 INTO ls_retdata-message
+*                 SEPARATED BY space.
+*
+*
+*        ENDIF.
+
+      ENDIF.
+
+
+    ELSE.
+      READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+      IF sy-subrc = 0.
+        ls_retdata-idnrk = ls_auspdata-objek.
+        ls_retdata-idnrk_matkl = 'J0401'. "组件物料组
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "PE保护膜-外板 顺序编号
+        ls_retdata-zclass = TEXT-008. "PE保护膜-外板
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-idnrk_matkl = 'J0401'. "组件物料组
+        ls_retdata-type = pc_type.
+
+        ls_retdata-auspconds = lt_auspconds[].
+        LOOP AT lt_auspconds INTO ls_auspconds.
+          CONCATENATE ls_auspconds-atnam
+                      ls_auspconds-atwrt
+                      INTO lv_tx
+                      SEPARATED BY space.
+
+          CONCATENATE ls_retdata-message
+                      lv_tx
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+        ENDLOOP.
+        CONCATENATE TEXT-036 "通过特性
+                    ls_retdata-message
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+
+      ENDIF.
+
+    ENDIF.
+
+    CLEAR : lt_auspconds[], lt_auspdata[].
+    ls_retdata-zxt = ls_ztpp260e-zxt.
+*      ls_retdata-idnrk = ls_ztpp260e-matnr.
+    ls_retdata-meins = ls_ztpp260e-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260e-zwyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260e-zwyl.
+    ELSE.
+*        IF ls_ztpp260e-zylgs NE ''.
+*          PERFORM frm_gongshi
+*          USING ls_ztpp260e-zylgs
+*          CHANGING ls_retdata-zyl.
+*
+*        ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "PE保护膜 顺序编号
+    ls_retdata-zclass = TEXT-008. "PE保护膜-外板
+    ls_retdata-idnrk_matkl = 'J0401'. "组件物料组
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "展宽 顺序编号
+    ls_retdata-zclass = TEXT-008. "PE保护膜-外板
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-008 "PE保护膜-外板
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+
+                TEXT-052 "外板形状
+                lv_zwbxz
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_zk_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PT_CHAR
+*&      --> PT_ZTPP260O
+*&      --> PT_RETDATA
+*&      --> PU_RETZTPP260C
+*&---------------------------------------------------------------------*
+FORM frm_zk_process
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260o STRUCTURE ztpp_260o
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+    pu_retztpp260c TYPE ztpp_260c.
+
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA: lv_etype   TYPE bapi_mtype,
+        lv_message TYPE bapi_msg.
+
+  DATA: lv_zbx TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbh TYPE bapi1003_alloc_values_char-value_char.
+
+
+*需要获取 成品特性中的 版型 - ZBX
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+    .
+
+    CASE ls_char-charact.
+      WHEN 'ZBH'.
+*防止abap 异常
+        TRY .
+            gv_c_zbh_p = ls_char-value_char.
+            lv_zbh = gv_c_zbh_p.
+            CONDENSE lv_zbh NO-GAPS.
+
+          CATCH cx_root INTO DATA(lr_cxroot).
+            lv_etype = 'A'. "A - 成品宽度值错误
+            lv_message = lr_cxroot->get_text( ).
+            CONCATENATE TEXT-010 "查询
+                        TEXT-044 "组框
+                        TEXT-011 "时，
+                        TEXT-024 "板厚
+                        TEXT-016 "错误。
+                        lv_message
+                        INTO lv_message
+                    SEPARATED BY space.
+
+        ENDTRY.
+
+      WHEN 'ZBX'.
+        lv_zbx = ls_char-value_char.
+
+    ENDCASE.
+
+  ENDLOOP.
+  IF pu_retztpp260c-matkl = 'A0500'
+    AND ( gv_c_zbk_p = 0
+     OR gv_c_zbk_p = '' ).
+    gv_c_zbk_p = 1000.
+*    lv_zbk = '1000'.
+
+  ENDIF.
+  CONDENSE gv_c_zbk_p NO-GAPS.
+
+*逻辑错误
+  IF lv_etype = 'A'.
+*    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "组框 顺序编号
+    ls_retdata-zclass = TEXT-044. "组框
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = 'E'.
+    ls_retdata-message = lv_message.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+*通过配置表取 组件 * 根据线体返回
+  LOOP AT pt_ztpp260o
+  INTO DATA(ls_ztpp260o)
+  WHERE zxt = pu_retztpp260c-zxt
+    AND matkl = pu_retztpp260c-matkl
+    AND zbx = lv_zbx
+    AND zbh = lv_zbh
+    .
+    ls_retdata-zxt = ls_ztpp260o-zxt.
+    ls_retdata-idnrk = ls_ztpp260o-matnr.
+    ls_retdata-meins = ls_ztpp260o-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260o-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260o-zyl.
+    ELSE.
+      IF ls_ztpp260o-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260o-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+                 .
+
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "组框 顺序编号
+    ls_retdata-zclass = TEXT-044. "组框
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_bcp_process
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PT_ZTPP260A
+*&      --> PT_RETDATA
+*&      --> PU_RETZTPP260C
+*&---------------------------------------------------------------------*
+FORM frm_bcp_process
+  TABLES
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_retdata TYPE zttpp_228_retdata
+  USING
+*    pu_retztpp260c TYPE ztpp_260c
+    pu_werks TYPE werks_d
+    pu_matkl TYPE matkl
+    pu_zxt TYPE ztpp_260c-zxt
+  .
+
+  DATA: ls_retdata LIKE LINE OF pt_retdata,
+        lv_fname   TYPE fieldname,
+        lv_num     TYPE n LENGTH 2.
+
+  FIELD-SYMBOLS <fs_value> TYPE any.
+
+  READ TABLE pt_ztpp260a INTO DATA(ls_ztpp260a)
+    WITH KEY werks = pu_werks
+             matkl = pu_matkl.
+
+  CHECK sy-subrc = 0.
+
+  DO 10 TIMES.
+
+    gv_index = gv_index + 1.
+    lv_num = sy-index.
+    CONCATENATE 'ZBCPWL' lv_num
+    INTO lv_fname.
+
+    ASSIGN COMPONENT lv_fname OF STRUCTURE ls_ztpp260a
+    TO <fs_value>.
+    IF <fs_value> IS ASSIGNED.
+
+      IF <fs_value> NE ''.
+        ls_retdata-zxt = pu_zxt.
+        ls_retdata-idnrk = <fs_value>.
+*        ls_retdata-meins = 'EA'.
+        SELECT SINGLE
+          meins
+          INTO ls_retdata-meins
+          FROM mara
+          WHERE matnr = ls_retdata-idnrk.
+
+        ls_retdata-zyl = 1.
+*        ls_retdata-stlal = '01'.
+        ls_retdata-zindex = gv_index. "
+        ls_retdata-zclass = TEXT-051. "半成品
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+      ELSE.
+        gv_index = gv_index - 1.
+      ENDIF.
+
+
+      UNASSIGN <fs_value>.
+
+    ENDIF.
+
+  ENDDO.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_lcjing
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LS_DATALIST_CHAR
+*&      --> LT_RETDATA
+*&      --> LT_CABN
+*&      --> LT_ZTPP260D
+*&      --> LT_ZTPP260N
+*&      --> LT_ZTPP260J
+*&      --> LT_ZTPP260I
+*&      --> LT_ZTPP260H
+*&      --> LT_ZTPP260G
+*&      --> LT_ZTPP260M
+*&      --> LT_ZTPP260E
+*&      --> LT_ZTPP260C
+*&      --> LT_ZTPP260L
+*&      --> LT_ZTPP260B
+*&      --> LT_ZTPP260A
+*&      --> LT_ZTPP260P
+*&      --> LT_ZTPP260Q
+*&      --> LT_ZTPP260R
+*&      --> LT_ZTPP260S
+*&      --> LT_ZTPP260T
+*&      --> LT_ZTPP260U
+*&      --> LS_RETZTPP260C
+*&      <-- LV_TYPE
+*&      <-- LV_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_lcjing
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_ztpp260n STRUCTURE ztpp_260n
+    pt_ztpp260j STRUCTURE ztpp_260j
+    pt_ztpp260i STRUCTURE ztpp_260i
+    pt_ztpp260h STRUCTURE ztpp_260h
+    pt_ztpp260g STRUCTURE ztpp_260g
+    pt_ztpp260m STRUCTURE ztpp_260m
+    pt_ztpp260e STRUCTURE ztpp_260e
+    pt_ztpp260c STRUCTURE ztpp_260c
+    pt_ztpp260l STRUCTURE ztpp_260l
+    pt_ztpp260b STRUCTURE ztpp_260b
+    pt_ztpp260a STRUCTURE ztpp_260a
+    pt_ztpp260p STRUCTURE ztpp_260p
+    pt_ztpp260q STRUCTURE ztpp_260q
+    pt_ztpp260r STRUCTURE ztpp_260r
+    pt_ztpp260s STRUCTURE ztpp_260s
+    pt_ztpp260t STRUCTURE ztpp_260t
+    pt_ztpp260u STRUCTURE ztpp_260u
+    pt_ztpp260a5 STRUCTURE ztpp_260a5
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_message TYPE bapi_msg
+  .
+
+  DATA ls_retztpp260l TYPE ztpp_260l.
+
+*PE保护膜-外板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhmwb_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+        ls_retztpp260l
+  CHANGING pc_type
+           pc_message.
+
+*通过 特性值 反找 组件物料
+*PE保护膜-内板
+  gv_index = gv_index + 1.
+  PERFORM frm_pebhm_process
+  TABLES pt_char
+         pt_ztpp260e
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+
+*芯材
+  gv_index = gv_index + 1.
+  PERFORM frm_xc_process_lcjing
+  TABLES pt_char
+         pt_ztpp260a5
+         pt_retdata
+         pt_cabn
+  USING pu_retztpp260c
+  CHANGING pc_type
+           pc_message.
+
+**内板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_nb_process
+*  TABLES pt_char
+*         pt_ztpp260b
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+*
+**外板
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wb_process
+*  TABLES pt_char
+*         pt_ztpp260l
+*         pt_retdata
+*         pt_cabn
+*         pt_ztpp260p
+*         pt_ztpp260q
+*  USING pu_retztpp260c
+*  CHANGING pc_type
+*           pc_message.
+
+
+
+*通过 特性值 反找 组件物料
+*海绵条
+  gv_index = gv_index + 1.
+  PERFORM frm_hmt_process
+  TABLES pt_char
+         pt_ztpp260m
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶带
+  gv_index = gv_index + 1.
+  PERFORM frm_jd_process
+  TABLES pt_char
+         pt_ztpp260g
+         pt_retdata
+  USING pu_retztpp260c.
+
+
+*通过 特性值 反找 组件物料
+*粘合剂黑料
+  gv_index = gv_index + 1.
+  PERFORM frm_nhjhl_process
+  TABLES pt_char
+         pt_ztpp260j
+         pt_retdata
+  USING pu_retztpp260c.
+
+*通过 特性值 反找 组件物料
+*胶水
+  gv_index = gv_index + 1.
+  PERFORM frm_js_process
+  TABLES pt_char
+         pt_ztpp260n
+         pt_retdata
+  USING pu_retztpp260c.
+
+**瓦楞白料
+*  gv_index = gv_index + 1.
+*  PERFORM frm_wlbl_process
+*  TABLES pt_char
+*         pt_ztpp260s
+*         pt_retdata
+*  USING pu_retztpp260c.
+*
+**特殊无纺布
+*  gv_index = gv_index + 1.
+*  PERFORM frm_tswfb_process
+*  TABLES pt_char
+*         pt_ztpp260u
+*         pt_retdata
+*  USING pu_retztpp260c.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_xc_process_lcjing
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PT_CHAR
+*&      --> PT_ZTPP260D
+*&      --> PT_RETDATA
+*&      --> PT_CABN
+*&      --> PU_RETZTPP260C
+*&      <-- PC_TYPE
+*&      <-- PC_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_xc_process_lcjing
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260a5 STRUCTURE ztpp_260a5
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+*据取到的物料组、板型-ZBX、板厚-ZBH、芯材种类-ZXCZL到芯材配置表中取出:
+*芯材长度-ZLENGTH、
+*芯材宽度-ZKD，当配置表中取到“空”时取ZBK、
+*芯材厚度-ZHD,当配置表中取到“空”时取ZBH；
+*根据特征值到AUSP表中特征值-ATWRT查找对象号-OBJEK是否有值，如果有值则取出，
+*如取出多条多个则根据品名到MARA-ZZL1中进行排除
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_bx      TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbh     TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxczl   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxcrz   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxccd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_message TYPE bapi_msg,
+        lv_zbk     TYPE bapi1003_alloc_values_char-value_char,
+        lv_zrsdj   TYPE bapi1003_alloc_values_char-value_char,
+        lv_cpkd    TYPE p,
+        lv_etype   TYPE c.
+
+  CLEAR: lv_bx, lv_zbh, lv_zxczl.
+*需要获取 成品特性中的 版型 - ZBX / 外板形状 - ZWBXZ
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+     OR charact = 'ZXCZL'
+     OR charact = 'ZXCRZ'
+     OR charact = 'ZBK'
+     OR charact = 'ZXCCD'
+     OR charact = 'ZRSDJ' "防火等级
+*     OR charact = 'ZRH' "容重
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZRSDJ'.
+      lv_zrsdj = ls_char-value_char.
+
+*    ELSEIF ls_char-charact = 'ZXCRZ'.
+
+
+    ELSEIF ls_char-charact = 'ZBH'.
+
+      gv_c_zbh_p = ls_char-value_char.
+
+
+    ELSEIF ls_char-charact = 'ZXCZL'.
+      lv_zxczl = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZXCRZ'.
+*
+      gv_c_zrh_p = ls_char-value_char.
+
+
+    ELSEIF ls_char-charact = 'ZXCCD'.
+      lv_zxccd = ls_char-value_char.
+*
+    ELSEIF ls_char-charact = 'ZBK'.
+
+      gv_c_zbk_p = ls_char-value_char.
+
+*板宽没有具体数值的时候默认ZBK=1000
+      IF pu_retztpp260c-matkl = 'A0500'
+        AND gv_c_zbk_p = 0.
+        gv_c_zbk_p = 1000.
+        lv_zbk = '1000'.
+
+      ENDIF.
+
+    ENDIF.
+  ENDLOOP.
+
+*逻辑错误
+  IF lv_etype = 'A'.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "芯材 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = pc_type.
+    ls_retdata-message = pc_msg.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+  RANGES ra_bh FOR ztpp_260a5-zbh.
+
+  LOOP AT pt_ztpp260a5
+  INTO DATA(ls_ztpp260a5)
+
+  WHERE werks = pu_retztpp260c-werks
+    AND matkl = pu_retztpp260c-matkl
+    AND zxt = pu_retztpp260c-zxt
+    AND zfhdj = lv_zrsdj
+*    AND zbh = lv_zbh
+*    AND zxczl = lv_zxczl
+    .
+
+    CLEAR ra_bh[].
+
+    ra_bh-sign = 'I'.
+    ra_bh-option = ls_ztpp260a5-zoption.
+    ra_bh-low = ls_ztpp260a5-zbh.
+    APPEND ra_bh.
+    IF lv_zbh IN ra_bh.
+
+    ELSE.
+      CONTINUE.
+
+    ENDIF.
+
+
+    ls_retdata-zxt = ls_ztpp260a5-zxt.
+    ls_retdata-idnrk = ls_ztpp260a5-matnr.
+    ls_retdata-meins = ls_ztpp260a5-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260a5-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260a5-zyl.
+    ELSE.
+      IF ls_ztpp260a5-zylgs NE ''.
+        PERFORM frm_gongshi
+        USING ls_ztpp260a5-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+          .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "芯材 顺序编号
+*    ls_retdata-zclass = TEXT-013. "芯材
+
+    CONCATENATE TEXT-013
+                ls_ztpp260a5-zxczl
+                INTO ls_retdata-zclass
+                SEPARATED BY '-'.
+
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_xc_process_fhb
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> PT_CHAR
+*&      --> PT_ZTPP260D
+*&      --> PT_RETDATA
+*&      --> PT_CABN
+*&      --> PU_RETZTPP260C
+*&      <-- PC_TYPE
+*&      <-- PC_MESSAGE
+*&---------------------------------------------------------------------*
+FORM frm_xc_process_fhb
+  TABLES
+    pt_char TYPE char_allocation_tt
+    pt_ztpp260d STRUCTURE ztpp_260d
+    pt_retdata TYPE zttpp_228_retdata
+    pt_cabn STRUCTURE cabn
+  USING
+    pu_retztpp260c TYPE ztpp_260c
+  CHANGING
+    pc_type TYPE bapi_mtype
+    pc_msg TYPE bapi_msg
+  .
+*据取到的物料组、板型-ZBX、板厚-ZBH、芯材种类-ZXCZL到芯材配置表中取出:
+*芯材长度-ZLENGTH、
+*芯材宽度-ZKD，当配置表中取到“空”时取ZBK、
+*芯材厚度-ZHD,当配置表中取到“空”时取ZBH；
+*根据特征值到AUSP表中特征值-ATWRT查找对象号-OBJEK是否有值，如果有值则取出，
+*如取出多条多个则根据品名到MARA-ZZL1中进行排除
+  DATA ls_retdata LIKE LINE OF pt_retdata.
+  DATA ls_idnrklist LIKE LINE OF ls_retdata-idnrklist.
+  DATA: lv_bx      TYPE bapi1003_alloc_values_char-value_char,
+        lv_zbh     TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxczl   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxcrz   TYPE bapi1003_alloc_values_char-value_char,
+        lv_zxccd   TYPE bapi1003_alloc_values_char-value_char,
+        lv_message TYPE bapi_msg,
+        lv_zbk     TYPE bapi1003_alloc_values_char-value_char,
+*        lv_zwbcz TYPE bapi1003_alloc_values_char-value_char,
+        lv_cpkd    TYPE p,
+        lv_etype   TYPE c.
+
+  CLEAR: lv_bx, lv_zbh, lv_zxczl.
+*需要获取 成品特性中的 版型 - ZBX / 外板形状 - ZWBXZ
+  LOOP AT pt_char INTO DATA(ls_char)
+  WHERE charact = 'ZBX'
+     OR charact = 'ZBH'
+     OR charact = 'ZXCZL'
+     OR charact = 'ZXCRZ'
+     OR charact = 'ZBK'
+     OR charact = 'ZXCCD'
+  .
+    IF ls_char-charact = 'ZBX'.
+      lv_bx = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZBH'.
+      lv_zbh = ls_char-value_char.
+
+*防止abap 异常
+      TRY .
+          gv_c_zbh_p = lv_zbh.
+
+        CATCH cx_root INTO DATA(lr_cxroot).
+          lv_etype = 'A'. "A - 成品宽度值错误
+          pc_msg = lr_cxroot->get_text( ).
+          CONCATENATE TEXT-010 "查询
+                      TEXT-013 "芯材
+                      TEXT-011 "时，
+                      TEXT-014 "成品
+                      TEXT-024 "板厚
+                      TEXT-022 "值
+                      TEXT-016 "错误。
+                      pc_msg
+                      INTO pc_msg
+                      .
+
+      ENDTRY.
+
+    ELSEIF ls_char-charact = 'ZXCZL'.
+      lv_zxczl = ls_char-value_char.
+
+    ELSEIF ls_char-charact = 'ZXCRZ'.
+      lv_zxcrz = ls_char-value_char.
+*
+    ELSEIF ls_char-charact = 'ZXCCD'.
+      lv_zxccd = ls_char-value_char.
+*
+    ELSEIF ls_char-charact = 'ZBK'.
+      lv_zbk = ls_char-value_char.
+
+*防止abap 异常
+      TRY .
+          gv_c_zbk_p = lv_zbk.
+
+*板宽没有具体数值的时候默认ZBK=1000
+          IF pu_retztpp260c-matkl = 'A0500'
+            AND gv_c_zbk_p = 0.
+            gv_c_zbk_p = 1000.
+            lv_zbk = '1000'.
+
+          ENDIF.
+
+        CATCH cx_root INTO lr_cxroot.
+          lv_etype = 'A'. "A - 成品宽度值错误
+          pc_msg = lr_cxroot->get_text( ).
+          CONCATENATE TEXT-010 "查询
+                      TEXT-013 "芯材
+                      TEXT-011 "时，
+                      TEXT-009 "成品宽度值
+                      TEXT-016 "错误。
+                      pc_msg
+                      INTO pc_msg
+                  SEPARATED BY space.
+
+      ENDTRY.
+
+    ENDIF.
+  ENDLOOP.
+
+
+
+*逻辑错误
+  IF lv_etype = 'A'.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "芯材 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+    ls_retdata-zxt = pu_retztpp260c-zxt.
+    ls_retdata-type = pc_type.
+    ls_retdata-message = pc_msg.
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+  SORT pt_cabn BY atnam adzhl.
+
+  DATA: lt_auspconds TYPE zttpp_231_input,
+        ls_auspconds LIKE LINE OF lt_auspconds,
+        lt_auspdata  TYPE zttpp_231_output,
+        ls_auspdata  LIKE LINE OF lt_auspdata.
+
+  LOOP AT pt_ztpp260d
+  INTO DATA(ls_ztpp260d)
+
+  WHERE werks = pu_retztpp260c-werks
+    AND matkl = pu_retztpp260c-matkl
+    AND zxt = pu_retztpp260c-zxt
+    AND zbx = lv_bx
+*    AND zbh = lv_zbh
+    AND zxczl = lv_zxczl
+    AND zbk = lv_zbk
+    .
+
+*防止abap 异常
+    TRY .
+        gv_zlength_p = ls_ztpp260d-zlength.
+
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-041 "长度
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+*防止abap 异常
+    TRY .
+        gv_zqgsyllz_p = ls_ztpp260d-zqgsyllz.
+
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-015 "切割损益理论值
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+
+*防止abap 异常
+    TRY .
+        gv_zkd_p = ls_ztpp260d-zkd.
+        IF gv_zkd_p = 0.
+          gv_zkd_p = gv_c_zbk_p.
+
+        ENDIF.
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-042 "宽度
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+*防止abap 异常
+    TRY .
+        gv_zhd_p = ls_ztpp260d-zhd.
+        IF gv_zhd_p = 0.
+          gv_zhd_p = gv_c_zbh_p.
+
+        ENDIF.
+      CATCH cx_root INTO lr_cxroot.
+        lv_etype = 'A'. "A - 成品宽度值错误
+        pc_msg = lr_cxroot->get_text( ).
+        CONCATENATE TEXT-010 "查询
+                    TEXT-013 "芯材
+                    TEXT-017 "厚度
+                    TEXT-016 "错误。
+                    pc_msg
+                    INTO pc_msg
+                SEPARATED BY space.
+
+    ENDTRY.
+
+    IF lv_etype = 'A'.
+      pc_type = 'E'.
+      ls_retdata-zindex = gv_index. "芯材 顺序编号
+      ls_retdata-zclass = TEXT-013. "芯材
+      ls_retdata-zxt = pu_retztpp260c-zxt.
+      ls_retdata-type = pc_type.
+      ls_retdata-message = pc_msg.
+
+      APPEND ls_retdata TO pt_retdata.
+      CLEAR ls_retdata.
+
+      RETURN.
+
+    ENDIF.
+
+*组件物料组
+*特性内外码
+    LOOP AT pt_cabn INTO DATA(ls_cabn)
+      WHERE atnam = 'ZHD'
+         OR atnam = 'ZLENGTH'
+         OR atnam = 'ZKD'
+         OR atnam = 'ZRZ'
+         OR atnam = 'ZCD'
+*           OR atnam = 'ZZSX'
+*           OR atnam = 'ZXCZL'
+*           OR atnam = 'ZBH'
+         .
+      ls_auspconds-atinn = ls_cabn-atinn.
+      ls_auspconds-atnam = ls_cabn-atnam.
+
+      CASE ls_auspconds-atnam.
+        WHEN 'ZKD'.
+          ls_auspconds-atwrt = gv_zkd_p.
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+        WHEN 'ZHD'.
+          ls_auspconds-atwrt = gv_zhd_p.
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+
+        WHEN 'ZLENGTH'.
+          ls_auspconds-atwrt = gv_zlength_p.
+
+          CONDENSE ls_auspconds-atwrt NO-GAPS.
+*          WHEN 'ZZSX'.
+*            ls_auspconds-atwrt = ls_ztpp260d-zzsx.
+
+        WHEN 'ZRZ'.
+          ls_auspconds-atwrt = lv_zxcrz.
+
+        WHEN 'ZCD'.
+          IF lv_zxccd EQ '无'.
+            lv_zxccd = '通用'.
+
+          ENDIF.
+
+          ls_auspconds-atwrt = lv_zxccd.
+*
+
+*        WHEN 'ZBH'.
+*          ls_auspconds-atwrt = lv_zbh.
+
+      ENDCASE.
+
+
+      APPEND ls_auspconds TO lt_auspconds.
+      CLEAR ls_auspconds.
+    ENDLOOP.
+
+    CLEAR: lt_auspdata[].
+
+    CALL FUNCTION 'ZFM_GP_GET_AUSP'
+      EXPORTING
+        it_auspconds = lt_auspconds
+        ip_werks     = pu_retztpp260c-werks
+      IMPORTING
+        et_retdata   = lt_auspdata.
+
+    SORT lt_auspdata BY objek.
+    DELETE ADJACENT DUPLICATES FROM lt_auspdata
+    COMPARING objek.
+
+    DESCRIBE TABLE lt_auspdata LINES DATA(lv_lines).
+    IF lv_lines > 1.
+      RANGES ra_matnr FOR mara-matnr.
+
+      LOOP AT lt_auspdata INTO ls_auspdata.
+        ra_matnr-sign = 'I'.
+        ra_matnr-option = 'EQ'.
+        ra_matnr-low = ls_auspdata-objek.
+        APPEND ra_matnr.
+        CLEAR ra_matnr.
+
+      ENDLOOP.
+
+
+
+*通过品名 再过滤一次
+      SELECT
+        mara~matnr,
+        mara~zzl1,
+        makt~maktx
+        INTO TABLE @DATA(lt_makt)
+        FROM mara
+        INNER JOIN makt
+        ON makt~matnr = mara~matnr
+
+        WHERE mara~matnr IN @ra_matnr
+          AND mara~zzl1 = @ls_ztpp260d-zzl1
+          AND makt~spras = '1'
+        .
+      IF sy-subrc = 0.
+        SORT lt_makt BY matnr.
+
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "芯材 顺序编号
+        ls_retdata-zclass = TEXT-013. "芯材
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-type = pc_type.
+        ls_retdata-auspconds = lt_auspconds[].
+        CONCATENATE TEXT-034 "通过品名
+                    ls_ztpp260d-zzl1
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+
+      ENDIF.
+
+      DESCRIBE TABLE lt_makt LINES lv_lines.
+
+      IF lv_lines = 1.
+        READ TABLE lt_makt INTO DATA(ls_makt) INDEX 1.
+        IF sy-subrc = 0.
+          ls_retdata-idnrk = ls_makt-matnr.
+
+        ENDIF.
+      ELSE.
+        LOOP AT lt_makt INTO ls_makt.
+          ls_idnrklist-idnrk = ls_makt-matnr.
+          ls_idnrklist-maktx = ls_makt-maktx.
+          ls_idnrklist-zzl1 = ls_makt-zzl1.
+
+          APPEND ls_idnrklist TO ls_retdata-idnrklist.
+          CLEAR ls_idnrklist.
+
+        ENDLOOP.
+
+        IF lv_zxccd EQ '无'.
+
+          READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+          IF sy-subrc = 0.
+            ls_retdata-idnrk = ls_auspdata-objek.
+
+          ELSE.
+*找不到时 要报错
+            pc_type = 'E'.
+            ls_retdata-zindex = gv_index. "芯材 顺序编号
+            ls_retdata-zclass = TEXT-013. "芯材
+            ls_retdata-zxt = pu_retztpp260c-zxt.
+            ls_retdata-type = pc_type.
+
+            LOOP AT lt_auspconds INTO ls_auspconds.
+              CONCATENATE ls_auspconds-atnam
+                          ls_auspconds-atwrt
+                          INTO DATA(lv_tx)
+                          SEPARATED BY space.
+
+              CONCATENATE ls_retdata-message
+                          lv_tx
+                     INTO ls_retdata-message
+                     SEPARATED BY space.
+
+            ENDLOOP.
+            CONCATENATE TEXT-036 "通过特性
+                        ls_retdata-message
+                        TEXT-035 "过滤后，无数据。
+                   INTO ls_retdata-message.
+
+            APPEND ls_retdata TO pt_retdata.
+            CLEAR ls_retdata.
+
+            EXIT.
+
+          ENDIF.
+
+        ELSE.
+          ls_retdata-type = 'E'.
+*        ls_retdata-message = '存在多个组件,无法自动选择'.
+          CONCATENATE ls_retdata-message
+                      '存在多个组件,无法自动选择'
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+
+        ENDIF.
+
+      ENDIF.
+
+    ELSE.
+      READ TABLE lt_auspdata INTO ls_auspdata INDEX 1.
+      IF sy-subrc = 0.
+        ls_retdata-idnrk = ls_auspdata-objek.
+
+      ELSE.
+*找不到时 要报错
+        pc_type = 'E'.
+        ls_retdata-zindex = gv_index. "芯材 顺序编号
+        ls_retdata-zclass = TEXT-013. "芯材
+        ls_retdata-zxt = pu_retztpp260c-zxt.
+        ls_retdata-type = pc_type.
+
+        LOOP AT lt_auspconds INTO ls_auspconds.
+          CONCATENATE ls_auspconds-atnam
+                      ls_auspconds-atwrt
+                      INTO lv_tx
+                      SEPARATED BY space.
+
+          CONCATENATE ls_retdata-message
+                      lv_tx
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+
+        ENDLOOP.
+        CONCATENATE TEXT-036 "通过特性
+                    ls_retdata-message
+                    TEXT-035 "过滤后，无数据。
+               INTO ls_retdata-message.
+
+        APPEND ls_retdata TO pt_retdata.
+        CLEAR ls_retdata.
+
+        EXIT.
+
+      ENDIF.
+
+    ENDIF.
+
+    CLEAR : lt_auspconds[], lt_auspdata[], lt_makt[].
+    ls_retdata-zxt = ls_ztpp260d-zxt.
+*      ls_retdata-idnrk = ls_ztpp260e-matnr.
+    ls_retdata-meins = ls_ztpp260d-meins.
+
+*如果用量维护，就直接取，如果没有维护查公式
+    IF ls_ztpp260d-zyl IS NOT INITIAL.
+
+      ls_retdata-zyl = ls_ztpp260d-zyl.
+    ELSE.
+      IF ls_ztpp260d-zylgs NE ''.
+        CLEAR lv_message.
+        PERFORM frm_gongshi
+        USING ls_ztpp260d-zylgs
+        CHANGING ls_retdata-zyl
+                 lv_message
+                 .
+        IF lv_message NE ''.
+          CONCATENATE ls_retdata-message
+                      lv_message
+                 INTO ls_retdata-message
+                 SEPARATED BY space.
+          ls_retdata-type = 'E'.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+    ls_retdata-zindex = gv_index. "芯材 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+
+    IF ls_retdata-zyl = 0.
+
+      ls_retdata-type = 'E'.
+*        ls_retdata-message = '用量不得为 0'.
+      CONCATENATE ls_retdata-message
+                  '用量不得为 0'
+             INTO ls_retdata-message
+             SEPARATED BY space.
+
+    ENDIF.
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+  ENDLOOP.
+
+  IF sy-subrc NE 0.
+    pc_type = 'E'.
+    ls_retdata-zindex = gv_index. "展宽 顺序编号
+    ls_retdata-zclass = TEXT-013. "芯材
+    ls_retdata-type = pc_type.
+    CONCATENATE TEXT-010 "查询
+                TEXT-013 "芯材
+                TEXT-011 "时，
+                TEXT-016 "错误。
+                TEXT-025 "条件：
+                TEXT-026 "工厂
+                pu_retztpp260c-werks
+                TEXT-027 "物料组
+                pu_retztpp260c-matkl
+                TEXT-030 "线体
+                pu_retztpp260c-zxt
+                TEXT-028 "板型
+                lv_bx
+                TEXT-031 "板厚
+                lv_zbh
+                TEXT-032 "芯材种类
+                lv_zxczl
+                INTO ls_retdata-message
+                .
+
+    APPEND ls_retdata TO pt_retdata.
+    CLEAR ls_retdata.
+
+    RETURN.
+
+  ENDIF.
+
+ENDFORM.

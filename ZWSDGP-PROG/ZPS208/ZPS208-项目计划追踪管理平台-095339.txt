@@ -1,0 +1,77 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS208
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps208.
+
+TABLES:sscrfields.
+TYPE-POOLS: slis.
+DATA: tcode(20) ,
+      exttab TYPE slis_t_extab.
+FIELD-SYMBOLS <fs>.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk3 WITH FRAME TITLE TEXT-003.
+  SELECTION-SCREEN:
+  BEGIN OF LINE,
+  PUSHBUTTON 5(20)  but01 USER-COMMAND zps208_1,
+  PUSHBUTTON 30(20) but02 USER-COMMAND zps208_2,
+  END OF LINE,
+  SKIP 1.
+  SELECTION-SCREEN:
+  BEGIN OF LINE,
+  PUSHBUTTON 5(20)  but03 USER-COMMAND zps208_3,
+  PUSHBUTTON 30(20) but04 USER-COMMAND zps208_4,
+  END OF LINE,
+  SKIP 1.
+  SELECTION-SCREEN:
+  BEGIN OF LINE,
+  PUSHBUTTON 5(20)  but05 USER-COMMAND zps208_5,
+  PUSHBUTTON 30(20)  but06 USER-COMMAND zps208_6,
+  END OF LINE,
+  SKIP 1.
+  SELECTION-SCREEN:
+  BEGIN OF LINE,
+  PUSHBUTTON 5(20)  but07 USER-COMMAND zps208_7,
+  PUSHBUTTON 30(20)  but08 USER-COMMAND zps208_8,
+  END OF LINE.
+SELECTION-SCREEN END OF BLOCK blk3.
+
+INITIALIZATION.
+
+  APPEND 'ONLI' TO exttab.
+  APPEND 'SPOS' TO exttab.
+  CALL FUNCTION 'RS_SET_SELSCREEN_STATUS'
+    EXPORTING
+      p_status  = sy-pfkey
+    TABLES
+      p_exclude = exttab.
+
+AT SELECTION-SCREEN OUTPUT.
+  but01 = 'ZPS208_1    项目计划追踪报表'.
+  but02 = 'ZPS208_2    项目部门月周计划报表'.
+  but03 = 'ZPS208_3    项目计划完成率报表'.
+  but04 = 'ZPS208_4    项目预算与实际量偏差报表'.
+  but05 = 'ZPS208_5    项目施工达标率报表'.
+  but06 = 'ZPS208_6    项目工期一览表'.
+  but07 = 'ZPS208_7    项目设计数量一览表'.
+  but08 = 'ZPS208_8    项目合同一览表'.
+
+
+  LOOP AT SCREEN.
+    CHECK screen-name(3) = 'BUT'.
+    ASSIGN (screen-name) TO <fs>.
+    SPLIT <fs> AT space INTO tcode <fs> .
+    CONDENSE <fs>.
+
+    CALL 'AUTH_CHECK_TCODE'
+          ID 'TCODE' FIELD tcode.
+    IF sy-subrc <> 0.
+      screen-input = '0'.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+AT SELECTION-SCREEN.
+  CHECK sscrfields-ucomm IS NOT INITIAL.
+  CALL TRANSACTION sscrfields-ucomm.

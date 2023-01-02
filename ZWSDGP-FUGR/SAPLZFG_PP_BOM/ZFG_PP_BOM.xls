@@ -1,0 +1,38 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZFG_PP_BOM	ZE_YL	用量	数据元素	QUAN	000013	000003	MENGV13
+ZFG_PP_BOM	ZE_YLGS	用量公式	数据元素	CHAR	000100	000000	TEXT100
+ZFG_PP_BOM	ZSPP_228_IDNRKLIST	ZFM_GET_AUSP 返回多个组件时，可查清单用结构	结构				
+ZFG_PP_BOM	ZSPP_228_INPUT	ZFM_BUILD_BOM_STRUCTURE - 待创建BOM结构逻辑 入参结构	结构				
+ZFG_PP_BOM	ZSPP_228_OUTPUT	ZFM_BUILD_BOM_STRUCTURE - 待创建BOM结构逻辑 出参结构	结构				
+ZFG_PP_BOM	ZSPP_228_RETDATA	ZFM_BUILD_BOM_STRUCTURE - 待创建BOM结构逻辑 返回数据	结构				
+ZFG_PP_BOM	ZSPP_228_RETDATA_MAIN	ZFM_BUILD_BOM_STRUCTURE - 待创建BOM结构逻辑 返回数据	结构				
+ZFG_PP_BOM	ZSPP_231_INPUT	ZFM_GET_AUSP_FIRST - 特性值反找 AUSP 物料函数 入参结构	结构				
+ZFG_PP_BOM	ZSPP_231_OUTPUT	ZFM_GET_AUSP_FIRST - 特性值反找 AUSP 物料函数 出参结构	结构				
+ZFG_PP_BOM	ZTPP_260A	判断物料组是否存在半成品	透明表				
+ZFG_PP_BOM	ZTPP_260A1	纸蜂窝厚度	透明表				
+ZFG_PP_BOM	ZTPP_260A2	铝蜂窝厚度	透明表				
+ZFG_PP_BOM	ZTPP_260A5	芯材填充剂	透明表				
+ZFG_PP_BOM	ZTPP_260A6	黑料、聚氨酯主剂	透明表				
+ZFG_PP_BOM	ZTPP_260B	内板属性	透明表				
+ZFG_PP_BOM	ZTPP_260C	内外板展宽加量	透明表				
+ZFG_PP_BOM	ZTPP_260D	芯材	透明表				
+ZFG_PP_BOM	ZTPP_260E	PE保护膜	透明表				
+ZFG_PP_BOM	ZTPP_260G	胶带	透明表				
+ZFG_PP_BOM	ZTPP_260H	白料	透明表				
+ZFG_PP_BOM	ZTPP_260I	封边黑料	透明表				
+ZFG_PP_BOM	ZTPP_260J	粘合剂黑料	透明表				
+ZFG_PP_BOM	ZTPP_260L	外板属性	透明表				
+ZFG_PP_BOM	ZTPP_260M	海绵条	透明表				
+ZFG_PP_BOM	ZTPP_260N	胶水	透明表				
+ZFG_PP_BOM	ZTPP_260O	组框	透明表				
+ZFG_PP_BOM	ZTPP_260P	品名配置表	透明表				
+ZFG_PP_BOM	ZTPP_260Q	特性组合配置表	透明表				
+ZFG_PP_BOM	ZTPP_260R	BOM序号与产品对应表	透明表				
+ZFG_PP_BOM	ZTPP_260S	瓦楞白料	透明表				
+ZFG_PP_BOM	ZTPP_260T	预制金属板压瓦	透明表				
+ZFG_PP_BOM	ZTPP_260U	特殊无纺布	透明表				
+ZFG_PP_BOM	ZTPP_260V	岩棉宽度及用量	透明表				
+ZFG_PP_BOM	ZTPP_260W	岩棉条厚度	透明表				
+ZFG_PP_BOM	ZTPP_260X	洁净PE保护膜	透明表				
+ZFG_PP_BOM	ZTPP_260Y	石膏板宽度	透明表				
+ZFG_PP_BOM	ZTPP_260Z	玻镁宽度	透明表				

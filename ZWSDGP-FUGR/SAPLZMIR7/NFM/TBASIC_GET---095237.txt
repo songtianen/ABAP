@@ -1,0 +1,13 @@
+*----------------------------------------------------------------------*
+*   INCLUDE /NFM/TBASIC_GET                                            *
+*----------------------------------------------------------------------*
+
+* Get /NFM/TBASIC-Entry with active-flag:
+  CALL FUNCTION '/NFM/TBASIC_SELECT'
+    IMPORTING
+      e_basic = /nfm/g_tbasic
+    EXCEPTIONS
+      OTHERS  = 1.
+  IF sy-subrc NE 0.
+    CLEAR /nfm/g_tbasic.
+  ENDIF.

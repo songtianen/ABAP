@@ -1,0 +1,93 @@
+*----------------------------------------------------------------------*
+*       Module ERZWINGEN_STEUERN                                       *
+* Beim Hinzufuegen wird das Steuerbild als Zwangsbild prozessiert,     *
+* wenn es noch Eintr#ge in der Steuertabelle gibt, zu denen die        *
+* Steuerklassifikation initial ist und die Steuern Mu#eingabe sind.    *
+*----------------------------------------------------------------------*
+MODULE ERZWINGEN_STEUERN.
+  DATA: L_FLG_FIRST_TIME TYPE C VALUE X.                                " n_1930785, n_1936610
+
+  CHECK T130M-AKTYP = AKTYPH OR T130M-AKTYP = AKTYPV.
+  CHECK NOT RMMG2-STEUERMUSS IS INITIAL.   "Mu#eingabe ¨¹ber Feldauswahl
+  CHECK BILDFLAG IS INITIAL.           "Keine Bild-Wiederholung
+
+* Kein Mu#feld mehr auf Dynpro                               "BE/240796
+* DESCRIBE TABLE STEUERTAB LINES ZAEHLER.                    "BE/240796
+* CHECK ZAEHLER GT 1.                                        "BE/240796
+
+  CLEAR FLAG1.
+  CLEAR ST_ZEILEN_NR.                  "BE/240796
+  LOOP AT STEUERTAB.
+    ST_ZEILEN_NR = ST_ZEILEN_NR + 1.   "BE/240796
+    IF STEUERTAB-TAXKM IS INITIAL.
+      FLAG1 = X.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+  IF NOT FLAG1 IS INITIAL.
+* Setzen Cursor auf Dynpro                                   "BE/240796
+    RMMZU-CURS_FELD = 'MG03STEUER-TAXKM'.                    "BE/240796
+    RMMZU-CURS_LINE = ST_ZEILEN_NR.    "BE/240796
+    IF ST_LINES LE ST_ZLEPROSEITE  "Anzahl Steuern <= Loop   "BE/170496
+       OR ( L_FLG_FIRST_TIME IS INITIAL AND SY-BINPT IS INITIAL ).      " n_1930785, n_1936610
+      MESSAGE S015.                    "BE/170496
+      PERFORM PARAM_SET.               "BE/170496
+    ENDIF.                             "BE/170496
+    CLEAR L_FLG_FIRST_TIME.                                             " n_1930785, n_1936610
+    CHECK BILDFLAG IS INITIAL.         "BE/170496
+
+*   IF NOT RMMZU-OKCODE IS INITIAL AND RMMZU-OKCODE NE FCODE_STEU. "..
+    MESSAGE S015.
+    CLEAR ST_ERSTE_ZEILE.      "Auf 1.Zeile im Folgebild 4.0B BE/140198
+*   ENDIF.                                                  "BE/260496
+*mk/3.1G fcode ist konfigurierbar
+*   RMMZU-OKCODE = FCODE_STEU.   "Aufrufen Zusatzsteuerbild
+    CALL FUNCTION 'T133D_ARRAY_READ'
+         EXPORTING
+              BILDSEQUENZ = BILDSEQUENZ
+         TABLES
+              TT133D      = TT133D
+         EXCEPTIONS
+              WRONG_CALL  = 01.
+    CLEAR: FLAG1.
+    LOOP AT TT133D WHERE ROUTN = FORM_STEU.
+      FLAG1 = X.
+      EXIT.
+    ENDLOOP.
+    IF NOT FLAG1 IS INITIAL.
+      RMMZU-OKCODE = TT133D-FCODE.
+    ENDIF.
+  ELSE.
+    L_FLG_FIRST_TIME = X.                                               " n_1930785, n_1936610
+  ENDIF.
+*wk/4.0 CATT-Special, we always want the long dynpro
+  IF NOT SY-BINPT IS INITIAL.
+  DATA CATT_NOTFIRST.
+    CHECK CATT_NOTFIRST IS INITIAL.
+*<<<<<<<<<<<<<<<<<<NOTE 527702<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    CLEAR FLAG1.
+    LOOP AT STEUERTAB.
+      FLAG1 = X.
+      EXIT.
+    ENDLOOP.
+    CHECK FLAG1 = X.
+*<<<<<<<<<<<<<<<<<<NOTE 527702<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    CALL FUNCTION 'T133D_ARRAY_READ'
+         EXPORTING
+              BILDSEQUENZ = BILDSEQUENZ
+         TABLES
+              TT133D      = TT133D
+         EXCEPTIONS
+              WRONG_CALL  = 01.
+    CLEAR: FLAG1.
+    LOOP AT TT133D WHERE ROUTN = FORM_STEU.
+      FLAG1 = X.
+      EXIT.
+    ENDLOOP.
+    IF NOT FLAG1 IS INITIAL.
+      RMMZU-OKCODE = TT133D-FCODE.
+    ENDIF.
+  CATT_NOTFIRST = X.
+  ENDIF.
+
+ENDMODULE.                             " ERZWINGEN_STEUERN

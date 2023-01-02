@@ -1,0 +1,19 @@
+程序名	对象名	对象名称	类型	数据	长度	小数位	域
+ZPPR203	ZD_ACT	操作动作	域	CHAR	000003	000000	
+ZPPR203	ZD_JEXSW	金额三位	域	CURR	000013	000003	
+ZPPR203	ZE_ACT	操作动作	数据元素	CHAR	000003	000000	ZD_ACT
+ZPPR203	ZE_JEXSW	金额三位	数据元素	CURR	000013	000003	ZD_JEXSW
+ZPPR203	ZSFILE_MANAGE_01	通用结构	结构				
+ZPPR203	ZSPP201	价格	结构				
+ZPPR203	ZSPP205	结构	结构				
+ZPPR203	ZSPP_211A	技术详单通用结构	结构				
+ZPPR203	ZSPUBS_0001	日期时间通用结构	结构				
+ZPPR203	ZSSD230	订单系统推送SAP-加工明细结构	结构				
+ZPPR203	ZSSD_018	审批结构	结构				
+ZPPR203	ZTFILE_MANAGE_01	FTP文件管理	透明表				
+ZPPR203	ZTPP_205	钢品生产排产单主表	透明表				
+ZPPR203	ZTPP_205A	钢品生产排产单明细表	透明表				
+ZPPR203	ZTPP_205B	排产单公共字段	透明表				
+ZPPR203	ZTPP_206	生产计划表	透明表				
+ZPPR203	ZTPP_210	排产单审批主表	透明表				
+ZPPR203	ZTSD219	SAP->ERP打印编号映射	透明表				

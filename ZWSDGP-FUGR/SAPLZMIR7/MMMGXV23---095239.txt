@@ -1,0 +1,17 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV23                                                  *
+*----------------------------------------------------------------------*
+* --- Festwerte KZ_NO_WARN       --------------------------------------
+CONSTANTS: NO_WARNING     LIKE RMMG08_012-MSGTYP VALUE 'N',
+           NORMAL_WARNING LIKE RMMG08_012-MSGTYP VALUE ' ',
+           INFO_MESSAGE   LIKE RMMG08_012-MSGTYP VALUE 'I'.
+*- Festwerte Message-ID's ---------------------------------------------
+CONSTANTS: MSGID_M3 LIKE SY-MSGID VALUE 'M3',
+           MSGID_MG LIKE SY-MSGID VALUE 'MG',
+           MSGID_MH LIKE SY-MSGID VALUE 'MH',
+           MSGID_MM LIKE SY-MSGID VALUE 'MM'.
+*- Festwerte Message-Types---------------------------------------------
+CONSTANTS: MSGTY_S  LIKE SY-MSGTY VALUE 'S',
+           MSGTY_W  LIKE SY-MSGTY VALUE 'W',
+           MSGTY_I  LIKE SY-MSGTY VALUE 'I',
+           MSGTY_E  LIKE SY-MSGTY VALUE 'E'.

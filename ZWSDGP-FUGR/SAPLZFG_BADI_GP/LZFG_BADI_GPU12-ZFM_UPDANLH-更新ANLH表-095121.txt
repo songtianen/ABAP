@@ -1,0 +1,19 @@
+FUNCTION ZFM_UPDANLH.
+*"----------------------------------------------------------------------
+*"*"更新函数模块：
+*"
+*"*"本地接口：
+*"  TABLES
+*"      T_ANLH STRUCTURE  ANLH OPTIONAL
+*"----------------------------------------------------------------------
+
+  LOOP AT T_ANLH.
+    UPDATE ANLH
+    SET    ANLHTXT = T_ANLH-ANLHTXT
+    WHERE BUKRS = T_ANLH-BUKRS
+    AND   ANLN1 = T_ANLH-ANLN1.
+  ENDLOOP.
+
+
+
+ENDFUNCTION.

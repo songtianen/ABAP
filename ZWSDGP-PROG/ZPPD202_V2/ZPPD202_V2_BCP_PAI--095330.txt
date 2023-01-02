@@ -1,0 +1,607 @@
+*&---------------------------------------------------------------------*
+*& Include ZPPD202_V2_BCP_PAI
+*&---------------------------------------------------------------------*
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZBCP_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE zbcp_con_modify INPUT.
+  MODIFY it_bcp
+    INDEX zbcp_con-current_line.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZBCP_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE zbcp_con_mark INPUT.
+  DATA: g_ZBCP_CON_wa2 LIKE LINE OF it_bcp.
+  IF zbcp_con-line_sel_mode = 1
+  AND it_bcp-sel = 'X'.
+    LOOP AT it_bcp INTO g_ZBCP_CON_wa2
+      WHERE sel = 'X'.
+      g_ZBCP_CON_wa2-sel = ''.
+      MODIFY it_bcp
+        FROM g_ZBCP_CON_wa2
+        TRANSPORTING sel.
+    ENDLOOP.
+  ENDIF.
+  MODIFY it_bcp
+    INDEX zbcp_con-current_line
+    TRANSPORTING sel.
+ENDMODULE.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZBCP_CON'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE zbcp_con_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZBCP_CON'
+                              'IT_BCP'
+                              'SEL'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_920  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_920 INPUT.
+  save_ok = ok_code_bcpverid.
+  CLEAR ok_code_bcpverid.
+  CASE save_ok.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CONF'."处理半成品生产版本相关数据
+*      PERFORM save_bcp_verid.
+      PERFORM fill_jhd."将半成品以及短板半成品拼接的长板插入到计划单表
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:sy-ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form save_bcp_verid
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM save_bcp_verid .
+  DATA: answer   TYPE char1,
+        question TYPE bapi_msg.
+  question = '保存后将更新计划单半成品的生产版本信息,请确认是否继续!'.
+  PERFORM confirmact(zpubform) USING question CHANGING answer.
+  IF answer = '1'.
+    LOOP AT it_jhd.
+      READ TABLE it_bcp WITH KEY matnr = it_jhd-matnr BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        it_jhd-verid = it_bcp-verid.
+        it_jhd-arbpl = it_bcp-arbpl.
+        MODIFY it_jhd TRANSPORTING verid arbpl.
+      ENDIF.
+    ENDLOOP.
+    PERFORM frm_refresh_alv_jhd.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_VERID_BCP  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf4_verid_bcp INPUT.
+  DATA: dynpfields TYPE TABLE OF dynpread WITH HEADER LINE,
+        l_lines_vb TYPE i.
+  CLEAR: dynpfields,dynpfields[],l_matnr,l_lines_vb,l_werks.
+  GET CURSOR LINE l_lines_vb.
+  DATA(line1) = zbcp_con-top_line - 1 + l_lines_vb.
+
+  READ TABLE it_bcp INDEX line1.
+  IF sy-subrc EQ 0.
+    l_matnr = it_bcp-matnr.
+    l_werks = it_bcp-werks.
+
+    REFRESH return_tab.
+
+    SELECT  mkal~werks  "工厂
+            mkal~matnr
+            makt~maktx
+            mkal~verid  "生产版本
+            mkal~text1  "版本描述
+            crhd~arbpl  "工作中心
+            crtx~ktext  "工作中心描述
+            mkal~stlal
+    INTO CORRESPONDING FIELDS OF TABLE it_verid
+    FROM mkal
+    JOIN plas ON plas~plnty = mkal~plnty
+             AND plas~plnnr = mkal~plnnr
+             AND plas~plnal = mkal~alnal
+    JOIN plpo ON plas~plnty = plpo~plnty
+             AND plas~plnnr = plpo~plnnr
+             AND plas~plnkn = plpo~plnkn
+    JOIN crhd ON crhd~objid = plpo~arbid
+    JOIN crtx ON crtx~objty = crhd~objty
+             AND crtx~objid = crhd~objid
+    JOIN makt ON mkal~matnr = makt~matnr
+             AND makt~spras = sy-langu
+    WHERE mkal~werks = crhd~werks
+      AND mkal~matnr = l_matnr
+    AND mkal~werks = l_werks.
+  ENDIF.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield         = 'VERID'
+      dynpprog         = sy-repid
+      dynpnr           = sy-dynnr
+      dynprofield      = 'IT_BCP-VERID'
+      window_title     = '半成品生产版本选择'
+      value_org        = 'S' "Structure
+      callback_program = sy-repid
+      callback_form    = 'CB_ARBPL_BCP'
+    TABLES
+      value_tab        = it_verid[]
+      return_tab       = return_tab[]
+    EXCEPTIONS
+      parameter_error  = 1
+      no_values_found  = 2
+      OTHERS           = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    LOOP AT it_jhd WHERE zwllx = '成品'.
+
+      MODIFY it_jhd.
+    ENDLOOP.
+    PERFORM frm_refresh_alv_jhd.
+  ENDIF.
+
+ENDMODULE.
+
+FORM cb_arbpl_bcp TABLES record_tab STRUCTURE seahlpres
+            CHANGING shlp TYPE shlp_descr_t
+                     callcontrol LIKE ddshf4ctrl.
+  DATA: interface LIKE LINE OF shlp-interface.
+  READ TABLE shlp-interface INTO interface INDEX 1.
+  interface-shlpfield+4(1) = '6'.
+  interface-valfield = 'IT_BCP-ARBPL'.
+  APPEND interface TO shlp-interface.
+  interface-shlpfield+4(1) = '8'.
+  interface-valfield = 'IT_BCP-STLAL'.
+  APPEND interface TO shlp-interface.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form fill_jhd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM fill_jhd .
+  DATA:num   TYPE i.
+  REFRESH return.
+  LOOP AT it_bcp WHERE sel = 'X'.
+    num = num + 1.
+  ENDLOOP.
+  IF num EQ 0.
+    MESSAGE s004 WITH '请选择要创建计划单的半成品' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+  IF it_jhd[] IS INITIAL.
+    MESSAGE i004 WITH '请先引生产明细后再操作'.
+    EXIT.
+  ENDIF.
+  REFRESH it_matnr_sg.
+  LOOP AT it_bcp WHERE sel = 'X'.
+    READ TABLE it_jhd WITH KEY zwllx = '半成品' matnr = it_bcp-matnr.
+    IF sy-subrc EQ 0.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'E' '037' it_bcp-matnr '' '' ''.
+*      MESSAGE i037 WITH it_bcp-matnr.
+    ENDIF.
+    CLEAR it_matnr_sg.
+    MOVE-CORRESPONDING it_bcp TO it_matnr_sg.
+    APPEND it_matnr_sg.
+  ENDLOOP.
+  IF return[] IS NOT INITIAL.
+    PERFORM showmsg(zpubform) TABLES return.
+    EXIT.
+  ENDIF.
+  REFRESH return.
+
+  REFRESH:it_out,it_jhd_sg.
+  it_jhd_sg[] = it_jhd[].
+  DELETE it_jhd_sg WHERE zwllx NE '成品'.
+*  CLEAR posnr1000.
+  LOOP AT it_jhd_sg."处理用户选择的半成品是否插入计划单、是否拼接长板
+*    ADD 1000 TO posnr1000.
+    PERFORM insert_bcp_sg TABLES it_matnr_sg USING sy-tabix." posnr1000.
+  ENDLOOP.
+  IF return[] IS NOT INITIAL.
+    PERFORM showmsg(zpubform) TABLES return.
+    EXIT.
+  ENDIF.
+  " 如果存在短板则计算所需长板信息  29.12.2022 00:08:18 by kkw
+  IF it_out[] IS NOT INITIAL.
+    PERFORM dbpj TABLES it_out[]."计算短板拼接的长板长度
+  ENDIF.
+  SORT it_jhd BY zwllx DESCENDING stufe wegxx." 先成品再半成品  半成品按照 BOM展开层级排序
+  SORT it_bcp BY matnr.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form insert_bcp_sg
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> SY_TABIX
+*&---------------------------------------------------------------------*
+FORM insert_bcp_sg  TABLES itab STRUCTURE it_matnr_sg
+                    USING tabix TYPE sy-index.
+  "p_posnr1000 TYPE posnr.
+  CLEAR:l_matnr,l_werks.
+  DATA:zbcpxzcd_quan TYPE ztpp_206-zcd.
+  DATA:dbpj TYPE char1." 短板拼接是S的话会将短板拼接长板  30.12.2022 15:48:46 by kkw
+  DATA:insertbs TYPE char1."是E的话不将改行半成品插入计划单（有些物料会将长板拼接长板）
+  DATA:zhbhd_quan TYPE ztpp_206-zcd, "灰板厚度
+       zhbkd_quan TYPE ztpp_206-zbckd. "灰板宽度
+  DATA:zbx TYPE ausp-atwrt,
+       zbk TYPE ausp-atwrt,
+       zbh TYPE ausp-atwrt.
+  CLEAR:it_jhd,posnrpcdh.
+  READ TABLE it_jhd_sg INDEX tabix.
+  posnrpcdh = it_jhd_sg-zpcdh+2(9) && it_jhd_sg-zpcdhh.
+  IF sy-subrc EQ 0.
+    DATA(zcd) = it_jhd_sg-zcd."成品长度
+    DATA(zzl1_cp) = it_jhd_sg-zzl1."成品品名
+    DATA(zks)  = it_jhd_sg-zks."成品块数
+    IF zcd LE 0.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'E' '036' tabix it_jhd_sg-matnr '' ''.
+      EXIT.
+    ENDIF.
+    l_matnr = it_pcd_alv-matnr."成品物料号
+    l_werks = it_pcd_alv-werks."成品工厂
+    IF it_jhd_sg-gsmng = 0.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'E' '015' tabix '' '' ''.
+*      MESSAGE i015 WITH tabix.
+      EXIT.
+    ENDIF.
+    IF wa_tc-verid IS INITIAL.
+      PERFORM inmsg(zpubform) TABLES return USING 'ZGP_MSG' 'E' '016' tabix '' '' ''.
+*      MESSAGE i016 WITH tabix.
+      EXIT.
+    ENDIF.
+
+    "半成品增加长度
+    SELECT * INTO TABLE @DATA(lt_206a) FROM ztpp206a.
+
+    "获取成品001属性
+    REFRESH:it_matnr001,outtab001,it_atnam.
+    CLEAR:it_matnr001.
+    it_matnr001-matnr = l_matnr.
+    APPEND it_matnr001.
+    PERFORM get001 TABLES it_matnr001.
+    SORT outtab001 BY atnam.
+
+
+    LOOP AT itab.
+      CLEAR:posnr10.
+      CLEAR:it_out.
+      CLEAR:it_jhd.
+      it_jhd = it_jhd_sg.
+      CLEAR:dbpj,insertbs.
+
+      it_jhd-matnr = itab-matnr.
+*      it_jhd-maktx = itab-maktx.
+      it_jhd-gsmng = itab-gsmng.
+      it_jhd-stufe = itab-stufe.
+      it_jhd-wegxx = itab-wegxx.
+      it_jhd-zwllx = '半成品'.
+      it_jhd-zzl1 = itab-zzl1.
+**********************************************************************
+      "   30.12.2022 14:54:28 by kkw
+      CASE l_werks.
+        WHEN '3000'.
+          CASE zzl1_cp.
+            WHEN '折弯件'.
+
+            WHEN '灰板'.
+
+            WHEN '冲压小件'.
+
+            WHEN '压型板'.
+
+            WHEN 'C型钢'.
+
+            WHEN 'Z型钢'.
+
+            WHEN '复合板'.
+
+            WHEN '丽彩幕'.
+              CASE itab-zzl1.
+                WHEN '组框'.
+
+                WHEN OTHERS.
+                  IF itab-zzl1 CS '转角板'.
+                    IF wa_ggzd-zjglx NE 'B02'.
+                      CONTINUE.
+                    ENDIF.
+                  ENDIF.
+              ENDCASE.
+            WHEN '丽彩鼎'  OR '丽彩金'.
+              IF wa_ggzd-zjglx = 'B02'."B02  加工类型转角板
+                IF  zcd > 1700.
+                  IF itab-zzl1 CS '母板' .
+
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ELSE."成品长度小于1.7m
+                  IF itab-zzl1 CS '短板' . "该行半成品插入计划单，但要进行短板拼接
+                    insertbs = 'S'.
+                    dbpj = 'S'.
+                  ELSEIF itab-zzl1 CS '母板' ."不插入也不拼接
+                    insertbs = 'E'.
+                    dbpj = 'E'.
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ENDIF.
+              ELSE."加工类型非转角板
+                IF zcd > 1700.
+                  CONTINUE.
+                ELSE."成品长度小于等于1.7m，改行半成品不插入计划单，但要进行短板拼接
+                  IF itab-zzl1 CS '母板' . "短板长度小于1.7m且包含母版不插入也不拼接
+                    insertbs = 'E'.
+                    dbpj = 'E'.
+                  ELSE.
+                    insertbs = 'E'.
+                    dbpj = 'S'.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            WHEN '丽彩钻'.
+              IF wa_ggzd-zjglx = 'B02'."B02  加工类型转角板
+                IF zcd > 1700.
+                  IF itab-zzl1 CS '转角板' OR itab-zzl1 CS '母板' ."不拼接但是要插入
+
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ELSE."成品长度小于1.7m
+                  IF itab-zzl1 CS '转角板'.
+                    insertbs = 'S'.
+                    dbpj = 'E'.
+                  ELSEIF  itab-zzl1 CS '短板' .
+                    insertbs = 'S'.
+                    dbpj = 'S'.
+                  ELSEIF itab-zzl1 CS '母板' . "短板长度小于1.7m且包含母版不插入也不拼接
+                    insertbs = 'E'.
+                    dbpj = 'E'.
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ENDIF.
+              ELSE."加工类型非转角板
+                IF zcd > 1700.
+                  IF itab-zzl1 CS '母板' .
+
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ELSE."成品长度小于1.7m
+                  IF itab-zzl1 CS '短板' .
+                    insertbs = 'S'.
+                    dbpj = 'S'.
+                  ELSEIF itab-zzl1 CS '母板' . "短板长度小于1.7m且包含母版不插入也不拼接
+                    insertbs = 'E'.
+                    dbpj = 'E'.
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+          ENDCASE.                                          "工厂3000结束
+
+        WHEN '3060'.
+          CASE zzl1_cp.
+            WHEN '折弯件'.
+
+            WHEN '灰板'.
+
+            WHEN '冲压小件'.
+
+            WHEN '压型板'.
+
+            WHEN 'C型钢'.
+
+            WHEN 'Z型钢'.
+
+            WHEN '复合板'.
+
+            WHEN '丽彩幕'.
+              CASE itab-zzl1.
+                WHEN '组框'.
+
+                WHEN OTHERS.
+                  IF itab-zzl1 CS '转角板'.
+                    IF wa_ggzd-zjglx NE 'B02'.
+                      CONTINUE.
+                    ENDIF.
+                  ENDIF.
+              ENDCASE.
+            WHEN '丽彩鼎'  OR '丽彩金'.
+              IF wa_ggzd-zjglx = 'B02'."B02  加工类型转角板
+                IF  zcd > 1700.
+                  IF itab-zzl1 CS '母板' .
+
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ELSE."成品长度小于1.7m
+                  IF itab-zzl1 CS '短板' . "该行半成品插入计划单，但要进行短板拼接
+                    insertbs = 'S'.
+                    dbpj = 'S'.
+                  ELSEIF itab-zzl1 CS '母板' ."不插入也不拼接
+                    insertbs = 'E'.
+                    dbpj = 'E'.
+                  ELSE.
+                    CONTINUE.
+                  ENDIF.
+                ENDIF.
+              ELSE."加工类型非转角板
+                IF zcd > 1700.
+                  CONTINUE.
+                ELSE."成品长度小于等于1.7m，改行半成品不插入计划单，但要进行短板拼接
+                  IF itab-zzl1 CS '母板' . "短板长度小于1.7m且包含母版不插入也不拼接
+                    insertbs = 'E'.
+                    dbpj = 'E'.
+                  ELSE.
+                    insertbs = 'E'.
+                    dbpj = 'S'.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            WHEN '丽彩钻'.
+              IF itab-zzl1 CS '灰板'.
+
+              ELSE.
+
+                IF wa_ggzd-zjglx = 'B02'."B02  加工类型转角板
+                  IF zcd > 1700.
+                    IF itab-zzl1 CS '转角板' OR itab-zzl1 CS '母板' ."不拼接但是要插入
+
+                    ELSE.
+                      CONTINUE.
+                    ENDIF.
+                  ELSE."成品长度小于1.7m
+                    IF itab-zzl1 CS '转角板'.
+                      insertbs = 'S'.
+                      dbpj = 'E'.
+                    ELSEIF  itab-zzl1 CS '短板' .
+                      insertbs = 'S'.
+                      dbpj = 'S'.
+                    ELSEIF itab-zzl1 CS '母板' . "短板长度小于1.7m且包含母版不插入也不拼接
+                      insertbs = 'E'.
+                      dbpj = 'E'.
+                    ELSE.
+                      CONTINUE.
+                    ENDIF.
+                  ENDIF.
+                ELSE."加工类型非转角板
+                  IF zcd > 1700.
+                    IF itab-zzl1 CS '母板' .
+
+                    ELSE.
+                      CONTINUE.
+                    ENDIF.
+                  ELSE."成品长度小于1.7m
+                    IF itab-zzl1 CS '短板' .
+                      insertbs = 'S'.
+                      dbpj = 'S'.
+                    ELSEIF itab-zzl1 CS '母板' . "短板长度小于1.7m且包含母版不插入也不拼接
+                      insertbs = 'E'.
+                      dbpj = 'E'.
+                    ELSE.
+                      CONTINUE.
+                    ENDIF.
+                  ENDIF.
+                ENDIF."判断加工类型结束
+              ENDIF."镇江灰板结束
+          ENDCASE.                                          "工厂3060结束
+      ENDCASE.
+**********************************************************************
+      "add by cl 20221231
+      IF itab-zzl1 CS '灰板' AND l_werks = '3060'.
+        CLEAR:zhbkd_quan,zhbhd_quan.
+        READ TABLE outtab001 WITH KEY atnam = 'ZBX'.
+        IF sy-subrc EQ 0.
+          zbx = outtab001-atwrt.
+        ENDIF.
+        READ TABLE outtab001 WITH KEY atnam = 'ZBK'.
+        IF sy-subrc EQ 0.
+          zbk = outtab001-atwrt.
+          zhbkd_quan = zbk.
+        ENDIF.
+        READ TABLE outtab001 WITH KEY atnam = 'ZBH'.
+        IF sy-subrc EQ 0.
+          zbh = outtab001-atwrt.
+          zhbhd_quan = zbh.
+        ENDIF.
+        CASE zzl1_cp.
+          WHEN '丽彩钻'.
+            IF itab-zzl1 CS '灰板'.
+              IF ( zbx = 'SD-0' OR zbx = 'SD-20' )  AND zbh = '50'.
+                it_jhd-zcd = ( zhbkd_quan + 17 ) .
+                it_jhd-zms = ( zhbkd_quan + 17 ) / 1000.
+                it_jhd-zbckd = zhbhd_quan - '2.5'.
+                it_jhd-zks_jhd = zks * 2.
+              ELSEIF ( zbx = 'SD-0' OR zbx = 'SD-20' )  AND ( zbh = '75' OR zbh = '100').
+                it_jhd-zcd = ( zhbkd_quan + 30 ) .
+                it_jhd-zms = ( zhbkd_quan + 30 ) / 1000.
+                it_jhd-zbckd = zhbhd_quan - '2.5'.
+                it_jhd-zks_jhd = zks * 2.
+              ELSEIF ( zbx = 'SJ-0' OR zbx = 'SJ-20' )  AND ( zbh = '50' OR zbh = '75' OR zbh = '100').
+                it_jhd-zcd = ( zhbkd_quan + 23 ) .
+                it_jhd-zms = ( zhbkd_quan + 23 ) / 1000.
+                it_jhd-zbckd = zhbhd_quan - '2.5'.
+                it_jhd-zks_jhd = zks * 2.
+
+              ENDIF.
+            ENDIF.
+
+        ENDCASE.
+
+        it_jhd-verid  = itab-verid.
+        it_jhd-arbpl  = itab-arbpl.
+        it_jhd-stlal  = |{ itab-stlal ALPHA = IN }|.
+        INSERT it_jhd INDEX 1.
+      ELSE.
+        "add by cl 20221231
+**********************************************************************
+        "增加半成品长度。
+        READ TABLE lt_206a INTO DATA(lw_206a)  WITH KEY zcppm = it_pcd_alv-zzl1 zcpbx = it_pcd_alv-zbx zbcppm = itab-zzl1.
+        IF sy-subrc EQ 0.
+          PERFORM delqfw(zpubform) CHANGING lw_206a-zbcpxzcd.
+          zbcpxzcd_quan = lw_206a-zbcpxzcd.
+          it_jhd-zcd = zcd + zbcpxzcd_quan * 1000.
+          it_jhd-zms = it_jhd-zcd / 1000.
+          it_jhd-gsmng = it_jhd-zcd * it_jhd-zks_jhd / 1000.
+        ELSE.
+          it_jhd-zcd = zcd.
+          it_jhd-zms = it_jhd-zcd / 1000.
+          it_jhd-gsmng = it_jhd-zcd * it_jhd-zks_jhd / 1000.
+        ENDIF.
+
+        it_jhd-verid  = itab-verid.
+        it_jhd-arbpl  = itab-arbpl.
+        it_jhd-zxishu = 1.
+        .
+        it_jhd-posnrpcdh = posnrpcdh.
+        ADD 10 TO posnr10.
+        it_jhd-posnr10 = posnr10.
+        " 3000工厂半成品品名包含母版，单位是EA，数量是块数  01.01.2023 06:03:44 by kkw
+        IF itab-zzl1 CS '母板'.
+          it_jhd-meins = 'EA'.
+          it_jhd-zks_jhd = zks.
+          it_jhd-gsmng = zks.
+        ENDIF.
+
+        IF insertbs NE 'E'." 有些半成品不插入计划单但要进行短板拼接，将拼接的长板插入计划单  30.12.2022 16:07:07 by kkw
+          INSERT it_jhd INDEX 1.
+        ENDIF.
+        IF dbpj = 'S'.
+          CLEAR:it_out.
+          it_out-zjsxdid   = posnrpcdh.
+          it_out-zjsxddid  = posnr10.
+          it_out-zbianhao  = it_jhd-zbianhao.
+          it_out-zcd       = it_jhd-zcd.
+          it_out-zcbcd     = it_jhd-zbckd.
+          it_out-zks       = it_jhd-zks_jhd.
+          it_out-zlxzm     = it_jhd-zlmzx.
+          APPEND it_out.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.

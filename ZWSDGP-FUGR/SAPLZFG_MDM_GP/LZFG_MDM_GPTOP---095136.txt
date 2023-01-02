@@ -1,0 +1,20 @@
+FUNCTION-POOL zfg_mdm_gp.                   "MESSAGE-ID ..
+INCLUDE zfmdatasave.
+* INCLUDE LZFG_MES_GPD...                    " Local class definition
+
+
+*&---------------------------------------------------------------------*
+*&      DEFINE ret_message.
+*&---------------------------------------------------------------------*
+DEFINE ret_message.
+  rtype = &1.
+  rtmsg = &2.
+
+  IF &4 = 'X'.
+    zfmdatasave2 'R'.
+  ENDIF.
+
+  IF &3 = 'X'.
+    RETURN.
+  ENDIF.
+END-OF-DEFINITION.                    "ret_message

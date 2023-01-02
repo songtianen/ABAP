@@ -1,0 +1,25 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMGXV28                                                   *
+*----------------------------------------------------------------------*
+
+*--- Langtextbilder ----------------------------------
+*mk/29.08.95 es werden nicht die echten Dynpronummern ben#tigt
+CONSTANTS:
+        GRUNDDTEXT_BILD    LIKE SY-DYNNR VALUE '0001',
+        IVERMTEXT_BILD     LIKE SY-DYNNR VALUE '0002',
+        PRUEFTEXT_BILD     LIKE SY-DYNNR VALUE '0003',
+        VERTRIEBSTEXT_BILD LIKE SY-DYNNR VALUE '0004',
+        BESTELLTEXT_BILD   LIKE SY-DYNNR VALUE '0005',
+*TF 4.6A================================================================
+        GRUNDDTXTE_BILD    LIKE SY-DYNNR VALUE '1001',
+        IVERMTXTE_BILD     LIKE SY-DYNNR VALUE '1002',
+        PRUEFTXTE_BILD     LIKE SY-DYNNR VALUE '1003',
+        VERTRIEBSTXTE_BILD LIKE SY-DYNNR VALUE '1004',
+        BESTELLTXTE_BILD   LIKE SY-DYNNR VALUE '1005'.
+*TF 4.6A================================================================
+
+*--- Dokumente ( note 522456 ) ----------------------------------
+*es werden nicht die echten Dynpronummern ben#tigt
+
+CONSTANTS:
+       dokumente_bild   LIKE sy-dynnr VALUE '2001'.

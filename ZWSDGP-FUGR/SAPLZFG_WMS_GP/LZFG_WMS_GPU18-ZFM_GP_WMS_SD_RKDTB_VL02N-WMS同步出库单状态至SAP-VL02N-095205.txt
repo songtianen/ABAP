@@ -1,0 +1,462 @@
+FUNCTION ZFM_GP_WMS_SD_RKDTB_VL02N .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(PRINTEMPTYPE) TYPE  CHAR20 OPTIONAL
+*"     VALUE(WMSNO) TYPE  CHAR100
+*"     VALUE(CKTYPE) TYPE  CHAR10
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"     VALUE(MBLNR) TYPE  MBLNR
+*"     VALUE(MJAHR) TYPE  MJAHR
+*"     VALUE(PDFURL) TYPE  STRING
+*"     VALUE(P_OUTPUT) TYPE  STRING
+*"     VALUE(P_INPUT) TYPE  STRING
+*"----------------------------------------------------------------------
+  ZFMDATASAVE1 'ZFM_GP_WMS_SD_RKDTB_VL02N'.
+  ZFMDATASAVE2 'B'.
+  COMMIT WORK.
+
+  TYPES: BEGIN OF ZSERPPOST,
+           PRINTTEMPTYPE TYPE STRING,
+           TYPE          TYPE STRING,
+           WMSNO         TYPE STRING,
+         END OF ZSERPPOST.
+  DATA:ITAB   TYPE ZSERPPOST.
+  TYPES: BEGIN OF ZSERPGET,
+           ERRORCODE TYPE STRING,
+           MSG       TYPE STRING,
+           PDFURL    TYPE STRING,
+           STATUS    TYPE STRING,
+         END OF ZSERPGET.
+  DATA:ITRE   TYPE ZSERPPOST.
+
+  DATA: BCCKJE   TYPE  ZE_BCCKJE.
+  DATA: PSPID    TYPE  PS_PSPID.
+  DATA: O_ZHK    TYPE  ZE_ZHK.
+  DATA: O_FHKZ   TYPE  CHAR1.
+  DATA: O_YXSX   TYPE  ZE_ZSXSYJE.
+  DATA: O_LSIUJE TYPE  VBAP-KZWI1.
+  DATA: O_HKQQ   TYPE  VBAP-KZWI1.
+  DATA: O_DJQQ   TYPE  VBAP-KZWI1.
+
+  DATA:VBELN     TYPE LIKP-VBELN,
+       ZWMSGZCF  TYPE LIPS-ZWMSGZCF,
+       MSG       TYPE BAPI_MSG,
+       ANSWER    TYPE CHAR1,
+       ERPURL    TYPE STRING,
+       ERPMSG    TYPE STRING,
+       ERPSTA    TYPE I,
+       ERPSTR_RE TYPE STRING.
+  DATA:POSNR_CF  TYPE POSNR.
+  DATA:MENGE     TYPE LIPS-LFIMG.
+  DATA:HEADER_DATA    TYPE BAPIOBDLVHDRCHG,
+       HEADER_CONTROL TYPE BAPIOBDLVHDRCTRLCHG,
+       TECHN_CONTROL  TYPE BAPIDLVCONTROL,
+       ITEM_DATA      TYPE STANDARD TABLE OF BAPIOBDLVITEMCHG WITH HEADER LINE,
+       ITEM_CONTROL   TYPE STANDARD TABLE OF BAPIOBDLVITEMCTRLCHG WITH HEADER LINE,
+       RETURN         TYPE STANDARD TABLE OF BAPIRET2 WITH HEADER LINE,
+       ITEM_DATA_SPL  TYPE STANDARD TABLE OF /SPE/BAPIOBDLVITEMCHG WITH HEADER LINE.
+  IF CKTYPE = 'CK'.
+    SELECT SINGLE
+       VBELN
+      INTO VBELN
+      FROM LIKP
+      WHERE ZWMSDH = WMSNO.
+    IF SY-SUBRC = 0.
+      SELECT
+       VBELN,
+       POSNR,
+       MATNR,
+       LGORT,
+       WERKS,
+       LFIMG
+      INTO TABLE @DATA(IT_LIPS)
+      FROM LIPS
+      WHERE LIPS~ZWMSGZCF = 'X'
+        AND LIPS~VBELN    = @VBELN.
+      IF SY-SUBRC = 0.
+        SORT IT_LIPS BY MATNR.
+        SELECT *
+           INTO TABLE @DATA(IT_MSPR)
+           FROM MSPR
+           FOR ALL ENTRIES IN @IT_LIPS
+           WHERE MATNR = @IT_LIPS-MATNR
+           AND   LGORT = @IT_LIPS-LGORT
+           AND   WERKS = @IT_LIPS-WERKS
+           AND   PRLAB GT 0.
+        SORT IT_MSPR BY MATNR LGORT WERKS ERSDA CHARG.
+        SELECT
+            MAX( LIPS~POSNR )
+          INTO POSNR_CF
+          FROM LIPS
+          WHERE LIPS~VBELN = VBELN
+           AND  LIPS~UECHA <> ''
+           .
+        IF POSNR_CF = '000000'.
+          POSNR_CF = '900000'.
+        ENDIF.
+        REFRESH:RETURN,ITEM_DATA_SPL,ITEM_CONTROL,ITEM_DATA.
+        CLEAR:TECHN_CONTROL,HEADER_CONTROL,HEADER_DATA,
+                RETURN,ITEM_DATA_SPL,ITEM_CONTROL,ITEM_DATA.
+
+        TECHN_CONTROL-UPD_IND     = 'U'.
+        HEADER_DATA-DELIV_NUMB    = VBELN.
+        HEADER_CONTROL-DELIV_NUMB = VBELN.
+
+        LOOP AT IT_LIPS INTO DATA(WA_LIPS).
+          CLEAR:ITEM_DATA,ITEM_CONTROL.
+*修改当前行项目交货数量改为0
+          ITEM_DATA-DELIV_NUMB      = VBELN.
+          ITEM_DATA-DELIV_ITEM      = WA_LIPS-POSNR.
+          ITEM_DATA-FACT_UNIT_NOM   = '1'.
+          ITEM_DATA-FACT_UNIT_DENOM = '1'.
+*    ITEM_DATA-MATERIAL        = INTAB2-MATNR.
+          ITEM_DATA-DLV_QTY         = 0.
+          ITEM_CONTROL-CHG_DELQTY   = 'X'.
+          ITEM_CONTROL-DELIV_NUMB   = VBELN.
+          ITEM_CONTROL-DELIV_ITEM   = WA_LIPS-POSNR.
+          APPEND:ITEM_DATA,ITEM_CONTROL.
+          MENGE = WA_LIPS-LFIMG.
+          READ TABLE IT_MSPR INTO DATA(WA_MSPR1) WITH KEY MATNR = WA_LIPS-MATNR LGORT = WA_LIPS-LGORT WERKS = WA_LIPS-WERKS BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            LOOP AT IT_MSPR INTO DATA(WA_MSPR) FROM SY-TABIX.
+              IF WA_MSPR-MATNR NE WA_LIPS-MATNR OR WA_MSPR-LGORT NE WA_LIPS-LGORT OR WA_MSPR-WERKS NE WA_LIPS-WERKS.
+                EXIT.
+              ENDIF.
+              IF MENGE = 0.
+                EXIT.
+              ENDIF.
+              POSNR_CF = POSNR_CF + 1 .
+              CLEAR:ITEM_DATA,ITEM_CONTROL.
+              ITEM_DATA-DELIV_NUMB      = VBELN.
+              ITEM_DATA-DELIV_ITEM      = POSNR_CF.
+              ITEM_DATA-FACT_UNIT_NOM   = '1'.
+              ITEM_DATA-FACT_UNIT_DENOM = '1'.
+              ITEM_DATA-MATERIAL        = WA_MSPR-MATNR.
+              ITEM_DATA-BATCH           = WA_MSPR-CHARG.
+              ITEM_DATA-HIERARITEM      = WA_LIPS-POSNR.
+              ITEM_DATA-USEHIERITM      = '1'.
+              IF MENGE >= WA_MSPR-PRLAB.
+                MENGE = MENGE - WA_MSPR-PRLAB.
+                ITEM_DATA-DLV_QTY         = WA_MSPR-PRLAB.
+              ELSE.
+                ITEM_DATA-DLV_QTY         = MENGE.
+                MENGE = 0.
+              ENDIF.
+              ITEM_CONTROL-CHG_DELQTY   = 'X'.
+              ITEM_CONTROL-DELIV_NUMB   = VBELN.
+              ITEM_CONTROL-DELIV_ITEM   = POSNR_CF.
+              APPEND:ITEM_DATA,ITEM_CONTROL.
+            ENDLOOP.
+          ENDIF.
+        ENDLOOP.
+        IF ITEM_DATA[] IS NOT INITIAL AND ITEM_CONTROL[] IS NOT  INITIAL.
+          SET UPDATE TASK LOCAL.
+          CALL FUNCTION 'BAPI_OUTB_DELIVERY_CHANGE' DESTINATION 'NONE'
+            EXPORTING
+              HEADER_DATA           = HEADER_DATA
+              HEADER_CONTROL        = HEADER_CONTROL
+              DELIVERY              = VBELN
+              TECHN_CONTROL         = TECHN_CONTROL
+            TABLES
+              ITEM_DATA             = ITEM_DATA
+              ITEM_CONTROL          = ITEM_CONTROL
+              RETURN                = RETURN
+              ITEM_DATA_SPL         = ITEM_DATA_SPL
+            EXCEPTIONS
+              SYSTEM_FAILURE        = 1 MESSAGE RTMSG
+              COMMUNICATION_FAILURE = 2 MESSAGE RTMSG
+              ERROR_MESSAGE         = 3
+              OTHERS                = 4.
+          IF SY-SUBRC NE 0.
+            IF RTMSG IS INITIAL.
+              PERFORM MSGTOTEXT(ZPUBFORM) USING '' '' '' '' '' '' CHANGING RTMSG.
+            ENDIF.
+            RTYPE = 'E'.
+            ZFMDATASAVE2 'R'.
+            RETURN.
+
+          ENDIF.
+
+          LOOP AT RETURN WHERE TYPE CA 'AEX'.
+            IF RETURN-MESSAGE IS INITIAL.
+              PERFORM MSGTOTEXT(ZPUBFORM) USING RETURN-ID
+                                                RETURN-NUMBER
+                                                RETURN-MESSAGE_V1
+                                                RETURN-MESSAGE_V2
+                                                RETURN-MESSAGE_V3
+                                                RETURN-MESSAGE_V4
+                                         CHANGING RETURN-MESSAGE.
+            ENDIF.
+            CONCATENATE RETURN-MESSAGE RTMSG INTO RTMSG SEPARATED BY '/'.
+            CLEAR RETURN.
+          ENDLOOP.
+          IF SY-SUBRC = 0.
+            RTYPE = 'E'.
+            ZFMDATASAVE2 'R'.
+            RETURN.
+          ELSE.
+            SET UPDATE TASK LOCAL.
+            PERFORM BAPIRUN(ZPUBFORM) USING 'X'.
+          ENDIF.
+
+        ENDIF.
+      ENDIF.
+
+
+
+      SELECT SINGLE
+         *
+        INTO @DATA(WA_LIKP1)
+        FROM LIKP
+        WHERE VBELN = @VBELN
+        .
+      SELECT *
+        INTO TABLE @DATA(IT_LIPS1)
+        FROM LIPS
+        WHERE VBELN = @VBELN
+        .
+      IF SY-SUBRC EQ 0.
+        SELECT *
+          INTO TABLE @DATA(IT_VBAP)
+          FROM VBAP
+          FOR ALL ENTRIES IN @IT_LIPS1
+          WHERE VBELN = @IT_LIPS1-VGBEL
+          AND   POSNR = @IT_LIPS1-VGPOS.
+        SORT IT_VBAP BY VBELN POSNR.
+        SORT IT_LIPS1 BY POSNR.
+      ENDIF.
+      CLEAR  BCCKJE.
+      IF WA_LIKP1-WBSTK NE 'C'.
+*过账之前先检查授信
+*计算本次出库金额
+        LOOP AT IT_LIPS1 INTO DATA(WA_LIPS1).
+          READ TABLE IT_VBAP INTO DATA(WA_VBAP) WITH KEY VBELN = WA_LIPS1-VGBEL
+                                                         POSNR = WA_LIPS1-VGPOS
+                                                         BINARY SEARCH.
+          IF SY-SUBRC EQ 0
+            AND WA_VBAP-KWMENG GT 0.
+            BCCKJE = BCCKJE + WA_VBAP-KZWI1 * WA_LIPS1-LFIMG / WA_VBAP-KWMENG.
+          ENDIF.
+        ENDLOOP.
+        CLEAR:WA_LIPS1.
+        READ TABLE IT_LIPS1 INTO WA_LIPS1 INDEX 1.
+        CALL FUNCTION 'CONVERSION_EXIT_ABPSP_OUTPUT'
+          EXPORTING
+            INPUT  = WA_LIPS1-PS_PSP_PNR
+          IMPORTING
+            OUTPUT = PSPID.
+        CALL FUNCTION 'ZFM_GP_SD_UXGR_PLUS'
+          EXPORTING
+            KUNNR      = WA_LIKP1-KUNNR
+            PS_PSP_PNR = PSPID
+            PSPNR      = WA_LIPS1-PS_PSP_PNR
+            VBELN      = WA_LIKP1-VBELN
+            BCCKJE     = BCCKJE
+            FLAG       = 'A'
+          IMPORTING
+            RTYPE      = RTYPE
+            RTMSG      = RTMSG
+            O_ZHK      = O_ZHK
+            O_FHKZ     = O_FHKZ
+            O_YXSX     = O_YXSX
+            O_LSIUJE   = O_LSIUJE
+            O_HKQQ     = O_HKQQ
+            O_DJQQ     = O_DJQQ.
+        IF RTYPE = 'E'.
+          ZFMDATASAVE2 'R'.
+          RETURN.
+        ENDIF.
+
+      ENDIF.
+
+
+      CLEAR MSG.
+      PERFORM VBELVPOST(ZPUBFORM) USING VBELN 'VL02N' SY-DATUM CHANGING MSG.
+
+      IF MSG+0(1) = 'S'.
+        RTYPE = 'S'.
+
+        CALL FUNCTION 'ZFM_GP_SD_UXGR_PLUS'
+          EXPORTING
+            KUNNR      = WA_LIKP1-KUNNR
+            PS_PSP_PNR = PSPID
+            PSPNR      = WA_LIPS1-PS_PSP_PNR
+            VBELN      = WA_LIKP1-VBELN
+            BCCKJE     = BCCKJE
+            FLAG       = 'B'
+            I_ZHK      = O_ZHK
+            I_YXSX     = O_YXSX
+            I_LSIUJE   = O_LSIUJE
+            I_FHKZ     = O_FHKZ
+            I_HKQQ     = O_HKQQ
+            I_DJQQ     = O_DJQQ.
+
+        SELECT
+           VBAP~VBELN,
+           VBAP~POSNR
+        INTO TABLE @DATA(IT_FH)
+        FROM LIKP
+        INNER JOIN LIPS ON LIKP~VBELN = LIPS~VBELN
+        INNER JOIN VBAP ON VBAP~VBELN = LIPS~VGBEL AND VBAP~POSNR = LIPS~VGPOS
+        WHERE ZWMSDH = @WMSNO.
+        LOOP AT IT_FH INTO DATA(WA_FH).
+          UPDATE VBAP SET ZCKZT = 'H' WHERE VBELN = WA_FH-VBELN AND POSNR = WA_FH-POSNR .
+        ENDLOOP.
+        COMMIT WORK.
+      ELSE.
+        RTYPE = 'E'.
+        RTMSG = MSG.
+        ZFMDATASAVE2 'R'.
+        RETURN.
+      ENDIF.
+    ELSE.
+      RTYPE = 'E'.
+      RTMSG = '出库单未找到！'.
+      ZFMDATASAVE2 'R'.
+      RETURN.
+    ENDIF.
+  ELSE.
+    RTYPE = 'E'.
+    RTMSG = ' CKTYPE参数不是''CK''类型'.
+    ZFMDATASAVE2 'R'.
+    RETURN.
+  ENDIF.
+
+  PERFORM GETURL USING PRINTEMPTYPE VBELN CHANGING PDFURL.
+*   = 'https://ossgp.oss-cn-hangzhou.aliyuncs.com/tmp/prod/ed3cc6be-b699-41a7-92b7-5bfa81481ad0.pdf'.
+
+  ZFMDATASAVE2 'R'.
+ENDFUNCTION.
+
+
+FORM GETURL USING ZBHMS VBELN CHANGING URL.
+  TYPES:BEGIN OF ZSSD265_TYPE,
+          ADDR            TYPE  CHAR100    , "收货地区&详细地址
+          AREASIZE        TYPE  CHAR100    , "位置区域长度
+          BEIZHU          TYPE  CHAR100    , "出库单抬头备注
+          CARNUMBER	      TYPE  CHAR100	 	 , "车号
+          CDATE	          TYPE  CHAR100	 	 , "创建时间
+          CUSTOMERNAME    TYPE  CHAR100	 	 , "收货方1
+          HAVELINTIAO	    TYPE  ABAP_BOOL	 , "
+          ID              TYPE  CHAR100    , "ID
+          KEFUNAME        TYPE  CHAR100    , "员工姓名
+          KEFUPHONE	      TYPE  CHAR100	 	 , "员工电话
+          NO              TYPE  CHAR100    , "凭证编号
+          PROJECTNAME	    TYPE  CHAR100	 	 , "项目描述
+          SHOUHUOREN      TYPE  CHAR100    , "联系人
+          SHOUHUORENPHONE TYPE  CHAR100	 	 , "收货人电话
+          SIJINAME        TYPE  CHAR100    , "司机姓名
+          SIJIPHONE	      TYPE  CHAR100	 	 , "司机电话
+          UNITNAME        TYPE  CHAR100    , "单位
+          YUNFEIFANGNAME  TYPE  CHAR100    , "运费方式
+          ZONGKUAISHU	    TYPE  CHAR100	 	 , "总块数
+          ZONGLIANG	      TYPE  CHAR100	 	 , "总量
+        END OF ZSSD265_TYPE.
+  DATA:BEGIN OF ERPDATA ,
+         PDFID   TYPE STRING,
+         PDFNAME TYPE STRING,
+         ZHU     TYPE ZSSD265_TYPE,
+         LIST    TYPE TABLE OF ZSSD265A,
+         LIST2   TYPE TABLE OF ZSSD265B,
+         AREA    TYPE TABLE OF ZSSD265C,
+       END OF ERPDATA.
+
+  DATA:ZERPBH  TYPE ZTSD219-ZERPBH.
+  DATA:ERPJSON TYPE STRING.
+  DATA:ERPURL  TYPE STRING.
+  DATA:LV_GUID TYPE GUID_16.
+  DATA:RTYPE   TYPE BAPI_MTYPE,
+       RTMSG   TYPE BAPI_MSG,
+       PDFID   TYPE STRING,
+       PDFNAME TYPE CHAR100,
+       ZHU1    TYPE ZSSD265,
+       ZHU     TYPE ZSSD265_TYPE,
+       TMPLID  TYPE STRING,
+       ZHANGID TYPE STRING,
+       OSSKEY  TYPE STRING.
+
+  DATA:LIST  TYPE TABLE OF ZSSD265A WITH HEADER LINE,
+       LIST2 TYPE TABLE OF ZSSD265B WITH HEADER LINE,
+       AREA  TYPE TABLE OF ZSSD265C WITH HEADER LINE.
+
+  CLEAR : ZERPBH.
+
+  SELECT SINGLE
+    ZTSD219~ZERPBH
+    INTO ZERPBH
+    FROM ZTSD219
+    WHERE ZTSD219~ZMOKUAI  = 'SD'
+     AND  ZTSD219~ZLEIXING = 'CKD'
+     AND  ZTSD219~ZBHMS = ZBHMS.
+  .
+
+  CALL FUNCTION 'ZFM_GP_SD_ERP_CKDXXDY_GETDATA'
+    EXPORTING
+      VBELN   = VBELN
+    IMPORTING
+      RTYPE   = RTYPE
+      RTMSG   = RTMSG
+      PDFNAME = PDFNAME
+      OTTAB   = ZHU1
+    TABLES
+      OTTAB1  = LIST
+      OTTAB2  = LIST2
+      OTTAB3  = AREA.
+  IF RTYPE <> 'S'.
+    MESSAGE S000(OO) WITH RTMSG DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+  PDFID   = ZERPBH .
+  CLEAR : RTMSG , RTYPE .
+
+  MOVE-CORRESPONDING ZHU1 TO ZHU .
+  IF ZHU1-HAVELINTIAO = '1' .
+    ZHU-HAVELINTIAO = ABAP_FALSE.
+  ELSE.
+    ZHU-HAVELINTIAO = ABAP_TRUE.
+  ENDIF.
+
+  ERPDATA-PDFID   =  PDFID    .
+  ERPDATA-PDFNAME =  PDFNAME  .
+  ERPDATA-ZHU     =  ZHU      .
+  ERPDATA-AREA    =  AREA[]   .
+  ERPDATA-LIST    =  LIST[]   .
+  ERPDATA-LIST2   =  LIST2[]  .
+  CALL FUNCTION 'ZFMS_14_JSON'
+    CHANGING
+      JSONSTR = ERPJSON
+      DATA    = ERPDATA
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  TMPLID   = ZERPBH .
+  ZHANGID  = ''.
+
+*& 获取GUID，根据GUID生成文件
+  CALL FUNCTION 'GUID_CREATE'
+    IMPORTING
+      EV_GUID_16 = LV_GUID.
+
+  OSSKEY   = 'cgorder/' && LV_GUID && '.pdf' .
+  CALL FUNCTION 'ZFM_GP_SD_ERP_PRINT'
+    EXPORTING
+      TMPLID   = TMPLID
+      ZHANGID  = ZHANGID
+      OSSKEY   = OSSKEY
+      DATAJSON = ERPJSON
+    IMPORTING
+      URL      = ERPURL
+      RTYPE    = RTYPE
+      RTMSG    = RTMSG.
+  IF RTYPE = 'S' AND ERPURL IS NOT INITIAL.
+    URL = ERPURL.
+    PERFORM REPLACE(ZPUBFORM) USING 'https' 'http' CHANGING URL.
+    PERFORM REPLACE(ZPUBFORM) USING 'HTTPS' 'HTTP' CHANGING URL.
+  ELSE.
+
+  ENDIF.
+
+ENDFORM.

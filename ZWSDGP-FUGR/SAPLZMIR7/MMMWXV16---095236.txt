@@ -1,0 +1,12 @@
+*----------------------------------------------------------------------*
+*   INCLUDE MMMWXV16                                                   *
+*----------------------------------------------------------------------*
+*--- Referenztypen-----------------------------------------------------*
+CONSTANTS: REFERENZ TYPE C VALUE '1',
+           DURCHREICHEN TYPE C VALUE '2'.
+
+*--- Refernztyp zum Referenzkennzeichen
+CONSTANTS: REF_ALL TYPE C VALUE '1',
+           REF_MAT TYPE C VALUE '2',
+           REF_SAVAR TYPE C VALUE '3',
+           REF_VAR TYPE C VALUE '4'.

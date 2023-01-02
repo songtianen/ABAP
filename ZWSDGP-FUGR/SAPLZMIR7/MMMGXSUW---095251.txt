@@ -1,0 +1,103 @@
+************************************************************
+* Include MMMGXSUW - #bergeben Bildschirmfelder an U-WA
+************************************************************
+* Include generiert am :         29.08.95
+
+* ----------------------------------------------------------
+FORM MATABELLEN_SET_SUB.
+* ----------------------------------------------------------
+
+LOOP AT PTAB.
+  CASE PTAB-TBNAM.
+    WHEN T_MAKT.
+      PERFORM MAKT_SET_SUB.
+    WHEN T_MARA.
+      MARA-MANDT = SY-MANDT.
+      MARA-MATNR = RMMG1-MATNR.
+      CALL FUNCTION 'MARA_SET_SUB'
+         EXPORTING
+                    WMARA = MARA.
+    WHEN T_MARC.
+      MARC-MANDT = SY-MANDT.
+      MARC-MATNR = RMMG1-MATNR.
+      MARC-WERKS = RMMG1-WERKS.
+      CALL FUNCTION 'MARC_SET_SUB'
+         EXPORTING
+                    WMARC = MARC.
+    IF AKTVSTATUS CA STATUS_D.
+      MPGD-MANDT = SY-MANDT.
+      MPGD-MATNR = RMMG1-MATNR.
+      MPGD-WERKS = RMMG1-WERKS.
+      CALL FUNCTION 'MPGD_SET_SUB'
+         EXPORTING
+                    WMPGD = MPGD.
+    ENDIF.
+    WHEN T_MARD.
+      MARD-MANDT = SY-MANDT.
+      MARD-MATNR = RMMG1-MATNR.
+      MARD-WERKS = RMMG1-WERKS.
+      MARD-LGORT = RMMG1-LGORT.
+      CALL FUNCTION 'MARD_SET_SUB'
+         EXPORTING
+                    WMARD = MARD.
+    WHEN T_MARM.
+      PERFORM MARM_SET_SUB.
+    WHEN T_MBEW.
+      MBEW-MANDT = SY-MANDT.
+      MBEW-MATNR = RMMG1-MATNR.
+      MBEW-BWKEY = RMMG1-BWKEY.
+      MBEW-BWTAR = RMMG1-BWTAR.
+      CALL FUNCTION 'MBEW_SET_SUB'
+         EXPORTING
+                    WMBEW = MBEW.
+    WHEN T_MFHM.
+      MFHM-MANDT = SY-MANDT.
+      MFHM-MATNR = RMMG1-MATNR.
+      MFHM-WERKS = RMMG1-WERKS.
+      CALL FUNCTION 'MFHM_SET_SUB'
+         EXPORTING
+                    WMFHM = MFHM.
+    WHEN T_MLAN.
+      PERFORM MLAN_SET_SUB.
+    WHEN T_MLGN.
+      MLGN-MANDT = SY-MANDT.
+      MLGN-MATNR = RMMG1-MATNR.
+      MLGN-LGNUM = RMMG1-LGNUM.
+      CALL FUNCTION 'MLGN_SET_SUB'
+         EXPORTING
+                    WMLGN = MLGN.
+    WHEN T_MLGT.
+      MLGT-MANDT = SY-MANDT.
+      MLGT-MATNR = RMMG1-MATNR.
+      MLGT-LGNUM = RMMG1-LGNUM.
+      MLGT-LGTYP = RMMG1-LGTYP.
+      CALL FUNCTION 'MLGT_SET_SUB'
+         EXPORTING
+                    WMLGT = MLGT.
+    WHEN T_MPOP.
+      MPOP-MANDT = SY-MANDT.
+      MPOP-MATNR = RMMG1-MATNR.
+      MPOP-WERKS = RMMG1-WERKS.
+      CALL FUNCTION 'MPOP_SET_SUB'
+         EXPORTING
+                    WMPOP = MPOP.
+    WHEN T_MVKE.
+      MVKE-MANDT = SY-MANDT.
+      MVKE-MATNR = RMMG1-MATNR.
+      MVKE-VKORG = RMMG1-VKORG.
+      MVKE-VTWEG = RMMG1-VTWEG.
+      CALL FUNCTION 'MVKE_SET_SUB'
+         EXPORTING
+                    WMVKE = MVKE.
+    WHEN T_MYMS.
+      MYMS-MANDT = SY-MANDT.
+      MYMS-MYKEY = RMMG1-MYKEY.
+      MYMS-MATNR = RMMG1-MATNR.
+      CALL FUNCTION 'MYMS_SET_SUB'
+         EXPORTING
+                    WMYMS = MYMS.
+  ENDCASE.
+ENDLOOP.
+
+
+ENDFORM.

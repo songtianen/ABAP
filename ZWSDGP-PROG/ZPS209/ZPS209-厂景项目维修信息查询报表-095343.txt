@@ -1,0 +1,84 @@
+*&---------------------------------------------------------------------*
+*& Report ZPS209
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zps209.
+TYPE-POOLS: slis.
+TABLES: ztps014a, ztps014b.
+DATA: item TYPE STANDARD TABLE OF ztps014a WITH HEADER LINE.
+DATA:fieldcat        TYPE slis_t_fieldcat_alv,
+     is_layout       TYPE slis_layout_alv,
+     i_grid_settings TYPE lvc_s_glay.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:
+  s_pspid FOR ztps014a-pspid,
+  s_post1 FOR ztps014a-post1,
+  s_zsqr FOR ztps014a-zsqr NO INTERVALS NO-EXTENSION,
+  s_zsqrbm FOR ztps014a-zsqrbm NO INTERVALS NO-EXTENSION,
+  s_zsqsj FOR ztps014a-zsqsj NO INTERVALS NO-EXTENSION,
+  s_zwxsj FOR ztps014a-zjhwxsj NO INTERVALS NO-EXTENSION.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+INITIALIZATION.
+  %_s_pspid_%_app_%-text = '项目编码'.
+  %_s_post1_%_app_%-text = '项目描述'.
+  %_s_zsqr_%_app_%-text = '申请人'.
+  %_s_zsqrbm_%_app_%-text = '申请人部门'.
+  %_s_zsqsj_%_app_%-text = '申请日期'.
+  %_s_zwxsj_%_app_%-text = '维修日期'.
+
+START-OF-SELECTION.
+  PERFORM getdata.
+  PERFORM alvshow.
+
+FORM getdata.
+  SELECT *
+    INTO CORRESPONDING FIELDS OF TABLE item
+    FROM ztps014a
+    WHERE pspid IN s_pspid
+    AND post1 IN s_post1
+    AND zsqr IN s_zsqr
+    AND zsqrbm IN s_zsqrbm
+    AND zsqsj IN s_zsqsj
+    AND zjhwxsj IN s_zwxsj.
+ENDFORM.
+
+FORM alvshow.
+  PERFORM init_fieldcat(zpubform) TABLES fieldcat USING:
+  'PSPID' '项目编码' '' '' '' '',
+  'POST1' '项目名称' '' '' '' '',
+  'ZSQR' '申请人' '' '' '' '',
+  'ZSQRBM' '申请人部门' '' '' '' '',
+  'ZSQSJ' '申请时间' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' '',
+  '' '' '' '' '' ''.
+
+ENDFORM.

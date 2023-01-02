@@ -1,0 +1,11 @@
+************************************************************************
+* Include MMMGXV09 f¨¹r Festwerte
+* -  Bildtypen
+************************************************************************
+
+*---- Fcodes----------------------------------------------------------
+CONSTANTS:
+         BILDT_E     LIKE T133A-BILDT VALUE '0',    "Einstiegsbild
+         BILDT_H     LIKE T133A-BILDT VALUE '1',    "Hauptbild
+         BILDT_Z     LIKE T133A-BILDT VALUE '2',    "Zusatzbild
+         BILDT_A     LIKE T133A-BILDT VALUE '3'.    "abs.notw.Zus.bild

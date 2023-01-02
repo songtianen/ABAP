@@ -1,0 +1,11 @@
+************************************************************************
+* Include MMMGXV10 f¨¹r Festwerte
+* -  TCURM-Festwerte
+************************************************************************
+
+*---- Bewertungsebene-------------------------------------------------
+CONSTANTS:
+        BEWWERKS LIKE TCURM-BWKRS_CUS VALUE '1',
+        BEWBUKRS LIKE TCURM-BWKRS_CUS VALUE '3',
+        LIFOBUKRS LIKE TCURM-MYKEY_CUS VALUE '2',     "Lifo auf Bukrs
+        LIFOBWKEY LIKE TCURM-MYKEY_CUS VALUE '1'.     "Lifo auf Bwkey

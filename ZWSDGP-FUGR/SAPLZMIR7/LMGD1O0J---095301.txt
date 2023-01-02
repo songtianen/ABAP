@@ -1,0 +1,25 @@
+*----------------------------------------------------------------------*
+*        Module ST_INITIALISIERUNG OUTPUT                              *
+* Initialisieren Daten f¨¹r die Steuerabwicklung                        *
+*----------------------------------------------------------------------*
+MODULE ST_INITIALISIERUNG OUTPUT.
+** switch to tc wk to 4.0
+*-------Ermitteln Anzahl Steuereintr#ge--------------------------
+  DESCRIBE TABLE STEUERTAB LINES ST_LINES.
+  IF NOT FLG_TC IS INITIAL.
+    ASSIGN TC_STEUERN TO <F_TC>.
+    REFRESH CONTROL 'TC_STEUERN' FROM SCREEN SY-DYNNR.
+    TC_STEUERN-LINES = ST_LINES.
+    TC_STEUERN-TOP_LINE = ST_ERSTE_ZEILE + 1.
+    TC_STEUERN_TOP_LINE_BUF = TC_STEUERN-TOP_LINE.
+  ENDIF.
+*-------Pr¨¹fen Erstaufruf Baustein Steuern-----------------------
+  CHECK RMMG2-FLGSTEUER IS INITIAL.
+  RMMG2-FLGSTEUER = X.
+
+  IF RMMZU-OKCODE = 'STEU'.
+    CLEAR RMMZU-OKCODE.
+  ENDIF.
+** switch to tc 4.0: don't need the clear
+*   clear: st_erste_zeile.
+ENDMODULE.                             " ST_INITIALISIERUNG  OUTPUT

@@ -1,0 +1,280 @@
+*&---------------------------------------------------------------------*
+*& Report ZRSD207
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zrsd207 MESSAGE-ID zmsg_gp.
+TABLES:vbak,
+       vbap,
+       *vbak,
+       zssd262,
+       prps,
+       stxl.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE t1.
+  PARAMETERS:p_vbeln LIKE vbak-vbeln OBLIGATORY MEMORY ID aun,
+             p_mode  TYPE char1 NO-DISPLAY.
+SELECTION-SCREEN END OF BLOCK b1.
+
+INCLUDE:zrsd207_top,
+        zrsd207_class,
+        zrsd207_frm.
+
+LOAD-OF-PROGRAM.
+  PERFORM loadinit.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM modifyscreen.
+
+START-OF-SELECTION.
+  PERFORM getdata.
+  CALL SCREEN 9000.
+
+FORM getdata.
+  CLEAR:wa_head,it_item[],tdid,it_text[],
+  it_matnr[],it_guige[],it_vbeln[].
+  SELECT SINGLE *
+    INTO wa_head
+    FROM vbak
+    WHERE vbeln = p_vbeln
+    AND   vbtyp = 'G'.
+  IF sy-subrc NE 0.
+    MESSAGE s005 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  SELECT *
+    INTO CORRESPONDING FIELDS OF TABLE it_item
+    FROM vbap
+    WHERE vbeln = wa_head-vbeln.
+  LOOP AT it_item.
+    CLEAR:it_matnr,it_vbeln.
+    it_matnr-matnr = it_item-matnr.
+    it_vbeln-vbeln = it_item-vbeln.
+    it_vbeln-posnr = it_item-posnr.
+    COLLECT:it_vbeln, it_matnr.
+  ENDLOOP.
+  IF it_matnr[] IS NOT INITIAL.
+    SELECT *
+      INTO TABLE @DATA(it_makt)
+      FROM makt
+      FOR ALL ENTRIES IN @it_matnr
+      WHERE matnr = @it_matnr-matnr
+      AND   spras = @sy-langu.
+    SORT it_makt BY matnr.
+    SELECT *
+      INTO TABLE @DATA(it_mara)
+      FROM mara
+      FOR ALL ENTRIES IN @it_matnr
+      WHERE matnr = @it_matnr-matnr.
+    SORT it_mara BY matnr.
+  ENDIF.
+  CALL FUNCTION 'ZFM_CALMNG_BYHT'
+    TABLES
+      intab  = it_vbeln
+      outtab = it_zssd263.
+*价格
+  SELECT *
+    INTO TABLE it_konv
+    FROM v_konv_cds
+    WHERE knumv = wa_head-knumv
+    AND   kinak = ''.
+  SORT it_konv BY kposn kschl.
+*行项目描述
+  LOOP AT it_item.
+    CLEAR:zssd262,tdname.
+    CONCATENATE it_item-vbeln it_item-posnr INTO tdname.
+    READ TABLE it_zssd263 WITH KEY vbeln = it_item-vbeln
+                                   posnr = it_item-posnr
+                                   BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      MOVE-CORRESPONDING it_zssd263 TO zssd262.
+      MOVE-CORRESPONDING zssd262 TO it_item.
+    ENDIF.
+    READ TABLE it_tvagt WITH KEY abgru = it_item-abgru BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-tvagt = it_tvagt-bezei.
+    ENDIF.
+    READ TABLE it_makt INTO DATA(wa_makt) WITH KEY matnr = it_item-matnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-maktx = wa_makt-maktx.
+    ENDIF.
+    READ TABLE it_mara INTO DATA(wa_mara) WITH KEY matnr = it_item-matnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-zzl1 = wa_mara-zzl1.
+    ENDIF.
+    READ TABLE it_konv WITH KEY kposn = it_item-posnr
+                                kschl = 'ZPR0'
+                                BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-zpr0 = it_konv-kbetr.
+      IF it_konv-kpein GT 0.
+        it_item-zpr0 = it_konv-kbetr / it_konv-kpein.
+      ENDIF.
+
+      wa_head-zje = wa_head-zje + it_item-kzwi6.
+    ENDIF.
+    READ TABLE it_konv WITH KEY kposn = it_item-posnr
+                                kschl = 'ZPRR'
+                                BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-zprr = it_konv-kbetr.
+      IF it_konv-kpein GT 0.
+        it_item-zprr = it_konv-kbetr / it_konv-kpein.
+      ENDIF.
+    ENDIF.
+    READ TABLE it_tvm2t WITH KEY mvgr2 = it_item-mvgr2 BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-tvm2t = it_tvm2t-bezei.
+    ENDIF.
+    READ TABLE it_t001w WITH KEY werks = it_item-werks BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-namew = it_t001w-name1.
+    ENDIF.
+    READ TABLE it_t001l WITH KEY werks = it_item-werks
+                                 lgort = it_item-lgort
+                                 BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-lgobe = it_t001l-lgobe.
+    ENDIF.
+    READ TABLE it_tvapt WITH KEY pstyv = it_item-pstyv BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-tvapt = it_tvapt-vtext.
+    ENDIF.
+    READ TABLE it_zbzfs WITH KEY domvalue_l = it_item-zbzfs BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      it_item-zbzfst = it_zbzfs-ddtext.
+    ENDIF.
+*    PERFORM GETLONGTEXT(ZPUBFORM)
+*    USING 'GRUN' IT_ITEM-MATNR 'MATERIAL'
+*          CHANGING IT_ITEM-GUIGE.
+    CONCATENATE it_item-vbeln it_item-posnr INTO tdname.
+    PERFORM getlongtext(zpubform)
+    USING 'Z002' tdname 'VBBP'
+          CHANGING it_item-zbeiz.
+    PERFORM getlongtext(zpubform) USING 'Z001' tdname 'VBBP'
+          CHANGING it_item-guige.
+    IF strlen( it_item-guige ) GT 128.
+      it_item-guige1 = it_item-guige+128.
+    ENDIF.
+    READ TABLE it_t006a WITH KEY msehi = it_item-vrkme BINARY SEARCH .
+    IF sy-subrc EQ 0.
+      it_item-mseht = it_t006a-mseht.
+    ENDIF.
+    MODIFY it_item.
+  ENDLOOP.
+*只要有未拒绝的就算开启
+  LOOP AT it_item WHERE abgru IS INITIAL.
+    EXIT.
+  ENDLOOP.
+  IF sy-subrc EQ 0.
+    wa_head-sfkq = 'Y'.
+  ELSE.
+    wa_head-sfkq = 'N'.
+  ENDIF.
+
+*取描述
+  SELECT SINGLE name1
+    INTO wa_head-namek
+    FROM kna1
+    WHERE kunnr = wa_head-kunnr.
+  PERFORM addzero(zpubform) CHANGING wa_head-zhtly.
+  SELECT SINGLE name1
+    INTO wa_head-zhtlyt
+    FROM kna1
+    WHERE kunnr = wa_head-zhtly.
+  PERFORM addzero(zpubform) CHANGING wa_head-zywy.
+  SELECT SINGLE name1
+    INTO wa_head-zywyt
+    FROM kna1
+    WHERE kunnr = wa_head-zywy.
+  SELECT SINGLE vtext
+    INTO wa_head-tvkot
+    FROM tvkot
+    WHERE vkorg = wa_head-vkorg
+    AND    spras = sy-langu.
+  SELECT SINGLE vtext
+    INTO wa_head-tvtwt
+    FROM tvtwt
+    WHERE vtweg = wa_head-vtweg
+    AND   spras = sy-langu.
+  SELECT SINGLE bezei
+    INTO wa_head-tvakt
+    FROM tvakt
+    WHERE auart = wa_head-auart
+    AND   spras = sy-langu.
+  SELECT SINGLE bezei
+    INTO wa_head-tvkbt
+    FROM tvkbt
+    WHERE vkbur = wa_head-vkbur
+    AND   spras = sy-langu.
+  SELECT SINGLE vtext
+    INTO wa_head-tspat
+    FROM tspat
+    WHERE spart = wa_head-spart
+    AND   spras = sy-langu.
+  SELECT SINGLE posid
+                post1
+    INTO ( wa_head-posid,wa_head-post1 )
+    FROM prps
+    WHERE pspnr = wa_head-ps_psp_pnr.
+  SELECT SINGLE klabc
+    INTO wa_head-klabc
+    FROM knvv
+    WHERE vkorg = wa_head-vkorg
+    AND   vtweg = wa_head-vtweg
+    AND   kunnr = wa_head-kunnr.
+  SELECT SINGLE bstkd
+    INTO wa_head-bstkd
+    FROM vbkd
+    WHERE vbeln = wa_head-vbeln
+    AND posnr = '000000'.
+  LOOP AT it_list1.
+    wa_head-tdid = it_list1-tdid.
+    EXIT.
+  ENDLOOP.
+*计算执行完日期
+  PERFORM delqfw(zpubform) CHANGING wa_head-zjrth.
+  PERFORM delqfw(zpubform) CHANGING wa_head-zjrthwb.
+  wa_head-gueen = wa_head-audat
+                + wa_head-zjrth
+                + wa_head-zjrthwb.
+  LOOP AT it_list1.
+    CLEAR:tline[], it_text,stxl.
+    stxl-tdname = wa_head-vbeln.
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+        id                      = it_list1-tdid
+        language                = sy-langu
+        name                    = stxl-tdname
+        object                  = 'VBBK'
+      TABLES
+        lines                   = tline
+      EXCEPTIONS
+        id                      = 1
+        language                = 2
+        name                    = 3
+        not_found               = 4
+        object                  = 5
+        reference_check         = 6
+        wrong_access_to_archive = 7
+        OTHERS                  = 8.
+    LOOP AT tline.
+      CLEAR it_text.
+      it_text-tdid = it_list1-tdid.
+      it_text-text = tline-tdline.
+      APPEND it_text.
+    ENDLOOP.
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form MODIFYSCREEN
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM modifyscreen .
+  %_p_vbeln_%_app_%-text = '合同号'.
+ENDFORM.

@@ -1,0 +1,36 @@
+*&---------------------------------------------------------------------*
+*&      Form  PRUEFEN_KZME
+*&---------------------------------------------------------------------*
+*       Pr¨¹ft, ob die Kennzeichen KZBME, KZBSTME, KZAUSME und KZVRKME  *
+*       richtig gesetzt wurden.
+*----------------------------------------------------------------------*
+FORM PRUEFEN_KZME.
+
+* Falls ME_BME, ME_BSTME, ME_AUSME, ME_VRKME noch initial sind,
+* pr¨¹fen, ob KZBME, KZBSTME, KZAUSME, KZVRKME auf einer anderen als der
+* aktuellen 'Seite' bereits gesetzt wurde.
+  PERFORM KZME_GESETZT.
+
+* Falls ME_BME, ME_BSTME, ME_AUSME, ME_VRKME nicht initial sind,
+* pr¨¹fen, ob KZBME, KZBSTME, KZAUSME, KZVRKME auf einer anderen als der
+* aktuellen 'Seite' bereits gesetzt wurde (Doppeleintrag -> Fehler).
+  PERFORM KZME_DOPPELT.
+
+* Vor Aufruf der nachfolgenden Pr¨¹fungen MEINH in Puffer setzen, weil
+* in den Pr¨¹fungen aus Puffer gelesen wird.
+  CALL FUNCTION 'MARM_SET_SUB'
+       EXPORTING
+            MATNR  = MARA-MATNR
+       TABLES
+            WMEINH = MEINH
+       EXCEPTIONS
+            OTHERS = 1.
+
+* Pr¨¹fen, ob eine spezielle ME ge#ndert wurde. Nach erfolgreicher
+* Pr¨¹fung Daten nach MARA bzw. MAW1 ¨¹bernehmen.
+  PERFORM BME_GEAENDERT.
+  PERFORM BSTME_GEAENDERT.
+  PERFORM AUSME_GEAENDERT.
+  PERFORM VRKME_GEAENDERT.
+
+ENDFORM.                               " PRUEFEN_KZME

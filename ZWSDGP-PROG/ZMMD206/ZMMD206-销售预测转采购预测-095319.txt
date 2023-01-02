@@ -1,0 +1,209 @@
+*&---------------------------------------------------------------------*
+*& Report ZMMD206
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmmd206 MESSAGE-ID zgp_msg.
+TYPE-POOLS: sscr,slis.
+TABLES: sscrfields,ztmm231,ztmm232,ztmm233.
+DATA: fldct TYPE slis_t_fieldcat_alv,
+      slayt TYPE slis_layout_alv,
+      varnt LIKE disvariant,
+      repid LIKE sy-repid,
+      tabix LIKE sy-tabix.
+DATA:BEGIN OF itab OCCURS 0,
+       zycdno TYPE ztmm231-zycdno,
+       zkh    TYPE ztmm231-zkh,
+       zxm    TYPE ztmm231-zxm,
+       zddsj  TYPE ztmm231-zddsj,
+       select,
+     END OF itab.
+
+DATA: wa_231 TYPE ztmm231,
+      BEGIN OF it_232 OCCURS 0.
+        INCLUDE TYPE ztmm232.
+DATA:sel,
+      END OF it_232.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk1 WITH FRAME TITLE t01.
+  SELECT-OPTIONS:s_zxm FOR ztmm231-zxm MODIF ID m1,
+                 s_zddsj FOR ztmm231-zddsj MODIF ID m1.
+SELECTION-SCREEN END OF BLOCK blk1.
+
+INITIALIZATION.
+  t01 = '筛选条件'.
+  %_s_zxm_%_app_%-text = '项目'.
+  %_s_zddsj_%_app_%-text = '开始日期'.
+
+AT SELECTION-SCREEN.
+
+AT SELECTION-SCREEN OUTPUT.
+
+START-OF-SELECTION.
+
+  PERFORM savelog(zreplog) USING sy-repid '' IF FOUND.
+  PERFORM getdata.
+  PERFORM alvshow.
+  PERFORM updatelog(zreplog) IF FOUND.
+
+FORM getdata.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE itab FROM ztmm231
+    WHERE zxm IN s_zxm
+    AND zddsj IN s_zddsj.
+ENDFORM.
+
+FORM alvshow.
+  slayt-colwidth_optimize = 'X'. "  colwidth_optimize
+  slayt-zebra             = 'X'.
+  slayt-box_fieldname     = 'SELECT'.
+  repid = sy-repid.
+  varnt-report = sy-repid.
+  varnt-handle = 1.
+
+  PERFORM catlg_set TABLES fldct
+                    USING:
+'ZYCDNO'   'ZTMM231'   'ZYCDNO'     '预测单单号      ',
+'ZKH   '   'ZTMM231'   'ZKH   '     '客户            ',
+'ZXM   '   'ZTMM231'   'ZXM   '     '项目号          ',
+'ZDDSJ '   'ZTMM231'   'ZDDSJ '     '预计定金到账时间'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = repid
+      it_fieldcat              = fldct[]
+      i_save                   = 'A'
+      is_variant               = varnt
+      is_layout                = slayt
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_STATUS'
+*     IT_EVENTS                = GT_EVENTS
+    TABLES
+      t_outtab                 = itab[]
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+ENDFORM.
+
+FORM catlg_set TABLES fldcattab
+               USING p_field p_reftab p_reffld p_text.
+  DATA: ls_fldct TYPE slis_fieldcat_alv.
+
+  ls_fldct-fieldname     =  p_field.
+  ls_fldct-seltext_l     =  p_text.
+  ls_fldct-ddictxt       =  'L'.
+  ls_fldct-ref_fieldname =  p_reffld.
+  ls_fldct-ref_tabname   =  p_reftab.
+
+
+
+  IF p_reffld = 'MENGE'.
+    ls_fldct-qfieldname = 'MEINS'.
+    ls_fldct-no_zero = 'X'.
+  ENDIF.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'MENGE'.
+      ls_fldct-qfieldname = 'MEINS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'DMBTR' .
+      ls_fldct-cfieldname = 'WAERB'.
+    WHEN 'WRBTR' OR 'DMBTR1' OR 'DMBTR2' .
+      ls_fldct-cfieldname = 'WAERS'.
+      ls_fldct-no_zero = 'X'.
+    WHEN 'KUNNR' OR 'EBELN' OR 'BANFN'.
+      ls_fldct-edit_mask = '==ALPHA'.
+    WHEN 'MATNR' .
+      ls_fldct-edit_mask = '==MATN1'.
+      ls_fldct-intlen = 18.
+    WHEN 'BSTME' OR 'MEINS' .
+      ls_fldct-edit_mask = '==CUNIT'.
+    WHEN 'ZSPBS'.
+      ls_fldct-checkbox = 'X'.
+*    WHEN 'pstyp'.
+*      ls_fldct-no_zero = 'X'.
+    WHEN 'ICON'.
+      ls_fldct-icon = abap_true.
+    WHEN OTHERS.
+  ENDCASE.
+
+  CASE ls_fldct-fieldname.
+    WHEN 'EBELN' OR 'RTYPE' OR 'RTMSG' OR
+         'MBLPO' OR 'FRGKE'.
+      ls_fldct-emphasize = 'C110'.
+  ENDCASE.
+
+  APPEND ls_fldct TO fldcattab .
+  CLEAR ls_fldct .
+ENDFORM.
+
+FORM set_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab.
+  REFRESH rt_extab.
+  SET PF-STATUS 'STANDARD' EXCLUDING rt_extab .
+  SET TITLEBAR 'TIT1000' WITH '销售预测转采购预测'.
+ENDFORM.
+
+FORM user_command USING r_ucomm LIKE sy-ucomm
+                    rs_selfield TYPE slis_selfield.
+  DATA: lr_grid TYPE REF TO cl_gui_alv_grid.
+  DATA: lv_rtmsg TYPE bapi_msg.
+  DATA wa LIKE LINE OF itab.
+  DATA:filename TYPE string.
+  DATA pdfxstring TYPE xstring.
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = lr_grid.
+
+  CALL METHOD lr_grid->check_changed_data.
+
+  CASE r_ucomm.
+    WHEN '&IC1'. "双击
+      CHECK rs_selfield-tabindex <> 0 . "小计行总计行什么的忽略
+      READ TABLE itab INTO wa INDEX rs_selfield-tabindex.
+      CASE rs_selfield-fieldname.
+        WHEN 'ZYCDNO'.
+          PERFORM show_item USING wa-zycdno.
+        WHEN OTHERS.
+      ENDCASE.
+    WHEN 'EXCEL'.
+      PERFORM itabtoexcel(zpubform) TABLES itab USING fldct.
+  ENDCASE.
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
+  rs_selfield-refresh    = 'X'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form show_item
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM show_item USING zycdno TYPE ztmm231-zycdno.
+  SELECT SINGLE * INTO wa_231 FROM ztmm231 WHERE zycdno = zycdno.
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE it_232 FROM  ztmm232 WHERE zycdno = zycdno.
+  LOOP AT it_232.
+    CASE it_232-zycnr.
+      WHEN '内板' OR '外板'.
+        it_232-zyl = it_232-zqdl * '7.85' * it_232-zjkd / 1000.
+      WHEN '芯材'.
+        it_232-zyl = it_232-zqdl * it_232-zbk * it_232-zbh.
+      WHEN '胶水'.
+        it_232-zyl = it_232-zqdl * '0.3'.
+      WHEN '黑料'.
+        it_232-zyl = it_232-zqdl * '0.12'.
+    ENDCASE.
+    MODIFY it_232.
+  ENDLOOP.
+  CHECK wa_231-zycdno IS NOT INITIAL AND it_232[] IS NOT INITIAL.
+  CALL SCREEN 900.
+ENDFORM.
+
+*&SPWizard: Data incl. inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zmmd206_con .
+*&SPWizard: Include inserted by SP Wizard. DO NOT CHANGE THIS LINE!
+INCLUDE zmmd206_pbo .
+INCLUDE zmmd206_pai .
+INCLUDE zmmd206_form .

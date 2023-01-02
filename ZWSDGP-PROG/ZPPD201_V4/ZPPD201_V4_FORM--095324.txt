@@ -1,0 +1,5642 @@
+*&---------------------------------------------------------------------*
+*& 包含               ZPPD201_FORM
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module STATUS_0800 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_0800 OUTPUT.
+  DATA RT_EXTAB TYPE SLIS_T_EXTAB.
+  CLEAR RT_EXTAB.
+  REFRESH RT_EXTAB.
+  APPEND 'OASP' TO RT_EXTAB.
+*  APPEND 'BUT04' TO RT_EXTAB.
+  IF P_SUBMIT = 'X' OR GV_SUBSCREEN_800 = '0807'.
+    APPEND 'PCD' TO RT_EXTAB.
+    APPEND 'OASP' TO RT_EXTAB.
+    APPEND 'SAVEPCD' TO RT_EXTAB.
+  ENDIF.
+  IF P_SUBMIT = 'X'.
+    APPEND 'DR' TO RT_EXTAB.
+    APPEND 'BUT01' TO RT_EXTAB.
+    APPEND 'BUT07' TO RT_EXTAB.
+    APPEND 'BUT02' TO RT_EXTAB.
+    APPEND 'BUT03' TO RT_EXTAB.
+    APPEND 'BUT04' TO RT_EXTAB.
+    APPEND 'BUT05' TO RT_EXTAB.
+  ENDIF.
+  APPEND 'ZPCD' TO RT_EXTAB.
+  CASE PCLX.
+    WHEN 'JSXD' OR 'JGMX'.
+    WHEN OTHERS.
+      APPEND 'DR' TO RT_EXTAB.
+      APPEND 'BUT07' TO RT_EXTAB.
+      APPEND 'PCD' TO RT_EXTAB.
+      APPEND 'BUT04' TO RT_EXTAB.
+  ENDCASE.
+  SELECT SINGLE COUNT(*)
+    FROM ZTPP_205
+    WHERE ZPCDH = WA_GGZD-ZPCDH.
+  IF SY-SUBRC NE 0.
+    APPEND 'BUT01' TO RT_EXTAB.
+    APPEND 'BUT02' TO RT_EXTAB.
+    APPEND 'BUT03' TO RT_EXTAB.
+    APPEND 'BUT05' TO RT_EXTAB.
+    APPEND 'PRINT' TO RT_EXTAB.
+  ENDIF.
+  CASE SY-TCODE.
+    WHEN TCODE2 OR TCODE3.
+      APPEND 'PCD' TO RT_EXTAB.
+      APPEND 'DR' TO RT_EXTAB.
+      APPEND 'BUT07' TO RT_EXTAB.
+      APPEND 'BUT05' TO RT_EXTAB.
+      APPEND 'BUT04' TO RT_EXTAB.
+    WHEN TCODE1 OR TCODE4 OR TCODE4A
+      OR TCODE5.
+      APPEND 'BUT02' TO RT_EXTAB.
+  ENDCASE.
+  SET PF-STATUS 'STA800' EXCLUDING  RT_EXTAB.
+  SET TITLEBAR 'TIT800' WITH '排产单创建'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0800  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0800 INPUT.
+  DATA: ANSWER   TYPE CHAR1,
+        YPCSLSUM TYPE MENGE_D,
+        PCSLSUM  TYPE MENGE_D,
+        MSG      TYPE BAPI_MSG.
+  SAVE_OK = OK_CODE.
+  IF  GV_SUBSCREEN_800 = '0802'
+    OR GV_SUBSCREEN_800 = '0805' .
+    PERFORM SCREEN2TAB USING: EDITOR_BZ 'PCBZ',
+                              EDITOR_QGDH 'QGDH'.
+    PERFORM TAB2SCREEN USING: EDITOR_BZ 'PCBZ',
+                              EDITOR_QGDH 'QGDH'.
+    CASE GCBS.
+      WHEN 'A'.
+      WHEN 'B'.
+        PERFORM SCREEN2TAB USING:  EDITOR_JGMX 'JGMX'.
+        PERFORM TAB2SCREEN USING:  EDITOR_JGMX 'JGMX'.
+    ENDCASE.
+  ENDIF.
+
+*计算总块数ZKS总米数ZMS总数量ZJSSL
+  CLEAR:WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZSL,
+  WA_GGZD-ZZJE.
+  LOOP AT IT_PCD.
+    CASE WA_205-ZPCLX.
+      WHEN 'WHT'.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+        WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZPCSL.
+        WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZCD * IT_PCD-ZKS.
+      WHEN OTHERS.
+        WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZMS.
+        WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZJSSL.
+        WA_GGZD-ZZJE = WA_GGZD-ZZJE + IT_PCD-JE.
+        CASE MCLX.
+          WHEN 'E' OR 'F' OR 'G'.
+            WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZYYKS.
+          WHEN OTHERS.
+            WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+        ENDCASE.
+    ENDCASE.
+  ENDLOOP.
+
+  CLEAR OK_CODE.
+  CASE SAVE_OK.
+    WHEN 'BUT05'."删除
+      PERFORM BUT05.
+    WHEN 'BUT04'."导出模板
+      PERFORM BUT04.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      IF P_SUBMIT NE 'X'.
+        PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER."尚未创建排产单明细,请确认操作!
+        IF ANSWER EQ '1'.
+*          IF bcbs = '0' AND wa_ggzd-zpcdh IS NOT INITIAL.
+*            DELETE FROM ztpp_205 WHERE zpcdh = wa_ggzd-zpcdh.
+*            COMMIT WORK.
+*          ENDIF.
+          LEAVE TO SCREEN 0.
+        ENDIF.
+      ELSE.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+
+*    WHEN 'ZPCD'."转排产单
+*      REFRESH it_pcd.
+*      CLEAR wa_tz.
+*      PERFORM init_wa_tz CHANGING flag.
+*      CHECK flag = 'S'.
+*      CALL SCREEN 900 STARTING AT 37 5 ENDING   AT 97 25.
+*    WHEN 'CRTPCD'."创建排产单
+*      PERFORM crtpcd.
+    WHEN 'PCD'."引技  1术详单&加工明细
+      IF PCLX = 'JSXD'.
+        PERFORM GETJSXD.
+        DELETE IT_JSXD WHERE ZKS_BCPC = 0.
+        IF GCBS = 'B'.
+          LOOP AT IT_PCD.
+            DELETE IT_JSXD WHERE ZJSXDID = IT_PCD-ZJSXDID AND ZJSXDDID = IT_PCD-ZJSXDDID.
+          ENDLOOP.
+        ENDIF.
+
+        IF IT_JSXD[] IS NOT INITIAL.
+          CALL SCREEN 910 STARTING AT 37 5 ENDING   AT 217 30.
+        ELSE.
+          MESSAGE S004 WITH '没有可用技术详单数据' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+      ELSEIF PCLX = 'JGMX'.
+        PERFORM GETJGMX.
+        LOOP AT IT_PCD.
+          DELETE IT_JGMX WHERE ZMVBELN = IT_PCD-ZMVBELN AND ZMPOSNR = IT_PCD-ZMPOSNR.
+        ENDLOOP.
+        IF IT_JGMX[] IS NOT INITIAL.
+          CALL SCREEN 920 STARTING AT 37 5 ENDING   AT 217 30.
+        ELSE.
+          MESSAGE S004 WITH '没有可用加工明细数据' DISPLAY LIKE 'E'.
+          EXIT.
+        ENDIF.
+      ELSE.
+        MESSAGE S004 WITH '没有可用技术详单或加工明细数据' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+    WHEN 'SAVEPCD'.
+      IF IT_PCD[] IS INITIAL.
+        MESSAGE S004 WITH '排产单明细为空,不能保存' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+*检查必输
+      CASE WA_205-ZPCLX.
+        WHEN 'WHT'.
+        WHEN OTHERS.
+          IF WA_GGZD-ZXQPIH IS INITIAL.
+            MESSAGE S029 WITH '需求批次号' DISPLAY LIKE 'E'.
+            EXIT.
+          ENDIF.
+      ENDCASE.
+      IF WA_GGZD-ZJGLX IS INITIAL.
+        MESSAGE S029 WITH '加工类型' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      IF WA_GGZD-ZJHSJ IS INITIAL.
+        MESSAGE S029 WITH '交货时间' DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      CASE GCBS.
+        WHEN 'A'.
+          CASE WA_205-ZPCLX.
+            WHEN 'WHT'.
+            WHEN OTHERS.
+              IF WA_GGZD-ZSFWCJG IS INITIAL.
+                MESSAGE S029 WITH '外出加工' DISPLAY LIKE 'E'.
+                EXIT.
+              ENDIF.
+          ENDCASE.
+
+          IF WA_GGZD-GROES CS '丽彩晶'.
+            IF WA_GGZD-ZLCFBYQ IS INITIAL.
+              MESSAGE S029 WITH '玻镁/石膏贴钢卷面要求' DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+          ENDIF.
+          IF WA_GGZD-ZSCDW1 IS INITIAL.
+            MESSAGE S029 WITH '生产单位' DISPLAY LIKE 'E'.
+            EXIT.
+          ENDIF.
+          IF WA_GGZD-ZZJBJGF IS INITIAL.
+            MESSAGE S029 WITH '是否含转角板加工费' DISPLAY LIKE 'E'.
+            EXIT.
+          ENDIF.
+          IF WA_GGZD-ZZYFY IS INITIAL.
+            MESSAGE S029 WITH '正压反压' DISPLAY LIKE 'E'.
+            EXIT.
+          ENDIF.
+        WHEN 'B'.
+          IF WA_GGZD-ZSCDW1 IS INITIAL.
+            MESSAGE S029 WITH '生产单位' DISPLAY LIKE 'E'.
+            EXIT.
+          ENDIF.
+          IF WA_GGZD-GROES CS '单玻镁'
+            OR WA_GGZD-GROES CS '单石膏'.
+            IF WA_GGZD-ZGJTMYQ IS INITIAL.
+              MESSAGE S029 WITH '玻镁/石膏贴钢卷面要求' DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+          ENDIF.
+      ENDCASE.
+*有合同排产的计算超量
+*取已排产数量
+      CLEAR:VBAP,PCSLSUM,YPCSLSUM.
+      IF PCLX NE 'WHT'.
+        SELECT SINGLE *
+          FROM VBAP
+          WHERE VBELN = WA_205-VBELN
+          AND   POSNR = WA_205-POSNR.
+        SELECT ZTPP_205~ZPCDH,
+               ZTPP_205~VBELN,
+               ZTPP_205~POSNR,
+               ZTPP_205A~ZPCDHH,
+               ZTPP_205A~ZPCSL
+          INTO TABLE @DATA(IT_205A1)
+          FROM ZTPP_205 INNER JOIN ZTPP_205A ON ZTPP_205~ZPCDH = ZTPP_205A~ZPCDH
+          WHERE ZTPP_205~VBELN = @WA_205-VBELN
+          AND   ZTPP_205~POSNR = @WA_205-POSNR
+          AND   ZTPP_205A~DEL NE 'X'.
+        SORT IT_205A1 BY ZPCDH ZPCDHH.
+        SORT IT_PCD BY ZPCDHH.
+        DELETE IT_205A1 WHERE ZPCDH = WA_GGZD-ZPCDH.
+        LOOP AT IT_205A1 INTO DATA(WA_205A1).
+          YPCSLSUM = YPCSLSUM + WA_205A1-ZPCSL.
+        ENDLOOP.
+        LOOP AT IT_PCD WHERE DELFLG NE 'X'.
+          PCSLSUM = PCSLSUM + IT_PCD-ZPCSL.
+        ENDLOOP.
+        IF VBAP-KWMENG GT 0.
+          IF ( ( YPCSLSUM + PCSLSUM ) - VBAP-KWMENG ) / VBAP-KWMENG
+            GT DEBL .
+            MESSAGE I000(OO) WITH TEXT-002.
+            EXIT.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      CASE PCLX.
+        WHEN 'JSXD'.
+          PERFORM SAVEPCD_JSXD.
+        WHEN 'JGMX'.
+          PERFORM SAVEPCD_JGMX.
+        WHEN 'WHT'.
+          PERFORM SAVEPCD_WHT.
+        WHEN 'ZWJ' OR 'JHB' OR 'LCD'.
+          PERFORM SAVEPCD_DR.
+      ENDCASE.
+      PERFORM SAVECK.
+    WHEN 'BUT02' OR 'BUT01'.
+*客服提交前弹窗确认
+      CASE GCBS.
+        WHEN 'B'.
+          CASE SY-TCODE.
+            WHEN TCODE1 OR TCODE4 OR TCODE4A OR TCODE5.
+              PERFORM FILL1.
+              IF RETURNCODE IS NOT INITIAL.
+                MESSAGE S000(OO) WITH '请填充运费' DISPLAY LIKE 'E'.
+                EXIT.
+              ENDIF.
+            WHEN TCODE2.
+              PERFORM FILL2.
+              IF RETURNCODE IS NOT INITIAL.
+                MESSAGE S000(OO) WITH '请填充价格' DISPLAY LIKE 'E'.
+                EXIT.
+              ENDIF.
+          ENDCASE.
+      ENDCASE.
+
+*先执行保存
+      CASE PCLX.
+        WHEN 'JSXD'.
+          PERFORM SAVEPCD_JSXD.
+        WHEN 'JGMX'.
+          PERFORM SAVEPCD_JGMX.
+        WHEN 'WHT'.
+          PERFORM SAVEPCD_WHT.
+        WHEN 'ZWJ' OR 'JHB' OR 'LCD'.
+          PERFORM SAVEPCD_DR.
+      ENDCASE.
+      PERFORM SAVECK.
+      PERFORM BUT01 IN PROGRAM ZPPR203
+      USING SAVE_OK WA_GGZD-ZPCDH
+            CHANGING MSG WA_GGZD-ZADUIT.
+      IF MSG+0(1) = 'S'.
+*        MESSAGE I000(OO) WITH '排产单' WA_205-ZPCDH '操作成功'.
+        LEAVE TO SCREEN 0.
+      ELSE.
+        MESSAGE S000(OO) WITH MSG DISPLAY LIKE 'E'.
+      ENDIF.
+    WHEN 'BUT03'.
+      DATA:SAPNO TYPE ZTFILE_MANAGE_01-SAPNO,
+           DJLX  TYPE ZTFILE_MANAGE_01-DJLX.
+      CLEAR:SAPNO,DJLX.
+      SAPNO = WA_205-ZPCDH.
+      CALL FUNCTION 'ZFM_FTP_CALLZFTP'
+        EXPORTING
+          SAPNO = SAPNO
+          SAPMK = 'PP'
+          DJLX  = 'PCD'.
+    WHEN 'PRINT'."打印排产单
+*      IF BCBS NE '1'.
+*        MESSAGE S004 WITH '保存完排产单后再打印' DISPLAY LIKE 'E'.
+*        EXIT.
+*      ENDIF.
+*      PERFORM PRINTPCD.
+      PERFORM JHDDY IN PROGRAM ZTEST_PCDDY USING  WA_GGZD-ZPCDH.
+    WHEN 'DR'.
+      CALL SCREEN '0940' STARTING AT 30 5 .
+    WHEN 'BUT07'."剪切板导入
+      PERFORM BUT07.
+    WHEN 'PICK'."双击
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0900 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_0900 OUTPUT.
+  SET PF-STATUS 'STA900'.
+  SET TITLEBAR 'TIT900' WITH '弹窗字段'.
+  PERFORM GG."物料长描述
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0900  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0900 INPUT.
+  SAVE_OK = OK_CODE.
+  CLEAR OK_CODE.
+  CASE SAVE_OK.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SAVE'.
+      REFRESH IT_PCD.
+      CLEAR WA_GGZD.
+      LOOP AT IT_JSXD WHERE CHBOX = 'X'.
+        CLEAR IT_PCD.
+        MOVE-CORRESPONDING IT_JSXD TO IT_PCD.
+        APPEND IT_PCD.
+      ENDLOOP.
+      MOVE-CORRESPONDING WA_TZ TO WA_GGZD.
+      GV_SUBSCREEN_800 = '0802'.
+      LEAVE TO SCREEN 0.
+
+  ENDCASE.
+
+*  CLEAR:OK_CODE.
+  CLEAR:SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module ALV_DISPLAY OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE ALV_DISPLAY_JSXD OUTPUT.
+  "创建容器
+  IF ALV_GRID_JSXD IS INITIAL.
+    CREATE OBJECT ALV_CONTAINER_JSXD
+      EXPORTING
+        CONTAINER_NAME              = 'CONT_JSXD'
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+    IF SY-SUBRC NE 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                 WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+    CREATE OBJECT ALV_GRID_JSXD
+      EXPORTING
+        I_PARENT = ALV_CONTAINER_JSXD.
+
+    CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+    CREATE OBJECT LCL_EVENT_RECEIVER_JSXD.
+    SET HANDLER LCL_EVENT_RECEIVER_JSXD->HANDLE_DOUBLE_CLICK_JSXD FOR ALV_GRID_JSXD.
+    SET HANDLER LCL_EVENT_RECEIVER_JSXD->HANDLE_DATA_CHANGED_JSXD FOR ALV_GRID_JSXD.
+    SET HANDLER LCL_EVENT_RECEIVER_JSXD->HANDLE_HOTSPOT_CLICK_JSXD FOR ALV_GRID_JSXD."热点点击
+    SET HANDLER LCL_EVENT_RECEIVER_JSXD->HANDLE_TOOLBAR_JSXD FOR ALV_GRID_JSXD."增加按钮
+    SET HANDLER LCL_EVENT_RECEIVER_JSXD->HANDLE_USER_COMMAND_JSXD FOR ALV_GRID_JSXD."按钮响应
+    SET HANDLER LCL_EVENT_RECEIVER_JSXD->HANDLE_ON_F4_JSXD FOR ALV_GRID_JSXD."按钮响应
+*    alv_grid_jsxd->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+    ALV_GRID_JSXD->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_ENTER )."mc_evt_enter
+    ALV_GRID_JSXD->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM CALLALVN_JSXD.
+  ELSE.
+    PERFORM CALLALVN_JSXD.
+  ENDIF.
+*刷新ALV
+  PERFORM FRM_REFRESH_ALV_JSXD.
+ENDMODULE.
+
+FORM CALLALVN_JSXD .
+  CLEAR:IT_FIELDCAT_JSXD.
+*FIELDCAT
+  CASE MCLX.
+    WHEN 'E' OR 'F' OR 'G'.
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_JSXD USING:
+    'CHBOX' '选择' '' '',
+    'ZDREMARK    '    '备注'   'ZTPP_205A'       'ZDREMARK    '   ,
+    'ZBIANHAO    '    '编号        '       'ZTPP_205A'       'ZBIANHAO    '   ,
+    'ZDATMC    '    '单体名称        '       'ZTPP_205A'       'ZDATMC    '   ,
+    'ZLMZX       '    '立面/轴线   '       'ZTPP_205A'       'ZLMZX       '   ,
+    'MATNR       '    '物料编码    '       'ZTPP_205A'       'MATNR       '   ,
+    'ZKS         '    '块数        '       'ZTPP_205A'       'ZKS         '   ,
+    'ZYYKS         '    '引用块数        '       'ZTPP_205A'       'ZYYKS         '   ,
+    'ZYPCSL      '    '已用块数  '       'ZTPP_205A'       'ZYPCSL      '   ,
+    'ZDANJ         '    '单价        '       'ZTPP_205A'       'ZDANJ         '   ,
+    'ZZL1         '    '品名        '       'ZTPP_211'       'ZZL1         '   ,
+    'ZDESC         '    '规格        '       'ZTPP_211'       'ZDESC         '   ,
+    'TYPE         '    '类型        '       'ZTPP_211'       'TYPE         '   ,
+    'ZCC         '    '尺寸        '       'ZTPP_211'       'ZCC         '   ,
+    'ZCD         '    TEXT-001       'ZTPP_211'       'ZCD         '   ,
+    'ZPINGFANGSHU         '    '平方数        '       'ZTPP_211'       'ZPINGFANGSHU         '   ,
+    'ZBCKD         '    '板材宽度        '       'ZTPP_211'       'ZBCKD         '   ,
+        'ZXISHU      '    '系数        '       'ZTPP_205A'       'ZXISHU      '   ,
+    'ZCHANDI     '    '产地        '       'ZTPP_205A'       'ZCHANDI     '   ,
+    'ZCOLOR      '    '颜色        '       'ZTPP_205A'       'ZCOLOR      '   ,
+    'ZDKSL       '    '打孔（开洞）'       'ZTPP_205A'       'ZDKSL       '   ,
+    'ZXGYQ       '    '线管个数位置'       'ZTPP_205A'       'ZXGYQ       '   ,
+    'ZMIXMC       '    '明细名称'       'ZTPP_205A'       'ZMIXMC       '   ,
+    'ZMB         '    '抿边        '       'ZTPP_205A'       'ZMB         '   ,
+    'ZZHANKUAN   '    '展宽        '       'ZTPP_205A'       'ZZHANKUAN   '   ,
+    'ZZS         '    '折数        '       'ZTPP_205A'       'ZZS         '   ,
+    'ZZWHD       '    '折弯厚度    '       'ZTPP_205A'       'ZZWHD       '   ,
+    'ZXMXDZBBZ         '    '项目详单主表备注        '       'ZTPP_205A'       'ZXMXDZBBZ         '   ,
+    'ZJSXDID     '    '技术详单单号'       'ZTPP_205A'       'ZJSXDID     '   ,
+    'ZNO         '    '技术详单ID  '       'ZTPP_205A'       'ZNO         '   ,
+    'ZJSXDDID    '    '技术详单行ID'       'ZTPP_205A'       'ZJSXDDID    '   .
+    WHEN OTHERS.
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_JSXD USING:
+    'CHBOX' '选择' '' '',
+    'ZDREMARK    '    '技术详单明细备注'   'ZTPP_205A'       'ZDREMARK    '   ,
+    'ZBIANHAO    '    '编号        '       'ZTPP_205A'       'ZBIANHAO    '   ,
+    'ZMIXH    '    '明细号        '       'ZTPP_205A'       'ZMIXH    '   ,
+    'ZDATMC    '    '单体名称        '       'ZTPP_205A'       'ZDATMC    '   ,
+    'ZLMZX       '    '立面/轴线   '       'ZTPP_205A'       'ZLMZX       '   ,
+    'MATNR       '    '物料编码    '       'ZTPP_205A'       'MATNR       '   ,
+    'ZKS         '    '块数        '       'ZTPP_205A'       'ZKS         '   ,
+    'ZYYKS         '    '引用块数        '       'ZTPP_205A'       'ZYYKS         '   ,
+    'ZDANJ         '    '单价        '       'ZTPP_205A'       'ZDANJ         '   ,
+    'ZWLCMS       '    '物料长描述文本    '       ''       '       '   ,
+    'TYPE       '    '类型    '       'ZTPP_211'       '       '   ,
+    'ZCC       '    '尺寸    '       'ZTPP_211'       '       '   ,
+    'ZPINGFANGSHU'    '平方数(面积)      '       'ZTPP_205A'       'ZPINGFANGSHU'   ,
+    'ZBCKD       '    '板材宽度    '       'ZTPP_205A'       'ZBCKD       '   ,
+    'ZCD       '    '长度    '       'ZTPP_211'       'ZCD       '   ,
+    'ZXISHU      '    '系数        '       'ZTPP_205A'       'ZXISHU      '   ,
+    'ZCHDTX      '    '承兑贴息        '       'ZTPP_205A'       'ZCHDTX      '   ,
+    'ZYUNF      '    '运费        '       'ZTPP_205A'       'ZYUNF      '   ,
+    'ZCHANDI     '    '产地        '       'ZTPP_205A'       'ZCHANDI     '   ,
+    'ZCOLOR      '    '颜色        '       'ZTPP_205A'       'ZCOLOR      '   ,
+    'ZDKSL       '    '打孔（开洞）'       'ZTPP_205A'       'ZDKSL       '   ,
+    'ZXGYQ       '    '线管个数位置'       'ZTPP_205A'       'ZXGYQ       '   ,
+    'ZMIXMC       '    '明细名称'       'ZTPP_205A'       'ZMIXMC       '   ,
+    'ZMB         '    '抿边        '       'ZTPP_205A'       'ZMB         '   ,
+    'ZZHANKUAN   '    '展宽        '       'ZTPP_205A'       'ZZHANKUAN   '   ,
+    'ZZS         '    '折数        '       'ZTPP_205A'       'ZZS         '   ,
+    'ZZWHD       '    '折弯厚度    '       'ZTPP_205A'       'ZZWHD       '   ,
+    'ZXMXDZBBZ         '    '项目详单主表备注        '       'ZTPP_205A'       'ZXMXDZBBZ         '   ,
+    'ZNO         '    '技术详单ID  '       'ZTPP_205A'       'ZNO         '   ,
+    'ZJSXDDID    '    '技术详单行ID'       'ZTPP_205A'       'ZJSXDDID    '   ,
+    'ZJSXDID     '    '技术详单单号'       'ZTPP_205A'       'ZJSXDID     '   ,
+    'WERKS       '    '工厂        '       'ZTPP_205A'       'WERKS       '   .
+*'ZCD         '    '长度        '       'ZTPP_205A'       'ZCD         '   ,
+*'ZBCKD       '    '宽度        '       'ZTPP_205A'       'ZBCKD       '   ,
+* 'ZDETAILNAME  '  '板材属性              ' 'ZTPP_205A'    'ZBCSX  '   ,
+*'ZYPCSL      '    '已排产数量  '       'ZTPP_205A'       'ZYPCSL      '   ,
+*'ZKS_YPC     '    '已排产块数  '       'ZTPP_205A'       'ZKS         '   ,
+*'ZWPCL       '    '未排产数量  '       'ZTPP_205A'       'ZPCSL       '   ,
+*'ZKS_WPC     '    '未排产块数  '       'ZTPP_205A'       'ZKS         '   ,
+*'ZKS_BCPC    '    '本次排产块数'       'ZTPP_205A'       'ZKS         '   ,
+*'ZDTMC       '    '建筑物      '       'ZTPP_205A'       'ZDTMC       '   ,
+*'ZDETAILNAME '    '折弯名称    '       'ZTPP_205A'       'ZDETAILNAME '   ,
+*'ZFILE       '    '图形        '       'ZTPP_205A'       'ZFILE       '   ,
+*'ZMS         '    '米数        '       'ZTPP_205A'       'ZMS         '   ,
+*'ZBH         '    '包号        '       'ZTPP_205A'       'ZBH         '   ,
+  ENDCASE.
+
+
+
+  LOOP AT IT_FIELDCAT_JSXD INTO WA_FIELDCAT_JSXD.
+    CASE WA_FIELDCAT_JSXD-FIELDNAME.
+      WHEN 'DEL' OR 'ZJBS'.
+        WA_FIELDCAT_JSXD-CHECKBOX   = 'X'.
+      WHEN 'CHBOX' OR 'CHBOX1'.
+        WA_FIELDCAT_JSXD-HOTSPOT   = 'X'.
+        WA_FIELDCAT_JSXD-EDIT   = 'X'.
+        WA_FIELDCAT_JSXD-CHECKBOX   = 'X'.
+        WA_FIELDCAT_JSXD-FIX_COLUMN   = 'X'.
+      WHEN 'ZMF' OR 'ZSFHG'.
+        WA_FIELDCAT_JSXD-CHECKBOX   = 'X'.
+      WHEN 'ZXHPC' OR 'RKDW' OR 'LGORT'.
+        WA_FIELDCAT_JSXD-F4AVAILABL = 'X'.
+      WHEN 'ZKS' OR 'ZPINGFANGSHU'.
+        CASE GCBS.
+          WHEN 'B'.
+            WA_FIELDCAT_JSXD-DO_SUM = 'X'.
+        ENDCASE.
+      WHEN 'ZYYKS'.
+        IF GCBS = 'A'.
+          WA_FIELDCAT_JSXD-EDIT = 'X'.
+        ENDIF.
+    ENDCASE.
+    MODIFY IT_FIELDCAT_JSXD FROM WA_FIELDCAT_JSXD.
+  ENDLOOP.
+
+*设置搜索帮助
+  CLEAR:IT_F4_JSXD.
+  LOOP AT IT_FIELDCAT_JSXD INTO WA_FIELDCAT_JSXD WHERE F4AVAILABL = 'X'
+                                         AND EDIT = 'X'.
+    CLEAR:WA_F4_JSXD.
+    WA_F4_JSXD-FIELDNAME = WA_FIELDCAT_JSXD-FIELDNAME.
+    WA_F4_JSXD-REGISTER = 'X'.
+    WA_F4_JSXD-GETBEFORE = SPACE.
+    WA_F4_JSXD-CHNGEAFTER = 'X'.
+    INSERT WA_F4_JSXD INTO TABLE IT_F4_JSXD.
+  ENDLOOP.
+  CALL METHOD ALV_GRID_JSXD->REGISTER_F4_FOR_FIELDS
+    EXPORTING
+      IT_F4 = IT_F4_JSXD.
+
+  PERFORM CALLALV(ZPUBFORM)
+  TABLES IT_JSXD USING ALV_GRID_JSXD IT_FIELDCAT_JSXD 'P102'.
+ENDFORM.
+FORM FILLFIELDCAT TABLES P_FIELDCAT STRUCTURE LVC_S_FCAT
+                   USING P_FIELDNAME P_TEXT P_TAB P_FIELD.
+  DATA:WA_FIELDCAT TYPE LVC_S_FCAT,
+       EDITALV     TYPE CHAR1.
+  CLEAR:WA_FIELDCAT,EDITALV.
+*  CASE sy-tcode.
+*    WHEN tcode1.
+*      CASE 'X'.
+*        WHEN p1_x OR p2_x.
+*          editalv = 'X'.
+*        WHEN p3_x.
+*      ENDCASE.
+*    WHEN tcode2 OR tcode3.
+**      CASE 'X'.
+**        WHEN P1_X OR P2_X.
+**        WHEN P3_X.
+**          EDITALV = 'X'.
+**      ENDCASE.
+*    WHEN tcode5.
+*  ENDCASE.
+  WA_FIELDCAT-FIELDNAME = P_FIELDNAME.
+  WA_FIELDCAT-SCRTEXT_M = P_TEXT.
+  WA_FIELDCAT-SCRTEXT_L = P_TEXT.
+  WA_FIELDCAT-SCRTEXT_S = P_TEXT.
+  WA_FIELDCAT-REF_TABLE = P_TAB.
+  WA_FIELDCAT-REF_FIELD = P_FIELD.
+  IF P_FIELD IS INITIAL.
+    WA_FIELDCAT-REF_FIELD = P_FIELDNAME.
+  ENDIF.
+  IF P_FIELD = 'N'.
+    CLEAR:WA_FIELDCAT-REF_FIELD.
+  ENDIF.
+  CASE P_FIELDNAME.
+    WHEN 'DEL' OR 'ZJBS'.
+      WA_FIELDCAT-CHECKBOX   = 'X'.
+    WHEN 'CHBOX' OR 'CHBOX1'.
+      WA_FIELDCAT-HOTSPOT   = EDITALV.
+      WA_FIELDCAT-EDIT   = EDITALV.
+      WA_FIELDCAT-CHECKBOX   = 'X'.
+      WA_FIELDCAT-FIX_COLUMN   = 'X'.
+    WHEN 'ZMF' OR 'ZSFHG'.
+      WA_FIELDCAT-HOTSPOT   = EDITALV.
+      WA_FIELDCAT-EDIT   = EDITALV.
+      WA_FIELDCAT-CHECKBOX   = 'X'.
+    WHEN 'ZDHL' OR 'ZCD' OR 'ZJH'
+      OR 'LGORT' OR 'ZJSL' OR 'ZCML'
+      OR 'ZKW' OR 'ZZBH' OR 'ZZYH'
+      OR 'ZSCRQ' OR 'ZBZRQ' OR 'ZYXQ'
+      OR 'ZBHGL' OR 'ZBHGSM' OR 'ZJYR'.
+      WA_FIELDCAT-EDIT = EDITALV.
+  ENDCASE.
+  APPEND WA_FIELDCAT TO P_FIELDCAT.
+ENDFORM.                    "FILLFIELDCAT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0802  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0802 INPUT.
+  CASE SY-UCOMM.
+    WHEN 'GG_GB'.
+      GV_SUBSCREEN_800 = '0803'.
+    WHEN 'PCD_GB'.
+      GV_SUBSCREEN_800 = '0805'.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0803  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0803 INPUT.
+  CASE SY-UCOMM.
+    WHEN 'GG_ZK'.
+      GV_SUBSCREEN_800 = '0802'.
+    WHEN 'PCD_GB'.
+      GV_SUBSCREEN_800 = '0806'.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module ALV_DISPLAY_JGMX OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE ALV_DISPLAY_JGMX OUTPUT.
+  "创建容器
+  IF ALV_GRID_JGMX IS INITIAL.
+    CREATE OBJECT ALV_CONTAINER_JGMX
+      EXPORTING
+        CONTAINER_NAME              = 'CONT_JGMX'
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+    IF SY-SUBRC NE 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                 WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+    CREATE OBJECT ALV_GRID_JGMX
+      EXPORTING
+        I_PARENT = ALV_CONTAINER_JGMX.
+
+    CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+    CREATE OBJECT LCL_EVENT_RECEIVER_JGMX.
+    SET HANDLER LCL_EVENT_RECEIVER_JGMX->HANDLE_DOUBLE_CLICK_JGMX FOR ALV_GRID_JGMX.
+    SET HANDLER LCL_EVENT_RECEIVER_JGMX->HANDLE_DATA_CHANGED_JGMX FOR ALV_GRID_JGMX.
+    SET HANDLER LCL_EVENT_RECEIVER_JGMX->HANDLE_HOTSPOT_CLICK_JGMX FOR ALV_GRID_JGMX."热点点击
+    SET HANDLER LCL_EVENT_RECEIVER_JGMX->HANDLE_TOOLBAR_JGMX FOR ALV_GRID_JGMX."增加按钮
+    SET HANDLER LCL_EVENT_RECEIVER_JGMX->HANDLE_USER_COMMAND_JGMX FOR ALV_GRID_JGMX."按钮响应
+    SET HANDLER LCL_EVENT_RECEIVER_JGMX->HANDLE_ON_F4_JGMX FOR ALV_GRID_JGMX."按钮响应
+*    alv_grid_jgmx->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+    ALV_GRID_JGMX->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_ENTER )."mc_evt_enter
+    ALV_GRID_JGMX->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM CALLALVN_JGMX.
+  ELSE.
+    PERFORM CALLALVN_JGMX.
+  ENDIF.
+*刷新ALV
+  PERFORM FRM_REFRESH_ALV_JGMX.
+ENDMODULE.
+
+FORM CALLALVN_JGMX .
+  CLEAR:IT_FIELDCAT_JGMX.
+*FIELDCAT
+  CASE MCLX.
+    WHEN 'A'.
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_JGMX USING:
+    'CHBOX' '选择' '' '',
+*'ZNO     '  '技术详单ID                '  'ZTPP_205A'     'ZNO     '  ,
+*'ZJSXDDID'  '技术详单行ID              '  'ZTPP_205A'     'ZJSXDDID'  ,
+*'ZJSXDID '  '技术详单单号              '  'ZTPP_205A'     'ZJSXDID '  ,
+*'MATNR   '  '物料编码                  '  'ZTPP_205A'     'MATNR   '  ,
+*'MAKTX   '  '物料描述                  '  'ZTPP_205A'     'MAKTX   '  ,
+*'WERKS   '  '工厂                      '  'ZTPP_205A'     'WERKS   '  ,
+*'ZCD     '  '长度                      '  'ZTPP_205A'     'ZCD     '  ,
+*'ZBCKD   '  '宽度                      '  'ZTPP_205A'     'ZBCKD   '  ,
+*'ZKS     '  '块数                      '  'ZTPP_205A'     'ZKS     '  ,
+*'ZXISHU  '  '系数                      '  'ZTPP_205A'     'ZXISHU  '  ,
+*'ZYPCSL  '  '已排产数量                '  'ZTPP_205A'     'ZPCSL   '  ,
+*'ZKS_YPC '  '已排产块数                '  'ZTPP_205A'     'ZKS     '  ,
+*'ZWPCL   '  '未排产数量                '  'ZTPP_205A'     'ZPCSL   '  ,
+*'ZKS_WPC '  '未排产块数                '  'ZTPP_205A'     'ZKS     '  ,
+*'ZKS_BCPC'  '本次排产块数              '  'ZTPP_205A'     'ZKS     '  ,
+*'ZMLX    '  '门类型                    '  'ZTPP_205A'     'ZMLX    '  ,
+*'ZMKHD   '  '门框厚度                  '  'ZTPP_205A'     'ZMKHD   '  ,
+*'ZMSTCW  '  '门扇填充物                '  'ZTPP_205A'     'ZMSTCW  '  ,
+*'ZSCYB   '  '视窗印边                  '  'ZTPP_205A'     'ZSCYB   '  ,
+*'ZMSCCC  '  '门上窗尺寸                '  'ZTPP_205A'     'ZMSCCC  '  ,
+*'ZBLLX   '  '玻璃类型                  '  'ZTPP_205A'     'ZBLLX   '  ,
+*'ZBLHD   '  '玻璃厚度                  '  'ZTPP_205A'     'ZBLHD   '  ,
+*'ZBLCS   '  '玻璃参数                  '  'ZTPP_205A'     'ZBLCS   '  ,
+*'ZST1    '  '锁体1                     '  'ZTPP_205A'     'ZST1    '  ,
+*'ZST2    '  '锁体2                     '  'ZTPP_205A'     'ZST2    '  ,
+*'ZHS     '  '互锁                      '  'ZTPP_205A'     'ZHS     '  ,
+*'ZMCYS   '  '门窗颜色                  '  'ZTPP_205A'     'ZMCYS   '  ,
+*'ZCNC    '  '窗内衬                    '  'ZTPP_205A'     'ZCNC    '  ,
+*'ZPTXG   '  '喷涂效果                  '  'ZTPP_205A'     'ZPTXG   '  ,
+*'ZFMPT   '  '门框、门扇静电树脂粉末喷涂'  'ZTPP_205A'     'ZFMPT   '  ,
+*'ZBMQ    '  '闭门器                    '  'ZTPP_205A'     'ZBMQ    '  ,
+*'ZBY     '  '百叶                      '  'ZTPP_205A'     'ZBY     '  ,
+*'ZSDT    '  '扫地条                    '  'ZTPP_205A'     'ZSDT    '  ,
+*'ZMKBHD  '  '门框板厚度                '  'ZTPP_205A'     'ZMKBHD  '  ,
+*'ZMSBHD  '  '门扇板厚度                '  'ZTPP_205A'     'ZMSBHD  '  ,
+*'ZBXGHYS '  '不锈钢合页数量            '  'ZTPP_205A'     'ZBXGHYS '  ,
+*'ZHD     '  '厚度                      '  'ZTPP_205A'     'ZHD     '  ,
+*'ZLGLX   '  '龙骨类型                  '  'ZTPP_205A'     'ZLGLX   '  ,
+*'ZMCCD   '  '门窗长度                  '  'ZTPP_205A'     'ZMCCD   '  ,
+*'ZMCKD   '  '门窗宽度                  '  'ZTPP_205A'     'ZMCKD   '  .
+    'ZMVBELN '  '加工明细主表单号    '      'ZTSD207'  'ZMVBELN '   ,
+    'ZMPOSNR '  '加工明细表明行号  '      'ZTSD207'  'ZMPOSNR '   ,
+    'MATNR '  '物料编码  '      'ZTSD207'  'MATNR '   ,
+    'ZWLCMS '  '物料长文本  '      ''  ' '   ,
+    'ZAMOUNT '  '数量          '      'ZTSD207'  'ZAMOUNT '   ,
+    'ZYYOSL     '  '已引用数量          '      'ZTSD207'  'ZYYOSL     '   ,
+    'ZYYSL     '  '引用数量          '      'ZTSD207'  'ZYYSL     '   ,
+    'ZBZ     '  '备注          '      'ZTSD207'  'ZBZ     '   ,
+  'ZLOGO    '  'LOGO类型        '      'ZTSD207'  'ZLOGO    '   ,
+    'ZMKJJ   '  '门框加筋      '      'ZTSD207'  'ZMKJJ   '   ,
+    'ZCZ     '  '材质          '      'ZTSD207'  'ZCZ     '   ,
+    'ZKQFX   '  '开启方向      '      'ZTSD207'  'ZKQFX   '   ,
+  'ZISSBK  '  '是否是四边框  '      'ZTSD207'  'ZISSBK  '   ,
+    'ZISBXGTT'  '有无不锈钢贴条'      'ZTSD207'  'ZISBXGTT'   ,
+    'ZISFCB  '  '是否使用防撞板'      'ZTSD207'  'ZISFCB  '   ,
+    'ZMDGD     '  '门洞高度          '      'ZTSD207'  'ZMDGD     '   ,
+    'ZMGD     '  '门高度          '      'ZTSD207'  'ZMGD     '   ,
+    'ZMLX     '  '门类型          '      'ZTSD207'  'ZMLX     '   ,
+    'ZQY     '  '区域          '      'ZTSD207'  'ZQY     '   ,
+    'ZMDKD     '  '门洞宽度          '      'ZTSD207'  'ZMDKD     '   ,
+    'ZMKD     '  '门宽度          '      'ZTSD207'  'ZMKD     '   ,
+    'ZSEH     '  '色号          '      'ZTSD207'  'ZSEH     '   ,
+    'ZMKHD     '  '门框厚度          '      'ZTSD207'  'ZMKHD     '   ,
+    'ZMKBHD     '  '门框板厚度          '      'ZTSD207'  'ZMKBHD     '   ,
+
+    'ZMSBHD   '  '门扇板厚度      '      'ZTSD207'  'ZMSBHD   '   ,
+    'ZMSTCW     '  '门扇填充物          '      'ZTSD207'  'ZMSTCW     '   ,
+    'ZPTXG     '  '喷涂效果          '      'ZTSD207'  'ZPTXG     '   ,
+    'ZSCCC     '  '视窗尺寸          '      'ZTSD207'  'ZSCCC     '   ,
+    'ZSCCC2  '  '视窗尺寸2     '      'ZTSD207'  'ZSCCC2  '   ,
+    'ZSCGY  '  '视窗工艺     '      'ZTSD207'  'ZSCGY  '   ,
+    'ZMJ     '  '门禁          '      'ZTSD207'  'ZMJ     '   ,
+    'ZBLZL     '  '玻璃种类          '      'ZTSD207'  'ZBLZL     '   ,
+    'ZMKLX'  '门框类型'      'ZTSD207'  'ZMKLX'   ,
+    'ZHS     '  '互锁          '      'ZTSD207'  'ZHS     '   ,
+    'ZBMQ    '  '闭门器        '      'ZTSD207'  'ZBMQ    '   ,
+    'ZHY     '  '合页          '      'ZTSD207'  'ZHY     '   ,
+    'ZCTBT   '  '插销本体      '      'ZTSD207'  'ZCTBT   '   ,
+    'ZMK   '  '门框      '      'ZTSD207'  'ZMK   '   ,
+    'ZMSJDSZ   '  '门扇静电树脂粉末喷涂      '      'ZTSD207'  'ZMSJDSZ   '   ,
+    'ZST     '  '锁体    '      'ZTSD207'  'ZST     '   ,
+    'ZST2    '  '锁体2         '      'ZTSD207'  'ZST2    '   ,
+    'ZSPPA    '  '锁品牌         '      'ZTSD207'  'ZSPPA    '   ,
+    'SCYIB    '  '视窗印边         '      'ZTSD207'  'SCYIB    '   ,
+    'ZSUJ    '  '锁具         '      'ZTSD207'  'ZSUJ    '   .
+
+
+
+*'ZVBELN  '  '技术详单单号  '      'ZTSD207'  'ZVBELN  '   ,
+*'CREATED '  '创建日期      '      'ZTSD207'  'CREATED '   ,
+*'PSPID   '  '项目定义      '      'ZTSD207'  'PSPID   '   ,
+*'ZYWY    '  '制单人编号    '      'ZTSD207'  'ZYWY    '   ,
+*'ZHTLY   '  '合同履约      '      'ZTSD207'  'ZHTLY   '   ,
+*
+*'ZPOSNR  '  '加工明细行号  '      'ZTSD207'  'ZPOSNR  '   ,
+*'ZNO     '  '排序号        '      'ZTSD207'  'ZNO     '   ,
+*'VBELN   '  '销售凭证      '      'ZTSD207'  'VBELN   '   ,
+*'POSNR   '  '项目          '      'ZTSD207'  'POSNR   '   ,
+*'MATNR   '  '物料          '      'ZTSD207'  'MATNR   '   ,
+*'MAKTX   '  '物料描述      '      'ZTSD207'  'MAKTX   '   ,
+*'ZISSBK  '  '是否是四边框  '      'ZTSD207'  'ZISSBK  '   ,
+*'ZCNC    '  '窗内衬        '      'ZTSD207'  'ZCNC    '   ,
+*'ZYBKD   '  '印边宽度      '      'ZTSD207'  'ZYBKD   '   ,
+*'ZST     '  '锁体及品牌    '      'ZTSD207'  'ZST     '   ,
+*'ZMC     '  '门磁          '      'ZTSD207'  'ZMC     '   ,
+*'ZHYSL   '  '合页数量      '      'ZTSD207'  'ZHYSL   '   ,
+*'ZBY     '  '百叶          '      'ZTSD207'  'ZBY     '   ,
+*'PROJN   '  '项目定义      '      'ZTSD207'  'PROJN   '   .
+    WHEN 'B'.
+      PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_JGMX USING:
+    'CHBOX' '选择' '' '',
+    'ZMVBELN '  '加工明细主表单号    '      'ZTSD207'  'ZMVBELN '   ,
+    'ZMPOSNR '  '加工明细表明行号  '      'ZTSD207'  'ZMPOSNR '   ,
+    'ZWLCMS '  '物料长文本  '      ''  ' '   ,
+    'ZAMOUNT '  '数量          '      'ZTSD207'  'ZAMOUNT '   ,
+    'ZYYOSL     '  '已引用数量          '      'ZTSD207'  'ZYYOSL     '   ,
+    'ZYYSL     '  '引用数量          '      'ZTSD207'  'ZYYSL     '   ,
+    'ZBZ     '  '备注          '      'ZTSD207'  'ZBZ     '   ,
+    'ZSCHD     '  '视窗厚度          '      'ZTSD207'  'ZSCHD     '   ,
+    'ZSCLX     '  '视窗类型          '      'ZTSD207'  'ZSCLX     '   ,
+  'ZCNC    '  '窗内衬        '      'ZTSD207'  'ZCNC    '   ,
+  'ZBLHD    '  '玻璃厚度        '      'ZTSD207'  'ZBLHD    '   ,
+  'ZBLCS    '  '玻璃参数        '      'ZTSD207'  'ZBLCS    '   ,
+  'ZSCYB    '  '视窗印边        '      'ZTSD207'  'ZSCYB    '   ,
+  'ZSCGD    '  '视窗高度        '      'ZTSD207'  'ZSCGD    '   ,
+  'ZSCKD    '  '视窗宽度        '      'ZTSD207'  'ZSCKD    '   ,
+  'ZLOGO    '  'LOGO类型        '      'ZTSD207'  'ZLOGO    '   ,
+  'ZCLG    '  '窗龙骨        '      'ZTSD207'  'ZCLG    '   ,
+  'ZZKMF    '  '中空密封        '      'ZTSD207'  'ZZKMF    '   ,
+  'ZNZGZJ    '  '内置干燥剂        '      'ZTSD207'  'ZNZGZJ    '   ,
+    'ZMJ     '  '门禁          '      'ZTSD207'  'ZMJ     '   .
+  ENDCASE.
+
+  LOOP AT IT_FIELDCAT_JGMX INTO WA_FIELDCAT_JGMX.
+    CASE WA_FIELDCAT_JGMX-FIELDNAME.
+      WHEN 'DEL' OR 'ZJBS'.
+        WA_FIELDCAT_JGMX-CHECKBOX   = 'X'.
+      WHEN 'CHBOX' OR 'CHBOX1'.
+        WA_FIELDCAT_JGMX-HOTSPOT   = 'X'.
+        WA_FIELDCAT_JGMX-EDIT   = 'X'.
+        WA_FIELDCAT_JGMX-CHECKBOX   = 'X'.
+        WA_FIELDCAT_JGMX-FIX_COLUMN   = 'X'.
+      WHEN 'ZMF' OR 'ZSFHG'.
+        WA_FIELDCAT_JGMX-CHECKBOX   = 'X'.
+      WHEN 'ZXHPC' OR 'RKDW' OR 'LGORT'.
+        WA_FIELDCAT_JGMX-F4AVAILABL = 'X'.
+    ENDCASE.
+
+    MODIFY IT_FIELDCAT_JGMX FROM WA_FIELDCAT_JGMX.
+  ENDLOOP.
+
+*设置搜索帮助
+  CLEAR:IT_F4_JGMX.
+*  LOOP AT IT_FIELDCAT_JGMX INTO WA_FIELDCAT_JGMX WHERE F4AVAILABL = 'X'
+*                                         AND EDIT = 'X'.
+*    CLEAR:WA_F4_JGMX.
+*    WA_F4_JGMX-FIELDNAME = WA_FIELDCAT_JGMX-FIELDNAME.
+*    WA_F4_JGMX-REGISTER = 'X'.
+*    WA_F4_JGMX-GETBEFORE = SPACE.
+*    WA_F4_JGMX-CHNGEAFTER = 'X'.
+*    INSERT WA_F4_JGMX INTO TABLE IT_F4_JGMX.
+*  ENDLOOP.
+*  CALL METHOD ALV_GRID_JSXD->REGISTER_F4_FOR_FIELDS
+*    EXPORTING
+*      IT_F4 = IT_F4_JGMX.
+
+  PERFORM CALLALV(ZPUBFORM)
+  TABLES IT_JGMX USING ALV_GRID_JGMX IT_FIELDCAT_JGMX 'P104'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form init_wa_tz
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- FLAG
+*&---------------------------------------------------------------------*
+FORM INIT_WA_TZ  CHANGING P_FLAG.
+  CLEAR NUM.
+  LOOP AT IT_JSXD WHERE CHBOX = 'X'.
+    NUM = NUM + 1.
+  ENDLOOP.
+  IF NUM LT 1.
+    P_FLAG = 'E'.
+    MESSAGE '请选中技术详单明细后再操作.' TYPE 'I'.
+    RETURN.
+  ENDIF.
+  READ TABLE IT_JSXD WITH KEY CHBOX = 'X'.
+  CLEAR WA_TZ.
+  SELECT SINGLE
+    MARA~ZZL1
+    VBAP~VRKME
+    VBAP~WERKS
+    VBAP~ZZLJSFS
+    INTO CORRESPONDING FIELDS OF WA_TZ
+    FROM VBAP
+    JOIN MARA ON VBAP~MATNR = MARA~MATNR
+    WHERE VBELN = IT_JSXD-VBELN AND POSNR = IT_JSXD-POSNR.
+*  PERFORM getlongtext(zpubform) USING 'GRUN' it_jsxd-matnr 'MATERIAL' CHANGING wa_tz-wlcms.
+  IF WA_TZ-ZZL1 = 'Z型钢' OR WA_TZ-ZZL1 = 'C型钢'.
+
+  ELSE.
+    WA_TZ-ZZLJSFS = ''.
+  ENDIF.
+  P_FLAG = 'S'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module ALV_DISPLAY_PCD OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE ALV_DISPLAY_PCD OUTPUT.
+  "创建容器
+  IF ALV_GRID_PCD IS INITIAL.
+    CREATE OBJECT ALV_CONTAINER_PCD
+      EXPORTING
+        CONTAINER_NAME              = 'CONT_PCD'
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+    IF SY-SUBRC NE 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                 WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+    CREATE OBJECT ALV_GRID_PCD
+      EXPORTING
+        I_PARENT = ALV_CONTAINER_PCD.
+
+    CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+    CREATE OBJECT LCL_EVENT_RECEIVER_PCD.
+    SET HANDLER LCL_EVENT_RECEIVER_PCD->HANDLE_DOUBLE_CLICK_PCD FOR ALV_GRID_PCD.
+    SET HANDLER LCL_EVENT_RECEIVER_PCD->HANDLE_DATA_CHANGED_PCD FOR ALV_GRID_PCD.
+    SET HANDLER LCL_EVENT_RECEIVER_PCD->HANDLE_HOTSPOT_CLICK_PCD FOR ALV_GRID_PCD."热点点击
+    SET HANDLER LCL_EVENT_RECEIVER_PCD->HANDLE_TOOLBAR_PCD FOR ALV_GRID_PCD."增加按钮
+    SET HANDLER LCL_EVENT_RECEIVER_PCD->HANDLE_USER_COMMAND_PCD FOR ALV_GRID_PCD."按钮响应
+    SET HANDLER LCL_EVENT_RECEIVER_PCD->HANDLE_ON_F4_PCD FOR ALV_GRID_PCD."按钮响应
+*    alv_grid_pcd->register_edit_event( i_event_id = cl_gui_alv_grid=>mc_evt_modified )."mc_evt_modified
+    ALV_GRID_PCD->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_ENTER )."mc_evt_enter
+    ALV_GRID_PCD->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM CALLALVN_PCD.
+  ELSE.
+    PERFORM CALLALVN_PCD.
+  ENDIF.
+*刷新ALV
+  PERFORM FRM_REFRESH_ALV_PCD.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form callalvn_pcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM CALLALVN_PCD .
+  CLEAR:IT_FIELDCAT_PCD.
+*FIELDCAT
+  IF PCLX = 'JSXD'.
+    CASE MCLX.
+      WHEN 'E' OR 'F' OR 'G'.
+        PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+      'CHBOX '  '选择' ''    ''   ,
+      'DELFLG '  '删除标记              ' ''    ' '   ,
+      'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+      'ZBIANHAO    '  '编号          ' 'ZTPP_205A'    'ZBIANHAO    '   ,
+      'ZBH    '  '建议包号          ' 'ZTPP_205A'    'ZBH    '   ,
+      'ZYYKS    '  '引用块数          ' 'ZTPP_205A'    'ZYYKS    '   .
+        CASE MCLX.
+          WHEN 'E'."通用
+            PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+      'ZCD    '  TEXT-001 'ZTPP_205A'    'ZCD    '   ,
+*      'ZKS    '  '块数              ' 'ZTPP_205A'    'ZKS    '   ,
+      'ZDREMARK  '  '备注              ' ''    '  '   ,
+      'ZDETAILNAME  '  '详细名称              ' ''    '  '   ,
+      'ZYSKS  '  '验收块数          ' 'ZTPP_316'     'ZZK    '   ,
+      'ZXGYQ  '  '位置          ' 'ZTPP_205A'     'ZXGYQ    '   ,
+      'ZXISHU '  '系数              ' 'ZTPP_205A'    'ZXISHU '   ,
+     'ZPR0'  '单价              ' 'ZTPP_205A'    '       '   ,
+      'ZMS    '  '米数              ' 'ZTPP_205A'    'ZMS    '   ,
+      'ZJSSL1  '  '数量              ' ''    '  '   ,
+      'JE'  '金额              ' ''    '       '   ,
+      'ZYF'  '运费              ' 'ZTPP_205A'    'ZYF'   ,
+      'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   ,
+       'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+       'ZDTMC  '  '单体名称          ' 'ZTPP_205A'    'ZDTMC  '   ,
+       'ZLMZX  '  '立面/轴线         ' 'ZTPP_205A'    'ZLMZX  '   ,
+       'ZCC  '  '尺寸          ' 'ZTPP_205A'    'ZCC  '   ,
+       'ZJSXDID  '  '详单单号          ' 'ZTPP_205A'    'ZJSXDID  '   ,
+       'ZJSXDDID  '  '详单行号          ' 'ZTPP_205A'    'ZJSXDDID  '   ,
+       'ZNO  '  '详单ID          ' 'ZTPP_205A'    'ZNO  '   .
+          WHEN 'F'."折弯件
+            PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+      'ZZHANKUAN    '  '展宽              ' 'ZTPP_205A'    'ZZHANKUAN    '   ,
+      'ZZS    '  '折数              ' 'ZTPP_205A'    'ZZS    '   ,
+      'ZZWHD1    '  '折弯厚度              ' 'ZTPP_205A'    'ZZWHD1    '   ,
+      'ZCD    '  TEXT-001 'ZTPP_205A'    'ZCD    '   ,
+*      'ZKS    '  '块数              ' 'ZTPP_205A'    'ZKS    '   ,
+      'ZDREMARK  '  '备注              ' ''    '  '   ,
+'ZDETAILNAME  '  '详细名称              ' ''    '  '   ,
+      'ZYSKS  '  '验收块数          ' 'ZTPP_316'     'ZZK    '   ,
+      'ZXISHU '  '系数              ' 'ZTPP_205A'    'ZXISHU '   ,
+     'ZPR0'  '单价              ' 'ZTPP_205A'    '       '   ,
+      'ZMS    '  '米数              ' 'ZTPP_205A'    'ZMS    '   ,
+      'ZJSSL1  '  '数量              ' ''    '  '   ,
+      'JE'  '金额              ' ''    '       '   ,
+      'ZYF'  '运费              ' 'ZTPP_205A'    'ZYF'   ,
+      'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   ,
+       'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+       'ZDTMC  '  '单体名称          ' 'ZTPP_205A'    'ZDTMC  '   ,
+       'ZLMZX  '  '立面/轴线         ' 'ZTPP_205A'    'ZLMZX  '   ,
+       'ZCC  '  '尺寸          ' 'ZTPP_205A'    'ZCC  '   ,
+    'ZCHANDI     '    '产地        '       'ZTPP_205A'       'ZCHANDI     '   ,
+    'ZCOLOR      '    '颜色        '       'ZTPP_205A'       'ZCOLOR      '   ,
+    'ZMB         '    '抿边        '       'ZTPP_205A'       'ZMB         '   ,
+    'ZDKSL       '    '打孔（开洞）'       'ZTPP_205A'       'ZDKSL       '   ,
+    'ZXGYQ       '    '线管个数位置'       'ZTPP_205A'       'ZXGYQ       '   ,
+    'ZMIXMC       '    '明细名称'       'ZTPP_205A'       'ZMIXMC       '   ,
+       'ZJSXDID  '  '详单单号          ' 'ZTPP_205A'    'ZJSXDID  '   ,
+       'ZJSXDDID  '  '详单行号          ' 'ZTPP_205A'    'ZJSXDDID  '   ,
+       'ZNO  '  '详单ID          ' 'ZTPP_205A'    'ZNO  '   .
+          WHEN 'G'."丽彩幕
+            PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+      'ZCD    '  TEXT-001 'ZTPP_205A'    'ZCD    '   ,
+      'ZBCKD  '  '宽度（毫米）              ' 'ZTPP_205A'    'ZBCKD  '   ,
+*      'ZKS    '  '块数              ' 'ZTPP_205A'    'ZKS    '   ,
+      'ZDREMARK  '  '备注              ' ''    '  '   ,
+'ZDETAILNAME  '  '详细名称              ' ''    '  '   ,
+      'ZYSKS  '  '验收块数          ' 'ZTPP_316'     'ZZK    '   ,
+      'ZJJLX'  '类型' 'ZTPP_205A'    'ZJJLX'   ,
+      'ZXGYQ  '  '位置          ' 'ZTPP_205A'     'ZXGYQ    '   ,
+      'ZXISHU '  '系数              ' 'ZTPP_205A'    'ZXISHU '   ,
+     'ZPR0'  '单价              ' 'ZTPP_205A'    '       '   ,
+      'ZMS    '  '米数              ' 'ZTPP_205A'    'ZMS    '   ,
+      'ZJSSL1  '  '数量              ' ''    '  '   ,
+      'JE'  '金额              ' ''    '       '   ,
+      'ZYF'  '运费              ' 'ZTPP_205A'    'ZYF'   ,
+      'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   ,
+       'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+       'ZDTMC  '  '单体名称          ' 'ZTPP_205A'    'ZDTMC  '   ,
+       'ZLMZX  '  '立面/轴线         ' 'ZTPP_205A'    'ZLMZX  '   ,
+       'ZCC  '  '尺寸          ' 'ZTPP_205A'    'ZCC  '   ,
+       'ZJSXDID  '  '详单单号          ' 'ZTPP_205A'    'ZJSXDID  '   ,
+       'ZJSXDDID  '  '详单行号          ' 'ZTPP_205A'    'ZJSXDDID  '   ,
+       'ZNO  '  '详单ID          ' 'ZTPP_205A'    'ZNO  '   .
+        ENDCASE.
+      WHEN OTHERS.
+        PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+      'CHBOX '  '选择' ''    ''   ,
+      'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+      'DELFLG '  '删除标记              ' ''    ' '   ,
+      'ZBIANHAO    '  '编号          ' 'ZTPP_205A'    'ZBIANHAO    '   ,
+      'ZBH    '  '建议包号          ' 'ZTPP_205A'    'ZBH    '   ,
+      'ZCNC   '  '窗内衬            ' 'ZTPP_205A'    'ZCNC   '   ,
+      'ZCD    '  '长度              ' 'ZTPP_205A'    'ZCD    '   ,
+      'ZBCKD  '  '宽度              ' 'ZTPP_205A'    'ZBCKD  '   ,
+      'ZKS    '  '块数              ' 'ZTPP_205A'    'ZKS    '   ,
+      'ZMXBZ  '  '备注              ' ''    '  '   ,
+      'ZXXSHM  '  '详细说明              ' ''    '  '   ,
+      'ZYSKS  '  '验收块数          ' 'ZTPP_316'     'ZZK    '   ,
+      'ZDETAILNAME  '  '板材属性              ' 'ZTPP_205A'    'ZBCSX  '   ,
+      'ZXISHU '  '系数              ' 'ZTPP_205A'    'ZXISHU '   ,
+      'ZJJLX'  '类型' 'ZTPP_205A'    'ZJJLX'   ,
+    'ZPR0'  '单价              ' 'ZTPP_205A'    '       '   ,
+      'ZMS    '  '米数              ' 'ZTPP_205A'    'ZMS    '   ,
+*  'ZJSSL  '  '数量              ' 'ZTPP_205A'    'ZJSSL  '   ,
+      'ZJSSL1  '  '数量              ' ''    '  '   ,
+    'JE'  '金额              ' ''    '       '   ,
+      'ZYF'  '运费              ' 'ZTPP_205A'    'ZYF'   ,
+         'MATNR  '  '物料编码          ' 'ZTPP_205A'    'MATNR  '   ,
+       'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+       'ZDTMC  '  '单体名称          ' 'ZTPP_205A'    'ZDTMC  '   ,
+       'ZLMZX  '  '立面/轴线         ' 'ZTPP_205A'    'ZLMZX  '   ,
+       'ZCC  '  '尺寸          ' 'ZTPP_205A'    'ZCC  '   ,
+       'ZHD    '  '厚度              ' 'ZTPP_205A'    'ZHD    '   ,
+       'ZCHANDI'  '产地              ' 'ZTPP_205A'    'ZCHANDI'   ,
+       'ZCOLOR '  '颜色              ' 'ZTPP_205A'    'ZCOLOR '   ,
+       'ZDKSL  '  '打孔(开洞)        ' 'ZTPP_205A'    'ZDKSL  '   ,
+    'ZDETAILNAME       '  '明细名称(板材属性)' 'ZTPP_205A'    'ZDETAILNAME       '   ,
+       'ZMB    '  '抿边              ' 'ZTPP_205A'    'ZMB    '   ,
+      'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   .
+    ENDCASE.
+
+  ELSEIF PCLX = 'JGMX'.
+    PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+    'CHBOX '  '选择' ''    ''   ,
+    'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+    'DELFLG '  '删除标记              ' ''    ' '   ,
+    'ZMVBELN '  '加工明细主表单号              ' 'ZTPP_205A'    ' '   ,
+    'ZMPOSNR '  '加工明细表明行号              ' 'ZTPP_205A'    ' '   ,
+    'ZZL1 '  '品名              ' 'MARA'    ' '   ,
+    'ZMLX '  '门类型              ' 'ZTPP_205A'    ' '   ,
+    'ZCD '  '长度(毫米)              ' 'ZTPP_205A'    ' '   ,
+    'ZBCKD '  '宽度(毫米)              ' 'ZTPP_205A'    ' '   ,
+  'ZMS    '  '米数              ' 'ZTPP_205A'    'ZMS    '   ,
+  'ZJSSL1  '  '数量              ' ''    '  '   ,
+  'ZPINGFANGSHU  '  '平米数              ' 'ZTPP_205A'    'ZPINGFANGSHU  '   ,
+  'ZKS  '  '块数/樘数              ' 'ZTPP_205A'    'ZKS  '   ,
+   'ZYSKS  '  '验收块数          ' 'ZTPP_316'     'ZZK    '   ,
+   'ZPR0  '  '单价          ' 'ZTPP_205A'     '    '   ,
+   'JE'  '金额              ' ''    '       '   ,
+ 'ZYF'  '运费              ' 'ZTPP_205A'    'ZYF'   .
+    CASE MCLX.
+      WHEN 'A'.
+        PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+              'ZMKHD'  '门框厚度              ' 'ZTPP_205A'    '       '   ,
+              'ZMKBH'  '门框板厚              ' 'ZTPP_205A'    '       '   ,
+              'ZMSBH'  '门扇板厚              ' 'ZTPP_205A'    '       '   ,
+              'ZMSTCW'  '门扇填充物              ' 'ZTPP_205A'    '       '   ,
+              'ZPTYS'  '颜色              ' 'ZTPP_205A'    '       '   ,
+              'ZPTXG'  '喷涂效果              ' 'ZTPP_205A'    '       '   ,
+              'ZPTFMZL'  '喷涂粉末种类              ' 'ZTPP_205A'    '       '   ,
+              'ZKQFX   '  '开启方向      '      'ZTSD207'  'ZKQFX   '   ,
+               'ZLOGO    '  'LOGO类型        '      'ZTSD207'  'ZLOGO    '   ,
+               'ZMSCCC    '  '门上窗尺寸        '      'ZTPP_205A'  '    '   ,
+               'ZMSCCC2    '  '门上窗尺寸2        '      'ZTPP_205A'  '    '   ,
+               'ZMSCBL    '  '门上窗玻璃类型        '      'ZTPP_205A'  '    '   ,
+               'ZSCYB    '  '视窗印边        '      'ZTPP_205A'  '    '   ,
+               'ZSJ    '  '锁具        '      'ZTPP_205A'  '    '   ,
+               'ZST     '  '锁体    '      'ZTSD207'  'ZST     '   ,
+               'ZST2    '  '锁体2         '      'ZTSD207'  'ZST2    '   ,
+               'ZSPPA    '  '锁品牌         '      'ZTSD207'  'ZSPPA    '   ,
+               'ZBMQ    '  '闭门器        '      'ZTSD207'  'ZBMQ    '   ,
+               'ZMC    '  '门磁        '      'ZTSD207'  'ZMC    '   ,
+               'ZBY     '  '百叶                      '  'ZTPP_205A'     'ZBY     '  ,
+               'ZHS     '  '互锁                      '  'ZTPP_205A'     'ZHS     '  ,
+               'ZMJ     '  '门禁          '      'ZTSD207'  'ZMJ     '   ,
+               'ZQY     '  '区域          '      'ZTSD207'  'ZQY     '   ,
+             'ZMXBZ  '  '备注              ' ''    '  '   ,
+             'ZXISHU '  '系数              ' 'ZTPP_205A'    'ZXISHU '   ,
+           'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+               'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   .
+      WHEN 'B'.
+        PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+               'ZSHICHD  '  '厚度          ' 'ZTPP_205A'    'ZCDTX  '   ,
+               'ZBLHD  '  '玻璃厚度          ' 'ZTPP_205A'    'ZBLHD  '   ,
+               'ZBLCS  '  '玻璃参数          ' 'ZTPP_205A'    'ZBLCS  '   ,
+               'ZCNC    '  '窗内衬        '      'ZTSD207'  'ZCNC    '   ,
+               'ZSCYB    '  '视窗印边        '      'ZTPP_205A'  'ZSCYB    '   ,
+               'ZLGLX    '  '龙骨类型        '      'ZTPP_205A'  'ZLGLX    '   ,
+             'ZMXBZ  '  '备注              ' ''    '  '   ,
+             'ZXISHU '  '系数              ' 'ZTPP_205A'    'ZXISHU '   ,
+            'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+            'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   .
+    ENDCASE.
+*    PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+*    'CHBOX '  '选择' ''    ''   ,
+*    'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+*    'ZPCSL  '  '本次排产数量              ' 'ZTPP_205A'    'ZAMOUNT'   ,
+**  'ZWPCL  '  '未排产数量              ' 'ZTPP_205A'    'ZAMOUNT'   ,
+**  'ZYPCSL  '  '已排产数量              ' 'ZTPP_205A'    'ZAMOUNT'   ,
+*    'ZYF    '  '运费              ' 'ZTPP_205A'    'ZYF    '   ,
+*    'ZCDTX  '  '承兑贴息          ' 'ZTPP_205A'    'ZCDTX  '   ,
+*    'ZJCML  '  '基础毛利          ' 'ZTPP_205A'    'ZJCML  '   ,
+**'       '  '毛利价            ' 'ZTPP_205A'    '       '   ,
+*    'ZGKCB  '  '管控成本          ' 'ZTPP_205A'    'ZGKCB  '   ,
+*    'ZWBDJ  '  '外板吨价          ' 'ZTPP_205A'    'ZWBDJ  '   ,
+*    'ZNBDJ  '  '内板吨价          ' 'ZTPP_205A'    'ZNBDJ  '   ,
+**'       '  '制造费用          ' 'ZTPP_205A'    '       '   ,
+**'       '  '考核单价          ' 'ZTPP_205A'    '       '   ,
+**'       '  '其他辅材          ' 'ZTPP_205A'    '       '   ,
+*    'ZBZFS  '  '包装方式          ' 'ZTPP_205A'    'ZBZFS  '   ,
+*    'MATNR  '  '物料编码          ' 'ZTPP_205A'    'MATNR  '   .
+  ELSEIF PCLX = 'WHT'.
+    PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+    'CHBOX '  '选择' ''    ''   ,
+    'ZPCDH ' '排产单号  ' 'ZTPP_205A'  'ZPCDH ' ,
+    'ZPCDHH' '排产单行号' 'ZTPP_205A'  'ZPCDHH' ,
+    'DELFLG '  '删除标记              ' ''    ' '   ,
+    'MATNR ' '物料编码  ' 'ZTPP_205A'  'MATNR ' ,
+    'WERKS ' '工厂      ' 'ZTPP_205A'  'WERKS ' ,
+    'ZCD   ' '长度      ' 'ZTPP_205A'  'ZCD   ' ,
+    'ZBCKD ' '宽度      ' 'ZTPP_205A'  'ZBCKD ' ,
+    'ZKS   ' '块数      ' 'ZTPP_205A'  'ZKS   ' ,
+    'ZXISHU' '系数      ' 'ZTPP_205A'  'ZXISHU' ,
+    'ZPCSL ' '总数量    ' 'ZTPP_205A'  'ZPCSL ' .
+  ELSEIF PCLX = 'JHB'.
+    PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+    'CHBOX '  '选择' ''    ''   ,
+    'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+    'ZBIANHAO'  '编号      '    'ZTPP_205A'   'ZBIANHAO' ,
+    'ZJJLX   '  '类型      '    'ZTPP_205A'   'ZJJLX   ' ,
+    'ZBCKD   '  '宽度(毫米)'    'ZTPP_205A'   'ZBCKD   ' ,
+    'ZCD     '  '长度(毫米)'    'ZTPP_205A'   'ZCD     ' ,
+    'ZKS     '  '块数      '    'ZTPP_205A'   'ZKS     ' ,
+    'ZXISHU  '  '系数      '    'ZTPP_205A'   'ZXISHU  ' ,
+    'ZMXBZ   '  '备注      '    'ZTPP_205A'   'ZMXBZ   ' ,
+    'ZYF     '  '运费      '    'ZTPP_205B'   'ZYF     ' .
+  ELSEIF PCLX = 'ZWJ'.
+    PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+    'CHBOX '  '选择' ''    ''   ,
+    'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+    'ZBIANHAO    ' '编号          ' 'ZTPP_205A' 'ZBIANHAO    ' ,
+    'ZZHANKUAN   ' '展宽          ' 'ZTPP_205A' 'ZZHANKUAN   ' ,
+    'ZZWHD1      ' '折弯厚度(厚度)' 'ZTPP_205A' 'ZZWHD1      ' ,
+    'ZZS         ' '折数          ' 'ZTPP_205A' 'ZZS         ' ,
+    'ZCD         ' '长度(米)      ' 'ZTPP_205A' 'ZCD         ' ,
+    'ZKS         ' '块数          ' 'ZTPP_205A' 'ZKS         ' ,
+    'ZZWDJ       ' '单价          ' 'ZTPP_205A' 'ZZWDJ       ' ,
+    'ZDETAILNAME ' '详细名称      ' 'ZTPP_205A' 'ZDETAILNAME ' ,
+    'ZXXF        ' '信息费        ' 'ZTPP_205A' 'ZXXF        ' ,
+    'ZCDTX       ' '成兑贴息      ' 'ZTPP_205B' 'ZCDTX       ' ,
+    'ZYF         ' '运费          ' 'ZTPP_205B' 'ZYF         ' ,
+    'ZDTMC       ' '单体名称      ' 'ZTPP_205A' 'ZDTMC       ' ,
+    'ZLMZX       ' '立面/轴线     ' 'ZTPP_205A' 'ZLMZX       ' .
+  ELSEIF PCLX = 'LCD'.
+    PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+    'CHBOX '  '选择' ''    ''   ,
+    'ZPCDHH '  '行号              ' 'ZTPP_205A'    'ZPCDHH '   ,
+    'ZBIANHAO   ' '编号              '  'ZTPP_205A' 'ZBIANHAO   ' ,
+    'ZCD        ' '长度(米)(门窗除外)'  'ZTPP_205A' 'ZCD        ' ,
+    'ZKS        ' '块数              '  'ZTPP_205A' 'ZKS        ' ,
+    'ZDETAILNAME' '详细名称          '  'ZTPP_205A' 'ZDETAILNAME' ,
+    'ZPCSL      ' '数量              '  'ZTPP_205A' 'ZPCSL      ' ,
+    'ZMXBZ      ' '备注              '  'ZTPP_205A' 'ZMXBZ      ' ,
+    'ZDTMC      ' '单体名称          '  'ZTPP_205A' 'ZDTMC      ' ,
+    'ZLMZX      ' '立面/轴线         '  'ZTPP_205A' 'ZLMZX      ' ,
+    'ZYF        ' '运费              '  'ZTPP_205B' 'ZYF        ' .
+  ENDIF.
+*需要管控填写的价格字段
+  CASE PCLX.
+    WHEN 'JSXD' OR 'JGMX'.
+      CASE SY-TCODE.
+        WHEN TCODE2.
+          CASE GCBS.
+            WHEN 'A'.
+            WHEN 'B'.
+              PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+             'ZDZF'  '吊装费          ' 'ZTPP_205A'    'ZDZF  '   .
+          ENDCASE.
+          PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+         'ZGKCB  '  '管控成本          ' 'ZTPP_205A'    'ZGKCB  '   ,
+         'ZJCML  '  '基础毛利          ' 'ZTPP_205A'    'ZJCML  '   ,
+         'ZMLJ'  '毛利价          ' 'ZTPP_205A'    'ZMLJ  '   ,
+         'ZKHDJ'  '考核单价          ' 'ZTPP_205A'    'ZKHDJ  '   ,
+         'ZWBDJ  '  '外板吨价          ' 'ZTPP_205A'    'ZWBDJ  '   ,
+         'ZNBDJ  '  '内板吨价          ' 'ZTPP_205A'    'ZNBDJ  '   ,
+         'ZZZFY'  '制造费用          ' 'ZTPP_205A'    'ZZZFY'   ,
+         'ZXCJG  '  '芯材              ' 'ZTPP_205A'    'ZXCJG  '   ,
+         'ZQTFC'  '其他辅材          ' 'ZTPP_205A'    'ZQTFC'   .
+      ENDCASE.
+  ENDCASE.
+  PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_PCD USING:
+  'CELLCOLOR '  'CELLCOLOR' ''    ''   .
+  LOOP AT IT_FIELDCAT_PCD INTO WA_FIELDCAT.
+    CONDENSE WA_FIELDCAT-FIELDNAME NO-GAPS.
+    CONDENSE WA_FIELDCAT-REF_FIELD NO-GAPS.
+    CONDENSE WA_FIELDCAT-REF_TABLE NO-GAPS.
+    CASE MCLX.
+      WHEN 'A' OR 'B' OR 'C' OR 'D'.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'ZMXBZ' OR 'ZLX' OR 'ZJJLX'.
+            IF PCLX = 'JSXD'.
+              IF WA_FIELDCAT-FIELDNAME = 'ZMXBZ'.
+                WA_FIELDCAT-OUTPUTLEN = 40.
+              ENDIF.
+              CASE SY-TCODE.
+                WHEN TCODE4 OR TCODE4A OR ''."客服
+                  WA_FIELDCAT-EDIT = 'X'.
+                WHEN TCODE1."管控
+                  IF P_XG = 'X'.
+                    WA_FIELDCAT-EDIT = 'X'.
+                  ENDIF.
+              ENDCASE.
+              CASE WA_FIELDCAT-FIELDNAME.
+                WHEN 'ZJJLX'.
+                  CASE MCLX.
+                    WHEN 'C'.
+                      WA_FIELDCAT-REF_TABLE = 'ZSPP202'.
+                  ENDCASE.
+              ENDCASE.
+            ENDIF.
+          WHEN 'ZMS' OR 'ZJSSL1' OR 'JE'
+            OR 'ZKS' OR 'ZYSKS' OR 'ZPINGFANGSHU'.":汇总
+            WA_FIELDCAT-DO_SUM = 'X'.
+*          WHEN 'ZXISHU'.
+*            CASE SY-TCODE.
+*              WHEN TCODE5 OR TCODE4 OR TCODE4A.
+*                WA_FIELDCAT-EDIT = 'X'.
+*              WHEN TCODE1.
+*                IF P_XG = 'X'.
+*                  WA_FIELDCAT-EDIT = 'X'.
+*                ENDIF.
+*            ENDCASE.
+        ENDCASE.
+        CASE MCLX.
+          WHEN 'D'.
+            CASE WA_FIELDCAT-FIELDNAME.
+              WHEN 'ZBCKD' OR 'ZJJLX'.
+                WA_FIELDCAT-NO_OUT = 'X'.
+            ENDCASE.
+        ENDCASE.
+      WHEN 'E' OR 'F' OR 'G'.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'ZBH' OR 'ZYYKS' OR 'ZBIANHAO'.
+            CASE WA_FIELDCAT-FIELDNAME.
+              WHEN 'ZBH'.
+                WA_FIELDCAT-OUTPUTLEN = 40.
+            ENDCASE.
+            CASE SY-TCODE.
+              WHEN TCODE5.
+                WA_FIELDCAT-EDIT = 'X'.
+              WHEN TCODE1.
+                IF P_XG = 'X'.
+                  WA_FIELDCAT-EDIT = 'X'.
+                ENDIF.
+            ENDCASE.
+          WHEN 'ZXISHU'.
+            CASE SY-TCODE.
+              WHEN TCODE5 OR TCODE4 OR TCODE4A.
+                WA_FIELDCAT-EDIT = 'X'.
+              WHEN TCODE1.
+                IF P_XG = 'X'.
+                  WA_FIELDCAT-EDIT = 'X'.
+                ENDIF.
+            ENDCASE.
+          WHEN 'ZDANJ' OR 'ZPR0'.
+            CASE MCLX.
+              WHEN 'F'.
+                CASE SY-TCODE.
+                  WHEN TCODE5 OR TCODE4 OR TCODE4A.
+                    WA_FIELDCAT-EDIT = 'X'.
+                  WHEN TCODE1.
+                    IF P_XG = 'X'.
+                      WA_FIELDCAT-EDIT = 'X'.
+                    ENDIF.
+                ENDCASE.
+            ENDCASE.
+          WHEN 'ZCD' OR 'ZDREMARK' OR 'ZDETAILNAME'
+            OR 'ZDTMC' OR 'ZLMZX'.
+            IF GCBS = 'A'.
+              CASE SY-TCODE.
+                WHEN TCODE5.
+                  WA_FIELDCAT-EDIT = 'X'.
+                WHEN TCODE1.
+                  IF P_XG = 'X'.
+                    WA_FIELDCAT-EDIT = 'X'.
+                  ENDIF.
+              ENDCASE.
+            ENDIF.
+        ENDCASE.
+*合计
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'ZYYKS' OR 'ZYSKS' OR 'ZMS'
+            OR 'JE' OR 'ZJSSL1'.
+            WA_FIELDCAT-DO_SUM = 'X'.
+        ENDCASE.
+    ENDCASE.
+    CASE PCLX.
+      WHEN 'WHT'.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'ZCD' OR 'ZBCKD' OR 'ZKS' OR 'ZXISHU'.
+            CASE SY-TCODE.
+              WHEN TCODE5 OR TCODE4 OR TCODE4A.
+                WA_FIELDCAT-EDIT = 'X'.
+              WHEN TCODE1.
+                IF P_XG = 'X'.
+                  WA_FIELDCAT-EDIT = 'X'.
+                ENDIF.
+            ENDCASE.
+        ENDCASE.
+    ENDCASE.
+*管控字段的隐藏与可编辑
+    CASE WA_FIELDCAT-FIELDNAME.
+      WHEN 'ZDZF '
+        OR  'ZGKCB'
+        OR  'ZMLJ '
+        OR  'ZJCML'
+        OR  'ZKHDJ'
+        OR  'ZWBDJ'
+        OR  'ZNBDJ'
+        OR  'ZZZFY'
+        OR  'ZXCJG'
+        OR  'ZQTFC'.
+        CASE SY-TCODE.
+          WHEN TCODE2.
+            IF P_XG = 'X'.
+              WA_FIELDCAT-EDIT = 'X'.
+            ENDIF.
+          WHEN OTHERS.
+            WA_FIELDCAT-NO_OUT = 'X'.
+        ENDCASE.
+      WHEN 'DELFLG'.
+        WA_FIELDCAT-CHECKBOX = 'X'.
+      WHEN 'CELLCOLOR'.
+        WA_FIELDCAT-NO_OUT = 'X'.
+    ENDCASE.
+*ZPP205E隐藏字段
+    CASE SY-TCODE.
+      WHEN TCODE3.
+        CASE WA_FIELDCAT-FIELDNAME.
+          WHEN 'ZPR0' OR 'JE'.
+            WA_FIELDCAT-NO_OUT = 'X'.
+        ENDCASE.
+    ENDCASE.
+
+    CASE WA_FIELDCAT-FIELDNAME.
+      WHEN 'ZMXBZ' OR 'ZXXSHM'.
+        WA_FIELDCAT-OUTPUTLEN = 40.
+      WHEN OTHERS.
+        WA_FIELDCAT-OUTPUTLEN = 7.
+    ENDCASE.
+    MODIFY IT_FIELDCAT_PCD FROM WA_FIELDCAT.
+  ENDLOOP.
+
+*设置搜索帮助
+  CLEAR:IT_F4_PCD.
+  LOOP AT IT_FIELDCAT_PCD INTO WA_FIELDCAT_PCD WHERE F4AVAILABL = 'X'
+                                                  AND EDIT = 'X'.
+    CLEAR:WA_F4_PCD.
+    WA_F4_PCD-FIELDNAME = WA_FIELDCAT_PCD-FIELDNAME.
+    WA_F4_PCD-REGISTER = 'X'.
+    WA_F4_PCD-GETBEFORE = SPACE.
+    WA_F4_PCD-CHNGEAFTER = 'X'.
+    INSERT WA_F4_PCD INTO TABLE IT_F4_PCD.
+  ENDLOOP.
+  IF IT_F4_PCD IS NOT INITIAL.
+    CALL METHOD ALV_GRID_PCD->REGISTER_F4_FOR_FIELDS
+      EXPORTING
+        IT_F4 = IT_F4_PCD.
+  ENDIF.
+
+
+  PERFORM CALLALV
+  TABLES IT_PCD USING ALV_GRID_PCD IT_FIELDCAT_PCD 'P105'.
+ENDFORM.
+FORM CALLALV TABLES INTAB
+              USING P_ALVGRID TYPE REF TO CL_GUI_ALV_GRID
+                   P_FIELDCAT TYPE LVC_T_FCAT
+                   P_HANDLE.
+  DATA: WA_LAYOUTC TYPE LVC_S_LAYO,
+        IT_EF1C    TYPE UI_FUNCTIONS,
+        VARIANTC   TYPE DISVARIANT,
+        WA_FIELDC  TYPE LVC_S_FCAT.
+  CLEAR: IT_EF1C[],WA_LAYOUTC,VARIANTC,WA_FIELDC.
+*LAYOUT
+*  WA_LAYOUTC-CWIDTH_OPT = 'X'.
+  WA_LAYOUTC-ZEBRA      = 'X'.
+  LOOP AT P_FIELDCAT INTO WA_FIELDC WHERE FIELDNAME = 'CELLSTYLE'.
+    WA_LAYOUTC-STYLEFNAME = 'CELLSTYLE'.
+    EXIT.
+  ENDLOOP.
+  LOOP AT P_FIELDCAT INTO WA_FIELDC WHERE FIELDNAME = 'CELLCOLOR'.
+    WA_LAYOUTC-CTAB_FNAME = 'CELLCOLOR'.
+    EXIT.
+  ENDLOOP.
+*布局
+  VARIANTC-REPORT = SY-REPID.
+  VARIANTC-HANDLE = P_HANDLE.
+
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_COPY_ROW      TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_DELETE_ROW    TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_APPEND_ROW    TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_INSERT_ROW    TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_MOVE_ROW      TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_CUT           TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_PASTE         TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_PASTE_NEW_ROW TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_COPY          TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_LOC_UNDO          TO IT_EF1C.
+  APPEND CL_GUI_ALV_GRID=>MC_FC_REFRESH          TO IT_EF1C.
+
+*ALV展示
+  CALL METHOD P_ALVGRID->SET_TABLE_FOR_FIRST_DISPLAY
+    EXPORTING
+      I_SAVE                        = 'A'
+      IS_LAYOUT                     = WA_LAYOUTC
+      IS_VARIANT                    = VARIANTC
+      IT_TOOLBAR_EXCLUDING          = IT_EF1C[]
+    CHANGING
+      IT_OUTTAB                     = INTAB[]
+      IT_FIELDCATALOG               = P_FIELDCAT
+    EXCEPTIONS
+      INVALID_PARAMETER_COMBINATION = 1
+      PROGRAM_ERROR                 = 2
+      TOO_MANY_LINES                = 3
+      OTHERS                        = 4.
+  IF SY-SUBRC NE 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+               WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form crtpcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM CRTPCD .
+  DATA:BEGIN OF IT_PCD_JH OCCURS 0,"复制行后用于汇总该技术详单行的总块数
+         ZJSXDID  TYPE ZTPP_211-ZJSXDID,
+         ZJSXDDID TYPE ZTPP_211-ZJSXDDID,
+         ZCD      TYPE CHAR20,
+         ZKS_BCPC TYPE ZTPP_205A-ZKS,
+       END OF IT_PCD_JH.
+  DATA:ZPCDH TYPE ZTPP_205A-ZPCDH.
+  IF WA_GGZD-ZPCDH IS NOT INITIAL.
+    MESSAGE I004 WITH '不能重复生成排产单'.
+    EXIT.
+  ENDIF.
+
+  CLEAR:IT_PCD_JH,IT_PCD_JH[].
+  LOOP AT IT_PCD.
+    IF IT_PCD-ZKS_BCPC IS INITIAL.
+      MESSAGE I004 WITH '排产块数为0，无法创建排产单.'.
+      RETURN.
+    ENDIF.
+    IF IT_PCD-ZPCSL IS INITIAL.
+      MESSAGE I004 WITH '排产数量为0，无法创建排产单.'.
+      RETURN.
+    ENDIF.
+    CLEAR IT_PCD_JH.
+    MOVE-CORRESPONDING IT_PCD TO IT_PCD_JH.
+    COLLECT IT_PCD_JH.
+  ENDLOOP.
+
+  IF P_HT = 'X'.
+    LOOP AT IT_PCD.
+      READ TABLE IT_PCD_JH WITH KEY ZJSXDID = IT_PCD-ZJSXDID  ZJSXDDID = IT_PCD-ZJSXDDID.
+      IF IT_PCD_JH-ZKS_BCPC + IT_PCD-ZKS_YPC > IT_PCD-ZKS.
+        MESSAGE I004 WITH  '排产块数超过技术详单块数.'.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+
+*  zcd = it_pcd_jh-zcd.
+*  zks = it_pcd_jh-zks.
+*  vbeln = it_pcd-vbeln.
+*  posnr = it_pcd-posnr.
+  PERFORM GET_SNRO_NUMBER CHANGING ZPCDH.
+  PERFORM DATA_TO_ZTPP_205 USING ZPCDH.
+
+  LOOP AT IT_PCD.
+    READ TABLE IT_PCD_JH WITH KEY ZJSXDID = IT_PCD-ZJSXDID  ZJSXDDID = IT_PCD-ZJSXDDID.
+    IF SY-SUBRC EQ 0.
+      IT_PCD-ZKS_YPC = IT_PCD-ZKS_YPC + IT_PCD_JH-ZKS_BCPC.
+      IT_PCD-ZKS_WPC = IT_PCD-ZKS - IT_PCD-ZKS_YPC.
+    ENDIF.
+    MODIFY IT_PCD.
+  ENDLOOP.
+ENDFORM.
+
+FORM GET_SNRO_NUMBER CHANGING P_NUMBR.
+  DATA: LV_NUMBR TYPE CHAR3.
+  SELECT COUNT( * ) FROM ZTPP_205 WHERE SYDAT = SY-DATUM.
+  IF SY-SUBRC NE 0.
+    CALL FUNCTION 'NUMBER_RANGE_INTERVAL_INIT'
+      EXPORTING
+        OBJECT            = 'ZGPPP01'
+        COMMIT            = 'X'
+      EXCEPTIONS
+        NO_INTERVAL_FOUND = 1
+        OBJECT_NOT_FOUND  = 2.
+    IF SY-SUBRC <> 0.
+      MESSAGE '初始化流水号失败.' TYPE 'S' DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'NUMBER_RANGE_ENQUEUE'
+    EXPORTING
+      OBJECT           = 'ZGPPP01'
+    EXCEPTIONS
+      FOREIGN_LOCK     = 1
+      OBJECT_NOT_FOUND = 2
+      SYSTEM_FAILURE   = 3
+      OTHERS           = 4.
+  DO 5 TIMES.
+    IF SY-SUBRC = 0.
+      CALL FUNCTION 'NUMBER_GET_NEXT'
+        EXPORTING
+          NR_RANGE_NR = '01'
+          OBJECT      = 'ZGPPP01'
+        IMPORTING
+          NUMBER      = LV_NUMBR
+        EXCEPTIONS
+          OTHERS      = 4.
+
+      CALL FUNCTION 'NUMBER_RANGE_DEQUEUE'
+        EXPORTING
+          OBJECT = 'ZGPPP01'
+        EXCEPTIONS
+          OTHERS = 4.
+      EXIT.
+    ELSE.
+      WAIT UP TO 1 SECONDS.
+*      RAISE num_range_error.
+    ENDIF.
+  ENDDO.
+
+  IF LV_NUMBR IS INITIAL.
+    MESSAGE '流水号未生成.' TYPE 'S' DISPLAY LIKE 'E'.
+    STOP.
+  ELSE.
+    CONCATENATE 'PC' SY-DATUM+2(6) LV_NUMBR INTO P_NUMBR.
+  ENDIF.
+
+ENDFORM.
+
+FORM DATA_TO_ZTPP_205 USING ZPCDH TYPE ZTPP_205A-ZPCDH.
+  DATA:WA_ZTPP_205  LIKE ZTPP_205,
+       IT_ZTPP_205A LIKE STANDARD TABLE OF ZTPP_205A WITH HEADER LINE,
+       WA_ZTPP_205B LIKE ZTPP_205B,
+       ZPCDHH       TYPE ZTPP_205A-ZPCDHH,
+       ZPCSL        TYPE ZTPP_205-ZPCSL.
+  REFRESH:IT_ZTPP_205A.
+  CLEAR: ZPCDHH,ZPCSL.
+
+  LOOP AT IT_PCD.
+    CLEAR:WA_ZTPP_205,IT_ZTPP_205A,WA_ZTPP_205B.
+    READ TABLE IT_VBELN WITH KEY SEL = 'X'.
+    MOVE-CORRESPONDING IT_VBELN TO WA_ZTPP_205.
+    MOVE-CORRESPONDING IT_JSXD TO WA_ZTPP_205.
+    MOVE-CORRESPONDING IT_PCD TO WA_ZTPP_205.
+    WA_ZTPP_205-WERKS = IT_PCD-WERKS.
+    WA_ZTPP_205-ZPCDH = ZPCDH.
+    WA_ZTPP_205-SYUSR = SY-UNAME.
+    WA_ZTPP_205-SYDAT = SY-DATUM.
+    WA_ZTPP_205-SYTIM = SY-UZEIT.
+    IF P_HT = 'X'.
+      WA_ZTPP_205-HTBS = 'X'.
+    ENDIF.
+
+    ADD 10 TO ZPCDHH.
+    MOVE-CORRESPONDING IT_VBELN TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_JSXD TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_PCD TO IT_ZTPP_205A.
+    IT_ZTPP_205A-PROJN = IT_VBELN-PROJN.
+    IT_ZTPP_205A-POSID = IT_VBELN-POSID.
+    IT_ZTPP_205A-POST1 = IT_VBELN-POST1.
+    IT_ZTPP_205A-WERKS = IT_VBELN-WERKS.
+    IT_ZTPP_205A-ZPCDH = ZPCDH.
+    IT_ZTPP_205A-ZKS = IT_PCD-ZKS_BCPC.
+    IT_ZTPP_205A-ZPCDHH = ZPCDHH.
+    IT_ZTPP_205A-SYUSR = SY-UNAME.
+    IT_ZTPP_205A-SYDAT = SY-DATUM.
+    IT_ZTPP_205A-SYTIM = SY-UZEIT.
+
+    IF P_HT = 'X'.
+      IT_ZTPP_205A-HTBS = 'X'.
+    ENDIF.
+    APPEND IT_ZTPP_205A.
+    ZPCSL = ZPCSL + IT_PCD-ZPCSL.
+    IT_PCD-ZPCDHH = ZPCDHH.
+    MODIFY IT_PCD.
+  ENDLOOP.
+  WA_GGZD-ZPCDH = ZPCDH.
+  MOVE-CORRESPONDING WA_GGZD TO WA_ZTPP_205B.
+  WA_ZTPP_205-ZPCSL = ZPCSL.
+  INSERT ZTPP_205 FROM WA_ZTPP_205.
+  INSERT ZTPP_205A FROM TABLE IT_ZTPP_205A.
+  INSERT ZTPP_205B FROM WA_ZTPP_205B.
+  COMMIT WORK.
+*将当前停留文本更新
+*  PERFORM SCREEN2TAB USING WA_GGZD-TDID.
+*  LOOP AT IT_LIST.
+*    REFRESH T_TEXT.
+*    LOOP AT IT_TEXT WHERE TDID = IT_LIST-ID.
+*      T_TEXT-TEXT = IT_TEXT-TEXT.
+*      APPEND T_TEXT.
+*    ENDLOOP.
+**    WAIT UP TO '0.5' SECONDS.
+*    CALL FUNCTION 'ZFM_DEALLONGTEXT'
+*      EXPORTING
+*        INTYPE = 'I'
+*        TDID   = IT_LIST-ID
+*        SAPNO  = WA_GGZD-ZPCDH
+*        SAPMK  = 'PCD'
+*      TABLES
+*        T_TEXT = T_TEXT.
+*  ENDLOOP.
+  MESSAGE I011 WITH ZPCDH.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Module  GET_GUANGBIAO  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE GET_GUANGBIAO INPUT.
+  DATA _NAME TYPE CHAR30.
+  SET CURSOR FIELD _NAME.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module SET_GUANGBIAO OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE SET_GUANGBIAO OUTPUT.
+  GET CURSOR FIELD _NAME.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module EDITCONTAINER OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE EDITCONTAINER OUTPUT.
+  PERFORM SETLIST."下拉框
+  PERFORM WLCMS."物料长描述
+  PERFORM QGDH."请购单号
+*  PERFORM BZ."系列备注长文本.
+  "控制字段可编辑
+*  IF P_SUBMIT = 'X'.
+*    LOOP AT SCREEN.
+*      IF SCREEN-NAME NE 'WA_GGZD-TDID'.
+*        SCREEN-INPUT = 0.
+*      ENDIF.
+*      MODIFY SCREEN.
+*    ENDLOOP.
+*  ENDIF.
+ENDMODULE.
+FORM SETLIST .
+  DATA:BEGIN OF IT_ZJGLX OCCURS 0,
+         ZJGLX TYPE ZTPP_205B-ZJGLX,
+         TEXT  TYPE CHAR30,
+       END OF IT_ZJGLX.
+  DEFINE ZJGLX.
+    CLEAR:IT_ZJGLX.
+    IT_ZJGLX-ZJGLX = &1.
+    IT_ZJGLX-TEXT = &2.
+    APPEND IT_ZJGLX.
+  END-OF-DEFINITION.
+*  PERFORM ITABTOLIST(ZPUBFORM) TABLES IT_LIST USING 'WA_GGZD-TDID'.
+*加工类型下拉框
+  CLEAR:IT_ZJGLX[].
+  CASE GCBS.
+    WHEN 'A'.
+      ZJGLX 'B01' '普通'.
+      ZJGLX 'B02' '转角板'.
+    WHEN 'B'.
+      ZJGLX 'A01' '普通'.
+      ZJGLX 'A02' '特殊'.
+      ZJGLX 'A03' '开洞'.
+      ZJGLX 'A04' '转角'.
+      ZJGLX 'A05' '回风'.
+      ZJGLX 'A06' '盲板'.
+      ZJGLX 'A07' '开平角'.
+      ZJGLX 'A08' '折弯件'.
+      ZJGLX 'A09' '龙骨'.
+      ZJGLX 'A10' '贴图纸'.
+      ZJGLX 'A11' '画洞'.
+  ENDCASE.
+  CHECK IT_ZJGLX[] IS NOT INITIAL.
+  SORT IT_ZJGLX BY ZJGLX.
+  PERFORM ITABTOLIST(ZPUBFORM) TABLES IT_ZJGLX USING 'WA_GGZD-ZJGLX'.
+*生产单位
+  PERFORM SETZSCDW1.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form gg
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM GG .
+  DATA:NAME TYPE THEAD-TDNAME.
+  IF CONTAINER_GG IS INITIAL.
+    REFRESH:LINES_GG  ,
+      IT_LINE_GG.
+    CREATE OBJECT:CONTAINER_GG EXPORTING CONTAINER_NAME = 'CONT_GG',
+                  EDITOR_GG    EXPORTING PARENT = CONTAINER_GG.
+    CALL METHOD EDITOR_GG->SET_STATUSBAR_MODE
+      EXPORTING
+        STATUSBAR_MODE = 0.
+
+    CALL METHOD EDITOR_GG->SET_TOOLBAR_MODE
+      EXPORTING
+        TOOLBAR_MODE = 0.
+    "取物料长描述
+    NAME = IT_VBELN-MATNR.
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+        ID                      = 'GRUN'
+        LANGUAGE                = SY-LANGU
+        NAME                    = NAME
+        OBJECT                  = 'MATERIAL'
+      TABLES
+        LINES                   = LINES_GG
+      EXCEPTIONS
+        ID                      = 1
+        LANGUAGE                = 2
+        NAME                    = 3
+        NOT_FOUND               = 4
+        OBJECT                  = 5
+        REFERENCE_CHECK         = 6
+        WRONG_ACCESS_TO_ARCHIVE = 7
+        OTHERS                  = 8.
+    CALL FUNCTION 'CONVERT_ITF_TO_STREAM_TEXT'
+      EXPORTING
+        LANGUAGE    = SY-LANGU
+      TABLES
+        ITF_TEXT    = LINES_GG
+        TEXT_STREAM = IT_LINE_GG.
+  ENDIF.
+  CALL METHOD EDITOR_GG->SET_READONLY_MODE
+    EXPORTING
+      READONLY_MODE = 1.
+  CALL METHOD EDITOR_GG->SET_TEXT_AS_STREAM
+    EXPORTING
+      TEXT = IT_LINE_GG.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form wlcms
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM WLCMS .
+  DATA:NAME TYPE THEAD-TDNAME.
+  REFRESH:LINES_WLCMS  ,
+    IT_LINE_WLCMS.
+  IF CONTAINER_WLCMS IS INITIAL.
+    CREATE OBJECT:CONTAINER_WLCMS EXPORTING CONTAINER_NAME = 'CONT_WLCMS',
+                  EDITOR_WLCMS    EXPORTING PARENT = CONTAINER_WLCMS.
+  ENDIF.
+  CALL METHOD EDITOR_WLCMS->SET_STATUSBAR_MODE
+    EXPORTING
+      STATUSBAR_MODE = 0.
+
+  CALL METHOD EDITOR_WLCMS->SET_TOOLBAR_MODE
+    EXPORTING
+      TOOLBAR_MODE = 0.
+  "取物料长描述
+  NAME = WA_GGZD-MATNR.
+  CALL FUNCTION 'READ_TEXT'
+    EXPORTING
+      ID                      = 'GRUN'
+      LANGUAGE                = SY-LANGU
+      NAME                    = NAME
+      OBJECT                  = 'MATERIAL'
+    TABLES
+      LINES                   = LINES_WLCMS
+    EXCEPTIONS
+      ID                      = 1
+      LANGUAGE                = 2
+      NAME                    = 3
+      NOT_FOUND               = 4
+      OBJECT                  = 5
+      REFERENCE_CHECK         = 6
+      WRONG_ACCESS_TO_ARCHIVE = 7
+      OTHERS                  = 8.
+  CALL FUNCTION 'CONVERT_ITF_TO_STREAM_TEXT'
+    EXPORTING
+      LANGUAGE    = SY-LANGU
+    TABLES
+      ITF_TEXT    = LINES_WLCMS
+      TEXT_STREAM = IT_LINE_WLCMS.
+
+  CALL METHOD EDITOR_WLCMS->SET_READONLY_MODE
+    EXPORTING
+      READONLY_MODE = 1.
+  CALL METHOD EDITOR_WLCMS->SET_TEXT_AS_STREAM
+    EXPORTING
+      TEXT = IT_LINE_WLCMS.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form qgdh
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM QGDH .
+  DATA:NAME TYPE THEAD-TDNAME.
+  PERFORM INITLONGTEXT USING CONTAINER_QGDH EDITOR_QGDH 'CONT_QGDH'.
+  PERFORM INITLONGTEXT USING CONTAINER_BZ EDITOR_BZ 'CONT_PCBZ'.
+
+  PERFORM TAB2SCREEN USING EDITOR_QGDH 'QGDH'.
+  PERFORM TAB2SCREEN USING EDITOR_BZ 'PCBZ'.
+  CASE GCBS.
+    WHEN 'A'.
+    WHEN 'B'.
+      PERFORM INITLONGTEXT USING CONTAINER_JGMX EDITOR_JGMX 'CONT_JGMX'.
+      PERFORM TAB2SCREEN USING EDITOR_JGMX 'JGMX'.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form bz
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+*FORM BZ .
+*  IF CONTAINER_BZ IS INITIAL.
+*    CREATE OBJECT CONTAINER_BZ
+*      EXPORTING
+*        CONTAINER_NAME              = 'CONT_PCBZ'
+*      EXCEPTIONS
+*        CNTL_ERROR                  = 1
+*        CNTL_SYSTEM_ERROR           = 2
+*        CREATE_ERROR                = 3
+*        LIFETIME_ERROR              = 4
+*        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+*
+*    CREATE OBJECT EDITOR_BZ
+*      EXPORTING
+*        PARENT                     = CONTAINER_BZ
+*        WORDWRAP_MODE              = CL_GUI_TEXTEDIT=>WORDWRAP_AT_FIXED_POSITION
+*        WORDWRAP_POSITION          = '100'
+*        WORDWRAP_TO_LINEBREAK_MODE = CL_GUI_TEXTEDIT=>TRUE.
+*  ENDIF.
+*  IF P_SUBMIT = 'X'.
+*    CALL METHOD EDITOR_BZ->SET_READONLY_MODE
+*      EXPORTING
+*        READONLY_MODE = 1.
+*  ELSE.
+*    CALL METHOD EDITOR_BZ->SET_READONLY_MODE
+*      EXPORTING
+*        READONLY_MODE = 0.
+*  ENDIF.
+*  PERFORM CLEAR_TEXT.
+*ENDFORM.
+
+*FORM CLEAR_TEXT.
+**  REFRESH:TEXTTABLE.
+*  CALL METHOD EDITOR_BZ->SET_TEXT_AS_STREAM
+*    EXPORTING
+*      TEXT            = TEXTTABLE[]
+*    EXCEPTIONS
+*      ERROR_DP        = 1
+*      ERROR_DP_CREATE = 2
+*      OTHERS          = 3.
+*  CALL METHOD CL_GUI_CFW=>FLUSH.
+*ENDFORM.
+
+*FORM TAB2SCREEN USING P_TDID.
+**清空
+*  CLEAR TEXTTABLE[].
+*  CALL METHOD EDITOR_BZ->DELETE_TEXT .
+*  CALL METHOD CL_GUI_CFW=>FLUSH.
+*
+**取出已有的
+*  LOOP AT IT_TEXT WHERE TDID = P_TDID.
+*    CLEAR:TEXTTABLE.
+*    TEXTTABLE-TEXT = IT_TEXT-TEXT.
+*    APPEND TEXTTABLE.
+*  ENDLOOP.
+*  CALL METHOD EDITOR_BZ->SET_TEXT_AS_STREAM
+*    EXPORTING
+*      TEXT            = TEXTTABLE[]
+*    EXCEPTIONS
+*      ERROR_DP        = 1
+*      ERROR_DP_CREATE = 2
+*      OTHERS          = 3.
+*  CALL METHOD CL_GUI_CFW=>FLUSH.
+*ENDFORM.
+*
+*FORM SCREEN2TAB  USING    P_TDID.
+*  REFRESH:TEXTTABLE.
+*  "将容器中内容解析到内表
+*  EDITOR_BZ->GET_TEXT_AS_R3TABLE( IMPORTING TABLE = TEXTTABLE[] ).
+**将切换前的记录
+*  DELETE IT_TEXT WHERE TDID = P_TDID.
+*  LOOP AT TEXTTABLE.
+*    CLEAR:IT_TEXT.
+*    IT_TEXT-TDID = P_TDID.
+*    IT_TEXT-TEXT = TEXTTABLE-TEXT.
+*    APPEND IT_TEXT.
+*  ENDLOOP.
+*ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EDITTEXT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE EDITTEXT INPUT.
+*若TDID发生变化
+*  IF TDID NE WA_GGZD-TDID
+*    AND TDID IS NOT INITIAL.
+*    PERFORM SCREEN2TAB  USING TDID.
+*  ENDIF.
+*  PERFORM TAB2SCREEN USING WA_GGZD-TDID.
+*  TDID = WA_GGZD-TDID.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0910 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_0910 OUTPUT.
+  SET PF-STATUS 'STA910'.
+  SET TITLEBAR 'TIT910' WITH '选择技术详单/加工明细'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0910  INPUT
+*&---------------------------------------------------------------------*
+*       技术详单
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0910 INPUT.
+  DATA:CDSTR  TYPE CHAR20,
+       CDSTRZ TYPE CHAR20,
+       C_FLAG TYPE CHAR10.
+  SAVE_OK = OK_CODE.
+  CLEAR OK_CODE.
+  CASE SAVE_OK.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CONF'.
+      DATA:IT_PCD1 LIKE TABLE OF IT_PCD WITH HEADER LINE.
+      DATA:ZPCDHHMAX TYPE ZTPP_205A-ZPCDHH.
+      CLEAR:IT_PCD1[],ZPCDHHMAX,IT_PCD1,IT_KNUMV[].
+      IT_PCD1[] = IT_PCD[].
+      SORT IT_PCD1 BY ZPCDHH DESCENDING.
+      READ TABLE IT_PCD1 INDEX 1.
+*判断当前界面最大行号
+      ZPCDHHMAX = IT_PCD1-ZPCDHH.
+      CLEAR VBAP.
+      SELECT SINGLE *
+        FROM VBAP
+        WHERE VBELN = WA_205-VBELN
+        AND   POSNR = WA_205-POSNR.
+      PERFORM DELQFW(ZPUBFORM) CHANGING VBAP-ZXISHU.
+      CLEAR:IT_KNUMV[],IT_KNUMV.
+      IT_KNUMV-VBELN = WA_205-VBELN.
+      IT_KNUMV-POSNR = WA_205-POSNR.
+      COLLECT IT_KNUMV.
+*取价格
+      PERFORM GETSDJG.
+      CLEAR:IT_KONV.
+      READ TABLE IT_KNUMV WITH KEY VBELN = WA_205-VBELN
+                                   POSNR = WA_205-POSNR
+                                   BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        READ TABLE IT_KONV WITH KEY KNUMV = IT_KNUMV-KNUMV
+                                    KPOSN = IT_KNUMV-POSNR
+                                    BINARY SEARCH.
+        IF IT_KONV-KPEIN GT 0.
+          IT_KONV-KBETR = IT_KONV-KBETR / IT_KONV-KPEIN.
+        ENDIF.
+      ENDIF.
+      CLEAR:MARA.
+      SELECT SINGLE *
+        FROM MARA
+        WHERE MATNR = WA_GGZD-MATNR.
+********ADD BY DONGPZ BEGIN AT 30.12.2022 09:11:29
+*同一技术详单行多次引用后，累加块数而不是重新计算
+      SORT IT_PCD BY ZJSXDID ZJSXDDID.
+      LOOP AT IT_JSXD WHERE CHBOX = 'X'.
+        READ TABLE IT_PCD WITH KEY ZJSXDID = IT_JSXD-ZJSXDID
+                                   ZJSXDDID = IT_JSXD-ZJSXDDID
+                                   BINARY SEARCH.
+        TABIX = SY-TABIX.
+        IF SY-SUBRC = 0.
+          IT_PCD-ZYYKS = IT_PCD-ZYYKS + IT_JSXD-ZYYKS.
+          IT_PCD-ZKS = IT_PCD-ZYYKS.
+          CASE MCLX.
+            WHEN 'C'."手工板按毫米，故除1000.
+              IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZKS / 1000.
+            WHEN 'D'."机制板按米
+              IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZKS .
+              IT_PCD-ZXISHU = VBAP-ZXISHU.
+            WHEN 'E' OR 'F' OR 'G'.
+              PERFORM CALXISHU USING IT_PCD-ZBCKD
+                    CHANGING IT_PCD-ZXISHU.
+              IT_PCD-ZCD = IT_JSXD-ZCD / 1000.
+              IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZYYKS.
+              IF MCLX = 'F'.
+              ELSE.
+                IT_PCD-ZDANJ = IT_PCD-ZPR0.
+              ENDIF.
+              CASE MARA-MATKL.
+                WHEN 'B0106'.
+                  CLEAR:ZHD,ZYCZK,JSSL.
+                  READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                ATNAM = 'ZHD'.
+                  IF SY-SUBRC EQ 0.
+                    ZHD = OUTTAB001-ATWRT.
+                  ENDIF.
+                  READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                ATNAM = 'ZYCZK'.
+                  IF SY-SUBRC EQ 0.
+                    ZYCZK = OUTTAB001-ATWRT.
+                  ENDIF.
+                  JSSL = IT_PCD-ZCD * '7.85' * ZYCZK * ZHD / 1000000.
+                  IT_PCD-ZJSSL1 = IT_PCD-ZYYKS * JSSL.
+                WHEN OTHERS.
+                  IT_PCD-ZJSSL1 = IT_PCD-ZXISHU * IT_PCD-ZMS.
+              ENDCASE.
+              IT_PCD-JE = IT_PCD-ZDANJ * IT_PCD-ZJSSL1.
+              IT_PCD-ZPINGFANGSHU = IT_PCD-ZMS * IT_PCD-ZXISHU.
+          ENDCASE.
+          CASE MCLX.
+            WHEN 'A' OR 'B' OR 'C' OR 'D'.
+              IT_PCD-ZJSSL1 = IT_PCD-ZMS * IT_PCD-ZXISHU.
+              IT_PCD-JE = IT_PCD-ZPR0 * IT_PCD-ZJSSL1.
+          ENDCASE.
+          IT_PCD-ZJSSL = IT_PCD-ZJSSL1.
+          IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+          PERFORM DELQFW(ZPUBFORM) CHANGING IT_PCD-ZJSSL.
+          MODIFY IT_PCD INDEX TABIX .
+        ELSE.
+          CLEAR IT_PCD.
+          MOVE-CORRESPONDING IT_JSXD TO IT_PCD.
+          ADD 10 TO ZPCDHHMAX.
+
+          IT_PCD-ZPCDHH = ZPCDHHMAX.
+          IT_PCD-CHBOX = ''.
+          IT_PCD-ZMXBZ = IT_JSXD-ZDREMARK.
+          IT_PCD-ZPR0 = IT_KONV-KBETR.
+          IT_PCD-ZJJLX = IT_JSXD-TYPE.
+          CASE MCLX.
+            WHEN 'C'."手工板按毫米，故除1000.
+              IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZKS / 1000.
+            WHEN 'D'."机制板按米
+              IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZKS .
+              IT_PCD-ZXISHU = VBAP-ZXISHU.
+            WHEN 'E' OR 'F' OR 'G'.
+              PERFORM CALXISHU USING IT_PCD-ZBCKD
+                    CHANGING IT_PCD-ZXISHU.
+              IT_PCD-ZCD = IT_JSXD-ZCD / 1000.
+              IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZYYKS.
+              IF MCLX = 'F'.
+                CLEAR:IT_PCD-ZPR0.
+              ELSE.
+                IT_PCD-ZDANJ = IT_PCD-ZPR0.
+              ENDIF.
+              CASE MARA-MATKL.
+                WHEN 'B0106'.
+                  CLEAR:ZHD,ZYCZK,JSSL.
+                  READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                ATNAM = 'ZHD'.
+                  IF SY-SUBRC EQ 0.
+                    ZHD = OUTTAB001-ATWRT.
+                  ENDIF.
+                  READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                                ATNAM = 'ZYCZK'.
+                  IF SY-SUBRC EQ 0.
+                    ZYCZK = OUTTAB001-ATWRT.
+                  ENDIF.
+                  JSSL = IT_PCD-ZCD * '7.85' * ZYCZK * ZHD / 1000000.
+                  IT_PCD-ZJSSL1 = IT_PCD-ZYYKS * JSSL.
+                WHEN OTHERS.
+                  IT_PCD-ZJSSL1 = IT_PCD-ZXISHU * IT_PCD-ZMS.
+              ENDCASE.
+              IT_PCD-JE = IT_PCD-ZDANJ * IT_PCD-ZJSSL1.
+              IT_PCD-ZPINGFANGSHU = IT_PCD-ZMS * IT_PCD-ZXISHU.
+          ENDCASE.
+          CASE MCLX.
+            WHEN 'A' OR 'B' OR 'C' OR 'D'.
+              IT_PCD-ZJSSL1 = IT_PCD-ZMS * IT_PCD-ZXISHU.
+              IT_PCD-JE = IT_PCD-ZPR0 * IT_PCD-ZJSSL1.
+          ENDCASE.
+          IT_PCD-ZJSSL = IT_PCD-ZJSSL1.
+          IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+          PERFORM DELQFW(ZPUBFORM) CHANGING IT_PCD-ZJSSL.
+*钢品ZKS=ZYYKS，前台显示ZYYKS
+          IF GCBS = 'A'.
+            IT_PCD-ZKS = IT_PCD-ZYYKS.
+          ENDIF.
+*去除小数位
+          CLEAR:CDSTR,IT_KNUMV,C_FLAG.
+          CDSTR =  IT_PCD-ZCD.
+          CDSTRZ =  IT_PCD-ZBCKD.
+          PERFORM DEALCC CHANGING CDSTR.
+          PERFORM DEALCC CHANGING CDSTRZ.
+          CONCATENATE CDSTR '*' CDSTRZ INTO IT_PCD-ZCC.
+          APPEND IT_PCD.
+        ENDIF.
+      ENDLOOP.
+********ADD BY DONGPZ END AT 30.12.2022 09:11:29
+
+*计算总块数ZKS总米数ZMS总数量ZJSSL
+      CLEAR:WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZSL,
+      WA_GGZD-ZZJE.
+      LOOP AT IT_PCD.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+        WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZMS.
+        WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZJSSL1.
+        WA_GGZD-ZZJE = WA_GGZD-ZZJE + IT_PCD-JE.
+      ENDLOOP.
+      SORT IT_PCD BY ZPCDHH.
+      PERFORM FRM_REFRESH_ALV_PCD.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0920  INPUT
+*&---------------------------------------------------------------------*
+*       加工明细
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0920 INPUT.
+  CLEAR:IT_KNUMV[],IT_KNUMV.
+  SAVE_OK = OK_CODE.
+  CLEAR OK_CODE.
+  CASE SAVE_OK.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CONF'.
+      DATA:IT_PCD2 LIKE TABLE OF IT_PCD WITH HEADER LINE.
+      DATA:ZPCDHHMAX1 TYPE ZTPP_205A-ZPCDHH.
+      CLEAR:IT_PCD2[],ZPCDHHMAX1,IT_PCD2.
+      IT_PCD2[] = IT_PCD[].
+      SORT IT_PCD2 BY ZPCDHH DESCENDING.
+      READ TABLE IT_PCD2 INDEX 1.
+*判断当前界面最大行号
+      ZPCDHHMAX1 = IT_PCD2-ZPCDHH.
+*      SELECT SINGLE
+*取价格
+      IT_KNUMV-VBELN = WA_205-VBELN.
+      IT_KNUMV-POSNR = WA_205-POSNR.
+      COLLECT IT_KNUMV.
+*获取单价
+      PERFORM GETSDJG.
+      CLEAR:IT_KONV.
+      READ TABLE IT_KNUMV WITH KEY VBELN = WA_GGZD-VBELN
+                                   POSNR = WA_205-POSNR
+                                   BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        READ TABLE IT_KONV WITH KEY KNUMV = IT_KNUMV-KNUMV
+                                    KPOSN = IT_KNUMV-POSNR
+                                    BINARY SEARCH.
+        IF IT_KONV-KPEIN GT 0.
+          IT_KONV-KBETR = IT_KONV-KBETR / IT_KONV-KPEIN.
+        ENDIF.
+      ENDIF.
+
+      LOOP AT IT_JGMX WHERE CHBOX = 'X' .
+        CLEAR IT_PCD.
+        MOVE-CORRESPONDING IT_JGMX TO IT_PCD.
+        ADD 10 TO ZPCDHHMAX1.
+        IT_PCD-ZPCDHH = ZPCDHHMAX1.
+        IT_PCD-ZPCSL = IT_JGMX-ZSL_WPC.
+        IT_PCD-ZYPCSL = IT_JGMX-ZSL_YPC.
+        IT_PCD-ZWPCL = IT_JGMX-ZSL_WPC.
+        IT_PCD-CHBOX = ''.
+*001字段赋值及字段对照
+        LOOP AT OUTTAB001.
+          ASSIGN COMPONENT OUTTAB001-ATNAM OF STRUCTURE IT_PCD TO <FS>.
+          IF SY-SUBRC EQ 0.
+            <FS> = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDLOOP.
+*门长度
+        IF IT_PCD-ZMKG IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZMDG'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZMKG = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+*窗长度
+        IF IT_PCD-ZSCGD IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZDKGD'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZSCGD = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+*门宽度
+        IF IT_PCD-ZMKK IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZMDK'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZMKK = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+*窗宽度
+        IF IT_PCD-ZSCKD IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZDKKD'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZSCKD = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+        IF IT_PCD-ZPTYS IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZMSPTYS'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZPTYS = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+        IF IT_PCD-ZPTXG IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZMSPTXG'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZPTXG = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+        READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                      ATNAM = 'ZMSCYB'
+                                      BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-ZSCYB = OUTTAB001-ATWRT.
+        ENDIF.
+        IF IT_PCD-ZSCYB IS INITIAL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZSCYB'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            IT_PCD-ZSCYB = OUTTAB001-ATWRT.
+          ENDIF.
+        ENDIF.
+        IT_PCD-ZKS = IT_JGMX-ZAMOUNT.
+        IT_PCD-ZJSSL = IT_PCD-ZKS.
+        IT_PCD-ZJSSL1 = IT_PCD-ZKS.
+        IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+        IT_PCD-ZZL1 = WA_GGZD-ZZL1.
+        CASE MCLX.
+          WHEN 'A'.
+            IT_PCD-ZCD = IT_PCD-ZMKG.
+            IT_PCD-ZBCKD = IT_PCD-ZMKK.
+          WHEN 'B'.
+            IT_PCD-ZCD = IT_PCD-ZSCGD.
+            IT_PCD-ZBCKD = IT_PCD-ZSCKD.
+        ENDCASE.
+        IT_PCD-ZMS = IT_PCD-ZKS * IT_PCD-ZCD / 1000.
+        IT_PCD-ZPINGFANGSHU =  IT_PCD-ZBCKD * IT_PCD-ZMS / 1000.
+        IT_PCD-ZPR0 = IT_KONV-KBETR.
+        IT_PCD-JE = IT_PCD-ZPR0 * IT_PCD-ZJSSL1.
+        APPEND IT_PCD.
+      ENDLOOP.
+*计算总块数ZKS总米数ZMS总数量ZJSSL
+      CLEAR:WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZSL,
+      WA_GGZD-ZZJE.
+      LOOP AT IT_PCD.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+        WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZMS.
+        WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZJSSL1.
+        WA_GGZD-ZZJE = WA_GGZD-ZZJE + IT_PCD-JE.
+      ENDLOOP.
+      PERFORM FRM_REFRESH_ALV_PCD.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0805  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0805 INPUT.
+  CASE SY-UCOMM.
+    WHEN 'GG_GB'.
+      GV_SUBSCREEN_800 = '0806'.
+    WHEN 'PCD_ZK'.
+      GV_SUBSCREEN_800 = '0802'.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0806  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0806 INPUT.
+  CASE SY-UCOMM.
+    WHEN 'GG_ZK'.
+      GV_SUBSCREEN_800 = '0805'.
+    WHEN 'PCD_ZK'.
+      GV_SUBSCREEN_800 = '0803'.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form savepcd_jsxd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SAVEPCD_JSXD .
+  DATA:BEGIN OF IT_PCD_JH OCCURS 0,"复制行后用于汇总该技术详单行的总块数
+         ZJSXDID  TYPE ZTPP_211-ZJSXDID,
+         ZJSXDDID TYPE ZTPP_211-ZJSXDDID,
+         ZCD      TYPE CHAR20,
+         ZKS_BCPC TYPE ZTPP_205A-ZKS,
+       END OF IT_PCD_JH.
+  READ TABLE IT_PCD INDEX 1.
+
+
+  CLEAR:IT_PCD_JH,IT_PCD_JH[].
+*  LOOP AT IT_PCD.
+*    IF IT_PCD-ZKS_BCPC IS INITIAL.
+*      "第&1行排产块数为0,无法创建排产单.
+*      MESSAGE I018 WITH SY-TABIX.
+*      RETURN.
+*    ENDIF.
+*    IF IT_PCD-ZPCSL IS INITIAL.
+*      "第&1行排产数量为0,无法创建排产单.
+*      MESSAGE I019 WITH SY-TABIX.
+*      RETURN.
+*    ENDIF.
+*    CLEAR IT_PCD_JH.
+*    MOVE-CORRESPONDING IT_PCD TO IT_PCD_JH.
+*    COLLECT IT_PCD_JH.
+*  ENDLOOP.
+*
+*  IF P_HT = 'X'.
+*    LOOP AT IT_PCD.
+*      READ TABLE IT_PCD_JH WITH KEY ZJSXDID = IT_PCD-ZJSXDID  ZJSXDDID = IT_PCD-ZJSXDDID.
+*      IF IT_PCD_JH-ZKS_BCPC + IT_PCD-ZKS_YPC > IT_PCD-ZKS.
+*        "技术详单ID&1,行ID&2排产块数超过技术详单块数,无法创建排产单.
+*        MESSAGE I020 WITH  IT_PCD-ZJSXDID IT_PCD-ZJSXDDID.
+*        RETURN.
+*      ENDIF.
+*    ENDLOOP.
+*  ENDIF.
+
+  PERFORM DATA_TO_ZTPP_205_V4_JSXD USING WA_GGZD-ZPCDH.
+  DATA:ZZSL TYPE ZTPP_205A-ZKS,
+       ZZKS TYPE ZTPP_205A-ZKS,
+       ZZMS TYPE ZTPP_205A-ZKS.
+  LOOP AT IT_PCD.
+    READ TABLE IT_PCD_JH WITH KEY ZJSXDID = IT_PCD-ZJSXDID  ZJSXDDID = IT_PCD-ZJSXDDID.
+    IF SY-SUBRC EQ 0.
+      IT_PCD-ZKS_YPC = IT_PCD-ZKS_YPC + IT_PCD_JH-ZKS_BCPC.
+      IT_PCD-ZKS_WPC = IT_PCD-ZKS - IT_PCD-ZKS_YPC.
+    ENDIF.
+    MODIFY IT_PCD.
+    ZZSL = ZZSL + IT_PCD-ZJSSL.
+    ZZKS = ZZKS = IT_PCD-ZKS_BCPC.
+    ZZMS = ZZMS + IT_PCD-ZMS.
+  ENDLOOP.
+  WA_GGZD-ZZSL = ZZSL.
+  WA_GGZD-ZZKS = ZZKS.
+  WA_GGZD-ZZMS = ZZMS.
+ENDFORM.
+
+FORM DATA_TO_ZTPP_205_V4_JSXD USING ZPCDH TYPE ZTPP_205A-ZPCDH.
+  DATA:IT_ZTPP_205A LIKE STANDARD TABLE OF ZTPP_205A WITH HEADER LINE,
+       WA_ZTPP_205B LIKE ZTPP_205B,
+       ZPCDHH       TYPE ZTPP_205A-ZPCDHH,
+       ZPCSL        TYPE ZTPP_205-ZPCSL,
+       ZKSC         TYPE CHAR20.
+  REFRESH:IT_ZTPP_205A,IT_JSXDS.
+  CLEAR: ZPCDHH,ZPCSL.
+
+  LOOP AT IT_PCD WHERE DELFLG NE 'X'.
+    CLEAR:IT_ZTPP_205A,WA_ZTPP_205B,IT_JSXDS.
+    READ TABLE IT_VBELN WITH KEY SEL = 'X'.
+    IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+    MOVE-CORRESPONDING IT_VBELN TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_JSXD TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_PCD TO IT_ZTPP_205A.
+
+    IT_ZTPP_205A-PROJN = IT_VBELN-PROJN.
+    IT_ZTPP_205A-POSID = IT_VBELN-POSID.
+    IT_ZTPP_205A-POST1 = IT_VBELN-POST1.
+    IT_ZTPP_205A-WERKS = IT_VBELN-WERKS.
+    IT_ZTPP_205A-ZPCDH = ZPCDH.
+*    IT_ZTPP_205A-ZKS = IT_PCD-ZKS_BCPC.
+    IT_ZTPP_205A-SYUSR = SY-UNAME.
+    IT_ZTPP_205A-SYDAT = SY-DATUM.
+    IT_ZTPP_205A-SYTIM = SY-UZEIT.
+    IT_ZTPP_205A-WERKS = P_WERKS.
+
+    IT_ZTPP_205A-ZADUIT = WA_205-ZADUIT.
+    IT_ZTPP_205A-VBELN = WA_205-VBELN.
+    IT_ZTPP_205A-POSNR = WA_205-POSNR.
+
+    IF P_HT = 'X'.
+      IT_ZTPP_205A-HTBS = 'X'.
+    ENDIF.
+*钢品块数存在ZYYKS中，同时更新ZKS
+    IF GCBS = 'A'.
+      IT_ZTPP_205A-ZKS = IT_ZTPP_205A-ZYYKS.
+    ENDIF.
+    APPEND IT_ZTPP_205A.
+    ZPCSL = ZPCSL + IT_PCD-ZPCSL.
+    IT_PCD-ZPCDH = ZPCDH.
+    MODIFY IT_PCD.
+    IT_JSXDS-ZJSXDID = IT_PCD-ZJSXDID.
+    IT_JSXDS-ZJSXDDID = IT_PCD-ZJSXDDID.
+    COLLECT IT_JSXDS.
+  ENDLOOP.
+***********************************************************
+*钢品保存前计算占用
+  IF GCBS = 'A'.
+    PERFORM CALJSXDZY.
+    CLEAR:IT_PCKS_SUM1[],RETURN_JSXD[].
+    LOOP AT IT_PCD WHERE DEL NE 'X'.
+      CLEAR:IT_PCKS_SUM1.
+      CLEAR IT_PCKS_SUM1.
+      IT_PCKS_SUM1-ZJSXDID   =  IT_PCD-ZJSXDID  .
+      IT_PCKS_SUM1-ZJSXDDID  =  IT_PCD-ZJSXDDID .
+      IT_PCKS_SUM1-ZKS       =  IT_PCD-ZYYKS      .
+      COLLECT IT_PCKS_SUM1.
+    ENDLOOP.
+*可引用块数小于0，则报错
+    LOOP AT IT_PCKS_SUM WHERE KYYKS LT 0.
+      CLEAR:IT_PCD.
+      READ TABLE IT_PCD WITH KEY ZJSXDID = IT_PCKS_SUM-ZJSXDID
+                                 ZJSXDDID = IT_PCKS_SUM-ZJSXDDID.
+      ZKSC = IT_PCKS_SUM-KYYKS.
+      PERFORM DELQFW(ZPUBFORM) CHANGING ZKSC.
+      PERFORM INMSG(ZPUBFORM) TABLES RETURN_JSXD
+        USING 'ZMSG_GP' 'E' '061' IT_PCD-ZPCDHH IT_PCKS_SUM-ZJSXDID
+              IT_PCKS_SUM-ZJSXDDID ZKSC.
+    ENDLOOP.
+    IF RETURN_JSXD[] IS NOT INITIAL.
+      PERFORM SHOWMSG(ZPUBFORM) TABLES RETURN_JSXD.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+
+***********************************************************
+  MOVE-CORRESPONDING WA_GGZD TO WA_ZTPP_205B.
+  WA_ZTPP_205B-MCLX = MCLX.
+  WA_ZTPP_205B-GCBS = GCBS.
+*删除行
+  LOOP AT IT_PCD WHERE DELFLG = 'X'.
+    DELETE FROM ZTPP_205A WHERE ZPCDH = WA_GGZD-ZPCDH
+                            AND ZPCDHH = IT_PCD-ZPCDHH.
+    DELETE IT_PCD.
+  ENDLOOP.
+  COMMIT WORK.
+  SELECT SINGLE COUNT(*)
+    FROM ZTPP_205
+    WHERE ZPCDH = WA_205-ZPCDH.
+  IF SY-SUBRC = 0.
+    WA_ZTPP_205B-ZADUIT = WA_205-ZADUIT.
+    UPDATE ZTPP_205 FROM WA_205.
+    IF IT_ZTPP_205A[] IS NOT INITIAL.
+      MODIFY ZTPP_205A FROM TABLE IT_ZTPP_205A.
+    ENDIF.
+    UPDATE ZTPP_205B FROM WA_ZTPP_205B.
+  ELSE.
+    WA_205-ZPCLX = PCLX.
+    WA_205-ZPCSL = ZPCSL.
+    WA_ZTPP_205B-SYTIM = SY-UZEIT.
+    INSERT ZTPP_205 FROM WA_205.
+    INSERT ZTPP_205A FROM TABLE IT_ZTPP_205A.
+    INSERT ZTPP_205B FROM WA_ZTPP_205B.
+  ENDIF.
+
+
+  COMMIT WORK.
+  PERFORM SAVE_LONGTEXT.
+  BCBS = '1'.
+  MESSAGE I021 WITH ZPCDH.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form savepcd_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SAVEPCD_JGMX .
+  DATA:BEGIN OF IT_PCD_JH OCCURS 0,"复制行后用于汇总该技术详单行的总块数
+         ZMVBELN TYPE ZTSD207-ZMVBELN,
+         ZMPOSNR TYPE ZTSD207-ZMPOSNR,
+         ZPCSL   TYPE ZTSD207-ZAMOUNT,
+       END OF IT_PCD_JH.
+  READ TABLE IT_PCD INDEX 1.
+*  IF IT_PCD-ZPCDH IS NOT INITIAL.
+*    MESSAGE I004 WITH '不能重复生成排产单'.
+*    EXIT.
+*  ENDIF.
+
+  CLEAR:IT_PCD_JH,IT_PCD_JH[].
+  LOOP AT IT_PCD.
+*    IF IT_PCD-ZPCSL IS INITIAL.
+*      "第&1行排产数量为0,无法创建排产单.
+*      MESSAGE I019 WITH SY-TABIX.
+*      RETURN.
+*    ENDIF.
+    CLEAR IT_PCD_JH.
+    MOVE-CORRESPONDING IT_PCD TO IT_PCD_JH.
+    COLLECT IT_PCD_JH.
+  ENDLOOP.
+
+  IF P_HT = 'X'.
+    LOOP AT IT_PCD.
+      READ TABLE IT_PCD_JH WITH KEY ZMVBELN = IT_PCD-ZMVBELN  ZMPOSNR = IT_PCD-ZMPOSNR.
+      IF IT_PCD_JH-ZPCSL + IT_PCD-ZPCSL > IT_PCD-ZAMOUNT.
+*        "加工明细ID&1,行ID&2排产块数超过技术详单块数,无法创建排产单.
+*        MESSAGE I023 WITH  IT_PCD-ZMVBELN IT_PCD-ZMPOSNR.
+*        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  PERFORM DATA_TO_ZTPP_205_V4_JGMX USING WA_GGZD-ZPCDH.
+
+  LOOP AT IT_PCD.
+    READ TABLE IT_PCD_JH WITH KEY ZMVBELN = IT_PCD-ZMVBELN  ZMPOSNR = IT_PCD-ZMPOSNR.
+    IF SY-SUBRC EQ 0.
+      IT_PCD-ZYPCSL = IT_PCD-ZYPCSL + IT_PCD_JH-ZPCSL.
+      IT_PCD-ZWPCL = IT_PCD-ZAMOUNT - IT_PCD-ZYPCSL.
+    ENDIF.
+    MODIFY IT_PCD.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form data_to_ztpp_205_v4_jgmx
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_GGZD_ZPCDH
+*&---------------------------------------------------------------------*
+FORM DATA_TO_ZTPP_205_V4_JGMX  USING ZPCDH TYPE ZTPP_205A-ZPCDH.
+  DATA:IT_ZTPP_205A LIKE STANDARD TABLE OF ZTPP_205A WITH HEADER LINE,
+       WA_ZTPP_205B LIKE ZTPP_205B,
+       ZPCDHH       TYPE ZTPP_205A-ZPCDHH,
+       ZPCSL        TYPE ZTPP_205-ZPCSL.
+  REFRESH:IT_ZTPP_205A.
+  CLEAR: ZPCDHH,ZPCSL.
+
+  LOOP AT IT_PCD WHERE DELFLG NE 'X'.
+    CLEAR:IT_ZTPP_205A,WA_ZTPP_205B.
+    READ TABLE IT_VBELN WITH KEY SEL = 'X'.
+    IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+    MOVE-CORRESPONDING IT_VBELN TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_JSXD TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_PCD TO IT_ZTPP_205A.
+    IT_ZTPP_205A-PROJN = IT_VBELN-PROJN.
+    IT_ZTPP_205A-POSID = IT_VBELN-POSID.
+    IT_ZTPP_205A-POST1 = IT_VBELN-POST1.
+    IT_ZTPP_205A-WERKS = IT_VBELN-WERKS.
+    IT_ZTPP_205A-ZPCDH = ZPCDH.
+    IT_ZTPP_205A-SYUSR = SY-UNAME.
+    IT_ZTPP_205A-SYDAT = SY-DATUM.
+    IT_ZTPP_205A-SYTIM = SY-UZEIT.
+    IT_ZTPP_205A-WERKS = P_WERKS.
+    IT_ZTPP_205A-VBELN = WA_205-VBELN.
+    IT_ZTPP_205A-POSNR = WA_205-POSNR.
+    IF GCBS = 'A'.
+      IT_ZTPP_205A-ZKS = IT_ZTPP_205A-ZYYKS.
+    ENDIF.
+    IF P_HT = 'X'.
+      IT_ZTPP_205A-HTBS = 'X'.
+    ENDIF.
+    APPEND IT_ZTPP_205A.
+    ZPCSL = ZPCSL + IT_PCD-ZPCSL.
+    IT_PCD-ZPCDH = ZPCDH.
+    IT_PCD-ZPCDHH = ZPCDHH.
+    MODIFY IT_PCD.
+  ENDLOOP.
+
+  MOVE-CORRESPONDING WA_GGZD TO WA_ZTPP_205B.
+  WA_ZTPP_205B-MCLX = MCLX.
+  WA_ZTPP_205B-GCBS = GCBS.
+*删除行
+  LOOP AT IT_PCD WHERE DELFLG = 'X'.
+    DELETE FROM ZTPP_205A WHERE ZPCDH = WA_GGZD-ZPCDH
+                            AND ZPCDHH = IT_PCD-ZPCDHH.
+    DELETE IT_PCD.
+  ENDLOOP.
+  COMMIT WORK.
+  SELECT SINGLE COUNT(*)
+    FROM ZTPP_205
+    WHERE ZPCDH = WA_205-ZPCDH.
+  IF SY-SUBRC = 0.
+    UPDATE ZTPP_205 FROM WA_205.
+    IF IT_ZTPP_205A[] IS NOT INITIAL.
+      MODIFY ZTPP_205A FROM TABLE IT_ZTPP_205A.
+    ENDIF.
+    UPDATE ZTPP_205B FROM WA_ZTPP_205B.
+  ELSE.
+    WA_205-ZPCLX = PCLX.
+    WA_205-ZPCSL = ZPCSL.
+    WA_ZTPP_205B-SYTIM = SY-UZEIT.
+    INSERT ZTPP_205 FROM WA_205.
+    INSERT ZTPP_205A FROM TABLE IT_ZTPP_205A.
+    INSERT ZTPP_205B FROM WA_ZTPP_205B.
+  ENDIF.
+  COMMIT WORK.
+  PERFORM SAVE_LONGTEXT.
+  BCBS = '1'.
+  MESSAGE I021 WITH ZPCDH.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form savepcd_wht
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SAVEPCD_WHT .
+  DATA:WA_ZTPP_205  LIKE ZTPP_205,
+       IT_ZTPP_205A LIKE STANDARD TABLE OF ZTPP_205A WITH HEADER LINE,
+       WA_ZTPP_205B LIKE ZTPP_205B,
+       ZPCDHH       TYPE ZTPP_205A-ZPCDHH,
+       ZPCDH        TYPE ZTPP_205-ZPCDH,
+       ZPCSL        TYPE ZTPP_205-ZPCSL.
+  READ TABLE IT_PCD INDEX 1.
+*  IF IT_PCD-ZPCDH IS NOT INITIAL.
+*    MESSAGE I004 WITH '不能重复生成排产单'.
+*    EXIT.
+*  ENDIF.
+  LOOP AT IT_PCD.
+    IF IT_PCD-ZKS IS INITIAL.
+      MESSAGE I004 WITH '排产块数为0，无法创建排产单.'.
+      RETURN.
+    ENDIF.
+    IF IT_PCD-ZPCSL IS INITIAL.
+      MESSAGE I004 WITH '排产数量为0，无法创建排产单.'.
+      RETURN.
+    ENDIF.
+    ZPCSL = ZPCSL + IT_PCD-ZPCSL.
+  ENDLOOP.
+  CLEAR ZPCDH.
+  IF WA_GGZD-ZPCDH IS NOT INITIAL.
+    ZPCDH = WA_GGZD-ZPCDH.
+  ELSE.
+    PERFORM GET_SNRO_NUMBER CHANGING ZPCDH.
+  ENDIF.
+
+  REFRESH:IT_ZTPP_205A.
+  CLEAR: ZPCDHH.
+  LOOP AT IT_PCD WHERE DELFLG NE 'X'.
+    CLEAR:IT_ZTPP_205A.
+*    ADD 10 TO ZPCDHH.
+    MOVE-CORRESPONDING IT_PCD TO IT_ZTPP_205A.
+    IT_ZTPP_205A-PROJN = IT_VBELN-PROJN.
+    IT_ZTPP_205A-POSID = IT_VBELN-POSID.
+    IT_ZTPP_205A-POST1 = IT_VBELN-POST1.
+    IT_ZTPP_205A-WERKS = P_WERKS.
+    IT_ZTPP_205A-ZPCDH = ZPCDH.
+*    IT_ZTPP_205A-ZKS = IT_PCD-ZKS_BCPC.
+*    IT_ZTPP_205A-ZPCDHH = ZPCDHH.
+    IT_ZTPP_205A-SYUSR = SY-UNAME.
+    IT_ZTPP_205A-SYDAT = SY-DATUM.
+    IT_ZTPP_205A-SYTIM = SY-UZEIT.
+    IT_ZTPP_205A-HTBS = ''.
+    IT_ZTPP_205A-ZADUIT = 'S'.
+    APPEND IT_ZTPP_205A.
+*    IT_PCD-ZPCDHH = ZPCDHH.
+    IT_PCD-ZPCDH = ZPCDH.
+    MODIFY IT_PCD.
+  ENDLOOP.
+  CLEAR:WA_ZTPP_205.
+  WA_ZTPP_205-ZPCDH = ZPCDH.
+  WA_ZTPP_205-HTBS = ''.
+  WA_ZTPP_205-WERKS = P_WERKS.
+  WA_ZTPP_205-MATNR = P_MATNR.
+  WA_ZTPP_205-ZPCSL = ZPCSL.
+  WA_ZTPP_205-ZPCDH = ZPCDH.
+  WA_ZTPP_205-SYUSR = SY-UNAME.
+  WA_ZTPP_205-SYDAT = SY-DATUM.
+  WA_ZTPP_205-SYTIM = SY-UZEIT.
+  WA_ZTPP_205-ZPCLX = PCLX.
+  WA_ZTPP_205-ZADUIT = 'S'.
+
+  WA_205-ZPCDH = ZPCDH.
+  WA_205-ZADUIT = 'S'.
+  WA_GGZD-ZPCDH = ZPCDH.
+  WA_GGZD-ZADUIT = 'S'.
+  MOVE-CORRESPONDING WA_GGZD TO WA_ZTPP_205B.
+  WA_ZTPP_205B-MCLX = MCLX.
+  WA_ZTPP_205B-GCBS = GCBS.
+  WA_ZTPP_205B-ZADUIT = 'S'.
+*删除行
+  LOOP AT IT_PCD WHERE DELFLG = 'X'.
+    DELETE FROM ZTPP_205A WHERE ZPCDH = WA_GGZD-ZPCDH
+                            AND ZPCDHH = IT_PCD-ZPCDHH.
+    DELETE IT_PCD.
+  ENDLOOP.
+  COMMIT WORK.
+  SELECT SINGLE COUNT(*)
+    FROM ZTPP_205
+    WHERE ZPCDH = WA_205-ZPCDH.
+  IF SY-SUBRC = 0.
+    UPDATE ZTPP_205 FROM WA_ZTPP_205.
+    IF IT_ZTPP_205A[] IS NOT INITIAL.
+      MODIFY ZTPP_205A FROM TABLE IT_ZTPP_205A.
+    ENDIF.
+    UPDATE ZTPP_205B FROM WA_ZTPP_205B.
+  ELSE.
+    WA_ZTPP_205B-SYTIM = SY-UZEIT.
+    INSERT ZTPP_205 FROM WA_ZTPP_205.
+    INSERT ZTPP_205A FROM TABLE IT_ZTPP_205A.
+    INSERT ZTPP_205B FROM WA_ZTPP_205B.
+  ENDIF.
+  COMMIT WORK.
+
+  PERFORM SAVE_LONGTEXT.
+  BCBS = '1'.
+  MESSAGE I021 WITH ZPCDH.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form savepcd_dr
+*&---------------------------------------------------------------------*
+*& 导入折弯件、净化板、丽彩鼎
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SAVEPCD_DR .
+  DATA:WA_ZTPP_205  LIKE ZTPP_205,
+       IT_ZTPP_205A LIKE STANDARD TABLE OF ZTPP_205A WITH HEADER LINE,
+       WA_ZTPP_205B LIKE ZTPP_205B,
+       ZPCDHH       TYPE ZTPP_205A-ZPCDHH,
+       ZPCDH        TYPE ZTPP_205-ZPCDH,
+       ZPCSL        TYPE ZTPP_205-ZPCSL.
+  ZPCDH = WA_GGZD-ZPCDH.
+  READ TABLE IT_PCD INDEX 1.
+  IF IT_PCD-ZPCDH IS NOT INITIAL.
+    MESSAGE I004 WITH '不能重复生成排产单'.
+    EXIT.
+  ENDIF.
+  LOOP AT IT_PCD.
+    IF IT_PCD-ZKS IS INITIAL.
+      MESSAGE I004 WITH '排产块数为0，无法创建排产单.'.
+      RETURN.
+    ENDIF.
+    IF IT_PCD-ZPCSL IS INITIAL.
+      MESSAGE I004 WITH '排产数量为0，无法创建排产单.'.
+      RETURN.
+    ENDIF.
+  ENDLOOP.
+
+  REFRESH:IT_ZTPP_205A.
+  CLEAR: ZPCDHH,ZPCSL.
+
+  LOOP AT IT_PCD.
+    CLEAR:IT_ZTPP_205A,WA_ZTPP_205B.
+    READ TABLE IT_VBELN WITH KEY SEL = 'X'.
+    ADD 10 TO ZPCDHH.
+    MOVE-CORRESPONDING IT_VBELN TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_JSXD TO IT_ZTPP_205A.
+    MOVE-CORRESPONDING IT_PCD TO IT_ZTPP_205A.
+    IT_ZTPP_205A-PROJN = IT_VBELN-PROJN.
+    IT_ZTPP_205A-POSID = IT_VBELN-POSID.
+    IT_ZTPP_205A-POST1 = IT_VBELN-POST1.
+    IT_ZTPP_205A-WERKS = IT_VBELN-WERKS.
+    IT_ZTPP_205A-ZPCDH = ZPCDH.
+    IT_ZTPP_205A-ZPCDHH = ZPCDHH.
+    IT_ZTPP_205A-SYUSR = SY-UNAME.
+    IT_ZTPP_205A-SYDAT = SY-DATUM.
+    IT_ZTPP_205A-SYTIM = SY-UZEIT.
+    IT_ZTPP_205A-VBELN = WA_205-VBELN.
+    IT_ZTPP_205A-POSNR = WA_205-POSNR.
+    IT_ZTPP_205A-HTBS = 'X'.
+    APPEND IT_ZTPP_205A.
+    ZPCSL = ZPCSL + IT_PCD-ZPCSL.
+    IT_PCD-ZPCDH = ZPCDH.
+    IT_PCD-ZPCDHH = ZPCDHH.
+    MODIFY IT_PCD.
+  ENDLOOP.
+
+  MOVE-CORRESPONDING WA_GGZD TO WA_ZTPP_205B.
+  WA_ZTPP_205B-MCLX = MCLX.
+  WA_ZTPP_205B-GCBS = GCBS.
+  UPDATE ZTPP_205 SET ZPCSL = ZPCSL ZPCLX = PCLX WHERE ZPCDH = ZPCDH.
+  INSERT ZTPP_205A FROM TABLE IT_ZTPP_205A.
+  INSERT ZTPP_205B FROM WA_ZTPP_205B.
+  COMMIT WORK.
+  PERFORM SAVE_LONGTEXT.
+  BCBS = '1'.
+  MESSAGE I021 WITH ZPCDH.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form save_longtext
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SAVE_LONGTEXT .
+*将当前停留文本更新
+  PERFORM SCREEN2TAB USING: EDITOR_BZ 'PCBZ',
+                          EDITOR_QGDH 'QGDH'.
+  CASE GCBS.
+    WHEN 'B'.
+      PERFORM SCREEN2TAB USING: EDITOR_BZ 'JGMX'.
+  ENDCASE.
+  CLEAR:T_TEXT[].
+  LOOP AT IT_TEXT WHERE TDID = 'PCBZ'.
+    CLEAR:T_TEXT.
+    T_TEXT-TEXT = IT_TEXT-TEXT.
+    APPEND T_TEXT.
+  ENDLOOP.
+  CALL FUNCTION 'ZFM_DEALLONGTEXT'
+    EXPORTING
+      INTYPE = 'I'
+      TDID   = 'PCBZ'
+      SAPNO  = WA_GGZD-ZPCDH
+      SAPMK  = 'PCD'
+    TABLES
+      T_TEXT = T_TEXT.
+  CLEAR:T_TEXT[].
+  LOOP AT IT_TEXT WHERE TDID = 'QGDH'.
+    CLEAR:T_TEXT.
+    T_TEXT-TEXT = IT_TEXT-TEXT.
+    APPEND T_TEXT.
+  ENDLOOP.
+  CALL FUNCTION 'ZFM_DEALLONGTEXT'
+    EXPORTING
+      INTYPE = 'I'
+      TDID   = 'QGDH'
+      SAPNO  = WA_GGZD-ZPCDH
+      SAPMK  = 'PCD'
+    TABLES
+      T_TEXT = T_TEXT.
+  CASE GCBS.
+    WHEN 'A'.
+    WHEN 'B'.
+      CLEAR:T_TEXT[].
+      LOOP AT IT_TEXT WHERE TDID = 'JGMX'.
+        CLEAR:T_TEXT.
+        T_TEXT-TEXT = IT_TEXT-TEXT.
+        APPEND T_TEXT.
+      ENDLOOP.
+      CALL FUNCTION 'ZFM_DEALLONGTEXT'
+        EXPORTING
+          INTYPE = 'I'
+          TDID   = 'JGMX'
+          SAPNO  = WA_GGZD-ZPCDH
+          SAPMK  = 'PCD'
+        TABLES
+          T_TEXT = T_TEXT.
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0807  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0807 INPUT.
+  CASE SY-UCOMM.
+    WHEN 'QR'.
+      CLEAR WA_WHTPC_TC.
+      WA_WHTPC_TC-WERKS = WA_WHTPC-WERKS.
+      WA_WHTPC_TC-MATNR = WA_WHTPC-MATNR.
+      PERFORM GETLONGTEXT(ZPUBFORM) USING 'GRUN' WA_WHTPC_TC-MATNR 'MATERIAL' CHANGING WA_WHTPC_TC-WLCMS.
+      CALL SCREEN '0930' STARTING AT 10 10 ENDING AT 95 13.
+*      gv_subscreen_800 = '0802'.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0930 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_0930 OUTPUT.
+  SET PF-STATUS 'STA930'.
+  SET TITLEBAR '无合同排产'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0930  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0930 INPUT.
+  SAVE_OK = OK_CODE.
+  CLEAR OK_CODE.
+  CASE SAVE_OK.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL' OR 'QX'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SAVE'.
+      REFRESH IT_PCD.
+      CLEAR IT_PCD.
+      IT_PCD-MATNR = WA_WHTPC_TC-MATNR.
+      IT_PCD-WERKS = P_WERKS.
+      IT_PCD-ZCD = WA_WHTPC_TC-ZCD.
+      IT_PCD-ZBCKD = WA_WHTPC_TC-ZBCKD.
+      IT_PCD-ZKS = WA_WHTPC_TC-ZKS.
+      IT_PCD-ZXISHU = WA_WHTPC_TC-ZXISHU.
+      IT_PCD-ZPCDHH = 10.
+      IT_PCD-ZPCSL = IT_PCD-ZCD * IT_PCD-ZKS * IT_PCD-ZXISHU..
+      APPEND IT_PCD.
+      GV_SUBSCREEN_800 = '0802'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+*  CLEAR:OK_CODE.
+  CLEAR:SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form printpcd
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM PRINTPCD .
+  DATA:PCD_PRINT_URL   TYPE STRING,
+       PCD_PRINT_STR   TYPE STRING,
+       PCD_PRINTRE_STR TYPE STRING,
+       PCD_PRINT_MSG   TYPE STRING,
+       PCD_PRINT_STA   TYPE I.
+  DATA:INTAB     TYPE T_JSON1,
+       GT_DAKONG TYPE TABLE OF T_DAKONG2,
+       GS_DAKONG LIKE LINE OF GT_DAKONG,
+       GS_JHC    TYPE T_JINGHUACHUANG3,
+       GS_JHM    TYPE T_JINGHUAMEN4,
+       GT_LIST   TYPE TABLE OF T_LIST5,
+       GS_LIST   LIKE LINE OF GT_LIST,
+       GS_ORDER  TYPE T_ORDER6,
+       GS_TOTAL  TYPE T_TOTAL7,
+       GT_ZW     TYPE TABLE OF T_ZHEWAN8,
+       GS_ZW     LIKE LINE OF GT_ZW,
+       GT_CC     TYPE TABLE OF T_CHICUN9,
+       GS_CC     LIKE LINE OF GT_CC,
+       GT_KS     TYPE TABLE OF T_ZWKUAISHU10,
+       GS_KS     LIKE LINE OF GT_KS,
+       GT_CD     TYPE TABLE OF T_ZWLENGTH11,
+       GS_CD     LIKE LINE OF GT_CD,
+       GT_MS     TYPE TABLE OF T_ZWZONGMISHU12,
+       GS_MS     LIKE LINE OF GT_MS.
+
+**  PERFORM getdata(zpub_data) USING 'ZPCD_PRINT_URL' CHANGING pcd_print_url.
+**  IF pcd_print_url IS INITIAL.
+**    MESSAGE s004 WITH 'ZMM000未配置ZPCD_PRINT_URL的打印地址!' DISPLAY LIKE 'E'.
+**    EXIT.
+**  ENDIF.
+**  PERFORM replace(zpubform) USING 'https' 'http' CHANGING pcd_print_url .
+
+  SELECT SINGLE * INTO @DATA(WA_205) FROM ZTPP_205 WHERE ZPCDH = @WA_GGZD-ZPCDH.
+  SELECT SINGLE * INTO @DATA(WA_205B) FROM ZTPP_205B WHERE ZPCDH = @WA_GGZD-ZPCDH.
+  SELECT * INTO TABLE @DATA(LT_205A) FROM ZTPP_205A WHERE ZPCDH = @WA_GGZD-ZPCDH.
+  CLEAR: GT_DAKONG,GS_DAKONG,INTAB.
+  GS_DAKONG-BEIZHU      = ''.
+  GS_DAKONG-DKFANGSHI   = ''.
+  GS_DAKONG-ID          = ''.
+  GS_DAKONG-JIAGONGFEI  = ''.
+  GS_DAKONG-MM          = WA_205B-ZCKSL.
+  GS_DAKONG-MONEY       = WA_205B-ZCKZJE.
+  APPEND GS_DAKONG TO GT_DAKONG.
+
+  INTAB-DAKONG = GT_DAKONG.
+
+  INTAB-ISPAICHAN = ABAP_TRUE.
+  INTAB-ISSCJH = ABAP_TRUE.
+
+  SELECT
+     INOB~CUOBJ,
+     INOB~OBJEK,
+     AUSP~ATINN,
+     CABN~ATNAM,
+     AUSP~ATWRT
+    INTO TABLE @DATA(LT_AUSP)
+    FROM INOB
+    JOIN AUSP ON INOB~CUOBJ = AUSP~OBJEK AND INOB~KLART = AUSP~KLART
+    JOIN CABN ON AUSP~ATINN = CABN~ATINN AND AUSP~ADZHL = CABN~ADZHL
+    WHERE INOB~OBJEK = @WA_205-MATNR AND INOB~KLART = '023'.
+  CLEAR GS_JHC.
+  READ TABLE LT_AUSP INTO DATA(LW_AUSP) WITH KEY ATNAM = 'ZBLCS'.
+  IF SY-SUBRC EQ 0.
+    GS_JHC-BOLICANSHU = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZSCHD'.
+  IF SY-SUBRC EQ 0.
+    GS_JHC-SHICHUANGHOUDU = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZSCKD'.
+  IF SY-SUBRC EQ 0.
+    GS_JHC-SHICHUANGKUANDU  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZSCYB'.
+  IF SY-SUBRC EQ 0.
+    GS_JHC-SHICHUANGYINBIAN  = LW_AUSP-ATWRT.
+  ENDIF.
+  GS_JHC-CHUANGNEICHEN       = ''.
+  GS_JHC-GUIGECANSHU         = ''.
+  GS_JHC-ISPRICE             = ''.
+  GS_JHC-PINGFANGSHU         = ''.
+  GS_JHC-SHICHUANGCHANGDU    = ''.
+  GS_JHC-SHICHUANGNEISHI     = ''.
+  GS_JHC-SHICHUANGXCHOUDU    = ''.
+
+  INTAB-JINGHUACHUANG = GS_JHC.
+
+  CLEAR GS_JHM.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZSDT'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-CANSHU  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZMSCBL'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENBOLILEIXING  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZGD'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENGAO  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZKD'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENKUAN  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZMLX'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENLEIXING  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZMKHD'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENKUANGHOUDU  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZMSCCC'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENSHANGCHUANGCHICUN  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZMSCYB'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENSHICHUANGYINBIAN  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZSJ'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENSUOJU  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZXZ'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENXINCAI  = LW_AUSP-ATWRT.
+  ENDIF.
+  READ TABLE LT_AUSP INTO LW_AUSP WITH KEY ATNAM = 'ZYS'.
+  IF SY-SUBRC EQ 0.
+    GS_JHM-MENYANSE  = LW_AUSP-ATWRT.
+  ENDIF.
+*  gs_jhm-isprice              = wa_205-zbhhsf.
+  GS_JHM-PINGFANGSHU          = ''.
+
+  INTAB-JINGHUAMEN = GS_JHM.
+
+  CLEAR:GT_LIST,GS_LIST.
+  LOOP AT LT_205A INTO DATA(LW_205A).
+    CLEAR GS_LIST.
+    GS_LIST-ID                = ''.
+    GS_LIST-BIANHAO           = LW_205A-ZBIANHAO.
+    GS_LIST-KUAISHU           = LW_205A-ZKS.
+    GS_LIST-LEIXING           = LW_205A-ZCD.
+    GS_LIST-LENGTH            = LW_205A-ZMS.
+    GS_LIST-MISHU             = ''.
+    GS_LIST-MKFANGXIANGNAME   = ''.
+    GS_LIST-MM                = ''.
+    GS_LIST-MONEY             = ''.
+    GS_LIST-PRICE             = ''.
+    GS_LIST-WIDTH             = LW_205A-ZBCKD.
+    GS_LIST-XISHU             = LW_205A-ZXISHU.
+    APPEND GS_LIST TO GT_LIST.
+  ENDLOOP.
+
+  INTAB-LIST = GT_LIST.
+
+  GS_ORDER-BANKUAN                = WA_205B-ZDBFS.
+  GS_ORDER-BCOLOR                 = ''.
+  GS_ORDER-BEIZHU                 = ''.
+  GS_ORDER-CAIZHI                 = ''.
+  GS_ORDER-CDATE                  = WA_205B-SYDAT.
+*  gs_order-color                  = wa_205b-zcolor.
+  GS_ORDER-CUSERNAME              = ''.
+  GS_ORDER-CUSTOMERNAME           = WA_205-NAME1.
+  GS_ORDER-DDATE                  = ''.
+  GS_ORDER-DUCENG                 = ''.
+  GS_ORDER-FENGBIANYAOQIU         = ''.
+  GS_ORDER-FUMO2                  = ''.
+  GS_ORDER-GOODSTYPENAME          = ''.
+  GS_ORDER-GUIGE                  = ''.
+  GS_ORDER-HASWISKINDLOGO         = WA_205B-ZSFTXWSD.
+*  gs_order-houdu                  = wa_205b-zhd.
+  GS_ORDER-INNERPLATESLITTING     = WA_205B-ZSFNBZJ.
+  GS_ORDER-ISPRICE                = ''.
+  GS_ORDER-JGBEIZHU               = ''.
+  GS_ORDER-KEFUNAME               = WA_205B-ZKF.
+  GS_ORDER-KUAISHU                = WA_205-ZKS.
+*  gs_order-length                 = wa_205-zcd.
+  GS_ORDER-MISHU                  = WA_205-ZMS.
+  GS_ORDER-MODEL                  = ''.
+  GS_ORDER-NAME                   = IT_VBELN-ZZL1.
+  GS_ORDER-NO                     = ''.
+  GS_ORDER-OUTERPLATESLITTING     = WA_205B-ZSFWBZJ.
+  GS_ORDER-PCNO                   = WA_205-ZPCDH.
+  GS_ORDER-PRESSURE               = ''.
+  GS_ORDER-PRICE                  = ''.
+  GS_ORDER-PRODUCEDEPNAME         = WA_205B-ZCJ.
+  GS_ORDER-PROJECTNAME            = WA_205-POST1.
+  GS_ORDER-RANSHAOLEVELNAME       = WA_205B-ZRSDJ.
+  GS_ORDER-SCLEIXINGNAME          = WA_205B-ZSCLX.
+  GS_ORDER-SECOND_CATEGORY_NAME   = ''.
+  GS_ORDER-SELLBEIZHU             = ''.
+  GS_ORDER-TIHUO                  = ''.
+  GS_ORDER-TUCENG                 = ''.
+  GS_ORDER-UNITNAME               = ''.
+  GS_ORDER-VDATE                  = ''.
+  GS_ORDER-WEIZHI                 = ''.
+  GS_ORDER-WIDTH                  = ''.
+  GS_ORDER-XINCAI                 = ''.
+  GS_ORDER-XINGZHUANG2            = ''.
+  GS_ORDER-YEWUYUANNAME           = WA_205B-ZYWY.
+  GS_ORDER-YSZKUAISHU             = ''.
+  GS_ORDER-ZONGJINE               = ''.
+  GS_ORDER-ZONGLIANG              = ''.
+*  gs_order-zongpingfang           = wa_205a-.
+
+  INTAB-ORDER = GS_ORDER.
+
+  CLEAR:GS_ZW,GT_ZW.
+  LOOP AT LT_205A INTO LW_205A.
+    CLEAR GS_ZW.
+    GS_ZW-BUILDINGNAME = LW_205A-ZDTMC.
+    GS_ZW-CHANDI       = LW_205A-ZCHANDI.
+    CLEAR:GS_CC,GT_CC.
+    GS_CC = WA_205B-ZJGCC.
+    APPEND GS_CC TO GT_CC.
+    GS_ZW-CHICUN       = GT_CC.
+    GS_ZW-COLOR        = LW_205A-ZCOLOR.
+    GS_ZW-GCID         = LW_205A-MATNR.
+    GS_ZW-MIANNAME     = LW_205A-ZLMZX.
+    GS_ZW-ZWBEIZHU     = LW_205A-ZMXBZ.
+    GS_ZW-ZWBIANHAO    = ''.
+    GS_ZW-ZWDAKONG     = LW_205A-ZDKSL.
+    GS_ZW-ZWDETAILNAME = LW_205A-ZDETAILNAME.
+    GS_ZW-ZWID         = ''.
+    GS_ZW-ZWIMGS       = LW_205A-ZFILE.
+    GS_ZW-ZWKUAISHU    = GT_KS.
+    GS_ZW-ZWLENGTH     = GT_CD.
+    GS_ZW-ZWMINBIAN    = ''.
+    GS_ZW-ZWMM         = LW_205A-ZMB.
+    GS_ZW-ZWMONEY      = ''.
+    GS_ZW-ZWPRICE      = ''.
+    GS_ZW-ZWZHANKUAN   = LW_205A-ZZHANKUAN.
+    GS_ZW-ZWZHESHU     = LW_205A-ZZS.
+    GS_ZW-ZWZHEWANHD   = LW_205A-ZZWHD1.
+    GS_ZW-ZWZONGMISHU  = GT_MS.
+    APPEND GS_ZW TO GT_ZW.
+  ENDLOOP.
+
+  INTAB-ZHEWAN = GT_ZW.
+  PCD_PRINT_STR = /UI2/CL_JSON=>SERIALIZE( DATA = INTAB  COMPRESS = ABAP_FALSE PRETTY_NAME = /UI2/CL_JSON=>PRETTY_MODE-CAMEL_CASE ).
+
+**  CALL FUNCTION 'ZFMS_15_HTTP'
+**    EXPORTING
+**      input     = pcd_print_str
+**      url       = pcd_print_url
+**      reqmethod = 'POST' "HTTP 方法
+**      http1_1   = 'X' "协议1.1/1.0
+**    IMPORTING
+**      output    = pcd_printre_str "返回JSON报文
+**      rtmsg     = pcd_print_msg "消息
+**      status    = pcd_print_sta "HTTP状态
+***    TABLES
+***     header    = meshead
+**    EXCEPTIONS
+**      OTHERS    = 1.
+***  /ui2/cl_json=>deserialize( EXPORTING json = pcd_printre_str pretty_name = /ui2/cl_json=>pretty_mode-camel_case CHANGING data = itokenre ).
+**  pcd_print_str = /ui2/cl_json=>serialize( data = intab compress = abap_false pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+
+  PCD_PRINT_STR = `{"tmplid":"`        && TMPLID &&
+                  `", "zhangid" : "`   && ZHANGID &&
+                  `","dataJSON":`      && PCD_PRINT_STR &&
+                  `,"osskey":"`        && OSSKEY &&
+                  `"} `.
+  CL_DEMO_OUTPUT=>NEW(
+    )->WRITE_JSON( PCD_PRINT_STR
+    )->DISPLAY( ).
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_0940 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_0940 OUTPUT.
+  IF PCLX = 'ZWJ'.
+    WA_EXCEL-L_CASE_ZWJ = 'X'.
+    WA_EXCEL-L_CASE_JHB = ''.
+    WA_EXCEL-L_CASE_LCD = ''.
+  ELSEIF PCLX = 'JHB'.
+    WA_EXCEL-L_CASE_ZWJ = ''.
+    WA_EXCEL-L_CASE_JHB = 'X'.
+    WA_EXCEL-L_CASE_LCD = ''.
+  ELSEIF PCLX = 'LCD'.
+    WA_EXCEL-L_CASE_ZWJ = ''.
+    WA_EXCEL-L_CASE_JHB = ''.
+    WA_EXCEL-L_CASE_LCD = 'X'.
+  ENDIF.
+*  SET PF-STATUS 'STA940'.
+  SET PF-STATUS ''.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0940  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0940 INPUT.
+  CASE SY-UCOMM.
+    WHEN 'CONF'.
+      IF WA_EXCEL-P_FILE_PATH IS INITIAL.
+        MESSAGE S004 WITH '请选择上传模板位置' DISPLAY LIKE 'E'.
+      ELSE.
+
+        PERFORM UPLOAD USING 'EXCEL'.
+*公共字段
+        PERFORM FRM_REFRESH_ALV_PCD.
+        LEAVE TO SCREEN 0.
+        EXIT.
+**********以下逻辑暂存
+        CASE MCLX.
+          WHEN 'A'."门
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB3[] USING WA_EXCEL-P_FILE_PATH '10'.
+            IF IT_TAB3[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB3.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB3 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+          WHEN 'B'."窗
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB4[] USING WA_EXCEL-P_FILE_PATH '9'.
+            IF IT_TAB4[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB4.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB4 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+          WHEN 'C'."手工净化板
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB1[] USING WA_EXCEL-P_FILE_PATH '7'.
+            IF IT_TAB1[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB1.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB1 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+          WHEN 'D'."机制净化板
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB2[] USING WA_EXCEL-P_FILE_PATH '5'.
+            IF IT_TAB2[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB2.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB2 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+          WHEN 'E'."通用
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB5[] USING WA_EXCEL-P_FILE_PATH '8'.
+            IF IT_TAB5[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB5.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB5 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+          WHEN 'F'."折弯件
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB6[] USING WA_EXCEL-P_FILE_PATH '13'.
+            IF IT_TAB6[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB6.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB6 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+          WHEN 'G'."丽彩幕
+            PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_TAB7[] USING WA_EXCEL-P_FILE_PATH '12'.
+            IF IT_TAB7[] IS INITIAL.
+              MESSAGE S028 DISPLAY LIKE 'E'.
+              EXIT.
+            ENDIF.
+            LOOP AT IT_TAB7.
+              CLEAR IT_PCD.
+              MOVE-CORRESPONDING IT_TAB7 TO IT_PCD.
+              ADD 10 TO ZPCDHHMAX2.
+              IT_PCD-ZPCDHH = ZPCDHHMAX2.
+              APPEND IT_PCD.
+            ENDLOOP.
+        ENDCASE.
+*填充其他字段
+*取价格
+        CLEAR:IT_KNUMV[],IT_KNUMV,O_FLAG.
+        IT_KNUMV-VBELN = WA_205-VBELN.
+        IT_KNUMV-POSNR = WA_205-POSNR.
+        COLLECT IT_KNUMV.
+*获取单价
+        PERFORM GETSDJG.
+        CLEAR:IT_KONV.
+        READ TABLE IT_KNUMV WITH KEY VBELN = WA_GGZD-VBELN
+                                     POSNR = WA_205-POSNR
+                                     BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          READ TABLE IT_KONV WITH KEY KNUMV = IT_KNUMV-KNUMV
+                                      KPOSN = IT_KNUMV-POSNR
+                                      BINARY SEARCH.
+          IF IT_KONV-KPEIN GT 0.
+            IT_KONV-KBETR = IT_KONV-KBETR / IT_KONV-KPEIN.
+          ENDIF.
+        ENDIF.
+        CLEAR:WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZSL,VBAP.
+        SELECT SINGLE *
+          FROM VBAP
+          WHERE VBELN = WA_205-VBELN
+          AND   POSNR = WA_205-POSNR.
+        CLEAR: WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZJE,WA_GGZD-ZZSL.
+        LOOP AT IT_PCD.
+          PERFORM DEALPCDITEM.
+          CASE MCLX.
+            WHEN 'E' OR 'F' OR 'G'.
+              WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZYYKS.
+            WHEN OTHERS.
+              WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+          ENDCASE.
+          WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZMS.
+          WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZJSSL1.
+          WA_GGZD-ZZJE = WA_GGZD-ZZJE + IT_PCD-JE.
+          MODIFY IT_PCD.
+        ENDLOOP.
+*公共字段
+        PERFORM FRM_REFRESH_ALV_PCD.
+        LEAVE TO SCREEN 0.
+        EXIT.
+        IF WA_EXCEL-L_CASE_ZWJ = 'X'.
+          PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_ZWJ[] USING WA_EXCEL-P_FILE_PATH '11'.
+          LOOP AT IT_ZWJ.
+            CLEAR IT_PCD.
+            MOVE-CORRESPONDING IT_ZWJ TO IT_PCD.
+            IT_PCD-ZPCDHH = ''.
+            ADD 10 TO ZPCDHHMAX2.
+            IT_PCD-ZPCDHH = ZPCDHHMAX2.
+            IT_PCD-ZPCSL = IT_PCD-ZCD * IT_PCD-ZKS.
+            APPEND IT_PCD.
+          ENDLOOP.
+        ELSEIF WA_EXCEL-L_CASE_JHB = 'X'.
+          PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_JHB[] USING WA_EXCEL-P_FILE_PATH '8'.
+          LOOP AT IT_JHB.
+            CLEAR IT_PCD.
+            MOVE-CORRESPONDING IT_JHB TO IT_PCD.
+            IT_PCD-ZPCDHH = ''.
+            ADD 10 TO ZPCDHHMAX2.
+            IT_PCD-ZPCDHH = ZPCDHHMAX2.
+            IT_PCD-ZPCSL = IT_PCD-ZCD * IT_PCD-ZKS / 1000.
+            APPEND IT_PCD.
+          ENDLOOP.
+        ELSEIF WA_EXCEL-L_CASE_LCD = 'X'.
+          PERFORM EXCELTOITABP(ZPUBFORM) TABLES IT_LCD[] USING WA_EXCEL-P_FILE_PATH '9'.
+          LOOP AT IT_LCD.
+            CLEAR IT_PCD.
+            MOVE-CORRESPONDING IT_LCD TO IT_PCD.
+            IT_PCD-ZPCDHH = ''.
+            ADD 10 TO ZPCDHHMAX2.
+            IT_PCD-ZPCDHH = ZPCDHHMAX2.
+            IT_PCD-ZPCSL = IT_PCD-ZCD * IT_PCD-ZKS.
+            APPEND IT_PCD.
+          ENDLOOP.
+        ENDIF.
+        PERFORM FRM_REFRESH_ALV_PCD.
+        LEAVE TO SCREEN 0.
+      ENDIF.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_FILE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ZF4_FILE INPUT.
+  PERFORM GETFILEROUTE(ZPUBFORM) USING '' CHANGING WA_EXCEL-P_FILE_PATH.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_ZCOLOR  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ZF4_ZCOLOR INPUT.
+  REFRESH:RETURN_TAB[].
+  DATA:BEGIN OF IT_COLOR OCCURS 0,
+         ZCOLOR TYPE ZTPP_205A-ZCOLOR,
+       END OF IT_COLOR.
+*  CLEAR zcolor.
+  REFRESH IT_COLOR.
+  LOOP AT IT_JSXD1.
+    CLEAR IT_COLOR.
+    IT_COLOR-ZCOLOR = IT_JSXD1-ZCOLOR.
+    COLLECT IT_COLOR.
+  ENDLOOP.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      RETFIELD        = 'ZCOLOR'
+      DYNPPROG        = SY-REPID
+      DYNPNR          = SY-DYNNR
+      DYNPROFIELD     = 'ZCOLOR'
+      WINDOW_TITLE    = '颜色筛选'
+      VALUE_ORG       = 'S' "Structure
+*     callback_program = sy-repid
+*     callback_form   = 'CB_FORM'
+    TABLES
+      VALUE_TAB       = IT_COLOR[]
+*     field_tab       = l_dfies[]
+      RETURN_TAB      = RETURN_TAB[]
+*     dynpfld_mapping = l_dselc[]
+    EXCEPTIONS
+      PARAMETER_ERROR = 1
+      NO_VALUES_FOUND = 2
+      OTHERS          = 3.
+  IF SY-SUBRC EQ 0.
+    READ TABLE RETURN_TAB INTO DATA(LW_RETURN) INDEX 1.
+    REFRESH IT_JSXD.
+
+    PERFORM GETJSXD.
+
+    LOOP AT IT_PCD.
+      DELETE IT_JSXD WHERE ZJSXDID = IT_PCD-ZJSXDID AND ZJSXDDID = IT_PCD-ZJSXDDID.
+    ENDLOOP.
+
+    LOOP AT IT_JSXD.
+      DELETE IT_JSXD WHERE ZCOLOR NE LW_RETURN-FIELDVAL.
+      IF ZLMZX IS NOT INITIAL.
+        DELETE IT_JSXD WHERE ZLMZX NE ZLMZX.
+      ENDIF.
+    ENDLOOP.
+
+    PERFORM FRM_REFRESH_ALV_JSXD.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZF4_ZLMZX  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ZF4_ZLMZX INPUT.
+  REFRESH:RETURN_TAB[].
+  DATA:BEGIN OF IT_ZLMZX OCCURS 0,
+         ZLMZX TYPE ZTPP_205A-ZLMZX,
+       END OF IT_ZLMZX.
+*  CLEAR zlmzx.
+  REFRESH IT_ZLMZX.
+  LOOP AT IT_JSXD1.
+    CLEAR IT_ZLMZX.
+    IT_ZLMZX-ZLMZX = IT_JSXD1-ZLMZX.
+    COLLECT IT_ZLMZX.
+  ENDLOOP.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      RETFIELD        = 'ZLMZX'
+      DYNPPROG        = SY-REPID
+      DYNPNR          = SY-DYNNR
+      DYNPROFIELD     = 'ZLMZX'
+      WINDOW_TITLE    = '立面轴线筛选'
+      VALUE_ORG       = 'S' "Structure
+*     callback_program = sy-repid
+*     callback_form   = 'CB_FORM'
+    TABLES
+      VALUE_TAB       = IT_ZLMZX[]
+*     field_tab       = l_dfies[]
+      RETURN_TAB      = RETURN_TAB[]
+*     dynpfld_mapping = l_dselc[]
+    EXCEPTIONS
+      PARAMETER_ERROR = 1
+      NO_VALUES_FOUND = 2
+      OTHERS          = 3.
+  IF SY-SUBRC EQ 0.
+    READ TABLE RETURN_TAB INTO LW_RETURN INDEX 1.
+    REFRESH IT_JSXD.
+
+    PERFORM GETJSXD.
+
+    LOOP AT IT_PCD.
+      DELETE IT_JSXD WHERE ZJSXDID = IT_PCD-ZJSXDID AND ZJSXDDID = IT_PCD-ZJSXDDID.
+    ENDLOOP.
+
+    LOOP AT IT_JSXD.
+      IF ZCOLOR IS NOT INITIAL.
+        DELETE IT_JSXD WHERE ZCOLOR NE ZCOLOR.
+      ENDIF.
+
+      DELETE IT_JSXD WHERE ZLMZX NE LW_RETURN-FIELDVAL.
+
+    ENDLOOP.
+
+    PERFORM FRM_REFRESH_ALV_JSXD.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  DEALDATA  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE DEALDATA INPUT.
+  WA_GGZD-ZKDJE = WA_GGZD-ZKDSL * WA_GGZD-ZKDDJ.
+  WA_GGZD-ZJJJE = WA_GGZD-ZJJSL * WA_GGZD-ZJJDJ.
+  WA_GGZD-ZXGJE = WA_GGZD-ZXGSL * WA_GGZD-ZXGDJ.
+  WA_GGZD-ZMJJE = WA_GGZD-ZMJSL * WA_GGZD-ZMJDJ.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9101  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_9101 INPUT.
+  OK_CODE = SY-UCOMM.
+  CASE OK_CODE+0(5).
+    WHEN 'PICK'.
+      PERFORM PICK USING OK_CODE.
+  ENDCASE.
+  CLEAR SY-UCOMM.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*& Form PICK
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> OK_CODE
+*&---------------------------------------------------------------------*
+FORM PICK  USING    P_OK_CODE.
+  DATA:L_ROW      TYPE I,
+       L_TDNAME   TYPE STXL-TDNAME,
+       IS_LAYOUT  TYPE SLIS_LAYOUT_ALV,
+       L_FIELDCAT TYPE SLIS_T_FIELDCAT_ALV,
+       L_FIELD    TYPE CHAR30.
+  CLEAR:L_ROW,L_FIELD,IS_LAYOUT.
+  GET CURSOR LINE L_ROW.
+  GET CURSOR FIELD L_FIELD.
+  CASE L_FIELD.
+    WHEN 'WA_GGZD-QGDH'.
+      CLEAR:VBAK.
+      SELECT SINGLE *
+        FROM VBAK
+        WHERE VBELN = WA_GGZD-VBELN.
+      SELECT EBAN~BANFN
+             EBAN~BNFPO
+             EBAN~MATNR
+             PRPS~POST1
+             MARA~ZZL1
+             EBAN~ZYSJG
+             EBAN~ZYCJG
+             EBAN~MENGE
+             EBAN~MEINS
+             EBAN~ZSJCML
+        INTO TABLE IT_QGD
+        FROM EBAN INNER JOIN EBKN ON EBAN~BANFN = EBKN~BANFN
+                                 AND EBAN~BNFPO = EBKN~BNFPO
+                  INNER JOIN PRPS ON EBKN~PS_PSP_PNR = PRPS~PSPNR
+                  INNER JOIN MARA ON EBAN~MATNR = MARA~MATNR
+        WHERE EBKN~PS_PSP_PNR = VBAK-PS_PSP_PNR.
+      CHECK SY-SUBRC = 0.
+      LOOP AT IT_QGD.
+        PERFORM GETLONGTEXT(ZPUBFORM)
+        USING 'GRUN' IT_QGD-MATNR 'MATERIAL'
+              CHANGING IT_QGD-ZWLCMS.
+        CONCATENATE IT_QGD-BANFN IT_QGD-BNFPO INTO L_TDNAME.
+        PERFORM GETLONGTEXT(ZPUBFORM)
+        USING 'B01' L_TDNAME 'EBAN'
+              CHANGING IT_QGD-SQCMS.
+        IT_QGD-JGSX = IT_QGD-ZYSJG + IT_QGD-ZYCJG.
+        MODIFY IT_QGD.
+      ENDLOOP.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES L_FIELDCAT USING:
+'BANFN ' '采购申请' '' '' 'X' '',
+'BNFPO ' '申请行号' '' '' '' '',
+'MATNR ' '物料号' '' '' '' '',
+'POST1 ' '项目名称' '' '' '' '',
+'ZZL1  ' '品名' '' '' '' '',
+'JGSX ' '价格上限' '' '' '' '',
+'MENGE ' '数量' '' '' '' '',
+'MEINS ' '单位' '' '' '' '',
+'ZSJCML' '实际出米率' '' '' '' '',
+'ZWLCMS' '规格' '' '' '' '',
+'SQCMS ' '备注' '' '' '' ''.
+      IS_LAYOUT-COLWIDTH_OPTIMIZE = 'X'.
+      IS_LAYOUT-ZEBRA = 'X'.
+      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+        EXPORTING
+          I_CALLBACK_PROGRAM      = SY-REPID
+          IT_FIELDCAT             = L_FIELDCAT[]
+          IS_LAYOUT               = IS_LAYOUT
+          I_SAVE                  = 'A' "控制缺省/特定用户
+          I_CALLBACK_USER_COMMAND = 'USER_COMMAND_QG'
+          I_SCREEN_START_COLUMN   = 45
+          I_SCREEN_END_COLUMN     = 180
+          I_SCREEN_START_LINE     = 10
+          I_SCREEN_END_LINE       = 20
+        TABLES
+          T_OUTTAB                = IT_QGD[]
+        EXCEPTIONS
+          PROGRAM_ERROR           = 1
+          OTHERS                  = 2.
+    WHEN 'WA_GGZD-VBELN'.
+      CALL FUNCTION 'ZFM_CALLSODJ'
+        EXPORTING
+          VBELN  = WA_GGZD-VBELN
+          INTYPE = 'HT'
+          MODE   = 'S'.
+  ENDCASE.
+ENDFORM.
+FORM USER_COMMAND_QG USING R_UCOMM LIKE SY-UCOMM
+                        RS_SELFIELD TYPE SLIS_SELFIELD.
+
+  CASE R_UCOMM.
+    WHEN '&IC1'.
+      CLEAR:IT_QGD.
+      CHECK RS_SELFIELD-TABINDEX <> 0 . "小计行总计行什么的忽略
+      READ TABLE IT_QGD  INDEX RS_SELFIELD-TABINDEX.
+      CHECK SY-SUBRC = 0.
+      CASE RS_SELFIELD-FIELDNAME.
+        WHEN 'BANFN'.
+          PERFORM ME53N(ZPUBFORM) USING IT_QGD-BANFN.
+      ENDCASE.
+    WHEN ''.
+  ENDCASE.
+  RS_SELFIELD-ROW_STABLE = 'X'.
+  RS_SELFIELD-COL_STABLE = 'X'.
+  RS_SELFIELD-REFRESH = 'X'.
+ENDFORM.
+FORM INITLONGTEXT USING P_EDITCONT TYPE REF TO CL_GUI_CUSTOM_CONTAINER
+                         P_GO_EDITOR TYPE REF TO CL_GUI_TEXTEDIT
+                         P_CONTAINER_NAME.
+  CLEAR:TEXTTABLE[],TEXTTABLE.
+  IF P_EDITCONT IS INITIAL.
+    CREATE OBJECT P_EDITCONT
+      EXPORTING
+        CONTAINER_NAME              = P_CONTAINER_NAME
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+
+    CREATE OBJECT P_GO_EDITOR
+      EXPORTING
+        PARENT                     = P_EDITCONT
+        WORDWRAP_MODE              = CL_GUI_TEXTEDIT=>WORDWRAP_AT_FIXED_POSITION
+        WORDWRAP_POSITION          = '100'
+        WORDWRAP_TO_LINEBREAK_MODE = CL_GUI_TEXTEDIT=>TRUE.
+  ENDIF.
+  CALL METHOD P_GO_EDITOR->SET_TOOLBAR_MODE
+    EXPORTING
+      TOOLBAR_MODE = 0.
+  CASE SY-TCODE.
+    WHEN TCODE2 OR TCODE3.
+      CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+        EXPORTING
+          READONLY_MODE = 1.
+    WHEN TCODE1.
+      IF P_XG = 'X'.
+        CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+          EXPORTING
+            READONLY_MODE = 0.
+      ELSE.
+        CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+          EXPORTING
+            READONLY_MODE = 1.
+      ENDIF.
+    WHEN TCODE4 OR TCODE4A  OR TCODE5.
+      CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+        EXPORTING
+          READONLY_MODE = 0.
+    WHEN OTHERS.
+      CALL METHOD P_GO_EDITOR->SET_READONLY_MODE
+        EXPORTING
+          READONLY_MODE = 1.
+  ENDCASE.
+
+  IF P_SUBMIT = 'X'.
+
+  ELSE.
+
+  ENDIF.
+
+  CALL METHOD P_GO_EDITOR->SET_STATUSBAR_MODE
+    EXPORTING
+      STATUSBAR_MODE = 0.
+
+  PERFORM CLEAR_TEXT USING P_GO_EDITOR.
+*  CL_GUI_CONTROL=>SET_FOCUS( P_GO_EDITOR ).
+ENDFORM.
+FORM TAB2SCREEN USING P_GO_EDITOR TYPE REF TO CL_GUI_TEXTEDIT
+                       P_TDID.
+  IF P_GO_EDITOR IS NOT INITIAL.
+*清空
+    CLEAR:TEXTTABLE[],TEXTTABLE.
+    CALL METHOD P_GO_EDITOR->DELETE_TEXT .
+    CALL METHOD CL_GUI_CFW=>FLUSH.
+
+*取出已有的
+    LOOP AT IT_TEXT WHERE TDID = P_TDID.
+      CLEAR:TEXTTABLE.
+      TEXTTABLE-TEXT = IT_TEXT-TEXT.
+      APPEND TEXTTABLE.
+    ENDLOOP.
+    CALL METHOD P_GO_EDITOR->SET_TEXT_AS_STREAM
+      EXPORTING
+        TEXT            = TEXTTABLE[]
+      EXCEPTIONS
+        ERROR_DP        = 1
+        ERROR_DP_CREATE = 2
+        OTHERS          = 3.
+    CALL METHOD CL_GUI_CFW=>FLUSH.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SCREEN2TAB
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> TDID
+*&---------------------------------------------------------------------*
+FORM SCREEN2TAB  USING  P_GO_EDITOR TYPE REF TO CL_GUI_TEXTEDIT
+                        P_TDID.
+  IF P_GO_EDITOR IS NOT INITIAL.
+    CLEAR:TEXTTABLE[],TEXTTABLE.
+    "将容器中内容解析到内表
+    P_GO_EDITOR->GET_TEXT_AS_R3TABLE( IMPORTING TABLE = TEXTTABLE[] ).
+*将切换前的记录
+    DELETE IT_TEXT WHERE TDID = P_TDID.
+    LOOP AT TEXTTABLE.
+      CLEAR:IT_TEXT.
+      IT_TEXT-TDID = P_TDID.
+      IT_TEXT-TEXT = TEXTTABLE-TEXT.
+      APPEND IT_TEXT.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+FORM CLEAR_TEXT USING P_GO_EDITOR1 TYPE REF TO CL_GUI_TEXTEDIT.
+*  REFRESH:TEXTTABLE.
+  CALL METHOD P_GO_EDITOR1->SET_TEXT_AS_STREAM
+    EXPORTING
+      TEXT            = TEXTTABLE[]
+    EXCEPTIONS
+      ERROR_DP        = 1
+      ERROR_DP_CREATE = 2
+      OTHERS          = 3.
+  CALL METHOD CL_GUI_CFW=>FLUSH.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9101 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9101 OUTPUT.
+  LOOP AT SCREEN.
+    CASE SCREEN-GROUP1.
+      WHEN 'A1'.
+        CASE SY-TCODE.
+          WHEN TCODE1.
+            IF P_XG = 'X'.
+              SCREEN-INPUT = 1.
+            ENDIF.
+          WHEN TCODE4 OR TCODE4A OR TCODE5.
+            SCREEN-INPUT = 1.
+        ENDCASE.
+    ENDCASE.
+    MODIFY SCREEN.
+  ENDLOOP.
+* SET PF-STATUS 'xxxxxxxx'.
+* SET TITLEBAR 'xxx'.
+ENDMODULE.
+FORM GETSDJG.
+  CHECK IT_KNUMV[] IS NOT INITIAL.
+  SORT IT_KNUMV BY VBELN POSNR.
+  SELECT *
+    INTO TABLE @DATA(IT_VBAK)
+    FROM VBAK
+    FOR ALL ENTRIES IN @IT_KNUMV
+    WHERE VBELN = @IT_KNUMV-VBELN.
+  SORT IT_VBAK BY VBELN.
+  LOOP AT IT_KNUMV.
+    READ TABLE IT_VBAK INTO VBAK WITH KEY VBELN = IT_KNUMV-VBELN BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      IT_KNUMV-KNUMV = VBAK-KNUMV.
+      MODIFY IT_KNUMV.
+    ENDIF.
+  ENDLOOP.
+  SORT IT_KNUMV BY KNUMV POSNR.
+  SELECT *
+  INTO TABLE IT_KONV
+  FROM V_KONV_CDS
+    FOR ALL ENTRIES IN IT_KNUMV
+  WHERE KNUMV = IT_KNUMV-KNUMV
+    AND KPOSN = IT_KNUMV-POSNR
+    AND KSCHL = 'ZPR0'.
+  SORT IT_KONV BY KNUMV KPOSN.
+  SORT IT_KNUMV BY VBELN POSNR.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form DELCC
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM DEALCC CHANGING P_CC.
+  DATA:CDSTR1  TYPE CHAR100,
+       MENGE1C TYPE CHAR20,
+       MENGE2C TYPE CHAR20,
+       MENGE1  TYPE MENGE_D,
+       MENGE2  TYPE MENGE_D.
+  CLEAR:MENGE1,MENGE2,CDSTR1,MENGE1C,MENGE2C.
+  CDSTR1 = P_CC.
+  PERFORM DELQFW(ZPUBFORM) CHANGING CDSTR1.
+  SPLIT CDSTR1 AT '.' INTO MENGE1C MENGE2C.
+  MENGE1 = MENGE1C.
+  MENGE2 = MENGE2C.
+  IF MENGE2 IS INITIAL.
+    P_CC = MENGE1C.
+  ELSE.
+    P_CC = CDSTR1.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form GETMATNRINFO
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM GETMATNRINFO .
+*判断加工明细门窗
+  CLEAR:MCLX,OUTTAB001[],GCBS.
+  SELECT SINGLE *
+    FROM MARA
+    WHERE MATNR = WA_GGZD-MATNR.
+  CHECK SY-SUBRC = 0.
+*根据物料组判断
+  WA_GGZD-ZZL1 = MARA-ZZL1.
+  WA_GGZD-GROES = MARA-GROES.
+*判断属于哪种类型的排产
+  PERFORM PDMCLX USING MARA-MATKL CHANGING MCLX.
+*判断洁净、钢品排产单-因涉及到ZPP205CDE审核区分
+  PERFORM PDWERKS USING WA_205-WERKS CHANGING GCBS.
+*取001的特征
+  SELECT KSML~CLINT,
+         KSML~POSNR,
+         KSML~ADZHL,
+         KSML~KLART,
+         KSML~IMERK AS ATINN,
+         CABN~ATNAM ,
+         CABN~ATFOR ,
+         CABN~ANZST ,
+         CABN~ANZDZ ,
+         KSSK~OBJEK AS MATNR
+    INTO TABLE @DATA(IT_KSML)
+    FROM KSML INNER JOIN CABN ON KSML~IMERK = CABN~ATINN
+              INNER JOIN KSSK ON KSML~CLINT = KSSK~CLINT
+                             AND KSSK~KLART = '001'
+    WHERE KSSK~OBJEK = @WA_GGZD-MATNR.
+  IF SY-SUBRC EQ 0.
+    SORT IT_KSML BY KLART MATNR ATINN.
+    SELECT *
+      INTO TABLE IT_AUSP
+      FROM AUSP
+      FOR ALL ENTRIES IN IT_KSML
+      WHERE KLART = IT_KSML-KLART
+      AND   OBJEK = IT_KSML-MATNR
+      AND   ATINN = IT_KSML-ATINN.
+    SORT IT_KSML BY MATNR ATINN.
+    LOOP AT IT_AUSP.
+      CLEAR:OUTTAB001.
+      IF IT_AUSP-ATWRT IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      OUTTAB001-MATNR = IT_AUSP-OBJEK.
+      READ TABLE IT_KSML INTO DATA(WA_KSML) WITH KEY MATNR = IT_AUSP-OBJEK
+                                                     ATINN = IT_AUSP-ATINN
+                                                     BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        OUTTAB001-ATNAM = WA_KSML-ATNAM.
+        OUTTAB001-ATWRT = IT_AUSP-ATWRT.
+        APPEND OUTTAB001.
+      ENDIF.
+    ENDLOOP.
+    SORT OUTTAB001 BY MATNR ATNAM.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ADD
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM ADD .
+  DATA:IT_PCD2 LIKE TABLE OF IT_PCD WITH HEADER LINE.
+  DATA:ZPCDHHMAX3 TYPE ZTPP_205A-ZPCDHH.
+*      CLEAR IT_PCD.
+*      INSERT IT_PCD INDEX 1.
+  CLEAR:FIELDS[],RETURNCODE.
+*获取最大行号
+  CLEAR:IT_PCD2[],ZPCDHHMAX3,IT_PCD2.
+  IT_PCD2[] = IT_PCD[].
+  SORT IT_PCD2 BY ZPCDHH DESCENDING.
+  READ TABLE IT_PCD2 INDEX 1.
+*判断当前界面最大行号
+  ZPCDHHMAX3 = IT_PCD2-ZPCDHH.
+
+  IF P_WHT = 'X'.
+    CLEAR:IT_PCD.
+    IT_PCD-MATNR = P_MATNR.
+    IT_PCD-WERKS = P_WERKS.
+    IT_PCD-ZPCDHH = ZPCDHHMAX3 + 10.
+    APPEND IT_PCD.
+    EXIT.
+  ENDIF.
+  CASE MCLX.
+    WHEN 'C'.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '长度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBCKD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '宽度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZXISHU'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '系数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZJJLX'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '类型'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZXXSHM'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZMXBZ'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+    WHEN 'D'.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '长度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZXXSHM'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZMXBZ'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+    WHEN 'A'.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '长度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBCKD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '宽度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZJJLX'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '类型'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZKQFX'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '开门方向'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDTMC'.
+      FIELDS-FIELDTEXT = '单体名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZLMZX'.
+      FIELDS-FIELDTEXT = '立面/轴线'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZXXSHM'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZMXBZ'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+    WHEN 'B'.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '长度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBCKD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '宽度'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZJJLX'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '类型'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDTMC'.
+      FIELDS-FIELDTEXT = '单体名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZLMZX'.
+      FIELDS-FIELDTEXT = '立面/轴线'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZXXSHM'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZMXBZ'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+    WHEN 'E'."通用
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = TEXT-001.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZYYKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDTMC'.
+      FIELDS-FIELDTEXT = '单体名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZLMZX'.
+      FIELDS-FIELDTEXT = '立面轴线'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDETAILNAME'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDREMARK'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+    WHEN 'F'."折弯件
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = TEXT-001.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZZHANKUAN'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '展宽'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZYYKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZZS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '折数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZZWHD1'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '折弯厚度(厚度)'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZDANJ'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '单价'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCDTX'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '承兑贴息'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZYF'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '运费'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDETAILNAME'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDREMARK'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+    WHEN 'G'."丽彩幕
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZBIANHAO'.
+      FIELDS-FIELDTEXT = '编号'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = TEXT-001.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZBCKD'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '宽度(毫米)'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZYYKS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '块数'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZXISHU'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '系数'.
+      APPEND FIELDS.
+*      CLEAR:FIELDS.
+*      FIELDS-TABNAME = 'ZTPP_205A'.
+*      FIELDS-FIELDNAME = 'ZJJLX'.
+*      FIELDS-FIELD_OBL = 'X'.
+*      FIELDS-FIELDTEXT = '类型'.
+*      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCDTX'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '承兑贴息'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZYF'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '运费'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDTMC'.
+      FIELDS-FIELDTEXT = '单体名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZLMZX'.
+      FIELDS-FIELDTEXT = '立面/轴线'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDETAILNAME'.
+      FIELDS-FIELDTEXT = '详细名称'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205A'.
+      FIELDS-FIELDNAME = 'ZDREMARK'.
+      FIELDS-FIELDTEXT = '备注'.
+      APPEND FIELDS.
+  ENDCASE.
+  CHECK FIELDS[] IS NOT INITIAL.
+  CALL FUNCTION 'POPUP_GET_VALUES'
+    EXPORTING
+      POPUP_TITLE     = '添加'
+    IMPORTING
+      RETURNCODE      = RETURNCODE
+    TABLES
+      FIELDS          = FIELDS
+    EXCEPTIONS
+      ERROR_IN_FIELDS = 1
+      OTHERS          = 2.
+  IF RETURNCODE IS INITIAL
+    OR RETURNCODE = ''.
+    CLEAR:IT_PCD.
+    LOOP AT FIELDS.
+      ASSIGN COMPONENT FIELDS-FIELDNAME OF STRUCTURE IT_PCD TO <FS>.
+      IF SY-SUBRC EQ 0.
+        <FS> = FIELDS-VALUE.
+      ENDIF.
+    ENDLOOP.
+*填充其他字段
+*取价格
+    CLEAR:IT_KNUMV[],IT_KNUMV,O_FLAG.
+    IT_KNUMV-VBELN = WA_205-VBELN.
+    IT_KNUMV-POSNR = WA_205-POSNR.
+    COLLECT IT_KNUMV.
+*获取单价
+    PERFORM GETSDJG.
+    CLEAR:IT_KONV,VBAP.
+    READ TABLE IT_KNUMV WITH KEY VBELN = WA_GGZD-VBELN
+                                 POSNR = WA_205-POSNR
+                                 BINARY SEARCH.
+    IF SY-SUBRC EQ 0.
+      READ TABLE IT_KONV WITH KEY KNUMV = IT_KNUMV-KNUMV
+                                  KPOSN = IT_KNUMV-POSNR
+                                  BINARY SEARCH.
+      IF IT_KONV-KPEIN GT 0.
+        IT_KONV-KBETR = IT_KONV-KBETR / IT_KONV-KPEIN.
+      ENDIF.
+    ENDIF.
+    SELECT SINGLE *
+      FROM VBAP
+      WHERE VBELN = WA_205-VBELN
+      AND   POSNR = WA_205-POSNR.
+    PERFORM DEALPCDITEM.
+
+
+    IT_PCD-ZPCDHH = ZPCDHHMAX3 + 10.
+    CASE MCLX.
+      WHEN 'E' OR 'F' OR 'G'.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZYYKS.
+      WHEN OTHERS.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+    ENDCASE.
+    WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZMS.
+    WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZJSSL1.
+    WA_GGZD-ZZJE = WA_GGZD-ZZJE + IT_PCD-JE.
+    APPEND IT_PCD.
+    CALL METHOD CL_GUI_CFW=>SET_NEW_OK_CODE
+      EXPORTING
+        NEW_CODE = 'PAI'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT04
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT04 .
+  DATA:FIELDCATEX TYPE SLIS_T_FIELDCAT_ALV.
+  CLEAR IT_TAB2.
+  CASE MCLX.
+    WHEN 'C'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+'ZBIANHAO' '编号' '' '' '' '' ,
+'ZJJLX' '类型' '' '' '' '' ,
+'ZBCKD' '宽度(毫米)' '' '' '' '' ,
+'ZCD' '长度(毫米)' '' '' '' '' ,
+'ZKS' '块数' '' '' '' '' ,
+'ZXISHU' '系数' '' '' '' '' ,
+'ZMXBZ' '备注' '' '' '' '' .
+    WHEN 'D'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+      'ZBIANHAO' '编号' '' '' '' '',
+      'ZCD' '长度(米)' '' '' '' '',
+      'ZKS' '块数' '' '' '' '',
+      'ZXXSHM' '详细说明' '' '' '' '',
+      'ZMXBZ ' '备注' '' '' '' ''.
+    WHEN 'A'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+ 'ZBIANHAO' '编号' '' '' '' '',
+ 'ZCD' '长度(毫米)' '' '' '' '',
+ 'ZBCKD' '宽度(毫米)' '' '' '' '',
+ 'ZKS' '块数' '' '' '' '',
+ 'ZMLX' '类型' '' '' '' '',
+ 'ZKQFX' '开门方向' '' '' '' '',
+ 'ZDTMC' '单体名称' '' '' '' '',
+ 'ZLMZX' '立面/轴线' '' '' '' '',
+ 'ZXXSHM' '详细名称' '' '' '' '',
+ 'ZMXBZ' '备注' '' '' '' ''.
+    WHEN 'B'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+ 'ZBIANHAO' '编号' '' '' '' '',
+ 'ZCD' '长度(毫米)' '' '' '' '',
+ 'ZBCKD' '宽度(毫米)' '' '' '' '',
+ 'ZKS' '块数' '' '' '' '',
+ 'ZMLX' '类型' '' '' '' '',
+ 'ZDTMC' '单体名称' '' '' '' '',
+ 'ZLMZX' '立面/轴线' '' '' '' '',
+ 'ZXXSHM' '详细名称' '' '' '' '',
+ 'ZMXBZ' '备注' '' '' '' ''.
+    WHEN 'E'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+'ZBIANHAO' '编号' '' '' '' '' ,
+'ZCD' TEXT-001 '' '' '' '' ,
+'ZYYKS' '引用块数' '' '' '' '' ,
+'ZDETAILNAME' '详细名称' '' '' '' '' ,
+'ZJSSL' '数量' '' '' '' '' ,
+'ZDTMC' '单体名称' '' '' '' '' ,
+'ZLMZX' '立面/轴线' '' '' '' '' ,
+'ZDREMARK' '备注' '' '' '' '' .
+    WHEN 'F'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+'ZBIANHAO' '编号' '' '' '' '' ,
+'ZCD' TEXT-001 '' '' '' '' ,
+'ZZHANKUAN' '展宽' '' '' '' '' ,
+'ZYYKS' '引用块数' '' '' '' '' ,
+'ZZS' '折数' '' '' '' '' ,
+'ZZWHD1' '折弯厚度(厚度)' '' '' '' '' ,
+'ZDANJ' '单价' '' '' '' '' ,
+'ZCDTX' '承兑贴息' '' '' '' '' ,
+'ZYF' '运费' '' '' '' '' ,
+'ZDTMC' '单体名称' '' '' '' '' ,
+'ZLMZX' '立面/轴线' '' '' '' '' ,
+'ZDETAILNAME' '详细名称' '' '' '' '' ,
+'ZDREMARK' '备注' '' '' '' '' .
+    WHEN 'G'.
+      PERFORM INIT_FIELDCAT(ZPUBFORM) TABLES FIELDCATEX USING:
+'ZBIANHAO' '编号' '' '' '' '' ,
+'ZCD' TEXT-001 '' '' '' '' ,
+'ZBCKD' '宽度(毫米)' '' '' '' '' ,
+'ZYYKS' '引用块数' '' '' '' '' ,
+'ZXISHU' '系数' '' '' '' '' ,
+'ZJJLX' '类型' '' '' '' '' ,
+'ZCDTX' '承兑贴息' '' '' '' '' ,
+'ZYF' '运费' '' '' '' '' ,
+'ZDTMC' '单体名称' '' '' '' '' ,
+'ZLMZX' '立面/轴线' '' '' '' '' ,
+'ZDETAILNAME' '详细名称' '' '' '' '' ,
+'ZDREMARK' '备注' '' '' '' '' .
+  ENDCASE.
+  CHECK FIELDCATEX IS NOT INITIAL.
+  PERFORM ITABSTRUCTOCLIP(ZPUBFORM) USING FIELDCATEX 0 0.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT05
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT05 .
+  DATA:ANSWER05 TYPE CHAR1.
+  CLEAR:ZTPP_205B.
+  SELECT SINGLE *
+    FROM ZTPP_205B
+    WHERE ZPCDH = WA_GGZD-ZPCDH.
+  CASE ZTPP_205B-ZADUIT.
+    WHEN 'Z' OR 'S'.
+      PERFORM CONFIRMACT(ZPUBFORM) USING '' CHANGING ANSWER05.
+      CHECK ANSWER = '1'.
+      DELETE FROM ZTPP_205A WHERE ZPCDH = WA_GGZD-ZPCDH.
+      DELETE FROM ZTPP_205B WHERE ZPCDH = WA_GGZD-ZPCDH.
+      DELETE FROM ZTPP_205 WHERE ZPCDH = WA_GGZD-ZPCDH.
+      COMMIT WORK.
+      MESSAGE '删除成功' TYPE 'I'.
+      LEAVE TO SCREEN 0.
+    WHEN OTHERS.
+      MESSAGE S000(OO) WITH '排产单状态不允许删除' DISPLAY LIKE 'E'.
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FILL1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FILL1 .
+  DATA:C_FLAG TYPE CHAR1.
+  CLEAR:FIELDS[],RETURNCODE.
+  CLEAR:FIELDS.
+  CLEAR:IT_PCD.
+*任取一行作为默认值
+  READ TABLE IT_PCD INDEX 1.
+  CASE GCBS.
+    WHEN 'B'.
+    WHEN 'A'.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCDTX'.
+*      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-VALUE = IT_PCD-ZCDTX.
+      PERFORM DELQFW(ZPUBFORM) CHANGING FIELDS-VALUE.
+      FIELDS-FIELDTEXT = '承兑贴息'.
+      APPEND FIELDS.
+  ENDCASE.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZYF'.
+  FIELDS-FIELD_OBL = 'X'.
+  FIELDS-VALUE = IT_PCD-ZYF.
+  PERFORM DELQFW(ZPUBFORM) CHANGING FIELDS-VALUE.
+  FIELDS-FIELDTEXT = '运费'.
+  APPEND FIELDS.
+
+
+
+
+  CALL FUNCTION 'POPUP_GET_VALUES'
+    EXPORTING
+      POPUP_TITLE     = '批量填充'
+    IMPORTING
+      RETURNCODE      = RETURNCODE
+    TABLES
+      FIELDS          = FIELDS
+    EXCEPTIONS
+      ERROR_IN_FIELDS = 1
+      OTHERS          = 2.
+  LOOP AT IT_PCD.
+    LOOP AT FIELDS.
+      ASSIGN COMPONENT FIELDS-FIELDNAME OF STRUCTURE IT_PCD TO <FS>.
+      IF SY-SUBRC EQ 0.
+        IF FIELDS-VALUE IS NOT INITIAL.
+          PERFORM CHECKMENGE(ZPUBFORM) CHANGING FIELDS-VALUE C_FLAG.
+          IF C_FLAG NE 'E'.
+            PERFORM DELQFW(ZPUBFORM) CHANGING FIELDS-VALUE.
+            <FS> = FIELDS-VALUE.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    MODIFY IT_PCD.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FILL2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM FILL2 .
+*管控填入其他价格
+  DATA:C_FLAG TYPE CHAR1.
+  CLEAR:FIELDS[],RETURNCODE.
+  CLEAR:FIELDS,RETURNCODE.
+  CASE GCBS.
+    WHEN 'B'.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZDZF'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '吊装费'.
+      APPEND FIELDS.
+  ENDCASE.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZGKCB'.
+  FIELDS-FIELD_OBL = 'X'.
+  FIELDS-FIELDTEXT = '管控成本'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZMLJ'.
+  FIELDS-FIELD_OBL = 'X'.
+  FIELDS-FIELDTEXT = '毛利价'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZJCML'.
+  FIELDS-FIELD_OBL = 'X'.
+  FIELDS-FIELDTEXT = '基础毛利'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZKHDJ'.
+  FIELDS-FIELDTEXT = '考核单价'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZWBDJ'.
+  FIELDS-FIELDTEXT = '外板吨价'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZNBDJ'.
+  FIELDS-FIELDTEXT = '内板吨价'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZZZFY'.
+  FIELDS-FIELDTEXT = '制造费用'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZXCJG'.
+  FIELDS-FIELDTEXT = '芯材价格'.
+  APPEND FIELDS.
+  CLEAR:FIELDS.
+  FIELDS-TABNAME = 'ZSPP202'.
+  FIELDS-FIELDNAME = 'ZQTFC'.
+  FIELDS-FIELDTEXT = '其他辅材'.
+  APPEND FIELDS.
+*任取一行作为默认值
+  CLEAR:IT_PCD.
+  READ TABLE IT_PCD INDEX 1.
+  IF SY-SUBRC EQ 0.
+    LOOP AT FIELDS.
+      ASSIGN COMPONENT FIELDS-FIELDNAME OF STRUCTURE IT_PCD TO <FS>.
+      IF SY-SUBRC EQ 0.
+        IF <FS> IS NOT INITIAL.
+          FIELDS-VALUE = <FS>.
+          PERFORM DELQFW(ZPUBFORM) CHANGING FIELDS-VALUE.
+        ENDIF.
+      ENDIF.
+      MODIFY FIELDS .
+    ENDLOOP.
+  ENDIF.
+
+  CALL FUNCTION 'POPUP_GET_VALUES'
+    EXPORTING
+      POPUP_TITLE     = '批量填充'
+    IMPORTING
+      RETURNCODE      = RETURNCODE
+    TABLES
+      FIELDS          = FIELDS
+    EXCEPTIONS
+      ERROR_IN_FIELDS = 1
+      OTHERS          = 2.
+  IF RETURNCODE IS INITIAL.
+    LOOP AT IT_PCD.
+      LOOP AT FIELDS.
+        PERFORM CHECKMENGE(ZPUBFORM) CHANGING FIELDS-VALUE C_FLAG.
+        CHECK C_FLAG NE 'E'.
+        PERFORM DELQFW(ZPUBFORM) CHANGING FIELDS-VALUE.
+        ASSIGN COMPONENT FIELDS-FIELDNAME OF STRUCTURE IT_PCD TO <FS>.
+        IF SY-SUBRC EQ 0.
+          <FS> = FIELDS-VALUE.
+        ENDIF.
+      ENDLOOP.
+      MODIFY IT_PCD.
+    ENDLOOP.
+*设置颜色
+    IF GCBS = 'A'.
+      LOOP AT IT_PCD WHERE ZMLJ LT 0.
+        IF IT_PCD-ZMLJ LT 0.
+          CLEAR:WA_CELLCOLOR.
+          WA_CELLCOLOR-FNAME = 'ZMLJ'.
+          WA_CELLCOLOR-COLOR-COL = '6'.
+          WA_CELLCOLOR-COLOR-INT = '1'.
+          APPEND WA_CELLCOLOR TO IT_PCD-CELLCOLOR.
+          MODIFY IT_PCD.
+        ELSE.
+          DELETE IT_PCD-CELLCOLOR WHERE FNAME = 'ZMLJ'.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form DEALPCDITEM
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM DEALPCDITEM .
+  IT_PCD-ZPR0 = IT_KONV-KBETR.
+  IT_PCD-ZZL1 = WA_GGZD-ZZL1.
+  CASE MCLX.
+    WHEN 'A' OR 'B'.
+*001字段赋值及字段对照
+      LOOP AT OUTTAB001.
+        ASSIGN COMPONENT OUTTAB001-ATNAM OF STRUCTURE IT_PCD TO <FS>.
+        IF SY-SUBRC EQ 0.
+          <FS> = OUTTAB001-ATWRT.
+        ENDIF.
+      ENDLOOP.
+      IF IT_PCD-ZMKG IS INITIAL.
+        READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                      ATNAM = 'ZMDG'
+                                      BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-ZMKG = OUTTAB001-ATWRT.
+        ENDIF.
+      ENDIF.
+      IF IT_PCD-ZMKK IS INITIAL.
+        READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                      ATNAM = 'ZMDK'
+                                      BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-ZMKK = OUTTAB001-ATWRT.
+        ENDIF.
+      ENDIF.
+      IF IT_PCD-ZPTYS IS INITIAL.
+        READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                      ATNAM = 'ZMSPTYS'
+                                      BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-ZPTYS = OUTTAB001-ATWRT.
+        ENDIF.
+      ENDIF.
+      IF IT_PCD-ZPTXG IS INITIAL.
+        READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                      ATNAM = 'ZMSPTXG'
+                                      BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-ZPTXG = OUTTAB001-ATWRT.
+        ENDIF.
+      ENDIF.
+      READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                    ATNAM = 'ZMSCYB'
+                                    BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        IT_PCD-ZSCYB = OUTTAB001-ATWRT.
+      ENDIF.
+      IF IT_PCD-ZSCYB IS INITIAL.
+        READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                      ATNAM = 'ZSCYB'
+                                      BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_PCD-ZSCYB = OUTTAB001-ATWRT.
+        ENDIF.
+      ENDIF.
+*      CASE MCLX.
+*        WHEN 'A'.
+*          IT_PCD-ZCD = IT_PCD-ZMKG.
+*          IT_PCD-ZBCKD = IT_PCD-ZMKK.
+*        WHEN 'B'.
+*          IT_PCD-ZCD = IT_PCD-ZSCGD.
+*          IT_PCD-ZBCKD = IT_PCD-ZSCKD.
+*      ENDCASE.
+      "门窗长宽都按毫米
+      IT_PCD-ZJSSL1 = IT_PCD-ZKS.
+      IT_PCD-ZMS = IT_PCD-ZKS * IT_PCD-ZCD / 1000.
+      IT_PCD-ZPINGFANGSHU =  IT_PCD-ZBCKD * IT_PCD-ZMS / 1000.
+      IT_PCD-JE = IT_PCD-ZPR0 * IT_PCD-ZJSSL1.
+    WHEN 'C' OR 'D'.
+      CASE MCLX.
+        WHEN 'D'.
+          CLEAR VBAP.
+          SELECT SINGLE *
+            FROM VBAP
+            WHERE VBELN = WA_205-VBELN
+            AND   POSNR = WA_205-POSNR.
+          PERFORM DELQFW(ZPUBFORM) CHANGING VBAP-ZXISHU.
+          IT_PCD-ZXISHU = VBAP-ZXISHU.
+      ENDCASE.
+
+      CASE MCLX.
+        WHEN 'C'."手工板按毫米，故除1000.
+          IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZKS / 1000.
+        WHEN 'D'."机制板按米
+          IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZKS .
+      ENDCASE.
+      IT_PCD-ZJSSL1 = IT_PCD-ZMS * IT_PCD-ZXISHU.
+      IT_PCD-JE = IT_PCD-ZPR0 * IT_PCD-ZJSSL1.
+    WHEN 'E' OR 'F' OR 'G'.
+      "丽彩幕系数批导/手工添加,系数不填,则按逻辑取
+      CASE MCLX.
+        WHEN 'G'.
+          IF IT_PCD-ZXISHU IS INITIAL.
+            PERFORM CALXISHU USING IT_PCD-ZBCKD
+                  CHANGING IT_PCD-ZXISHU.
+          ENDIF.
+        WHEN OTHERS.
+          PERFORM CALXISHU USING ''
+                CHANGING IT_PCD-ZXISHU.
+      ENDCASE.
+
+      IT_PCD-ZMS = IT_PCD-ZCD * IT_PCD-ZYYKS.
+      IF MCLX = 'F'."折弯件以上传为准，不取合同
+        IT_PCD-ZPR0 = IT_PCD-ZDANJ.
+      ELSE.
+        IT_PCD-ZDANJ = IT_PCD-ZPR0.
+      ENDIF.
+      CLEAR:MARA.
+      SELECT SINGLE *
+        FROM MARA
+        WHERE MATNR = WA_GGZD-MATNR.
+      CASE MARA-MATKL.
+        WHEN 'B0106'.
+          CLEAR:ZHD,ZYCZK,JSSL.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZHD'.
+          IF SY-SUBRC EQ 0.
+            ZHD = OUTTAB001-ATWRT.
+          ENDIF.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZYCZK'.
+          IF SY-SUBRC EQ 0.
+            ZYCZK = OUTTAB001-ATWRT.
+          ENDIF.
+          JSSL = IT_PCD-ZCD * '7.85' * ZYCZK * ZHD / 1000000.
+          IT_PCD-ZJSSL1 = IT_PCD-ZYYKS * JSSL.
+        WHEN OTHERS.
+          IT_PCD-ZJSSL1 = IT_PCD-ZXISHU * IT_PCD-ZMS.
+      ENDCASE.
+      IT_PCD-JE = IT_PCD-ZDANJ * IT_PCD-ZJSSL1.
+      IT_PCD-ZPINGFANGSHU = IT_PCD-ZMS * IT_PCD-ZXISHU.
+  ENDCASE.
+*钢品ZKS=ZYYKS，前台显示ZYYKS
+  IF GCBS = 'A'.
+    IT_PCD-ZKS = IT_PCD-ZYYKS.
+  ENDIF.
+  IT_PCD-ZJSSL = IT_PCD-ZJSSL1.
+  IT_PCD-ZPCSL = IT_PCD-ZJSSL1.
+  PERFORM DELQFW(ZPUBFORM) CHANGING IT_PCD-ZJSSL.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form PDWERKS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_205_WERKS
+*&      <-- GCBS
+*&---------------------------------------------------------------------*
+FORM PDWERKS  USING    P_WA_205_WERKS
+              CHANGING P_GCBS.
+  CLEAR:P_GCBS.
+  CASE P_WA_205_WERKS.
+    WHEN '3002' OR '3012' OR '3022'
+      OR '3062' OR '3072'.
+      P_GCBS = 'B'."洁净
+    WHEN '3000' OR '3005' OR '3010'
+      OR '3015' OR '3019' OR '3050'
+      OR '3060' OR '3070' OR '3090'.
+      P_GCBS = 'A'."钢品
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Module STATUS_9109 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE STATUS_9109 OUTPUT.
+* SET PF-STATUS 'xxxxxxxx'.
+* SET TITLEBAR 'xxx'.
+  "创建容器
+  IF ALVGRID_CK IS INITIAL.
+    CREATE OBJECT CONTAIN_CK
+      EXPORTING
+        CONTAINER_NAME              = 'CONT_CK'
+      EXCEPTIONS
+        CNTL_ERROR                  = 1
+        CNTL_SYSTEM_ERROR           = 2
+        CREATE_ERROR                = 3
+        LIFETIME_ERROR              = 4
+        LIFETIME_DYNPRO_DYNPRO_LINK = 5.
+    IF SY-SUBRC NE 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+                 WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+    CREATE OBJECT ALVGRID_CK
+      EXPORTING
+        I_PARENT = CONTAIN_CK.
+
+    CALL METHOD CL_GUI_CFW=>DISPATCH.
+
+    CREATE OBJECT LCL_EVENT_RECEIVER_CK.
+    SET HANDLER LCL_EVENT_RECEIVER_CK->HANDLE_DOUBLE_CLICK_CK FOR ALVGRID_CK.
+    SET HANDLER LCL_EVENT_RECEIVER_CK->HANDLE_DATA_CHANGED_CK FOR ALVGRID_CK.
+    SET HANDLER LCL_EVENT_RECEIVER_CK->HANDLE_HOTSPOT_CLICK_CK FOR ALVGRID_CK."热点点击
+    SET HANDLER LCL_EVENT_RECEIVER_CK->HANDLE_TOOLBAR_CK FOR ALVGRID_CK."增加按钮
+    SET HANDLER LCL_EVENT_RECEIVER_CK->HANDLE_USER_COMMAND_CK FOR ALVGRID_CK."按钮响应
+    SET HANDLER LCL_EVENT_RECEIVER_CK->HANDLE_ON_F4_CK FOR ALVGRID_CK."按钮响应
+    ALVGRID_CK->REGISTER_EDIT_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_MODIFIED )."mc_evt_enter
+    ALVGRID_CK->REGISTER_DELAYED_EVENT( I_EVENT_ID = CL_GUI_ALV_GRID=>MC_EVT_DELAYED_CHANGE_SELECT )."MC_EVT_DELAYED_CHANGE_SELECT
+
+    PERFORM CALLALV_CK.
+  ELSE.
+    PERFORM CALLALV_CK.
+  ENDIF.
+*刷新ALV
+  PERFORM REFRESHALV.
+ENDMODULE.
+FORM REFRESHALV .
+  IS_STABLE-ROW = 'X'.
+  IS_STABLE-COL = 'X'.
+  IF ALVGRID_CK IS NOT INITIAL.
+    CALL METHOD ALVGRID_CK->REFRESH_TABLE_DISPLAY
+      EXPORTING
+        IS_STABLE = IS_STABLE.
+  ENDIF.
+ENDFORM.                    " REFRESHALV
+*&---------------------------------------------------------------------*
+*& Form CALLALV_CK
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM CALLALV_CK .
+  CLEAR:IT_FIELDCAT_CK.
+  PERFORM FILLFIELDCAT(ZPUBFORM) TABLES IT_FIELDCAT_CK USING:
+'CHBOX' '选择' '' '' ,
+'DELFLG' '删除标记' '' '' ,
+*'ZPCDH' '排产单号' '' '' ,
+'ZCKXH' '序号' '' '' ,
+'ZCKFS' '冲孔方式' 'ZTPP_205D' '' ,
+'ZCKFST' '冲孔方式描述' '' '' ,
+'ZCKSL' '冲孔数量' 'ZTPP_205D' '' ,
+'ZCKJE' '冲孔金额' 'ZTPP_205D' '' ,
+'ZCKJGF' '冲孔加工费' 'ZTPP_205D' '' ,
+'ZCKBZ' '冲孔备注' 'ZTPP_205D' '' .
+  LOOP AT IT_FIELDCAT_CK INTO WA_FIELDCAT.
+    CASE WA_FIELDCAT-FIELDNAME.
+      WHEN 'DELFLG'.
+        WA_FIELDCAT-CHECKBOX = 'X'.
+      WHEN 'ZCKFS' OR 'ZCKSL' OR 'ZCKJE'
+         OR 'ZCKJGF' OR 'ZCKBZ'.
+        CASE SY-TCODE.
+          WHEN TCODE5.
+            WA_FIELDCAT-EDIT = 'X'.
+          WHEN TCODE1.
+            IF P_XG = 'X'.
+              WA_FIELDCAT-EDIT = 'X'.
+            ENDIF.
+        ENDCASE.
+    ENDCASE.
+    MODIFY IT_FIELDCAT_CK FROM WA_FIELDCAT.
+  ENDLOOP.
+  PERFORM CALLALV(ZPUBFORM)
+  TABLES IT_CKFY USING ALVGRID_CK IT_FIELDCAT_CK '9109'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FRM_HANDLE_USER_COMMAND_CK
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> E_UCOMM
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_USER_COMMAND_CK  USING    P_E_UCOMM.
+  DATA:IT_CKFY1 LIKE TABLE OF IT_CKFY WITH HEADER LINE.
+  DATA:ZCKXHMAX TYPE ZTPP_205D-ZCKXH.
+  CASE P_E_UCOMM.
+    WHEN 'ADD'.
+      CLEAR:FIELDS[],RETURNCODE,IT_CKFY1[],IT_CKFY1,
+      ZCKXHMAX.
+      IT_CKFY1[] = IT_CKFY[].
+      SORT IT_CKFY1 BY ZCKXH DESCENDING.
+      READ TABLE IT_CKFY1 INDEX 1.
+      ZCKXHMAX = IT_CKFY1-ZCKXH.
+*找到最大行号
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205D'.
+      FIELDS-FIELDNAME = 'ZCKFS'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '冲孔方式'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCKSL'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '冲孔数量'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCKJE'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '冲孔金额'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZSPP202'.
+      FIELDS-FIELDNAME = 'ZCKJGF'.
+      FIELDS-FIELD_OBL = 'X'.
+      FIELDS-FIELDTEXT = '冲孔加工费'.
+      APPEND FIELDS.
+      CLEAR:FIELDS.
+      FIELDS-TABNAME = 'ZTPP_205D'.
+      FIELDS-FIELDNAME = 'ZCKBZ'.
+      FIELDS-FIELDTEXT = '冲孔备注'.
+      APPEND FIELDS.
+      CHECK FIELDS[] IS NOT INITIAL.
+      CALL FUNCTION 'POPUP_GET_VALUES'
+        EXPORTING
+          POPUP_TITLE     = '添加'
+        IMPORTING
+          RETURNCODE      = RETURNCODE
+        TABLES
+          FIELDS          = FIELDS
+        EXCEPTIONS
+          ERROR_IN_FIELDS = 1
+          OTHERS          = 2.
+      IF RETURNCODE IS INITIAL
+  OR RETURNCODE = ''.
+        CLEAR:IT_CKFY.
+        IT_CKFY-ZCKXH = ZCKXHMAX + 10.
+        LOOP AT FIELDS.
+          ASSIGN COMPONENT FIELDS-FIELDNAME OF STRUCTURE IT_CKFY TO <FS>.
+          IF SY-SUBRC EQ 0.
+            <FS> = FIELDS-VALUE.
+          ENDIF.
+        ENDLOOP.
+        READ TABLE IT_ZCKFS WITH KEY DOMVALUE_L = IT_CKFY-ZCKFS BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_CKFY-ZCKFST = IT_ZCKFS-DDTEXT.
+        ENDIF.
+        APPEND IT_CKFY.
+        SORT IT_CKFY BY ZCKXH.
+      ENDIF.
+
+    WHEN 'DEL'.
+      READ TABLE IT_CKFY WITH KEY CHBOX  = 'X'.
+      IF SY-SUBRC NE 0.
+        MESSAGE S022 DISPLAY LIKE 'E'.
+        EXIT.
+      ENDIF.
+      LOOP AT IT_CKFY WHERE CHBOX = 'X'.
+        SELECT SINGLE COUNT(*)
+          FROM ZTPP_205D
+          WHERE ZPCDH = WA_GGZD-ZPCDH
+          AND   ZCKXH = IT_CKFY-ZCKXH.
+        IF SY-SUBRC EQ 0.
+          IT_CKFY-DELFLG = 'X'.
+          MODIFY IT_CKFY TRANSPORTING DELFLG.
+        ELSE.
+          DELETE IT_CKFY.
+        ENDIF.
+      ENDLOOP.
+*      CALL METHOD CL_GUI_CFW=>SET_NEW_OK_CODE
+*        EXPORTING
+*          NEW_CODE = 'PAI'.
+    WHEN 'ALL'.
+      LOOP AT IT_CKFY.
+        IT_CKFY-CHBOX = 'X'.
+        MODIFY IT_CKFY TRANSPORTING CHBOX.
+      ENDLOOP.
+    WHEN 'SAL'.
+      LOOP AT IT_CKFY.
+        IT_CKFY-CHBOX = ''.
+        MODIFY IT_CKFY TRANSPORTING CHBOX.
+      ENDLOOP.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SAVECK
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM SAVECK .
+  CHECK IT_CKFY[] IS NOT INITIAL
+  AND   RETURN_JSXD[] IS NOT INITIAL.
+  CLEAR:IT_ZTPP_205D[].
+  LOOP AT IT_CKFY WHERE DELFLG = 'X'.
+    DELETE FROM ZTPP_205D WHERE ZPCDH = WA_GGZD-ZPCDH
+                            AND ZCKXH = IT_CKFY-ZCKXH.
+    DELETE IT_CKFY.
+  ENDLOOP.
+  COMMIT WORK.
+  LOOP AT IT_CKFY.
+    CLEAR:IT_ZTPP_205D.
+    MOVE-CORRESPONDING IT_CKFY TO IT_ZTPP_205D.
+    IT_ZTPP_205D-ZPCDH = WA_GGZD-ZPCDH.
+    APPEND IT_ZTPP_205D.
+  ENDLOOP.
+  CHECK IT_ZTPP_205D[] IS NOT INITIAL.
+  SELECT SINGLE COUNT(*)
+    FROM ZTPP_205D
+    WHERE ZPCDH = WA_GGZD-ZPCDH.
+  IF SY-SUBRC = 0.
+    MODIFY ZTPP_205D FROM TABLE IT_ZTPP_205D.
+  ELSE.
+    INSERT ZTPP_205D FROM TABLE IT_ZTPP_205D.
+  ENDIF.
+  COMMIT WORK.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form CALJSXDZY
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM CALJSXDZY .
+  DELETE IT_JSXDS WHERE ZJSXDID IS INITIAL
+                     OR ZJSXDDID IS INITIAL.
+  IF IT_JSXDS[] IS NOT INITIAL.
+    SORT IT_JSXDS BY ZJSXDID ZJSXDDID.
+    CLEAR:IT_PCKS[],IT_PCKS_SUM[].
+    SELECT *
+      INTO TABLE IT_PCKS
+      FROM ZTPP_205A
+      FOR ALL ENTRIES IN IT_JSXDS
+      WHERE ZJSXDID = IT_JSXDS-ZJSXDID
+      AND ZJSXDDID = IT_JSXDS-ZJSXDDID
+      AND DEL NE 'X'.
+*取技术详单
+    SELECT *
+      INTO TABLE @DATA(IT_JSXDN)
+      FROM ZTPP_211
+      FOR ALL ENTRIES IN @IT_JSXDS
+      WHERE ZJSXDID = @IT_JSXDS-ZJSXDID
+      AND   ZJSXDDID = @IT_JSXDS-ZJSXDDID
+      AND   WERKS = @P_WERKS.
+    SORT IT_JSXDN BY ZJSXDID ZJSXDDID.
+*钢品工厂需要特殊计算，同时考虑界面上和数据库里的数据算占用
+    CASE GCBS.
+      WHEN 'A'.
+        CLEAR:IT_PCDSUM[].
+        IT_PCDSUM[] = IT_PCD[].
+        LOOP AT IT_PCDSUM.
+          IT_PCDSUM-ZPCDH = WA_GGZD-ZPCDH.
+          IT_PCDSUM-ZKS = IT_PCDSUM-ZYYKS.
+          MODIFY IT_PCDSUM.
+        ENDLOOP.
+*排除掉手工添加/批导的-即没有技术详单ID的
+        DELETE IT_PCDSUM WHERE ZJSXDID IS INITIAL
+                            OR ZJSXDDID IS INITIAL.
+        SORT IT_PCDSUM BY ZPCDH ZPCDHH.
+*同一排产单，一行可能同时存在于当前界面与数据库，也可能只存在于当前界面
+*也可能已经删除
+        SORT IT_PCKS BY ZPCDH ZPCDHH.
+        LOOP AT IT_PCDSUM.
+          CLEAR:ZTPP_205A.
+          READ TABLE IT_PCKS  WITH KEY ZPCDH = IT_PCDSUM-ZPCDH
+                                       ZPCDHH = IT_PCDSUM-ZPCDHH
+                                       BINARY SEARCH.
+          IF SY-SUBRC = 0.
+            TABIX = SY-TABIX.
+*若已经在数据库存在，可能存在删除，修改
+            IF IT_PCDSUM-DELFLG = 'X'.
+              IT_PCKS-DEL = 'X'.
+              MODIFY IT_PCKS INDEX TABIX TRANSPORTING DEL.
+            ELSE.
+              IT_PCKS-ZYYKS = IT_PCDSUM-ZYYKS.
+              IT_PCKS-ZKS = IT_PCKS-ZYYKS.
+              MODIFY IT_PCKS INDEX TABIX TRANSPORTING ZYYKS ZKS.
+            ENDIF.
+          ELSE.
+*新增行
+            TABIX = SY-TABIX.
+            CLEAR:IT_PCKS.
+            MOVE-CORRESPONDING IT_PCDSUM TO IT_PCKS.
+            IT_PCKS-ZKS = IT_PCDSUM-ZYYKS.
+            INSERT IT_PCKS INDEX TABIX.
+          ENDIF.
+        ENDLOOP.
+        DELETE IT_PCKS WHERE DEL = 'X'.
+    ENDCASE.
+*将技术详单的已引用块数汇总，同时计算可引用块数
+    CLEAR:IT_PCKS_SUM[].
+    LOOP AT IT_PCKS.
+      CLEAR IT_PCKS_SUM.
+      IT_PCKS_SUM-ZJSXDID   =  IT_PCKS-ZJSXDID  .
+      IT_PCKS_SUM-ZJSXDDID  =  IT_PCKS-ZJSXDDID .
+      IT_PCKS_SUM-ZKS       =  IT_PCKS-ZKS      .
+      COLLECT IT_PCKS_SUM.
+    ENDLOOP.
+    LOOP AT IT_PCKS_SUM.
+      READ TABLE IT_JSXDN INTO ZTPP_211 WITH KEY ZJSXDID = IT_PCKS_SUM-ZJSXDID
+                                                 ZJSXDDID = IT_PCKS_SUM-ZJSXDDID
+                                                 BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        IT_PCKS_SUM-KYYKS = ZTPP_211-ZKS - IT_PCKS_SUM-ZKS.
+      ENDIF.
+      MODIFY IT_PCKS_SUM.
+    ENDLOOP.
+    SORT IT_PCKS_SUM BY ZJSXDID ZJSXDDID.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form F4HELP
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> RETURN_TAB
+*&      --> E_FIELDNAME
+*&      --> P_
+*&      --> WA_PCD
+*&---------------------------------------------------------------------*
+FORM F4HELP  TABLES   P_RETURN_TAB STRUCTURE DDSHRETVAL
+             USING    P_E_FIELDNAME
+                      P_INTERTAB
+                      P_INWA.
+  DATA:BEGIN OF IT_TYPE OCCURS 0,
+         TYPE TYPE ZTPP_211-TYPE,
+       END OF IT_TYPE.
+  DATA:RETFIELD    TYPE DFIES-FIELDNAME,
+       DYNPROFIELD TYPE DYNFNAM.
+  FIELD-SYMBOLS:<F4_TAB1> TYPE STANDARD TABLE .
+  CLEAR:RETFIELD,DYNPROFIELD,P_RETURN_TAB[],IT_TYPE[].
+  CONCATENATE P_INTERTAB '-' P_E_FIELDNAME INTO DYNPROFIELD.
+  RETFIELD = P_E_FIELDNAME.
+  CASE P_E_FIELDNAME.
+    WHEN 'ZJJLX'.
+      CASE MCLX.
+        WHEN 'C'.
+          APPEND '标板' TO IT_TYPE.
+          APPEND '非标' TO IT_TYPE.
+          CHECK IT_TYPE[] IS NOT INITIAL.
+          ASSIGN IT_TYPE[] TO <F4_TAB1>.
+      ENDCASE.
+
+  ENDCASE.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST' "调用函数
+    EXPORTING
+      RETFIELD        = RETFIELD  "搜索帮助内表要输出的的帮助字段名，注：要大写
+      DYNPPROG        = SY-REPID
+      DYNPNR          = SY-DYNNR
+      DYNPROFIELD     = DYNPROFIELD "屏幕字段
+      VALUE_ORG       = 'S'
+    TABLES
+      VALUE_TAB       = <F4_TAB1> "存储搜索帮助内容的内表
+      RETURN_TAB      = P_RETURN_TAB
+    EXCEPTIONS
+      PARAMETER_ERROR = 1
+      NO_VALUES_FOUND = 2
+      OTHERS          = 3.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form SETZSCDW1
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*生产单位取值
+*&---------------------------------------------------------------------*
+FORM SETZSCDW1 .
+  SELECT CRHD~ARBPL AS ZSCDW1,
+         CRTX~KTEXT
+    INTO TABLE @DATA(IT_ZSCDW1)
+    FROM CRHD INNER JOIN CRTX ON CRHD~OBJTY = CRTX~OBJTY
+                             AND CRHD~OBJID = CRTX~OBJID
+    WHERE CRHD~WERKS = @P_WERKS
+    AND   CRTX~SPRAS = @SY-LANGU.
+  CHECK SY-SUBRC = 0.
+  SORT IT_ZSCDW1 BY ZSCDW1.
+  PERFORM ITABTOLIST(ZPUBFORM) TABLES IT_ZSCDW1 USING 'WA_GGZD-ZSCDW1'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form PDMCLX
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> MARA_MATKL
+*&      <-- MCLX
+*&---------------------------------------------------------------------*
+FORM PDMCLX  USING    P_MARA_MATKL
+             CHANGING P_MCLX.
+  CLEAR:P_MCLX.
+  IF P_MARA_MATKL BETWEEN 'D0101' AND 'D0114'."洁净门
+    P_MCLX = 'A'."引加工明细表
+  ELSEIF P_MARA_MATKL+0(3) = 'D02'.
+    P_MCLX = 'B'."引加工明细表-窗
+  ELSEIF P_MARA_MATKL+0(3) = 'A10'
+    OR   P_MARA_MATKL = 'A1401'."手工净化板
+    P_MCLX = 'C'."引技术详单
+  ELSEIF P_MARA_MATKL+0(3) = 'A11'."机制净化板
+    P_MCLX = 'D'."引技术详单
+  ELSEIF P_MARA_MATKL = 'A0100'
+      OR P_MARA_MATKL = 'A0200'
+      OR P_MARA_MATKL = 'A0300'
+      OR P_MARA_MATKL = 'A0400'
+      OR P_MARA_MATKL = 'B0101'
+      OR P_MARA_MATKL = 'B0102'
+      OR P_MARA_MATKL = 'B0103'
+      OR P_MARA_MATKL = 'B0104'
+      OR P_MARA_MATKL = 'B0105'
+      OR P_MARA_MATKL = 'B0106'
+      OR P_MARA_MATKL+0(3) = 'A09'.
+    P_MCLX = 'E'."钢品通用
+  ELSEIF P_MARA_MATKL+0(3) = 'B02'
+      OR P_MARA_MATKL = 'A1301'
+      OR P_MARA_MATKL = 'A1402'
+      OR P_MARA_MATKL = 'B0601'.
+    P_MCLX = 'F'."折弯件
+  ELSEIF P_MARA_MATKL = 'A0500'.
+    P_MCLX = 'G'."丽彩幕
+  ELSE.
+  ENDIF.
+*补充，盖帽物料组为B0201，但要使用通用
+  IF MARA-ZZL1 = '盖帽'.
+    P_MCLX = 'E'.
+  ENDIF.
+ENDFORM.
+*根据传输的物料组判断类型,统一转换为毫米
+FORM TRANSCD USING P_I_MATKL
+             CHANGING P_C_MENGE.
+  DATA:L_MCLX TYPE ZTPP_205B-MCLX.
+  CLEAR:L_MCLX.
+  PERFORM PDMCLX USING P_I_MATKL CHANGING L_MCLX.
+  CASE L_MCLX.
+    WHEN 'D' OR 'E' OR 'F' OR 'G'.
+      P_C_MENGE = P_C_MENGE * 1000.
+  ENDCASE.
+ENDFORM.
+*钢品系数的逻辑
+FORM CALXISHU USING P_BCKD CHANGING P_ZXISHU.
+  CLEAR:P_ZXISHU,VBAP.
+  SELECT SINGLE *
+    FROM VBAP
+    WHERE VBELN = WA_205-VBELN
+    AND   POSNR = WA_205-POSNR.
+  CASE VBAP-VRKME.
+    WHEN 'M'.
+      P_ZXISHU = 1.
+    WHEN 'M2'.
+      CASE MCLX.
+        WHEN 'E'.
+          READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                        ATNAM = 'ZBK'
+                                        BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            P_ZXISHU = OUTTAB001-ATWRT / 1000.
+          ENDIF.
+          IF P_ZXISHU IS INITIAL
+            OR P_ZXISHU = 0.
+            READ TABLE OUTTAB001 WITH KEY MATNR = WA_GGZD-MATNR
+                                          ATNAM = 'ZBKT'
+                                          BINARY SEARCH.
+            IF SY-SUBRC EQ 0.
+              P_ZXISHU = OUTTAB001-ATWRT / 1000.
+            ENDIF.
+          ENDIF.
+        WHEN 'G'.
+          P_ZXISHU = P_BCKD / 1000.
+      ENDCASE.
+  ENDCASE.
+  IF P_ZXISHU IS INITIAL.
+    P_ZXISHU = VBAP-ZXISHU.
+  ENDIF.
+  IF P_ZXISHU IS INITIAL.
+    P_ZXISHU = 1.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form FRM_HANDLE_DATA_CHANGED_CK
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> ER_DATA_CHANGED
+*&---------------------------------------------------------------------*
+FORM FRM_HANDLE_DATA_CHANGED_CK  USING    P_ER_DATA_CHANGED TYPE REF TO CL_ALV_CHANGED_DATA_PROTOCOL..
+  DATA:MOD_DATA    TYPE LVC_T_MODI,
+       WA_MOD_DATA TYPE LVC_S_MODI.
+  DATA:C_FLAG TYPE CHAR1.
+  CLEAR:MOD_DATA,WA_MOD_DATA.
+  MOD_DATA = P_ER_DATA_CHANGED->MT_MOD_CELLS.
+  LOOP AT MOD_DATA INTO WA_MOD_DATA.
+    READ TABLE IT_CKFY INDEX WA_MOD_DATA-ROW_ID.
+    CHECK SY-SUBRC = 0.
+    CASE WA_MOD_DATA-FIELDNAME.
+      WHEN 'ZCKFS'.
+        READ TABLE IT_ZCKFS WITH KEY DOMVALUE_L = WA_MOD_DATA-VALUE BINARY SEARCH.
+        IF SY-SUBRC EQ 0.
+          IT_CKFY-ZCKFST = IT_ZCKFS-DDTEXT.
+        ENDIF.
+        MODIFY IT_CKFY INDEX WA_MOD_DATA-ROW_ID TRANSPORTING ZCKFST.
+    ENDCASE.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form BUT07
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM BUT07 .
+  DATA:ANSWER07 TYPE CHAR1.
+  PERFORM CONFIRMACT(ZPUBFORM) USING '请确认已经将数据复制到剪切板' CHANGING ANSWER07.
+  CHECK ANSWER07 = '1'.
+  PERFORM UPLOAD USING 'CLIP'.
+*公共字段
+  PERFORM FRM_REFRESH_ALV_PCD.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form UPLOAD
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_
+*&---------------------------------------------------------------------*
+FORM UPLOAD  USING P_UPTYPE.
+  REFRESH:IT_PCD,IT_ZWJ,IT_JHB,IT_LCD,
+  IT_TAB1,IT_TAB2,IT_TAB3,IT_TAB4,
+  IT_TAB5,IT_TAB6,IT_TAB7.
+  CLEAR:ZPCDHHMAX2,ZDGS.
+*批量导入
+  CASE MCLX.
+    WHEN 'A'."门
+      ZDGS = 10.
+      ASSIGN IT_TAB3[] TO <FS_TAB>.
+    WHEN 'B'."窗
+      ZDGS = 9.
+      ASSIGN IT_TAB4[] TO <FS_TAB>.
+    WHEN 'C'."手工净化板
+      ZDGS = 7.
+      ASSIGN IT_TAB1[] TO <FS_TAB>.
+    WHEN 'D'."机制净化板
+      ZDGS = 5.
+      ASSIGN IT_TAB2[] TO <FS_TAB>.
+    WHEN 'E'."通用
+      ZDGS = 8.
+      ASSIGN IT_TAB5[] TO <FS_TAB>.
+    WHEN 'F'."折弯件
+      ZDGS = 13.
+      ASSIGN IT_TAB6[] TO <FS_TAB>.
+    WHEN 'G'."丽彩幕
+      ZDGS = 12.
+      ASSIGN IT_TAB7[] TO <FS_TAB>.
+  ENDCASE.
+  CASE P_UPTYPE.
+    WHEN 'EXCEL'.
+      PERFORM EXCELTOITABP(ZPUBFORM) TABLES <FS_TAB> USING WA_EXCEL-P_FILE_PATH ZDGS.
+    WHEN 'CLIP'.
+      PERFORM CLIPTOITAB(ZPUBFORM) TABLES <FS_TAB>.
+  ENDCASE.
+
+  IF <FS_TAB> IS INITIAL.
+    MESSAGE S028 DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+  LOOP AT <FS_TAB> ASSIGNING <WA>.
+    CLEAR IT_PCD.
+    MOVE-CORRESPONDING <WA> TO IT_PCD.
+    ADD 10 TO ZPCDHHMAX2.
+    IT_PCD-ZPCDHH = ZPCDHHMAX2.
+    APPEND IT_PCD.
+  ENDLOOP.
+*填充其他字段
+*取价格
+  CLEAR:IT_KNUMV[],IT_KNUMV,O_FLAG.
+  IT_KNUMV-VBELN = WA_205-VBELN.
+  IT_KNUMV-POSNR = WA_205-POSNR.
+  COLLECT IT_KNUMV.
+*获取单价
+  PERFORM GETSDJG.
+  CLEAR:IT_KONV.
+  READ TABLE IT_KNUMV WITH KEY VBELN = WA_GGZD-VBELN
+                               POSNR = WA_205-POSNR
+                               BINARY SEARCH.
+  IF SY-SUBRC EQ 0.
+    READ TABLE IT_KONV WITH KEY KNUMV = IT_KNUMV-KNUMV
+                                KPOSN = IT_KNUMV-POSNR
+                                BINARY SEARCH.
+    IF IT_KONV-KPEIN GT 0.
+      IT_KONV-KBETR = IT_KONV-KBETR / IT_KONV-KPEIN.
+    ENDIF.
+  ENDIF.
+  CLEAR:WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZSL,VBAP.
+  SELECT SINGLE *
+    FROM VBAP
+    WHERE VBELN = WA_205-VBELN
+    AND   POSNR = WA_205-POSNR.
+  CLEAR: WA_GGZD-ZZKS,WA_GGZD-ZZMS,WA_GGZD-ZZJE,WA_GGZD-ZZSL.
+  LOOP AT IT_PCD.
+    PERFORM DEALPCDITEM.
+    CASE MCLX.
+      WHEN 'E' OR 'F' OR 'G'.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZYYKS.
+      WHEN OTHERS.
+        WA_GGZD-ZZKS = WA_GGZD-ZZKS + IT_PCD-ZKS.
+    ENDCASE.
+    WA_GGZD-ZZMS = WA_GGZD-ZZMS + IT_PCD-ZMS.
+    WA_GGZD-ZZSL = WA_GGZD-ZZSL + IT_PCD-ZJSSL1.
+    WA_GGZD-ZZJE = WA_GGZD-ZZJE + IT_PCD-JE.
+    MODIFY IT_PCD.
+  ENDLOOP.
+ENDFORM.
+*计算验收块数、数量
+FORM CALZYSKS TABLES INTAB STRUCTURE ZSPP205
+                      OUTTAB STRUCTURE ZSPP205.
+  DATA:TABIX1     TYPE SY-TABIX,
+       TABIX2     TYPE SY-TABIX,
+       MENGE1(15) TYPE P DECIMALS 6.
+  CLEAR:OUTTAB[].
+  CHECK INTAB[] IS NOT INITIAL.
+  SORT INTAB BY ZPCDH ZPCDHH.
+  SELECT *
+    INTO TABLE @DATA(IT_205A)
+    FROM ZTPP_205A
+    FOR ALL ENTRIES IN @INTAB
+    WHERE ZPCDH = @INTAB-ZPCDH
+    AND   ZPCDHH = @INTAB-ZPCDHH
+    AND   DEL NE 'X'.
+  IF SY-SUBRC EQ 0.
+    SORT IT_205A BY ZPCDH ZPCDHH.
+    SELECT *
+      INTO TABLE @DATA(IT_206)
+      FROM ZTPP_206
+      FOR ALL ENTRIES IN @IT_205A
+      WHERE ZPCDH = @IT_205A-ZPCDH
+      AND   ZPCDHH = @IT_205A-ZPCDHH.
+    IF SY-SUBRC EQ 0.
+      SORT IT_206 BY PLNUM PLNUMHH.
+      SELECT *
+        INTO TABLE @DATA(IT_316)
+        FROM ZTPP316
+        FOR ALL ENTRIES IN @IT_206
+        WHERE PLNUM = @IT_206-PLNUM
+        AND   PLNUMHH = @IT_206-PLNUMHH.
+      SORT IT_316 BY PLNUM PLNUMHH.
+    ENDIF.
+    CLEAR:MENGE1.
+    LOOP AT IT_205A INTO DATA(WA_205A).
+      CLEAR:TABIX1,OUTTAB,MENGE1.
+      OUTTAB-ZPCDH = WA_205A-ZPCDH.
+      OUTTAB-ZPCDHH = WA_205A-ZPCDHH.
+      READ TABLE IT_206 INTO DATA(WA_206) WITH KEY ZPCDH = WA_205A-ZPCDH
+                                                   ZPCDHH = WA_205A-ZPCDHH
+                                                   BINARY SEARCH.
+      IF SY-SUBRC EQ 0.
+        TABIX1 = SY-TABIX.
+        LOOP AT IT_206 INTO WA_206 FROM TABIX1.
+          IF WA_205A-ZPCDH NE WA_206-ZPCDH
+            OR WA_205A-ZPCDHH NE WA_206-ZPCDHH.
+            EXIT.
+          ENDIF.
+          READ TABLE IT_316 INTO DATA(WA_316) WITH KEY PLNUM = WA_206-PLNUM
+                                                       PLNUMHH = WA_206-PLNUMHH
+                                                       BINARY SEARCH.
+          IF SY-SUBRC EQ 0.
+            TABIX2 = SY-TABIX.
+            LOOP AT IT_316 INTO WA_316 FROM TABIX2.
+              IF WA_316-PLNUM NE WA_206-PLNUM
+                OR WA_316-PLNUMHH NE WA_206-PLNUMHH.
+                EXIT.
+              ENDIF.
+              MENGE1 = MENGE1 + WA_205A-ZXISHU * WA_316-ZZK * WA_316-ZCD.
+              OUTTAB-ZYSKS = OUTTAB-ZYSKS + WA_316-ZZK.
+            ENDLOOP.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+      OUTTAB-YSL = MENGE1.
+      APPEND OUTTAB.
+    ENDLOOP.
+    SORT OUTTAB BY ZPCDH ZPCDHH.
+  ENDIF.
+ENDFORM.

@@ -1,0 +1,130 @@
+FUNCTION zfm_gp_oa_mm_prsp .
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  EXPORTING
+*"     VALUE(RTYPE) TYPE  BAPI_MTYPE
+*"     VALUE(RTMSG) TYPE  BAPI_MSG
+*"  TABLES
+*"      IN_TAB STRUCTURE  ZSMM_202
+*"      T_RESULT STRUCTURE  ZSMM_203 OPTIONAL
+*"----------------------------------------------------------------------
+  zfmdatasave1 'ZFM_GP_OA_MM_PRSP'.
+  zfmdatasave2 'B'.
+  COMMIT WORK.
+
+  DATA:msg TYPE bapi_msg.
+  TABLES eban.
+  CHECK in_tab[] IS NOT INITIAL.
+
+  LOOP AT in_tab.
+    CLEAR:msg,t_result,eban.
+
+    t_result-banfn = in_tab-banfn.
+    SELECT SINGLE *
+      FROM eban
+      WHERE banfn = in_tab-banfn.
+
+    CASE in_tab-frgke.
+      WHEN '1'.
+        CASE eban-frgkz.
+          WHEN 'B'.
+            SET UPDATE TASK LOCAL.
+            PERFORM relpopr(zpubform) USING in_tab-banfn
+                                          'Z1'
+                                          ''
+                                          'PR'
+                                    CHANGING msg.
+            IF msg+0(1) = 'S'.
+*一级审批后进行二级审批
+              DO .
+                CLEAR eban.
+                SELECT SINGLE *
+                  FROM eban
+                  WHERE banfn = in_tab-banfn
+                  AND   frgkz = 'G'.
+                IF sy-subrc EQ 0.
+                  EXIT.
+                ENDIF.
+              ENDDO.
+
+              IF eban-frgkz = 'G'.
+                PERFORM relpopr(zpubform) USING in_tab-banfn
+                                              'Z2'
+                                              ''
+                                              'PR'
+                                        CHANGING msg.
+              ENDIF.
+            ENDIF.
+
+          WHEN 'G'.
+            PERFORM relpopr(zpubform) USING in_tab-banfn
+                                          'Z2'
+                                          ''
+                                          'PR'
+                                    CHANGING msg.
+          WHEN 'R'.
+            msg = 'S:SUCCES'.
+          WHEN OTHERS.
+            msg = 'E:未找到PR'.
+        ENDCASE.
+      WHEN '2'.
+*取消审批
+        CASE eban-frgkz.
+          WHEN 'G'.
+            msg = 'X'.
+            PERFORM relpopr(zpubform) USING in_tab-banfn
+                                          'Z1'
+                                          ''
+                                          'PR'
+                                    CHANGING msg.
+          WHEN 'R'.
+            msg = 'X'.
+            SET UPDATE TASK LOCAL.
+            PERFORM relpopr(zpubform) USING in_tab-banfn
+                                          'Z2'
+                                          ''
+                                          'PR'
+                                    CHANGING msg.
+            IF msg+0(1) = 'S'.
+              msg = 'X'.
+*二级审批撤销后撤销一级审批
+              DO .
+                CLEAR eban.
+                SELECT SINGLE *
+                  FROM eban
+                  WHERE banfn = in_tab-banfn
+                  AND   frgkz = 'G'.
+                IF sy-subrc EQ 0.
+                  EXIT.
+                ENDIF.
+              ENDDO.
+              PERFORM relpopr(zpubform) USING in_tab-banfn
+                                            'Z1'
+                                            ''
+                                            'PR'
+                                      CHANGING msg.
+            ENDIF.
+        ENDCASE.
+    ENDCASE.
+
+    IF msg+0(1) = 'S'.
+      t_result-flag = 'Y'.
+    ELSE.
+      t_result-flag = 'N'.
+    ENDIF.
+    t_result-message = msg.
+    APPEND t_result.
+  ENDLOOP.
+
+  LOOP AT t_result WHERE flag = 'N'.
+    CONCATENATE t_result-message rtmsg INTO rtmsg.
+  ENDLOOP.
+  IF sy-subrc = 0.
+    rtype = 'E'.
+  ELSE.
+    rtype = 'S'.
+    rtmsg = 'SUCCESS'.
+  ENDIF.
+
+  zfmdatasave2 'R'.
+ENDFUNCTION.

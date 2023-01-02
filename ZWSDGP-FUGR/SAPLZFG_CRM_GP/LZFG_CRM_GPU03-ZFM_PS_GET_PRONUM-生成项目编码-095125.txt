@@ -1,0 +1,99 @@
+FUNCTION zfm_ps_get_pronum.
+*"----------------------------------------------------------------------
+*"*"本地接口：
+*"  IMPORTING
+*"     VALUE(PROFL) TYPE  PROFIDPROJ
+*"  EXPORTING
+*"     VALUE(PSPNR) TYPE  PS_PSPID
+*"----------------------------------------------------------------------
+  DATA : werks_bs TYPE char20.
+  DATA : znumber  TYPE char10.
+  DATA : num2      TYPE char3.
+  DATA: temp TYPE char4.
+
+  SELECT SINGLE prart, zxmxf
+    INTO (@DATA(ls_prart), @DATA(ls_zxmxf))
+    FROM ztps002a
+    WHERE profl = @profl.
+
+  werks_bs = |{ ls_prart }{ Ls_zxmxf }{ sy-datum+2(2) }|.
+
+  CALL FUNCTION 'ZNUMS_UPDATE'
+    EXPORTING
+      repid    = sy-repid
+      werks    = werks_bs
+      tcode    = sy-tcode
+      flag     = 'Y'
+      "initnum  = '3000'
+      weishu   = 4
+    IMPORTING
+      znumber  = znumber
+    EXCEPTIONS
+      overflow = 1
+      OTHERS   = 2.
+  IF znumber < 1000.
+    num2 = znumber+1(3).
+    pspnr = |{ werks_bs }{ num2 }|.
+  ELSEIF znumber >= 1000 AND znumber < 3600.
+    temp = znumber.
+    CASE temp(2).
+      WHEN 10 .
+        num2 = 'A' && temp+2(2)  .
+      WHEN 11 .
+        num2 = 'B' && temp+2(2)  .
+      WHEN 12.
+        num2 = 'C' && temp+2(2)  .
+      WHEN 13 .
+        num2 = 'D' && temp+2(2)  .
+      WHEN 14 .
+        num2 = 'E' && temp+2(2)  .
+      WHEN 15.
+        num2 = 'F' && temp+2(2)  .
+      WHEN 16 .
+        num2 = 'G' && temp+2(2)  .
+      WHEN 17 .
+        num2 = 'H' && temp+2(2)  .
+      WHEN 18.
+        num2 = 'I' && temp+2(2)  .
+      WHEN 19 .
+        num2 = 'J' && temp+2(2)  .
+      WHEN 20 .
+        num2 = 'K' && temp+2(2)  .
+      WHEN 21.
+        num2 = 'L' && temp+2(2)  .
+      WHEN 22 .
+        num2 = 'M' && temp+2(2)  .
+      WHEN 23 .
+        num2 = 'N' && temp+2(2)  .
+      WHEN 24.
+        num2 = 'O' && temp+2(2)  .
+      WHEN 25 .
+        num2 = 'P' && temp+2(2)  .
+      WHEN 26 .
+        num2 = 'Q' && temp+2(2)  .
+      WHEN 27.
+        num2 = 'R' && temp+2(2)  .
+      WHEN 28 .
+        num2 = 'S' && temp+2(2)  .
+      WHEN 29 .
+        num2 = 'T' && temp+2(2)  .
+      WHEN 30.
+        num2 = 'U' && temp+2(2)  .
+      WHEN 31 .
+        num2 = 'V' && temp+2(2)  .
+      WHEN 32 .
+        num2 = 'W' && temp+2(2)  .
+      WHEN 33.
+        num2 = 'X' && temp+2(2)  .
+      WHEN 34 .
+        num2 = 'Y' && temp+2(2)  .
+      WHEN 35.
+        num2 = 'Z' && temp+2(2)  .
+      WHEN OTHERS.
+        num2  = temp+1(3).
+    ENDCASE.
+    pspnr = |{ werks_bs }{ num2 }|.
+  ELSE.
+    pspnr = ''.
+  ENDIF.
+ENDFUNCTION.
